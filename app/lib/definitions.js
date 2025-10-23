@@ -97165,6 +97165,7 @@ exports.hexa.UPGRADES_TIER_3 = [
   exports.combine,
   exports.randombullshit,
 ];
+exports.randbullshit.UPGRADES_TIER_3 = [];
 exports.octo.UPGRADES_TIER_4 = [exports.semiauto];
 exports.auto3.UPGRADES_TIER_3 = [
   exports.auto5,
