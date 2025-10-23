@@ -32998,6 +32998,7 @@ exports.mini = {
     },
   ],
 };
+exports.automini = makeAuto(exports.mini);
 exports.vulture = {
   PARENT: [exports.genericTank],
   LABEL: "Vulture",
