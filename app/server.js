@@ -21568,10 +21568,8 @@ var maintainloop = (() => {
     if (
       ran.chance(
         0.5 -
-          (3.5 * census.thrasher * c.ENEMY_INTENSITY.THRASHERS) /
-            room.maxFood /
-            room.nestFoodAmount /
-            (c.playerCount * 2.5 + 2.5) * 20
+          (3.5 * census.thrasher * c.ENEMY_INTENSITY.THRASHERS) *
+            (c.playerCount * 2.5 + 2.5)
       )
     ) {
       let spot,
