@@ -95370,23 +95370,22 @@ exports.teraRebel = {
     },
   ],
 };
+exports.hexturret = {
+  PARENT: [exports.hexa],
+  COLOR: 5,
+  INDEPENDENT: true,
+  CONTROLLERS: ["alwaysFire"],
+  SPIN_RATE: -0.02,
+};
 exports.randombullshit = {
-  PARENT: [exports.basic],
-  LABEL: "eeee",
+  PARENT: [exports.hexa],
+  LABEL: "hexaception",
   DANGER: 7,
-  GUNS: [
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [10, 9, -0.5, 9, 0, 0, 0],
-    },
-    {
-      POSITION: [17, 9, 1, 0, 0, 0, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.pound,]),
-        TYPE: exports.bullet,
-        STAT_CALCULATOR: gunCalcNames.sustained,
+  TURRETS: [
+      {
+        POSITION: [8.5, 0, 0, 30, 360, 1],
+        TYPE: exports.hexaturret,
       },
-    },
   ],
 };
 // UPGRADE PATHS
@@ -95578,15 +95577,19 @@ exports.kristanks.UPGRADES_TIER_1 = [
   exports.Dad,
   exports.shulker,
   exports.wilder,
+  
   exports.Seraphim,
   exports.hollow,
   exports.manipulator,
+  
   exports.auraDirector,
   exports.tritri,
   exports.breeze,
+  
   exports.boosttrap,
   exports.tyrant,
   exports.resister,
+  
   exports.kristanks2,
 ];
 exports.krisheals.UPGRADES_TIER_1 = [
@@ -95628,15 +95631,19 @@ exports.kristanks2.UPGRADES_TIER_1 = [
   exports.helpme,
   exports.Palisade,
   exports.dronetest,
+  
   exports.mechanister,
   exports.turretParagon,
   exports.ogburster,
+  
   exports.ognecrotyrant,
   exports.hexaswarm,
   exports.hivemind,
+  
   exports.creation,
   exports.miniselene,
   exports.warship,
+  
   exports.kristanks3,  
 
 ];
@@ -95647,6 +95654,7 @@ exports.kristanks3.UPGRADES_TIER_1 = [
   exports.hyperSkimmer,
   exports.testerSkimmer,
   exports.testersphere,
+  exoports.randombulshit,
   exports.kristanks4,
 ];
 exports.krisbosses1.UPGRADES_TIER_1 = [
