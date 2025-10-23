@@ -6976,7 +6976,7 @@ class Entity {
         this.skill.str = c.playerCount / 2.5 + 3;
         this.skill.spd = c.playerCount / 10 + 2;
       }
-      if (this.label === "Elder") {
+      if (this.label === "Abdul") {
         this.damage = 2 + c.playerCount / 2;
         this.skill.dam = c.playerCount / 10 + 3;
         this.skill.pen = c.playerCount / 6 + 3;
@@ -21571,8 +21571,8 @@ var maintainloop = (() => {
           (3.5 * census.thrasher * c.ENEMY_INTENSITY.THRASHERS) /
             room.maxFood /
             room.nestFoodAmount /
-            (c.playerCount * 2.5 + 2.5)
-      ) * 20
+            (c.playerCount * 2.5 + 2.5) * 20
+      )
     ) {
       let spot,
         i = 30;
