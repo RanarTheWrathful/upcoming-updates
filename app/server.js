@@ -12995,7 +12995,7 @@ console.log('Lore mode sequence advanced.');*/
           switch (this.deathSpawn) {
             case "elder":
               o.define(Class[this.deathSpawn]);
-              o.name = "elder";
+              o.name = "Abdul";
               o.noRestore = true;
               o.ignoreCollision = false;
               o.intangibility = true;
@@ -13003,7 +13003,7 @@ console.log('Lore mode sequence advanced.');*/
                 "A Horrific being has emerged from the portal..."
               );
               setTimeout(() => {
-                sockets.broadcast("elder: YOU SHALL BE DEVOURED!");
+                sockets.broadcast("Abdul: YOU SHALL BE DEVOURED!");
               }, 2500);
               break;
             case "weakHiveMind":
@@ -21567,8 +21567,7 @@ var maintainloop = (() => {
   let spawnThrasher = (census) => {
     if (
       ran.chance(
-        0.5 -
-          (3.5 * census.thrasher * c.ENEMY_INTENSITY.THRASHERS) *
+(3.5 * census.thrasher * c.ENEMY_INTENSITY.THRASHERS) *
             (c.playerCount * 2.5 + 2.5)
       )
     ) {
