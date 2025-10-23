@@ -1,7 +1,7 @@
 module.exports = 
 {    
   "gameSpeed": 1, 
-  "WIDTH": 8000,    
+  "WIDTH": 8000,     
   "HEIGHT": 8000,      
   "MODE": "ffa",
   "RANDOM_COLORS": false,
