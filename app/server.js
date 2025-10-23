@@ -21567,8 +21567,8 @@ var maintainloop = (() => {
   let spawnThrasher = (census) => {
     if (
       ran.chance(
-(3.5 * census.thrasher * c.ENEMY_INTENSITY.THRASHERS) *
-            (c.playerCount * 2.5 + 2.5)
+-1 * ((3.5 * census.thrasher * c.ENEMY_INTENSITY.THRASHERS) *
+            (c.playerCount * 2.5 + 2.5))
       )
     ) {
       let spot,
