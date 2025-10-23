@@ -95371,11 +95371,102 @@ exports.teraRebel = {
   ],
 };
 exports.hexturret = {
-  PARENT: [exports.hexa],
-  COLOR: 5,
+  PARENT: [exports.autoTurret],
   INDEPENDENT: true,
   CONTROLLERS: ["alwaysFire"],
   SPIN_RATE: -0.02,
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [21, 10, 1, 0, 0, 6/6*360, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.gunner,
+          g.power,
+          g.greaterStats,
+          g.superReload,
+          g.doubleReload,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [21, 10, 1, 0, 0, 1/6*360, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.gunner,
+          g.power,
+          g.greaterStats,
+          g.superReload,
+          g.doubleReload,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [21, 10, 1, 0, 0, 2/6*360, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.gunner,
+          g.power,
+          g.greaterStats,
+          g.superReload,
+          g.doubleReload,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [21, 10, 1, 0, 0, 3/6*360, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.gunner,
+          g.power,
+          g.greaterStats,
+          g.superReload,
+          g.doubleReload,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [21, 10, 1, 0, 0, 4/6*360, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.gunner,
+          g.power,
+          g.greaterStats,
+          g.superReload,
+          g.doubleReload,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [21, 10, 1, 0, 0, 5/6*360, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.gunner,
+          g.power,
+          g.greaterStats,
+          g.superReload,
+          g.doubleReload,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+  ],
 };
 exports.randombullshit = {
   PARENT: [exports.hexa],
