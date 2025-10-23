@@ -1,5 +1,5 @@
 module.exports = 
-{   
+{    
   "gameSpeed": 1, 
   "WIDTH": 8000,    
   "HEIGHT": 8000,      
