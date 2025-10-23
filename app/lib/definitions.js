@@ -95384,7 +95384,7 @@ exports.randombullshit = {
   TURRETS: [
       {
         POSITION: [8.5, 0, 0, 30, 360, 1],
-        TYPE: exports.hexaturret,
+        TYPE: exports.hexturret,
       },
   ],
 };
@@ -95654,7 +95654,7 @@ exports.kristanks3.UPGRADES_TIER_1 = [
   exports.hyperSkimmer,
   exports.testerSkimmer,
   exports.testersphere,
-  exports.randombullshit,
+  exoports.randombullshit,
   exports.kristanks4,
 ];
 exports.krisbosses1.UPGRADES_TIER_1 = [
