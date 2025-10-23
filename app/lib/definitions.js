@@ -97163,6 +97163,7 @@ exports.hexa.UPGRADES_TIER_3 = [
   exports.hexanomaly,
   exports.blizzard,
   exports.combine,
+  exports.randombullshit,
 ];
 exports.octo.UPGRADES_TIER_4 = [exports.semiauto];
 exports.auto3.UPGRADES_TIER_3 = [
