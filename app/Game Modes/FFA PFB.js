@@ -1,0 +1,35 @@
+module.exports = 
+{
+  "WIDTH": 4000,
+  "HEIGHT": 4000,
+  "MODE": "ffaPoly",
+  "RANDOM_COLORS": true,
+  "ALLOW_SERVER_END": true,
+"ROOM_SETUP": [
+["rock", "norm", "wall", "norm", "norm", "norm", "norm", "wall", "norm", "norm", "norm", "norm", "norm", "norm", "roid"],
+["norm", "norm", "norm", "norm", "wall", "norm", "rock", "norm", "roid", "wall", "norm", "wall", "wall", "norm", "norm"],
+["norm", "norm", "norm", "roid", "norm", "norm", "norm", "norm", "wall", "wall", "norm", "wall", "rock", "norm", "wall"],
+["wall", "norm", "wall", "norm", "norm", "wall", "wall", "norm", "norm", "norm", "norm", "wall", "norm", "norm", "norm"],
+["norm", "roid", "norm", "norm", "norm", "norm", "roid", "norm", "norm", "wall", "norm", "norm", "norm", "wall", "norm"],
+["wall", "norm", "norm", "rock", "norm", "nest", "wall", "nest", "wall", "nest", "norm", "roid", "wall", "norm", "wall"],
+["norm", "norm", "wall", "wall", "wall", "wall", "wall", "nest", "wall", "wall", "norm", "norm", "norm", "norm", "norm"],
+["wall", "norm", "roid", "norm", "norm", "nest", "nest", "nest", "nest", "nest", "norm", "wall", "rock", "norm", "wall"],
+["rock", "wall", "norm", "norm", "norm", "wall", "wall", "nest", "wall", "wall", "norm", "wall", "norm", "wall", "wall"],
+["norm", "norm", "norm", "wall", "norm", "nest", "wall", "nest", "wall", "nest", "norm", "norm", "norm", "norm", "roid"],
+["norm", "norm", "roid", "wall", "norm", "norm", "norm", "norm", "norm", "roid", "norm", "norm", "wall", "wall", "norm"],
+["norm", "wall", "wall", "norm", "norm", "wall", "norm", "norm", "wall", "norm", "norm", "roid", "norm", "wall", "norm"],
+["norm", "wall", "norm", "norm", "rock", "norm", "norm", "roid", "norm", "norm", "wall", "norm", "norm", "norm", "norm"],
+["norm", "norm", "norm", "wall", "norm", "wall", "wall", "wall", "norm", "norm", "norm", "wall", "norm", "norm", "roid"],
+["rock", "norm", "norm", "wall", "norm", "norm", "roid", "norm", "norm", "wall", "norm", "wall", "norm", "norm", "wall"]
+],
+  
+  "FOOD_AMOUNT": 0.5,
+  "BOTS": 5,
+  "TEAMS": "color",
+  "BOT_TEAMS": "color",
+  "POLY_ATTACK": true,
+  "SPAWN_FOOD": true,
+  "SPAWN_NEUTRAL_BOSSES": false,
+  "SPAWN_CRASHER": false,
+  "SPAWN_SENTINEL": true,
+}

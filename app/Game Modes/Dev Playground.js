@@ -1,0 +1,35 @@
+module.exports =
+{
+  "WIDTH": 3000,
+  "HEIGHT": 3000,
+  "MODE": "devServer",
+"ROOM_SETUP": [ 
+["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+["wall", "norm", "norm", "norm", "norm", "norm", "wall", "bas1", "bas1", "bas1", "bas1", "bas1", "wall"],
+["wall", "tst0", "tst1", "tst2", "dom0", "norm", "wall", "bas1", "bas1", "bas1", "bas1", "bas1", "wall"],
+["wall", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "wall"],
+["wall", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "bas1", "wall"],
+["wall", "wall", "gte1", "wall", "wall", "wall", "gte1", "wall", "wall", "gte1", "wall", "wall", "wall"],
+["norm", "norm", "norm", "nest", "nest", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm"],
+["norm", "norm", "norm", "nest", "nest", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm"],
+["norm", "norm", "norm", "nest", "nest", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm"],
+["norm", "norm", "norm", "nest", "nest", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm"],
+["norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm"],
+["norm", "wall", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm"],
+["norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm"]
+],
+  
+  "FOOD_AMOUNT": 1,
+  "PLAYER_SPAWN_LOCATION": "bas",
+  "CONSIDER_PLAYER_TEAM_LOCATION": true,
+  "BOT_SPAWN_LOCATION": "nest",
+  "BOT_TEAMS": [2, 3, 4], 
+  "BASE_DRONES": true,
+  "SANCTUARIES": true,
+  "TEAMS": [1],
+  "SHINY_GLORY": true,
+  "SPAWN_FOOD": false,
+  "SPAWN_NEUTRAL_BOSSES": false,
+  "SPAWN_CRASHER": false,
+  "SPAWN_SENTINEL": false,
+}
