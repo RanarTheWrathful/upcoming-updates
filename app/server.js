@@ -21572,7 +21572,7 @@ var maintainloop = (() => {
             room.maxFood /
             room.nestFoodAmount /
             (c.playerCount * 2.5 + 2.5)
-      )
+      ) * 20
     ) {
       let spot,
         i = 30;
