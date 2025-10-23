@@ -218,7 +218,7 @@ let t1B = [
   "fallenanni",
   "fallenflankguard",
   "fallenfalcon",
-  "abdul",
+  "elder",
   "Pawn",
   "oblivion",
 ]; //yipeeeeee
@@ -2247,7 +2247,7 @@ function makeEventBosses() {
       o.define(Class.voidportal);
       switch (c.bossStage) {
         case 0:
-          o.deathSpawn = "abdul";
+          o.deathSpawn = "elder";
           break;
         case 1:
           o.deathSpawn = "weakHiveMind";
@@ -7539,16 +7539,16 @@ class Entity {
                       o.define(Class.nulltype);
                       break;*/
                         case 3:
-                          o.define(Class.abdul);
+                          o.define(Class.elder);
                           break;
                         case 4:
-                          o.define(Class.abdul);
+                          o.define(Class.elder);
                           break;
                         case 5:
-                          o.define(Class.abdul);
+                          o.define(Class.elder);
                           break;
                         case 6:
-                          o.define(Class.abdul);
+                          o.define(Class.elder);
                           break;
                         /* case 7:
                       o.define(Class.amalgam);
@@ -7853,7 +7853,7 @@ class Entity {
                           o.define(Class.elder);
                           break;
                         case 6:
-                          o.define(Class.abdul);
+                          o.define(Class.elder);
                           break;
                         case 7:
                         case 8:
@@ -12993,9 +12993,9 @@ console.log('Lore mode sequence advanced.');*/
           o.team = -4;
           o.impervious = true;
           switch (this.deathSpawn) {
-            case "abdul":
+            case "elder":
               o.define(Class[this.deathSpawn]);
-              o.name = "Abdul";
+              o.name = "elder";
               o.noRestore = true;
               o.ignoreCollision = false;
               o.intangibility = true;
@@ -13003,7 +13003,7 @@ console.log('Lore mode sequence advanced.');*/
                 "A Horrific being has emerged from the portal..."
               );
               setTimeout(() => {
-                sockets.broadcast("Abdul: YOU SHALL BE DEVOURED!");
+                sockets.broadcast("elder: YOU SHALL BE DEVOURED!");
               }, 2500);
               break;
             case "weakHiveMind":
@@ -14039,7 +14039,7 @@ console.log('Lore mode sequence advanced.');*/
                     "hardshellanomaly",
                     "aokaol",
                     "amalgam",
-                    "abdul",
+                    "elder",
                     "hiveMind",
                     "nulltype",
                     "abyssalTetraCrasher",
@@ -14071,7 +14071,7 @@ console.log('Lore mode sequence advanced.');*/
                     "voidCaller",
                     "hardshellanomaly",
                     "amalgam",
-                    "abdul",
+                    "elder",
                     "hiveMind",
                     "nulltype",
                     "abyssalTetraCrasher",
@@ -21614,7 +21614,7 @@ var maintainloop = (() => {
         o.define(Class[ran.choose(["anomaly"])]);
       }
       if (o.rarity <= 1 && o.rarity > 0.01) {
-        o.define(Class[ran.choose([/*/"abdul",/*/ "AlfabuildMechab"])]);
+        o.define(Class[ran.choose([/*/"elder",/*/ "AlfabuildMechab"])]);
       }
       if (o.rarity <= 0.01) {
         o.define(
@@ -21665,7 +21665,7 @@ var maintainloop = (() => {
         o.define(Class[ran.choose(["Lunger"])]);
       }
       if (o.rarity <= 1 && o.rarity > 0.01) {
-        o.define(Class[ran.choose([/*/"abdul",/*/ "acoa"])]);
+        o.define(Class[ran.choose([/*/"elder",/*/ "acoa"])]);
       }
       if (o.rarity <= 0.01) {
         o.define(
@@ -21780,7 +21780,7 @@ var maintainloop = (() => {
         o.define(
           Class[
             ran.choose([
-              "abdul",
+              "elder",
               "abundul",
               "lessereldurk",
               "hiveMind",
@@ -21808,7 +21808,7 @@ var maintainloop = (() => {
       }
       if (o.rarity <= 1 && o.rarity > 0.01) {
         o.define(
-          Class[ran.choose([/*/"abdul",/*/ "amalgam", "elderHiveMind"])]
+          Class[ran.choose([/*/"elder",/*/ "amalgam", "elderHiveMind"])]
         );
       }
       if (o.rarity <= 0.01) {
