@@ -95373,12 +95373,13 @@ exports.teraRebel = {
 exports.hexturret = {
   PARENT: [exports.autoTurret],
   INDEPENDENT: true,
+  FACING_TYPE: "autospin",
   CONTROLLERS: ["alwaysFire"],
   SPIN_RATE: -0.02,
   GUNS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [21, 10, 1, 0, 0, 6/6*360, 0],
+      POSITION: [21, 10, 1, 0, 0, 6/6*360, 0.5],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.basic,
@@ -95408,7 +95409,7 @@ exports.hexturret = {
     },
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [21, 10, 1, 0, 0, 2/6*360, 0],
+      POSITION: [21, 10, 1, 0, 0, 2/6*360, 0.5],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.basic,
@@ -95438,7 +95439,7 @@ exports.hexturret = {
     },
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [21, 10, 1, 0, 0, 4/6*360, 0],
+      POSITION: [21, 10, 1, 0, 0, 4/6*360, 0.5],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.basic,
@@ -95474,7 +95475,7 @@ exports.randombullshit = {
   DANGER: 7,
   TURRETS: [
       {
-        POSITION: [8.5, 0, 0, 30, 360, 1],
+        POSITION: [8.5, 0, 0, 0, 360, 1],
         TYPE: exports.hexturret,
       },
   ],
