@@ -95654,7 +95654,7 @@ exports.kristanks3.UPGRADES_TIER_1 = [
   exports.hyperSkimmer,
   exports.testerSkimmer,
   exports.testersphere,
-  exoports.randombulshit,
+  exoports.randombullshit,
   exports.kristanks4,
 ];
 exports.krisbosses1.UPGRADES_TIER_1 = [
