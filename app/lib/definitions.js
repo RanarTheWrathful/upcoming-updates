@@ -96995,6 +96995,7 @@ exports.mini.UPGRADES_TIER_3 = [
   exports.vulture,
   exports.gust,
   exports.megagun,
+  exports.automini,
 ];
 exports.flank.UPGRADES_TIER_2 = [
   exports.hexa,
