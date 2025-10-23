@@ -79295,7 +79295,7 @@ exports.cxShrine = {
     DAMAGE: 5,
     SHIELD: 200,
     PUSHABILITY: 0,
-    ACCELERATION: 0.1,
+    ACCELERATION: 0,
     SPEED: 0,
   },
   SKILL: skillSet({
