@@ -18997,6 +18997,7 @@ if (n.repairEffect || my.repairEffect) {
   }
 }
                 }
+              }
               if (my.connectedDamage) {
                 my.master.damageRecieved =
                   my.damageRecieved * (my.damageMultiple * 7.5);
