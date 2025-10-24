@@ -16327,6 +16327,33 @@ const sockets = (() => {
                         player.body.skill.points += 10;
                       }
                     }
+                    
+                    /*if (player.body.team === -1 || c.MODE === "siege") {
+                      if (
+                        player.body.label === "Ordnance" ||
+                        player.body.label === "Auto-Tri-Angle" ||
+                        player.body.label === "Surfer" ||
+                        player.body.label === "Booster"
+                      ) {
+                        player.body.upgrades = [];
+                        sockets.broadcast(
+                          dude +
+                            ": It appears it's time to tyrannize some neutral troops."
+                        );
+
+                        player.body.define(Class.tyrant);
+                        player.body.maxChildren = 0;
+                        player.body.intangibility = false;
+                        player.body.invisible = [100, 0];
+                        player.body.alpha = 100;
+                        player.body.ignoreCollision = false;
+                        player.body.skill.setCaps([
+                          9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+                        ]);
+
+                        player.body.skill.points += 10;
+                      }//saving this incase.
+                    }*/
 
                     if (player.body.team === -2 || c.MODE === "siege") {
                       if (
