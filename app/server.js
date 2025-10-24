@@ -19000,11 +19000,9 @@ if (n.repairEffect || my.repairEffect) {
     if ((n.type === "atmosphere" && my.isProjectile) ||
         ((my.healEffect || my.repairEffect) && my.team === n.team)) return;
     my.damageRecieved += damage._n * deathFactor._n;
-    else {
     if ((my.type === "atmosphere" && n.isProjectile) ||
         ((n.healEffect || n.repairEffect) && n.team === my.team)) return;
     n.damageRecieved += damage._me * deathFactor._me;
-  }
                 }
               }
               if (my.connectedDamage) {
