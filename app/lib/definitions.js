@@ -47206,6 +47206,78 @@ exports.eliteSprayerTurret = {
     },
   ],
 };
+exports.eliteMiniTurret = {
+  PARENT: [exports.auto3Turret, exports.basic],
+  COLOR: 5,
+  BODY: { FOV: 2.5 },
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [22, 8, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, g.lesserDamage]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [20, 8, 1, 0, 0, 0, 0.333],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, g.lesserDamage]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [18, 8, 1, 0, 0, 0, 0.667],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, g.lesserDamage]),
+        TYPE: exports.bullet,
+      },
+    },
+  ],
+};
+exports.eliteStreamTurret = {
+  PARENT: [exports.auto3Turret, exports.basic],
+  COLOR: 5,
+  BODY: { FOV: 2.5 },
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [26, 8, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [24, 8, 1, 0, 0, 0, 0.2],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [22, 8, 1, 0, 0, 0, 0.4],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [20, 8, 1, 0, 0, 0, 0.6],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [18, 8, 1, 0, 0, 0, 0.8],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        TYPE: exports.bullet,
+      },
+    },
+  ],
+};
 exports.eliteBasicTurret = {
   PARENT: [exports.auto3Turret, exports.basic],
   COLOR: 5,
@@ -57559,6 +57631,42 @@ exports.elite_sprayer = {
     {
       POSITION: [9, 6, -6, -60, 100, 0],
       TYPE: [exports.eliteSprayerTurret],
+    },
+  ],
+};
+exports.elite_streamliner = {
+  PARENT: [exports.neutralRangedBoss, exports.elite],
+  LABEL: "Elite Streamliner",
+  TURRETS: [
+    {
+      POSITION: [6, 0, 0, 30, 360, 1],
+      TYPE: exports.eliteStreamTurret,
+    },
+
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 6, 6, 180, 100, 0],
+      TYPE: [exports.eliteMiniTurret],
+    },
+    {
+      POSITION: [9, 6, 6, 60, 100, 0],
+      TYPE: [exports.eliteMiniTurret],
+    },
+    {
+      POSITION: [9, 6, 6, -60, 100, 0],
+      TYPE: [exports.eliteMiniTurret],
+    },
+    {
+      POSITION: [9, 6, -6, 180, 100, 0],
+      TYPE: [exports.eliteMiniTurret],
+    },
+    {
+      POSITION: [9, 6, -6, 60, 100, 0],
+      TYPE: [exports.eliteMiniTurret],
+    },
+    {
+      POSITION: [9, 6, -6, -60, 100, 0],
+      TYPE: [exports.eliteMiniTurret],
     },
   ],
 };
@@ -95769,13 +95877,17 @@ exports.krisbosses2.UPGRADES_TIER_1 = [
   exports.oblivion,
   exports.Napoleon,
   exports.julius,
+  
   exports.celestialCrasher,
   exports.legionaryNester,
   exports.hera,
+  
   exports.bacteria,
   exports.voidCaller,
   exports.rogue_skimmer,
+  
   exports.elite_warship,
+  exports.elite_Streamliner,
   exports.krispage,
 ];
 exports.kristanks4.UPGRADES_TIER_1 = [
