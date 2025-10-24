@@ -18931,7 +18931,6 @@ var gameloop = (() => {
               // no.
 
               if (my.master !== n.master) {
-                if (n.team === my.team) {
                 // ======== HEAL EFFECT ========
 if (n.healEffect || my.healEffect) {
   // Determine who’s the healer
@@ -18996,7 +18995,13 @@ if (n.repairEffect || my.repairEffect) {
     }
   }
 // --- DEFAULT DAMAGE ---
-  } else {
+  } else if (
+                  n.team === -101 &&
+                  my.type === "tank" &&
+                  my.ignoreCollision
+                )
+                  my.damageRecieved += my.health.max / 350; 
+else {
     if ((n.type === "atmosphere" && my.isProjectile) ||
         ((my.healEffect || my.repairEffect) && my.team === n.team)) return;
     my.damageRecieved += damage._n * deathFactor._n;
@@ -19005,7 +19010,7 @@ if (n.repairEffect || my.repairEffect) {
     n.damageRecieved += damage._me * deathFactor._me;
                 }
               }
-              }
+              
               if (my.connectedDamage) {
                 my.master.damageRecieved =
                   my.damageRecieved * (my.damageMultiple * 7.5);
