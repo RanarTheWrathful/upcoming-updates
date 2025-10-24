@@ -57637,7 +57637,6 @@ exports.elite_sprayer = {
 exports.elite_streamliner = {
   PARENT: [exports.neutralRangedBoss, exports.elite],
   LABEL: "Elite Streamliner",
-  SIZE: 28.5,
   TURRETS: [
     {
       POSITION: [12, 0, 0, 30, 360, 1],
