@@ -5207,6 +5207,7 @@ exports.trioCollident = {
          };
 exports.driveCollident = {
   PARENT: [exports.dualCollident],
+    ALPHA: 0.075,
   TURRETS: [
     {
       /** SIZE     X       Y     ANGLE    ARC */
