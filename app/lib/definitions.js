@@ -28120,6 +28120,7 @@ exports.Dad = {
 
 exports.healersphere = {
   PARENT: [exports.smash],
+  RESET_UPGRADES: true,
   LABEL: "Healersphere",
   HEAL_EFFECT: true,
   TURRETS: [
@@ -28235,6 +28236,7 @@ exports.healersphere = {
 exports.truehealersphere = {
   PARENT: [exports.healersphere],
   LABEL: "True Healersphere",
+  RESET_UPGRADES: true,
   TURRETS: [
     {
       /** SIZE     X       Y     ANGLE    ARC */
@@ -97847,7 +97849,7 @@ exports.repairsphere.UPGRADES_TIER_4 = [exports.irradiator, exports.supportspher
 exports.supportsphere.UPGRADES_TIER_5 = [exports.mettasphere];
 exports.irradiator.UPGRADES_TIER_6 = [exports.mettasphere];
 exports.dualist.UPGRADES_TIER_6 = [exports.mettasphere];
-
+exports.autosmashdupe.UPGRADES_TIER_7 = [exports.smashdupedrive];
 //Onset Classes
 exports.Onset.UPGRADES_TIER_1 = [
   exports.Tent,
