@@ -5929,6 +5929,9 @@ class Entity {
           case "Shotgun":
           case "Decimator":
           case "Twister":
+        /*case "Ordnance":
+          case "Auto-Tri-Angle":
+          case "Booster":*/
             this.sendMessage(
               "When 1 Million score is achieved, you may use the '~' button(or ??? button) to transform!"
             );
@@ -5939,6 +5942,9 @@ class Entity {
           case "Destructionist":
             this.sendMessage("You: Time to destroy thy enemies!");
             break;
+       /* case "Tyrant":
+            this.sendMessage("You: An arena like this needs a Tyrant to rule it.");
+            break;*/
         }
       }
       if (this.team === -2 || c.MODE === "siege") {
@@ -12151,6 +12157,14 @@ class Entity {
               "You have unlocked the legendary class, Destructionist. Press '~' to become it!"
             );
             break;
+      /*case "Surfer":
+          case "Auto-Tri-Angle":
+          case "Ordnance":
+          case "Booster":
+            this.sendMessage(
+              "You have unlocked the legendary class, Destructionist. Press '~' to become it!"
+            );
+            break;*/
         }
       }
       if (this.team === -2 || c.MODE === "siege") {
