@@ -47222,14 +47222,14 @@ exports.eliteMiniTurret = {
     {
       POSITION: [20, 8, 1, 0, 0, 0, 0.333],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, ),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, ]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [18, 8, 1, 0, 0, 0, 0.667],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, ),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, ]),
         TYPE: exports.bullet,
       },
     },
