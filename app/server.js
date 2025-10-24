@@ -18943,13 +18943,14 @@ if (n.healEffect || my.healEffect) {
     if (target.team === healer.team) {
     if (!healed) {
       if (!target.isProjectile) healer.factor = -1;
-      if (target.isBoss) healer.factor /= 10;
+      if (target.isBoss) healer.factor /= 5;
       if (target.isDominator) healer.factor /= 25;
+        if (!healer.isProjectile) healer.factor /= 10;
         }
     }
     else {
       if (target.team === -2||target.team === -4) healer.factor = 1.34;
-      else healer.factor = 1;
+      else healer.factor = 0.5;
     }
 }
 
@@ -18962,22 +18963,22 @@ if (n.repairEffect || my.repairEffect) {
       if (!repaired) {
       if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") repairer.factor = -1;
       if (target.isDominator) repairer.factor = -5;
+      if (!repairer.isProjectile) repairer.factor /= 25;
         }
     }
     else {
       if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") repairer.factor = 1;
       if (target.isDominator) repairer.factor = 5;
       if (target.team === -3) repairer.factor = 1.34;
-      else repairer.factor = 1;
+      else repairer.factor = 0.5;
         
     // Non-projectile enemies → damage shields only
    if (!target.isProjectile) {
-      let shieldDamage = Math.min(target.shield.amount, damage._n * deathFactor._n);
-      target.shield.amount -= shieldDamage;
+      if (repairer.isProjectile) target.shield.amount -= target.shield.max/10;
+      else target.shield.amount -= target.shield.max/100;
     }
     }
   
-      if (!repairer.isProjectile) repairer.factor /= 25;
   } else if (
                   n.team === -101 &&
                   my.type === "tank" &&
