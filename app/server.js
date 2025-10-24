@@ -18988,219 +18988,177 @@ var gameloop = (() => {
                 }
               }
               if (my.disableDamage !== true) {
-                if (n.healEffect) {
-                  //console.log("Be healed!");
-                  let heal;
-                  if (my.team === -4 && n.team !== -4) heal = 1.5;
-                  else if (my.team === -2 && n.team !== -2) heal = 1.25;
-                  else if (my.team === n.team) heal = -1;
-                  else {
-                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !n.isProjectile) heal /= 4;
-                  if (
-                    ((my.health.amount < my.health.max ||
-                      my.shield.amount < my.shield.max) &&
-                      n.team === my.team) ||
-                    n.team !== my.team
-                  ) {
-                    if (
-                      my.isEnemy ||
-                      my.isBoss ||
-                      my.isPlayer ||
-                      my.isBot || //now i am hung
-                      my.type === "food" ||
-                      (n.team !== my.team && !n.isProjectile)
-                    ) {
-                      if (my.type === "atmosphere" && n.isProjectile) return;
-                      //my.damageRecieved += damage._n * deathFactor._n*heal;
-                      if (my.health.amount < my.health.max) {
-                        my.health.amount -= damage._n * deathFactor._n * heal;
-                      } else my.shield.amount += my.shield.max / 3;
-                      if (n.team === my.team && n.isProjectile)
-                        n.damageRecieved += damage._me * deathFactor._me;
-                    }
-                  }
-                } else if (n.repairEffect) {
-                  //console.log("Be healed beech!");
-                  let heal;
-                  if (
-                    (my.team === -3 &&
-                      n.team !== -3 &&
-                      !my.isDominator &&
-                      !my.isWall &&
-                      !my.isGate) ||
-                    my.type === "food"
-                  )
-                    heal = 1.5;
-                  else if (
-                    n.team !== my.team &&
-                    (my.isDominator || my.isWall || my.isGate)
-                  )
-                    heal = 6;
-                  else if (
-                    n.team !== my.team &&
-                    (my.type === "trap" ||
-                      my.type === "drone" ||
-                      my.type === "minion")
-                  ) {
-                    heal = 1;
-                    } else if (my.team === n.team) heal = -1;
-                  else {
-                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
-                     else heal = 0;
-                  }
-                  if (heal < 0 && !n.isProjectile) heal /= 4;
-                  if (
-                    ((my.health.amount < my.health.max) ||
-                      (my.shield.amount < my.shield.max) &&
-                      n.team === my.team) ||
-                    n.team !== my.team && (
-                      my.isDominator ||
-                      my.isWall ||
-                      my.isGate ||
-                      my.type === "trap" ||
-                      my.type === "drone" ||
-                      my.type === "minion" ||
-                      my.type === "food" ||
-                      (my.team === -3) ||
-                      (!n.isProjectile)
-                    )) {
-                      if (my.type === "atmosphere" && n.isProjectile) return;
-                      // my.damageRecieved += damage._n * deathFactor._n*heal;
-                      if (my.shield.amount < my.shield.max) {
-                        my.shield.amount -= my.shield.max / 10;
-                      } else
-                        my.health.amount -=
-                          damage._n * deathFactor._n * (heal * 5);
-                      if (n.team === my.team && n.isProjectile)
-                        n.damageRecieved += damage._me * deathFactor._me;
-                    }
-                } else if (
-                  my.team === -101 &&
-                  n.type === "tank" &&
-                  n.ignoreCollision
-                )
-                  n.damageRecieved += n.health.max / 350;
-                else {
-                  if (
-                    (n.type === "atmosphere" && my.isProjectile) ||
-                    ((my.healEffect || my.repairEffect) && my.team === n.team)
-                  )
-                    return;
-                  my.damageRecieved += damage._n * deathFactor._n;
-                }
-              }
-              if (n.disableDamage !== true) {
-                if (my.healEffect) {
-                  //console.log("Be healed!");
-                  let heal;
-                  if (n.team === -4 && my.team !== -4) heal = 1.5;
-                  if (n.team === -2 && my.team !== -2) heal = 1.25;
-                  else if (n.team === my.team) {
-                    // if (n.type === "atmosphere") heal = -0.5;
-                    heal = -1;
-                  } else {
-                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !my.isProjectile) heal /= 4;
-                  if (
-                    ((n.health.amount < n.health.max ||
-                      n.shield.amount < n.shield.max) &&
-                      my.team === n.team) ||
-                    my.team !== n.team
-                  ) {
-                    if (
-                      n.isEnemy ||
-                      n.isBoss ||
-                      n.isPlayer ||
-                      n.isBot ||
-                      n.type === "food" ||
-                      (n.team !== my.team && !my.isProjectile)
-                    ) {
-                      if (n.type === "atmosphere" && my.isProjectile) return;
-                      // n.damageRecieved += damage._me * deathFactor._me*heal;
-                      if (n.health.amount < n.health.max) {
-                        n.health.amount -= damage._me * deathFactor._me * heal;
-                      } else n.shield.amount += n.shield.max / 3;
-                      if (my.team === n.team && my.isProjectile)
-                        my.damageRecieved += damage._n * deathFactor._n;
-                    }
-                  }
-                } else if (my.repairEffect) {
-                  //console.log("Be repaired!");
-                  let heal;
-                  if (
-                    (n.team === -3 &&
-                      my.team !== -3 &&
-                      !n.isProjectile &&
-                      !n.isDominator &&
-                      !n.isWall &&
-                      !n.isGate) ||
-                    n.type === "food"
-                  )
-                    heal = 1.5;
-                  else if (
-                    my.team !== n.team &&
-                    (n.isDominator || n.isWall || n.isGate)
-                  )
-                    heal = 6;
-                  else if (
-                    my.team !== n.team &&
-                    (n.type === "trap" ||
-                      n.type === "drone" ||
-                      n.type === "minion")
-                  ) {
-                    heal = 1;
-                  } else if (n.team === my.team) heal = -1;
-                  else {
-                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !my.isProjectile) heal /= 4;
-                  if (
-                    ((n.health.amount < n.health.max ||
-                      n.shield.amount < n.shield.max) &&
-                      my.team === n.team) ||
-                    my.team !== n.team && (
-                      n.isDominator ||
-                      n.isWall ||
-                      n.isGate ||
-                      n.type === "trap" ||
-                      n.type === "drone" ||
-                      n.type === "minion" ||
-                      n.type === "food" ||
-                      (n.team === -3) ||
-                      (!my.isProjectile)
-                    )) {
-                      if (n.type === "atmosphere" && my.isProjectile) return;
-                      //n.damageRecieved += damage._me * deathFactor._me*heal;
-                      if (n.shield.amount < n.shield.max) {
-                        n.shield.amount -= n.shield.max / 10;
-                      } else
-                        n.health.amount -=
-                          damage._me * deathFactor._me * (heal * 5);
-                      if (my.team === n.team && my.isProjectile)
-                        my.damageRecieved += damage._n * deathFactor._n;
-                    }
-                } else if (
-                  n.team === -101 &&
-                  my.type === "tank" &&
-                  my.ignoreCollision
-                )
-                  my.damageRecieved += my.health.max / 350;
-                else {
-                  if (
-                    (my.type === "atmosphere" && n.isProjectile) ||
-                    ((n.healEffect || n.repairEffect) && n.team === my.team)
-                  )
-                    return; //yes, if healing works properly. FANCY CODE JUMPSCARE
-                  n.damageRecieved += damage._me * deathFactor._me;
-                }
-              }
+  // --- HEAL EFFECT ---
+  if (n.healEffect) {
+    let heal = 0;
 
+    // Determine healing multiplier based on team relationships
+    if (my.team === -4 && n.team !== -4) heal = 1.5;
+    else if (my.team === -2 && n.team !== -2) heal = 1.25;
+    else if (my.team === n.team) heal = -1; // Heal allies
+    else if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
+    else heal = 0; // Otherwise no effect
+
+    // Reduce ally self-healing when not projectile
+    if (heal < 0 && !n.isProjectile) heal /= 4;
+
+    // Apply heal or damage depending on relation
+    if ((n.team === my.team && (my.health.amount < my.health.max || my.shield.amount < my.shield.max)) ||
+        n.team !== my.team) {
+
+      if (
+        my.isEnemy || my.isBoss || my.isPlayer || my.isBot ||
+        my.type === "food" ||
+        (n.team !== my.team && !n.isProjectile)
+      ) {
+        if (my.type === "atmosphere" && n.isProjectile) return;
+
+        // Apply healing or shield effect
+        if (my.health.amount < my.health.max)
+          my.health.amount -= damage._n * deathFactor._n * heal;
+        else
+          my.shield.amount = Math.min(my.shield.max, my.shield.amount + my.shield.max / 3);
+
+        // Handle feedback damage for projectiles
+        if (n.team === my.team && n.isProjectile)
+          n.damageRecieved += damage._me * deathFactor._me;
+      }
+    }
+
+  // --- REPAIR EFFECT ---
+  } else if (n.repairEffect) {
+    let heal = 0;
+
+    // Determine repair effect scaling
+    if ((my.team === -3 && n.team !== -3 && !my.isDominator && !my.isWall && !my.isGate) || my.type === "food")
+      heal = 1.5;
+    else if (n.team !== my.team && (my.isDominator || my.isWall || my.isGate))
+      heal = 6;
+    else if (n.team !== my.team && (my.type === "trap" || my.type === "drone" || my.type === "minion"))
+      heal = 1;
+    else if (my.team === n.team)
+      heal = -1;
+    else heal = 0;
+
+    if (heal < 0 && !n.isProjectile) heal /= 4;
+
+    // ✅ Restrict to allies or self — never affect enemy non-projectiles
+    if (n.team !== my.team && !n.isProjectile) return;
+
+    if ((n.team === my.team && (my.health.amount < my.health.max || my.shield.amount < my.shield.max))) {
+      if (
+        my.isDominator || my.isWall || my.isGate ||
+        my.type === "trap" || my.type === "drone" || my.type === "minion" || my.type === "food"
+      ) {
+        if (my.type === "atmosphere" && n.isProjectile) return;
+
+        // Repair shields first, then health
+        if (my.shield.amount < my.shield.max)
+          my.shield.amount += my.shield.max / 10;
+        else
+          my.health.amount -= damage._n * deathFactor._n * (heal * 5);
+
+        if (n.team === my.team && n.isProjectile)
+          n.damageRecieved += damage._me * deathFactor._me;
+      }
+    }
+
+  // --- SPECIALS ---
+  } else if (my.team === -101 && n.type === "tank" && n.ignoreCollision) {
+    n.damageRecieved += n.health.max / 350;
+
+  // --- DEFAULT DAMAGE ---
+  } else {
+    if ((n.type === "atmosphere" && my.isProjectile) ||
+        ((my.healEffect || my.repairEffect) && my.team === n.team))
+      return;
+
+    my.damageRecieved += damage._n * deathFactor._n;
+  }
+}
+
+if (n.disableDamage !== true) {
+  // --- HEAL EFFECT ---
+  if (my.healEffect) {
+    let heal = 0;
+
+    if (n.team === -4 && my.team !== -4) heal = 1.5;
+    else if (n.team === -2 && my.team !== -2) heal = 1.25;
+    else if (n.team === my.team) heal = -1;
+    else if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
+    else heal = 0;
+
+    if (heal < 0 && !my.isProjectile) heal /= 4;
+
+    if ((my.team === n.team && (n.health.amount < n.health.max || n.shield.amount < n.shield.max)) ||
+        my.team !== n.team) {
+
+      if (
+        n.isEnemy || n.isBoss || n.isPlayer || n.isBot ||
+        n.type === "food" ||
+        (n.team !== my.team && !my.isProjectile)
+      ) {
+        if (n.type === "atmosphere" && my.isProjectile) return;
+
+        if (n.health.amount < n.health.max)
+          n.health.amount -= damage._me * deathFactor._me * heal;
+        else
+          n.shield.amount = Math.min(n.shield.max, n.shield.amount + n.shield.max / 3);
+
+        if (my.team === n.team && my.isProjectile)
+          my.damageRecieved += damage._n * deathFactor._n;
+      }
+    }
+
+  // --- REPAIR EFFECT ---
+  } else if (my.repairEffect) {
+    let heal = 0;
+
+    if ((n.team === -3 && my.team !== -3 && !n.isProjectile && !n.isDominator && !n.isWall && !n.isGate) || n.type === "food")
+      heal = 1.5;
+    else if (my.team !== n.team && (n.isDominator || n.isWall || n.isGate))
+      heal = 6;
+    else if (my.team !== n.team && (n.type === "trap" || n.type === "drone" || n.type === "minion"))
+      heal = 1;
+    else if (n.team === my.team)
+      heal = -1;
+    else heal = 0;
+
+    if (heal < 0 && !my.isProjectile) heal /= 4;
+
+    // ✅ No repair on enemies unless projectile
+    if (my.team !== n.team && !my.isProjectile) return;
+
+    if (my.team === n.team && (n.health.amount < n.health.max || n.shield.amount < n.shield.max)) {
+      if (
+        n.isDominator || n.isWall || n.isGate ||
+        n.type === "trap" || n.type === "drone" || n.type === "minion" || n.type === "food"
+      ) {
+        if (n.type === "atmosphere" && my.isProjectile) return;
+
+        if (n.shield.amount < n.shield.max)
+          n.shield.amount += n.shield.max / 10;
+        else
+          n.health.amount -= damage._me * deathFactor._me * (heal * 5);
+
+        if (my.team === n.team && my.isProjectile)
+          my.damageRecieved += damage._n * deathFactor._n;
+      }
+    }
+
+  // --- SPECIAL ---
+  } else if (n.team === -101 && my.type === "tank" && my.ignoreCollision) {
+    my.damageRecieved += my.health.max / 350;
+
+  // --- DEFAULT DAMAGE ---
+  } else {
+    if ((my.type === "atmosphere" && n.isProjectile) ||
+        ((n.healEffect || n.repairEffect) && n.team === my.team))
+      return;
+
+    n.damageRecieved += damage._me * deathFactor._me;
+  }
+}
               if (my.connectedDamage) {
                 my.master.damageRecieved =
                   my.damageRecieved * (my.damageMultiple * 7.5);
