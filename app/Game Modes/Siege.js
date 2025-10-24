@@ -20,7 +20,7 @@ module.exports =
 ["spw0", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "spw0"],
 ["spw0", "spw0", "spw0", "spw0", "spw0", "spw0", "spw0", "spw0", "spw0", "spw0", "spw0", "spw0", "spw0"],
     ],
-  "BOTS": 7,
+  "BOTS": 4,
   "PLAYER_SPAWN_LOCATION": "dom",
   "CONSIDER_PLAYER_TEAM_LOCATION": true,
   "TEAMS": [1],
