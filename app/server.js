@@ -18971,7 +18971,7 @@ if (n.repairEffect || my.repairEffect) {
       else factor = 1;
         
     // Non-projectile enemies → damage shields only
-    else if (!target.isProjectile) {
+   if (!target.isProjectile) {
       let shieldDamage = Math.min(target.shield.amount, damage._n * deathFactor._n);
       target.shield.amount -= shieldDamage;
     }
