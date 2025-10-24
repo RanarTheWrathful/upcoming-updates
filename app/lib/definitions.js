@@ -57639,7 +57639,7 @@ exports.elite_streamliner = {
   LABEL: "Elite Streamliner",
   TURRETS: [
     {
-      POSITION: [12, 0, 0, 30, 360, 1],
+      POSITION: [10, 0, 0, 30, 360, 1],
       TYPE: exports.eliteStreamTurret,
     },
 
