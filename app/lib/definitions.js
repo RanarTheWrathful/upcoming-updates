@@ -47215,21 +47215,21 @@ exports.eliteMiniTurret = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [22, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, ]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [20, 8, 1, 0, 0, 0, 0.333],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, ),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [18, 8, 1, 0, 0, 0, 0.667],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.lesserHealth, ),
         TYPE: exports.bullet,
       },
     },
@@ -47244,35 +47244,35 @@ exports.eliteStreamTurret = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [26, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream,]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [24, 8, 1, 0, 0, 0, 0.2],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, ]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [22, 8, 1, 0, 0, 0, 0.4],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream,]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [20, 8, 1, 0, 0, 0, 0.6],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, ]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [18, 8, 1, 0, 0, 0, 0.8],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.mini, g.stream,]),
         TYPE: exports.bullet,
       },
     },
@@ -57637,35 +57637,36 @@ exports.elite_sprayer = {
 exports.elite_streamliner = {
   PARENT: [exports.neutralRangedBoss, exports.elite],
   LABEL: "Elite Streamliner",
+  SIZE: 28.5,
   TURRETS: [
     {
-      POSITION: [6, 0, 0, 30, 360, 1],
+      POSITION: [12, 0, 0, 30, 360, 1],
       TYPE: exports.eliteStreamTurret,
     },
 
     {
       /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [9, 6, 6, 180, 100, 0],
+      POSITION: [10, 6, 6, 180, 100, 0],
       TYPE: [exports.eliteMiniTurret],
     },
     {
-      POSITION: [9, 6, 6, 60, 100, 0],
+      POSITION: [10, 6, 6, 60, 100, 0],
       TYPE: [exports.eliteMiniTurret],
     },
     {
-      POSITION: [9, 6, 6, -60, 100, 0],
+      POSITION: [10, 6, 6, -60, 100, 0],
       TYPE: [exports.eliteMiniTurret],
     },
     {
-      POSITION: [9, 6, -6, 180, 100, 0],
+      POSITION: [10, 6, -6, 180, 100, 0],
       TYPE: [exports.eliteMiniTurret],
     },
     {
-      POSITION: [9, 6, -6, 60, 100, 0],
+      POSITION: [10, 6, -6, 60, 100, 0],
       TYPE: [exports.eliteMiniTurret],
     },
     {
-      POSITION: [9, 6, -6, -60, 100, 0],
+      POSITION: [10, 6, -6, -60, 100, 0],
       TYPE: [exports.eliteMiniTurret],
     },
   ],
