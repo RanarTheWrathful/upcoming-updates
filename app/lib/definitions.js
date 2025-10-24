@@ -95887,7 +95887,7 @@ exports.krisbosses2.UPGRADES_TIER_1 = [
   exports.rogue_skimmer,
   
   exports.elite_warship,
-  exports.elite_Streamliner,
+  exports.elite_streamliner,
   exports.krispage,
 ];
 exports.kristanks4.UPGRADES_TIER_1 = [
