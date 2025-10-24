@@ -19070,7 +19070,7 @@ var gameloop = (() => {
                       if (my.type === "atmosphere" && n.isProjectile) return;
                       // my.damageRecieved += damage._n * deathFactor._n*heal;
                       if (my.shield.amount < my.shield.max) {
-                        my.shield.amount += my.shield.max / 10;
+                        my.shield.amount -= my.shield.max / 10;
                       } else
                         my.health.amount -=
                           damage._n * deathFactor._n * (heal * 5);
@@ -19178,7 +19178,7 @@ var gameloop = (() => {
                       if (n.type === "atmosphere" && my.isProjectile) return;
                       //n.damageRecieved += damage._me * deathFactor._me*heal;
                       if (n.shield.amount < n.shield.max) {
-                        n.shield.amount += n.shield.max / 10;
+                        n.shield.amount -= n.shield.max / 10;
                       } else
                         n.health.amount -=
                           damage._me * deathFactor._me * (heal * 5);
