@@ -18941,14 +18941,14 @@ if (n.healEffect || my.healEffect) {
   let healed = target.health.amount >= target.health.max;
     if (target.team === healer.team) {
     if (!healed) {
-      if (!target.isProjectile) factor = -1;
-      if (target.isBoss) factor /= 10;
-      if (target.isDominator) factor /= 25;
+      if (!target.isProjectile) healer.factor = -1;
+      if (target.isBoss) healer.factor /= 10;
+      if (target.isDominator) healer.factor /= 25;
         }
     }
     else {
       if (target.team === -2||target.team === -4) factor = 1.34;
-      else factor = 1;
+      else healer.factor = 1;
     }
 }
 
@@ -18956,18 +18956,17 @@ if (n.healEffect || my.healEffect) {
 if (n.repairEffect || my.repairEffect) {
   let repairer = n.repairEffect ? n : my;
   let target = n.repairEffect ? my : n;
-  factor = 0;
   let repaired = target.health.amount >= target.health.max;
     if (target.team === repairer.team) {
       if (!repaired) {
-      if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") factor = -1;
-      if (target.isDominator) factor = -5;
+      if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") repairer.factor = -1;
+      if (target.isDominator) repairer.factor = -5;
         }
     }
     else {
-      if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") factor = 1;
-      if (target.isDominator) factor = 5;
-      if (target.team === -3) factor = 1.34;
+      if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") repairer.factor = 1;
+      if (target.isDominator) repairer.factor = 5;
+      if (target.team === -3) repairer.factor = 1.34;
       else factor = 1;
         
     // Non-projectile enemies → damage shields only
@@ -18988,8 +18987,8 @@ if (n.repairEffect || my.repairEffect) {
         ((my.healEffect || my.repairEffect) && my.team === n.team)) return;
     if ((my.type === "atmosphere" && n.isProjectile) ||
         ((n.healEffect || n.repairEffect) && n.team === my.team)) return;
-    my.damageRecieved += (damage._n * deathFactor._n) * factor;
-    n.damageRecieved += (damage._me * deathFactor._me) * factor;
+    my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
+    n.damageRecieved += (damage._me * deathFactor._me) * my.factor;
               }
           
               if (my.connectedDamage) {
