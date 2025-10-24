@@ -19174,7 +19174,7 @@ var gameloop = (() => {
                       n.type === "food" ||
                       (n.team === -3) ||
                       (!my.isProjectile)
-                    ) {
+                    )) {
                       if (n.type === "atmosphere" && my.isProjectile) return;
                       //n.damageRecieved += damage._me * deathFactor._me*heal;
                       if (n.shield.amount < n.shield.max) {
