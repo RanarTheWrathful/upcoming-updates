@@ -19005,6 +19005,7 @@ if (n.repairEffect || my.repairEffect) {
     n.damageRecieved += damage._me * deathFactor._me;
                 }
               }
+              }
               if (my.connectedDamage) {
                 my.master.damageRecieved =
                   my.damageRecieved * (my.damageMultiple * 7.5);
