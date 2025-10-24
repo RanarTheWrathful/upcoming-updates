@@ -19048,17 +19048,15 @@ var gameloop = (() => {
                     heal = 1;
                     } else if (my.team === n.team) heal = -1;
                   else {
-                    //if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
-                     heal = 0;
+                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
+                     else heal = 0;
                   }
                   if (heal < 0 && !n.isProjectile) heal /= 4;
                   if (
                     ((my.health.amount < my.health.max) ||
                       (my.shield.amount < my.shield.max) &&
                       n.team === my.team) ||
-                    n.team !== my.team
-                  ) {
-                    if (
+                    n.team !== my.team && (
                       my.isDominator ||
                       my.isWall ||
                       my.isGate ||
@@ -19066,9 +19064,9 @@ var gameloop = (() => {
                       my.type === "drone" ||
                       my.type === "minion" ||
                       my.type === "food" ||
-                      (my.team !== n.team && my.team === -3) ||
-                      (n.team !== my.team && !n.isProjectile)
-                    ) {
+                      (my.team === -3) ||
+                      (!n.isProjectile)
+                    )) {
                       if (my.type === "atmosphere" && n.isProjectile) return;
                       // my.damageRecieved += damage._n * deathFactor._n*heal;
                       if (my.shield.amount < my.shield.max) {
@@ -19079,7 +19077,6 @@ var gameloop = (() => {
                       if (n.team === my.team && n.isProjectile)
                         n.damageRecieved += damage._me * deathFactor._me;
                     }
-                  }
                 } else if (
                   my.team === -101 &&
                   n.type === "tank" &&
@@ -19159,17 +19156,15 @@ var gameloop = (() => {
                     heal = 1;
                   } else if (n.team === my.team) heal = -1;
                   else {
-                    //if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
-                     heal = 0;
+                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
+                    else heal = 0;
                   }
                   if (heal < 0 && !my.isProjectile) heal /= 4;
                   if (
                     ((n.health.amount < n.health.max ||
                       n.shield.amount < n.shield.max) &&
                       my.team === n.team) ||
-                    my.team !== n.team
-                  ) {
-                    if (
+                    my.team !== n.team && (
                       n.isDominator ||
                       n.isWall ||
                       n.isGate ||
@@ -19177,8 +19172,8 @@ var gameloop = (() => {
                       n.type === "drone" ||
                       n.type === "minion" ||
                       n.type === "food" ||
-                      (n.team !== my.team && n.team === -3) ||
-                      (n.team !== my.team && !my.isProjectile)
+                      (n.team === -3) ||
+                      (!my.isProjectile)
                     ) {
                       if (n.type === "atmosphere" && my.isProjectile) return;
                       //n.damageRecieved += damage._me * deathFactor._me*heal;
@@ -19190,7 +19185,6 @@ var gameloop = (() => {
                       if (my.team === n.team && my.isProjectile)
                         my.damageRecieved += damage._n * deathFactor._n;
                     }
-                  }
                 } else if (
                   n.team === -101 &&
                   my.type === "tank" &&
