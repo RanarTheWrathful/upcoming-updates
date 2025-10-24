@@ -18931,7 +18931,8 @@ var gameloop = (() => {
               // no.
 
               if (my.master !== n.master) {   
-  let factor = 1;
+  my.factor = 1;
+  n.factor = 1;
                 // ======== HEAL EFFECT ========
 if (n.healEffect || my.healEffect) {
   // Determine who’s the healer
@@ -18947,7 +18948,7 @@ if (n.healEffect || my.healEffect) {
         }
     }
     else {
-      if (target.team === -2||target.team === -4) factor = 1.34;
+      if (target.team === -2||target.team === -4) healer.factor = 1.34;
       else healer.factor = 1;
     }
 }
@@ -18967,7 +18968,7 @@ if (n.repairEffect || my.repairEffect) {
       if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") repairer.factor = 1;
       if (target.isDominator) repairer.factor = 5;
       if (target.team === -3) repairer.factor = 1.34;
-      else factor = 1;
+      else repairer.factor = 1;
         
     // Non-projectile enemies → damage shields only
    if (!target.isProjectile) {
