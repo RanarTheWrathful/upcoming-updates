@@ -18978,8 +18978,6 @@ if (n.repairEffect || my.repairEffect) {
     }
   
       if (!repairer.isProjectile) factor /= 25;
-  }
-// --- DEFAULT DAMAGE ---
   } else if (
                   n.team === -101 &&
                   my.type === "tank" &&
@@ -18993,7 +18991,7 @@ if (n.repairEffect || my.repairEffect) {
     my.damageRecieved += (damage._n * deathFactor._n) * factor;
     n.damageRecieved += (damage._me * deathFactor._me) * factor;
               }
-          }
+          
               if (my.connectedDamage) {
                 my.master.damageRecieved =
                   my.damageRecieved * (my.damageMultiple * 7.5);
