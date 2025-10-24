@@ -4910,6 +4910,101 @@ PARENT: [exports.genericTank],
             
             ],
         };
+exports.colliderDriveTurret = {
+  PARENT: [exports.genericTank],
+  LABEL: "",
+  BODY: {
+    FOV: 1.25,
+  },
+  SHAPE: 6,
+  COLOR: 9,
+  CONTROLLERS: ["nearestDifferentMaster"],
+  INDEPENDENT: true,
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [21, 10, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.gunner,
+          g.power,
+          g.greaterStats,
+          g.superReload,
+          g.doubleReload,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+  ],
+};
+exports.driveSmasherOrb = {
+  PARENT: [exports.drone],
+  TYPE: "trap",
+  SHAPE: 0,
+  CONTROLLERS: [
+    "nearestDifferentMaster",
+    "mapTargetToGoal",
+    "hangOutNearMaster",
+  ],
+  AI: { FARMER: true },
+  WALL_IMMUNITY: true,
+  INDEPENDENT: false,
+  SPECIAL_EFFECT: "push",
+  REPEL: 0.25,
+  TURRETS: [
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [21.5, 0, 0, 0, 360, 0],
+      TYPE: exports.smasherBody,
+    },
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [10, 0, 0, 0, 360, 1],
+      TYPE: exports.colliderDriveTurret,
+    },
+  ],
+};
+exports.driveOrbGenerator = {
+PARENT: [exports.genericTank],
+  LABEL: "",
+  CONTROLLERS: ["spin"],
+  //SPIN_RATE: -0.5555,
+  COLOR: 9,
+  SHAPE: 6,
+  INDEPENDENT: true,
+  GUNS: [
+        
+            {
+              /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+              POSITION: [0, 10, 1.2, 5.5, 0, 0, 3],
+
+              PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.drone,
+                  g.greaterStats,
+                  g.lesserDamage,
+                 // g.greaterHealth,
+                  g.superSize,
+                  g.greaterSize,
+                  /***************** RELOAD RECOIL SHUDDER  SIZE   HEALTH  DAMAGE   PEN    SPEED    MAX    RANGE  DENSITY  SPRAY   RESIST  */
+                ]),
+                TYPE: [
+                  exports.driveSmasherOrb,
+                  {
+                    DIE_AT_RANGE: false,
+                    CONTROLLERS: ["teleportToMaster"],
+                  },
+                ],
+                AUTOFIRE: true,
+                SYNCS_SKILLS: true,
+                MAX_CHILDREN: 1,
+                STAT_CALCULATOR: gunCalcNames.drone,
+              },
+            },
+            
+            ],
+        };
 exports.growerOrbGenerator = {
 PARENT: [exports.genericTank],
   LABEL: "",
@@ -5106,6 +5201,26 @@ exports.trioCollident = {
       /** SIZE     X       Y     ANGLE    ARC */
       POSITION: [20, 0, 55, 240, 360, 1],
       TYPE: [exports.smasherOrbGenerator],
+     },
+       ],
+         };
+exports.driveCollident = {
+  PARENT: [exports.dualCollident],
+  TURRETS: [
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [20, 0, 55, 0, 360, 1],
+      TYPE: [exports.driveOrbGenerator],
+     },
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [20, 0, 55, 120, 360, 1],
+      TYPE: [exports.driveOrbGenerator],
+     },
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [20, 0, 55, 240, 360, 1],
+      TYPE: [exports.driveOrbGenerator],
      },
        ],
          };
@@ -22951,6 +23066,116 @@ exports.smashdupe = {
       /** SIZE     X       Y     ANGLE    ARC */
       POSITION: [10, 0, 0, 0, 360, 1],
       TYPE: exports.smasherBody,
+    },
+  ],
+  IS_SMASHER: true,
+
+  STAT_NAMES: statnames.smasher,
+};
+exports.autosmashdupe = {
+  PARENT: [exports.genericTank],
+  LABEL: "Auto-Collider",
+  FACING_TYPE: "autospin",
+  SPIN_RATE: 0.075,
+  DANGER: 7,
+  BODY: {
+    ACCELERATION: base.ACCEL + 0.15,
+    SPEED: base.SPEED * 1.1,
+    HEALTH: base.HEALTH * 2,
+    DAMAGE: base.DAMAGE * 1.2,
+    SHIELD: base.SHIELD * 1.1,
+    REGEN: base.REGEN * 1.1,
+    PENETRATION: base.PENETRATION + 0.3,
+    FOV: base.FOV + 0.1,
+    DENSITY: base.DENSITY + 0.25,
+    PUSHABILITY: 3,
+  },
+  GUNS: [
+            {
+              /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+              POSITION: [0, 10, 1.2, 5.5, 0, 0, 3],
+
+              PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.basic,
+                  g.superSize,
+                  g.bitLessSize,
+                  g.bitLessSize,
+                  g.minorReload,
+                ]),
+                TYPE: exports.trioCollident,
+                AUTOFIRE: true,
+                SYNCS_SKILLS: true,
+                MAX_CHILDREN: 1,
+                STAT_CALCULATOR: gunCalcNames.drone,
+              },
+            },
+    ],
+  TURRETS: [
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [21.5, 0, 0, 90, 360, 0],
+      TYPE: exports.smasherBody,
+    },
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [10, 0, 0, 0, 360, 1],
+      TYPE: exports.colliderDriveTurret,
+    },
+  ],
+  IS_SMASHER: true,
+
+  STAT_NAMES: statnames.smasher,
+};
+exports.smashdupedrive = {
+  PARENT: [exports.genericTank],
+  LABEL: "Colliderdrive",
+  FACING_TYPE: "autospin",
+  SPIN_RATE: 0.075,
+  DANGER: 7,
+  BODY: {
+    ACCELERATION: base.ACCEL + 0.15,
+    SPEED: base.SPEED * 1.1,
+    HEALTH: base.HEALTH * 2,
+    DAMAGE: base.DAMAGE * 1.2,
+    SHIELD: base.SHIELD * 1.1,
+    REGEN: base.REGEN * 1.1,
+    PENETRATION: base.PENETRATION + 0.3,
+    FOV: base.FOV + 0.1,
+    DENSITY: base.DENSITY + 0.25,
+    PUSHABILITY: 3,
+  },
+  GUNS: [
+            {
+              /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+              POSITION: [0, 10, 1.2, 5.5, 0, 0, 3],
+
+              PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.basic,
+                  g.superSize,
+                  g.bitLessSize,
+                  g.bitLessSize,
+                  g.minorReload,
+                ]),
+                TYPE: exports.driveCollident,
+                AUTOFIRE: true,
+                SYNCS_SKILLS: true,
+                MAX_CHILDREN: 1,
+                STAT_CALCULATOR: gunCalcNames.drone,
+              },
+            },
+    ],
+  TURRETS: [
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [21.5, 0, 0, 90, 360, 0],
+      TYPE: exports.smasherBody,
+    },
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [10, 0, 0, 0, 360, 1],
+      TYPE: exports.colliderDriveTurret,
     },
   ],
   IS_SMASHER: true,
@@ -95771,6 +95996,8 @@ exports.krissmashers.UPGRADES_TIER_1 = [
   exports.truehealersphere,
   exports.truerepairsphere,
   exports.ringofdeath,
+  exports.autosmashdupe,
+  exports.smashdupedrive,
 
 ];
 exports.kristanks.UPGRADES_TIER_1 = [
