@@ -19048,8 +19048,8 @@ var gameloop = (() => {
                     heal = 1;
                     } else if (my.team === n.team) heal = -1;
                   else {
-                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
-                    else heal = 0;
+                    //if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
+                     heal = 0;
                   }
                   if (heal < 0 && !n.isProjectile) heal /= 4;
                   if (
@@ -19159,8 +19159,8 @@ var gameloop = (() => {
                     heal = 1;
                   } else if (n.team === my.team) heal = -1;
                   else {
-                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
-                    else heal = 0;
+                    //if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
+                     heal = 0;
                   }
                   if (heal < 0 && !my.isProjectile) heal /= 4;
                   if (
