@@ -18984,7 +18984,7 @@ if (n.repairEffect || my.repairEffect) {
                   n.team === -101 &&
                   my.type === "tank" &&
                   my.ignoreCollision
-                )
+                ) 
                   my.damageRecieved += my.health.max / 350; 
     if ((n.type === "atmosphere" && my.isProjectile) ||
         ((my.healEffect || my.repairEffect) && my.team === n.team)) return;
@@ -18993,7 +18993,7 @@ if (n.repairEffect || my.repairEffect) {
     my.damageRecieved += (damage._n * deathFactor._n) * factor;
     n.damageRecieved += (damage._me * deathFactor._me) * factor;
               }
-              
+          }
               if (my.connectedDamage) {
                 my.master.damageRecieved =
                   my.damageRecieved * (my.damageMultiple * 7.5);
