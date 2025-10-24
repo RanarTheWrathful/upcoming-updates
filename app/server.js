@@ -18977,7 +18977,7 @@ if (n.repairEffect || my.repairEffect) {
     }
     }
   
-      if (!repairer.isProjectile) factor /= 25;
+      if (!repairer.isProjectile) repairer.factor /= 25;
   } else if (
                   n.team === -101 &&
                   my.type === "tank" &&
