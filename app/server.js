@@ -18930,69 +18930,54 @@ var gameloop = (() => {
               // Now apply it
               // no.
 
-              if (my.master !== n.master) {
+              if (my.master !== n.master) {   
+  let factor = 1;
                 // ======== HEAL EFFECT ========
 if (n.healEffect || my.healEffect) {
   // Determine who’s the healer
   let healer = n.healEffect ? n : my;
   let target = n.healEffect ? my : n;
 
-  // Base heal value
-  let heal = healer.healEffect || 0;
-
-  // Only non-projectile sources can heal
-  if (!healer.isProjectile) {
-    if (healer.team === target.team) {
-      // Heal allies if they are non-projectiles
-      if (!target.isProjectile) {
-        // Apply healing to health and shields
-        let missingHealth = target.health.max - target.health.amount;
-        let missingShield = target.shield.max - target.shield.amount;
-        let healAmount = (missingHealth + missingShield) * (heal * 0.1);
-
-        target.health.amount = Math.min(target.health.amount + healAmount, target.health.max);
-        target.shield.amount = Math.min(target.shield.amount + healAmount, target.shield.max);
-      }
-    } else {
-      // Enemies (including projectiles) take normal damage
-      target.health.amount -= damage._n * deathFactor._n * (1 + heal);
+  let healed = target.health.amount >= target.health.max;
+    if (target.team === healer.team) {
+    if (!healed) {
+      if (!target.isProjectile) factor = -1;
+      if (target.isBoss) factor /= 10;
+      if (target.isDominator) factor /= 25;
+        }
     }
-  }
+    else {
+      if (target.team === -2||target.team === -4) factor = 1.34;
+      else factor = 1;
+    }
 }
 
 // ======== REPAIR EFFECT ========
 if (n.repairEffect || my.repairEffect) {
   let repairer = n.repairEffect ? n : my;
   let target = n.repairEffect ? my : n;
-
-  let repair = repairer.repairEffect || 0;
-
-  if (repairer.team === target.team) {
-    // ==== ALLIES ====
-    // Repair projectile allies, ally dominators, gates, and walls
-    if (target.isProjectile || target.isDominator || target.isGate || target.isWall) {
-      let missingHealth = target.health.max - target.health.amount;
-      let missingShield = target.shield.max - target.shield.amount;
-      let repairAmount = (missingHealth + missingShield) * (repair * 0.1);
-
-      target.health.amount = Math.min(target.health.amount + repairAmount, target.health.max);
-      target.shield.amount = Math.min(target.shield.amount + repairAmount, target.shield.max);
+  factor = 0;
+  let repaired = target.health.amount >= target.health.max;
+    if (target.team === repairer.team) {
+      if (!repaired) {
+      if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") factor = -1;
+      if (target.isDominator) factor = -5;
+        }
     }
-  } else {
-    // ==== ENEMIES ====
-    // Enemy projectiles, dominators, gates, walls → damaged
-    if (target.isProjectile || target.isDominator || target.isGate || target.isWall) {
-      target.health.amount -= damage._n * deathFactor._n * (repair * 5);
-    }
+    else {
+      if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") factor = 1;
+      if (target.isDominator) factor = 5;
+      if (target.team === -3) factor = 1.34;
+      else factor = 1;
+        
     // Non-projectile enemies → damage shields only
     else if (!target.isProjectile) {
-      let shieldDamage = Math.min(target.shield.amount, damage._n * deathFactor._n * (repair * 5));
+      let shieldDamage = Math.min(target.shield.amount, damage._n * deathFactor._n);
       target.shield.amount -= shieldDamage;
     }
-    // Enemy projectiles also take normal damage (redundant safety)
-    if (target.isProjectile && target.type !== "bullet") {
-      target.health.amount -= damage._n * deathFactor._n * (1 + repair);
     }
+  
+      if (!repairer.isProjectile) factor /= 25;
   }
 // --- DEFAULT DAMAGE ---
   } else if (
@@ -19001,14 +18986,12 @@ if (n.repairEffect || my.repairEffect) {
                   my.ignoreCollision
                 )
                   my.damageRecieved += my.health.max / 350; 
-else {
     if ((n.type === "atmosphere" && my.isProjectile) ||
         ((my.healEffect || my.repairEffect) && my.team === n.team)) return;
-    my.damageRecieved += damage._n * deathFactor._n;
     if ((my.type === "atmosphere" && n.isProjectile) ||
         ((n.healEffect || n.repairEffect) && n.team === my.team)) return;
-    n.damageRecieved += damage._me * deathFactor._me;
-                }
+    my.damageRecieved += (damage._n * deathFactor._n) * factor;
+    n.damageRecieved += (damage._me * deathFactor._me) * factor;
               }
               
               if (my.connectedDamage) {
