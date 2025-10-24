@@ -266,7 +266,7 @@ const currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
 
 if (currentMonth === 9) {
   // October
-  if (serverType === "normal") {
+  if (serverType === "normal" && chosenMode !== "Siege") {
     c.SPAWN_REAPER = true;
   }
   util.log("Happy Halloween!");
@@ -19038,7 +19038,7 @@ var gameloop = (() => {
                     n.team !== my.team &&
                     (my.isDominator || my.isWall || my.isGate)
                   )
-                    heal = 12;
+                    heal = 6;
                   else if (
                     n.team !== my.team &&
                     (my.type === "trap" ||
@@ -19046,14 +19046,14 @@ var gameloop = (() => {
                       my.type === "minion")
                   ) {
                     heal = 1;
-                  } else if (my.team === n.team) heal = -1;
+                    } else if (my.team === n.team) heal = -1;
                   else {
                     if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
                     else heal = 0;
                   }
                   if (heal < 0 && !n.isProjectile) heal /= 4;
                   if (
-                    ((my.health.amount < my.health.max) |
+                    ((my.health.amount < my.health.max) ||
                       (my.shield.amount < my.shield.max) &&
                       n.team === my.team) ||
                     n.team !== my.team
@@ -19149,7 +19149,7 @@ var gameloop = (() => {
                     my.team !== n.team &&
                     (n.isDominator || n.isWall || n.isGate)
                   )
-                    heal = 12;
+                    heal = 6;
                   else if (
                     my.team !== n.team &&
                     (n.type === "trap" ||
