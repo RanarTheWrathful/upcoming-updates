@@ -18988,7 +18988,7 @@ if (n.healEffect || my.healEffect) {
       if (target.isDominator) healer.factor /= 25;
         if (!healer.isProjectile) {
           healer.factor /= 10;
-        target.factor = 0;
+        //target.factor = 0;
       }
         }
     }
@@ -19009,7 +19009,7 @@ if (n.repairEffect || my.repairEffect) {
       if (target.isDominator) repairer.factor = -5;
       if (!repairer.isProjectile) {
         repairer.factor /= 25;
-        target.factor = 0;
+        //target.factor = 0;
       }
         }
     }
