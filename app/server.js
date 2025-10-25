@@ -18970,75 +18970,116 @@ var gameloop = (() => {
 
               // Now apply it
               // no.
-
-              if (my.master !== n.master) {   
+if (my.master !== n.master) {   
   my.factor = 1;
   n.factor = 1;
-                // ======== HEAL EFFECT ========
-if (n.healEffect || my.healEffect) {
-  // Determine who’s the healer
-  let healer = n.healEffect ? n : my;
-  let target = n.healEffect ? my : n;
+  console.log("=== COLLISION START ===");
+  console.log("my:", my.id || my.type, "team:", my.team, "n:", n.id || n.type, "team:", n.team);
+  console.log("Initial factors → my:", my.factor, "n:", n.factor);
 
-  let healed = target.health.amount >= target.health.max;
+  // ======== HEAL EFFECT ========
+  if (n.healEffect || my.healEffect) {
+    let healer = n.healEffect ? n : my;
+    let target = n.healEffect ? my : n;
+    healer.factor = 0;
+
+    console.log("[HEAL EFFECT] Triggered between", healer.type, "(healer) and", target.type, "(target)");
+
+    let healed = target.health.amount >= target.health.max;
+    console.log("Target HP:", target.health.amount, "/", target.health.max, "Healed:", healed);
+
     if (target.team === healer.team) {
-    if (!healed) {
-      if (!target.isProjectile) healer.factor = -1;
-      if (target.isBoss) healer.factor /= 5;
-      if (target.isDominator) healer.factor /= 25;
-        if (!healer.isProjectile) {
-          healer.factor /= 10;
-        //target.factor = 0;
-      }
-        }
-    }
-    else {
-      if (target.team === -2||target.team === -4) healer.factor = 1.34;
-      else healer.factor = 0.5;
-    }
-}
+      console.log("Same team → Healing attempt");
 
-// ======== REPAIR EFFECT ========
-if (n.repairEffect || my.repairEffect) {
-  let repairer = n.repairEffect ? n : my;
-  let target = n.repairEffect ? my : n;
-  let repaired = target.health.amount >= target.health.max;
-    if (target.team === repairer.team) {
-      if (!repaired) {
-      if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") repairer.factor = -1;
-      if (target.isDominator) repairer.factor = -5;
-      if (!repairer.isProjectile) {
-        repairer.factor /= 25;
-        //target.factor = 0;
+      if (!healed) {
+        if (!target.isProjectile) healer.factor = -1;
+        if (target.isBoss) healer.factor /= 5;
+        if (target.isDominator) healer.factor /= 25;
+        if (!healer.isProjectile) healer.factor /= 10;
+
+        console.log("Healer factor after scaling:", healer.factor);
+      } else {
+        console.log("Target already at max HP → no healing applied");
       }
-        }
+    } else {
+      console.log("Different teams → Healing becomes damage modifier");
+      if (target.team === -2 || target.team === -4) healer.factor = 1.34;
+      else healer.factor = 0.5;
+      console.log("Healer factor (enemy):", healer.factor);
     }
-    else {
-      if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") repairer.factor = 1;
+  }
+
+  // ======== REPAIR EFFECT ========
+  else if (n.repairEffect || my.repairEffect) {
+    let repairer = n.repairEffect ? n : my;
+    let target = n.repairEffect ? my : n;
+    let repaired = target.health.amount >= target.health.max;
+    repairer.factor = 0;
+
+    console.log("[REPAIR EFFECT] Triggered between", repairer.type, "(repairer) and", target.type, "(target)");
+    console.log("Target HP:", target.health.amount, "/", target.health.max, "Repaired:", repaired);
+
+    if (target.team === repairer.team) {
+      console.log("Same team → Repair attempt");
+
+      if (!repaired) {
+        if (target.isGate || target.isWall || (target.isProjectile && target.type !== "bullet")) repairer.factor = -1;
+        if (target.isDominator) repairer.factor = -5;
+        if (!repairer.isProjectile) repairer.factor /= 25;
+
+        console.log("Repairer factor after scaling:", repairer.factor);
+      } else {
+        console.log("Target already at max HP → no repair applied");
+      }
+    } else {
+      console.log("Different teams → Repair effect damages instead");
+      if (target.isGate || target.isWall || (target.isProjectile && target.type !== "bullet")) repairer.factor = 1;
       if (target.isDominator) repairer.factor = 5;
       if (target.team === -3) repairer.factor = 1.34;
       else repairer.factor = 0.5;
-        
-    // Non-projectile enemies → damage shields only
-   if (!target.isProjectile) {
-      if (repairer.isProjectile) target.shield.amount -= target.shield.max/10;
-      else target.shield.amount -= target.shield.max/100;
+
+      console.log("Repairer factor (enemy):", repairer.factor);
+
+      // Non-projectile enemies → damage shields only
+      if (!target.isProjectile) {
+        let shieldBefore = target.shield.amount;
+        if (repairer.isProjectile) target.shield.amount -= target.shield.max / 10;
+        else target.shield.amount -= target.shield.max / 100;
+        console.log(`Shield reduced: ${shieldBefore.toFixed(2)} → ${target.shield.amount.toFixed(2)}`);
+      }
     }
-    }
-  
-  } else if (
-                  n.team === -101 &&
-                  my.type === "tank" &&
-                  my.ignoreCollision
-                ) 
-                  my.damageRecieved += my.health.max / 350; 
-    if ((n.type === "atmosphere" && my.isProjectile) ||
-        ((my.healEffect || my.repairEffect) && my.team === n.team)) return;
-    if ((my.type === "atmosphere" && n.isProjectile) ||
-        ((n.healEffect || n.repairEffect) && n.team === my.team)) return;
-    my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
-    n.damageRecieved += (damage._me * deathFactor._me) * my.factor;
-              }
+  }
+
+  // ======== DAMAGE/HEALING APPLICATION ========
+  else if (
+    n.team === -101 &&
+    my.type === "tank" &&
+    my.ignoreCollision
+  ) {
+    my.damageRecieved += my.health.max / 350;
+    console.log("[SPECIAL] Self-damage from ignoreCollision, new damage:", my.damageRecieved);
+  }
+
+  if ((n.type === "atmosphere" && my.isProjectile) ||
+      ((my.healEffect || my.repairEffect) && my.team === n.team)) {
+    console.log("Return early: atmosphere or same-team heal/repair overlap (1)");
+    return;
+  }
+
+  if ((my.type === "atmosphere" && n.isProjectile) ||
+      ((n.healEffect || n.repairEffect) && n.team === my.team)) {
+    console.log("Return early: atmosphere or same-team heal/repair overlap (2)");
+    return;
+  }
+
+  my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
+  n.damageRecieved += (damage._me * deathFactor._me) * my.factor;
+
+  console.log("Final factors → my:", my.factor, "n:", n.factor);
+  console.log("Applied damage/healing → my.damageRecieved:", my.damageRecieved, "n.damageRecieved:", n.damageRecieved);
+  console.log("=== COLLISION END ===\n");
+}
+
           
               if (my.connectedDamage) {
                 my.master.damageRecieved =
