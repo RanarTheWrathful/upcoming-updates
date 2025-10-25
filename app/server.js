@@ -19064,7 +19064,7 @@ try {
   }
   // ... your heal/repair code here
 
-  if ((n.type === "atmosphere" && my.isProjectile) ||
+ /* if ((n.type === "atmosphere" && my.isProjectile) ||
       ((my.healEffect || my.repairEffect) && my.team === n.team)) {
     console.log("[RETURN 1] Skipping end section - atmosphere/heal same-team check");
     return;
@@ -19074,7 +19074,7 @@ try {
       ((n.healEffect || n.repairEffect) && n.team === my.team)) {
     console.log("[RETURN 2] Skipping end section - atmosphere/heal same-team check");
     return;
-  }
+  }*/
 
   console.log("→ Proceeding to damage/heal application stage");
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
