@@ -30351,7 +30351,7 @@ exports.cheese = {
     SPEED: base.SPEED * 0.95,
     FOV: base.FOV * 1.1,
   },
-  MAX_CHILDREN: 3,
+  MAX_CHILDREN: 1,
   GUNS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
