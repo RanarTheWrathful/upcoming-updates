@@ -18985,7 +18985,8 @@ if (my.master !== n.master) {
 
     console.log("[HEAL EFFECT] Triggered between", healer.type, "(healer) and", target.type, "(target)");
 
-    let healed = target.health.amount >= target.health.max;
+    let healed = false;
+      if (target.health.amount >= target.health.max) healed = true;
     console.log("Target HP:", target.health.amount, "/", target.health.max, "Healed:", healed);
 
     if (target.team === healer.team) {
@@ -19013,7 +19014,8 @@ if (my.master !== n.master) {
   else if (n.repairEffect || my.repairEffect) {
     let repairer = n.repairEffect ? n : my;
     let target = n.repairEffect ? my : n;
-    let repaired = target.health.amount >= target.health.max;
+    let repaired = false;
+    if (target.health.amount >= target.health.max) repaired = true;
     repairer.factor = 0;
 
     console.log("[REPAIR EFFECT] Triggered between", repairer.type, "(repairer) and", target.type, "(target)");
