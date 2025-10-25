@@ -26233,6 +26233,11 @@ TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
       POSITION: [15.5, 0, 0, 0, 360, 1],
+      TYPE: [exports.repairSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [15.5, 0, 0, 0, 360, 1],
       TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
     ],
@@ -26249,6 +26254,129 @@ TURRETS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [18, 8, 1, 0, 0, 0, 0],
+    },
+  ],
+};
+
+exports.universalHealer = {
+PARENT: [exports.protect],
+  RESET_UPGRADES: true,
+LABEL: "War Healer",
+HEAL_EFFECT: true,
+REPAIR_EFFECT: true,
+TURRETS: [
+    {
+      /** SIZE     X       Y     ANGLE    ARC */
+      POSITION: [21, 0, 0, 0, 360, 0],
+      TYPE: exports.smasherBody,
+    },
+    {
+      POSITION: [21, 0, 0, 90, 360, 0],
+      TYPE: exports.smasherBody,
+    },
+    {
+      POSITION: [21, 0, 0, 180, 360, 0],
+      TYPE: exports.smasherBody,
+    },
+    {
+      POSITION: [21, 0, 0, 270, 360, 0],
+      TYPE: exports.smasherBody,
+    },
+    {
+      POSITION: [21, 0, 0, 360, 360, 0],
+      TYPE: exports.smasherBody,
+    },
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [15.5, 0, 0, 0, 360, 1],
+      TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+    
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [12, 0, -15, 0, 360, 1],
+      TYPE: [
+        exports.repairAuraSpawner,
+        {
+          GUNS: [
+            {
+              POSITION: [0, 20, 1, 0, 0, 0, 0],
+              PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.atmosphere,
+                  g.halfDamage,
+                  g.minorDamage,
+                  g.size500,
+                  g.doubleSize,
+                  g.greaterSize,
+                ]),
+                TYPE: [exports.repairAura, { COLOR: 12 }],
+                MAX_CHILDREN: 1,
+                AUTOFIRE: true,
+              },
+            },
+          ],
+        },
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [12, 0, 15, 0, 360, 1],
+      TYPE: [
+        exports.healAuraSpawner,
+        {
+          GUNS: [
+            {
+              POSITION: [0, 20, 1, 0, 0, 0, 0],
+              PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.atmosphere,
+                  g.halfDamage,
+                  g.minorDamage,
+                  g.size500,
+                  g.doubleSize,
+                  g.greaterSize,
+                ]),
+                TYPE: [exports.healAura, { COLOR: 12 }],
+                MAX_CHILDREN: 1,
+                AUTOFIRE: true,
+              },
+            },
+          ],
+        },
+    ],
+
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [7, 8, -0.5, 14, 5.5, 45, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed]),
+        TYPE: exports.healerBullet,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [18, 8, 1, 0, 5.5, 45, 0],
+    },
+    
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [7, 8, -0.5, 14, -5.5, -45, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed]),
+        TYPE: exports.repairBullet,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [18, 8, 1, 0, -5.5, -45, 0],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [24, 8.5, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper]),
+        TYPE: exports.bullet,
+      },
     },
   ],
 };
@@ -96087,6 +96215,7 @@ exports.kristanks3.UPGRADES_TIER_1 = [
   exports.testerSkimmer,
   exports.testersphere,
   exports.randombullshit,
+  exports.universalHealer,
   exports.kristanks4,
 ];
 exports.krisbosses1.UPGRADES_TIER_1 = [
