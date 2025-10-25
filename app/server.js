@@ -18997,7 +18997,7 @@ try {
         if (!target.isProjectile) healer.factor = -1;
         if (target.isBoss) healer.factor /= 5;
         if (target.isDominator) healer.factor /= 25;
-        if (!healer.isProjectile) healer.factor /= 10;
+        if (!healer.isProjectile) healer.factor /= 3;
 
         console.log("Healer factor after scaling:", healer.factor);
       } else {
@@ -19028,7 +19028,7 @@ try {
       if (!repaired) {
         if (target.isGate || target.isWall || (target.isProjectile && target.type !== "bullet")) repairer.factor = -1;
         if (target.isDominator) repairer.factor = -5;
-        if (!repairer.isProjectile) repairer.factor /= 25;
+        if (!repairer.isProjectile) repairer.factor /= 3;
 
         console.log("Repairer factor after scaling:", repairer.factor);
       } else {
@@ -19064,17 +19064,8 @@ try {
   }
   // ... your heal/repair code here
 
- /* if ((n.type === "atmosphere" && my.isProjectile) ||
-      ((my.healEffect || my.repairEffect) && my.team === n.team)) {
-    console.log("[RETURN 1] Skipping end section - atmosphere/heal same-team check");
-    return;
-  }
-
-  if ((my.type === "atmosphere" && n.isProjectile) ||
-      ((n.healEffect || n.repairEffect) && n.team === my.team)) {
-    console.log("[RETURN 2] Skipping end section - atmosphere/heal same-team check");
-    return;
-  }*/
+if (my.type === "atmosphere"||(my.repairEffect||my.healEffect) && !my.isProjectile) n.factor = 0;
+if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) my.factor = 0;
 
   console.log("→ Proceeding to damage/heal application stage");
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
