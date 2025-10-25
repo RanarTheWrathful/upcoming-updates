@@ -97438,6 +97438,7 @@ exports.smash.UPGRADES_TIER_3 = [
   exports.smashdupe,
   exports.smashatmo,
 ];
+exports.smashdupe.UPGRADES_TIER_5 = [exports.autosmashdupe];
 exports.spike.UPGRADES_TIER_4 = [exports.weirdspike];
 exports.anni.UPGRADES_TIER_4 = [exports.dualdestroy];
 /*/
