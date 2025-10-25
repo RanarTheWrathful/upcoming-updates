@@ -19061,25 +19061,32 @@ if (my.master !== n.master) {
     my.damageRecieved += my.health.max / 350;
     console.log("[SPECIAL] Self-damage from ignoreCollision, new damage:", my.damageRecieved);
   }
+try {
+  // ... your heal/repair code here
 
   if ((n.type === "atmosphere" && my.isProjectile) ||
       ((my.healEffect || my.repairEffect) && my.team === n.team)) {
-    console.log("Return early: atmosphere or same-team heal/repair overlap (1)");
+    console.log("[RETURN 1] Skipping end section - atmosphere/heal same-team check");
     return;
   }
 
   if ((my.type === "atmosphere" && n.isProjectile) ||
       ((n.healEffect || n.repairEffect) && n.team === my.team)) {
-    console.log("Return early: atmosphere or same-team heal/repair overlap (2)");
+    console.log("[RETURN 2] Skipping end section - atmosphere/heal same-team check");
     return;
   }
 
+  console.log("→ Proceeding to damage/heal application stage");
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor;
 
   console.log("Final factors → my:", my.factor, "n:", n.factor);
   console.log("Applied damage/healing → my.damageRecieved:", my.damageRecieved, "n.damageRecieved:", n.damageRecieved);
   console.log("=== COLLISION END ===\n");
+
+} catch (err) {
+  console.error("Collision handler error:", err);
+}
 }
 
           
