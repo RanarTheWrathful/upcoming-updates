@@ -26338,7 +26338,7 @@ TURRETS: [
               PROPERTIES: {
                 SHOOT_SETTINGS: combineStats([
                   g.atmosphere,
-                  g.halfDamage,
+                  //g.halfDamage,
                   g.minorDamage,
                   g.size500,
                   g.doubleSize,
@@ -26365,7 +26365,7 @@ TURRETS: [
               PROPERTIES: {
                 SHOOT_SETTINGS: combineStats([
                   g.atmosphere,
-                  g.halfDamage,
+                  //g.halfDamage,
                   g.minorDamage,
                   g.size500,
                   g.doubleSize,
