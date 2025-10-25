@@ -63,7 +63,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "The Denied";
+if (serverType === "testing") chosenMode = "Sandbox";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -18986,7 +18986,10 @@ if (n.healEffect || my.healEffect) {
       if (!target.isProjectile) healer.factor = -1;
       if (target.isBoss) healer.factor /= 5;
       if (target.isDominator) healer.factor /= 25;
-        if (!healer.isProjectile) healer.factor /= 10;
+        if (!healer.isProjectile) {
+          healer.factor /= 10;
+        target.factor = 0;
+      }
         }
     }
     else {
@@ -19004,7 +19007,10 @@ if (n.repairEffect || my.repairEffect) {
       if (!repaired) {
       if (target.isGate || target.isWall||target.isProjectile && target.type !== "bullet") repairer.factor = -1;
       if (target.isDominator) repairer.factor = -5;
-      if (!repairer.isProjectile) repairer.factor /= 25;
+      if (!repairer.isProjectile) {
+        repairer.factor /= 25;
+        target.factor = 0;
+      }
         }
     }
     else {
