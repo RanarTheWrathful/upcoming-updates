@@ -4972,6 +4972,35 @@ exports.colliderDriveTurret = {
     },
   ],
 };
+exports.colliderDriveTurretWeak = {
+  PARENT: [exports.genericTank],
+  LABEL: "",
+  BODY: {
+    FOV: 1.25,
+  },
+  SHAPE: 6,
+  COLOR: 9,
+  CONTROLLERS: ["nearestDifferentMaster"],
+  INDEPENDENT: true,
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [21, 10, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.gunner,
+          g.power,
+          g.halfDamage,
+          g.greaterStats,
+          g.superReload,
+          g.doubleReload,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+  ],
+};
 exports.driveSmasherOrb = {
   PARENT: [exports.drone],
   TYPE: "trap",
@@ -4995,7 +5024,7 @@ exports.driveSmasherOrb = {
     {
       /** SIZE     X       Y     ANGLE    ARC */
       POSITION: [10, 0, 0, 0, 360, 1],
-      TYPE: exports.colliderDriveTurret,
+      TYPE: exports.colliderDriveTurretWeak,
     },
   ],
 };
