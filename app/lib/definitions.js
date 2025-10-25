@@ -26328,7 +26328,7 @@ TURRETS: [
     
     {
       /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [12, 0, -15, 0, 360, 0],
+      POSITION: [12, 0, -25, 0, 360, 0],
       TYPE: [
         exports.repairAuraSpawnerU,
         {
@@ -26355,7 +26355,7 @@ TURRETS: [
     },
     {
       /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [12, 0, 15, 0, 360, 0],
+      POSITION: [12, 0, 25, 0, 360, 0],
       TYPE: [
         exports.healAuraSpawnerU,
         {
