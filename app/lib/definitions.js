@@ -26328,7 +26328,7 @@ TURRETS: [
     
     {
       /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [12, 0, -15, 0, 360, 1],
+      POSITION: [12, 0, -15, 0, 360, 0],
       TYPE: [
         exports.repairAuraSpawnerU,
         {
@@ -26339,7 +26339,7 @@ TURRETS: [
                 SHOOT_SETTINGS: combineStats([
                   g.atmosphere,
                   //g.halfDamage,
-                  g.minorDamage,
+                  g.halfDamage,
                   g.size500,
                   g.doubleSize,
                   g.greaterSize,
@@ -26355,7 +26355,7 @@ TURRETS: [
     },
     {
       /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [12, 0, 15, 0, 360, 1],
+      POSITION: [12, 0, 15, 0, 360, 0],
       TYPE: [
         exports.healAuraSpawnerU,
         {
@@ -26366,7 +26366,7 @@ TURRETS: [
                 SHOOT_SETTINGS: combineStats([
                   g.atmosphere,
                   //g.halfDamage,
-                  g.minorDamage,
+                  g.halfDamage,
                   g.size500,
                   g.doubleSize,
                   g.greaterSize,
@@ -26400,7 +26400,7 @@ TURRETS: [
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [7, 8, -0.5, 14, 0, -90, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed, g.doublRange]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed, g.doubleRange]),
         TYPE: exports.repairBullet,
       },
     },
