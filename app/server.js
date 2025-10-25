@@ -11053,7 +11053,7 @@ class Entity {
             }
             if (this.label === "Ascendant") {
               this.resist = c.playerCount / 4 + 1;
-              this.damage = c.playerCount * 1.5 + 9;
+              this.damage = c.playerCount + 9;
               //this.skill.rld = (c.playerCount/5) - 1.75; remember when he turned into a machine gun with 4 players
               this.skill.dam = c.playerCount / 10 + 3;
               this.skill.pen = c.playerCount / 6 + 3;
@@ -18963,10 +18963,10 @@ try {
   ) {
     my.damageRecieved += my.health.max / 350;
   }
-
+if (n.team === my.team) {
 if (my.type === "atmosphere"||(my.repairEffect||my.healEffect) && !my.isProjectile) n.factor = 0;
 if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) my.factor = 0;
-
+}
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor;
 } catch (err) {
