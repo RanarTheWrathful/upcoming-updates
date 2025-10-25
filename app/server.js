@@ -18971,6 +18971,7 @@ var gameloop = (() => {
               // Now apply it
               // no.
 if (my.master !== n.master) {   
+try {
   my.factor = 1;
   n.factor = 1;
   console.log("=== COLLISION START ===");
@@ -19061,7 +19062,6 @@ if (my.master !== n.master) {
     my.damageRecieved += my.health.max / 350;
     console.log("[SPECIAL] Self-damage from ignoreCollision, new damage:", my.damageRecieved);
   }
-try {
   // ... your heal/repair code here
 
   if ((n.type === "atmosphere" && my.isProjectile) ||
