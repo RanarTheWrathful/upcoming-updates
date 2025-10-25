@@ -26322,18 +26322,18 @@ TURRETS: [
     },
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [15.5, 45, 45, 0, 360, 1],
+      POSITION: [15.5, 0, 45, 0, 360, 1],
       TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
     
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [15.5, -45, -45, 0, 360, 1],
+      POSITION: [15.5, 0, -45, 0, 360, 1],
       TYPE: [exports.repairSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
     {
       /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [12, -45, -45, 0, 360, 0],
+      POSITION: [12, 0, -45, 0, 360, 0],
       TYPE: [
         exports.repairAuraSpawnerU,
         {
@@ -26360,7 +26360,7 @@ TURRETS: [
     },
     {
       /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [12, 45, 45, 0, 360, 0],
+      POSITION: [12, 0, 45, 0, 360, 0],
       TYPE: [
         exports.healAuraSpawnerU,
         {
