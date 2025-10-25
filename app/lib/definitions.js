@@ -3979,6 +3979,40 @@ exports.repairAuraSpawner = {
     },
   ],
 };
+exports.healAuraSpawnerU = {
+  PARENT: [exports.damageAuraSpawner],
+  ALPHA: 0,
+  INVISIBLE: true,
+  HEAL_EFFECT: true,
+  GUNS: [
+    {
+      POSITION: [0, 20, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.atmosphere, g.size500, g.size200]),
+        TYPE: [exports.healAura, { COLOR: 32 }],
+        MAX_CHILDREN: 1,
+        AUTOFIRE: true,
+      },
+    },
+  ],
+};
+exports.repairAuraSpawnerU = {
+  PARENT: [exports.damageAuraSpawner],
+  REPAIR_EFFECT: true,
+  INVISIBLE: true,
+  ALPHA: 0,
+  GUNS: [
+    {
+      POSITION: [0, 20, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.atmosphere, g.size500, g.size200]),
+        TYPE: [exports.repairAura, { COLOR: 39 }],
+        MAX_CHILDREN: 1,
+        AUTOFIRE: true,
+      },
+    },
+  ],
+};
 exports.metta1AuraSpawner = {
   PARENT: [exports.genericTank],
   ALPHA: 0,
@@ -26296,7 +26330,7 @@ TURRETS: [
       /*  SIZE     X       Y     ANGLE    ARC */
       POSITION: [12, 0, -15, 0, 360, 1],
       TYPE: [
-        exports.repairAuraSpawner,
+        exports.repairAuraSpawnerU,
         {
           GUNS: [
             {
@@ -26323,7 +26357,7 @@ TURRETS: [
       /*  SIZE     X       Y     ANGLE    ARC */
       POSITION: [12, 0, 15, 0, 360, 1],
       TYPE: [
-        exports.healAuraSpawner,
+        exports.healAuraSpawnerU,
         {
           GUNS: [
             {
@@ -26351,28 +26385,28 @@ TURRETS: [
   GUNS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [7, 8, -0.5, 14, 5.5, 45, 0],
+      POSITION: [7, 8, -0.5, 14, 0, 90, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed, g.doubleRange,]),
         TYPE: exports.healerBullet,
       },
     },
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [18, 8, 1, 0, 5.5, 45, 0],
+      POSITION: [18, 8, 1, 0, 0, 90, 0],
     },
     
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [7, 8, -0.5, 14, -5.5, -45, 0],
+      POSITION: [7, 8, -0.5, 14, 0, -90, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed, g.doublRange]),
         TYPE: exports.repairBullet,
       },
     },
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [18, 8, 1, 0, -5.5, -45, 0],
+      POSITION: [18, 8, 1, 0, 0, -90, 0],
     },
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
