@@ -63,7 +63,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Sandbox";
+if (serverType === "testing") chosenMode = "The Denied";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -13335,79 +13335,6 @@ console.log('Lore mode sequence advanced.');*/
       if (this.label === "Shrine" && c.MODE === "theDenied") {
         c.eventProgress = true;
         // Assuming this loop is correctly controlled elsewhere in your code
-        /*  for (let i = 0; i < 9; i++) {
-    if (room["gte" + i]) {
-      
-      room["gte" + i].forEach((loc) => {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-    let a = Class.fortgate;
-    let o;
-
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2.25;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2.25;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2.25;
-    }
-
-    o.coreSize = o.SIZE;
-    o.protect();
-
-    if (i >= 1) {
-      o.team = -i;
-      o.color = [10, 18, 7, 19][i - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-
-    o.refreshBodyAttributes();
-    o.grid = {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          }
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-    o.isGate = true;
-      o.spawnLoc = loc;
-        });
-    
-   }
-  }*/
         makeFortGates();
         makeTeamedWalls();
         sockets.changeroom();
@@ -18983,31 +18910,19 @@ try {
     let healer = n.healEffect ? n : my;
     let target = n.healEffect ? my : n;
     healer.factor = 0;
-
-    console.log("[HEAL EFFECT] Triggered between", healer.type, "(healer) and", target.type, "(target)");
-
     let healed = false;
       if (target.health.amount >= target.health.max) healed = true;
-    console.log("Target HP:", target.health.amount, "/", target.health.max, "Healed:", healed);
-
     if (target.team === healer.team) {
-      console.log("Same team → Healing attempt");
-
       if (!healed) {
         if (!target.isProjectile) healer.factor = -1;
         if (target.isBoss) healer.factor /= 5;
         if (target.isDominator) healer.factor /= 25;
         if (!healer.isProjectile) healer.factor /= 3;
-
-        console.log("Healer factor after scaling:", healer.factor);
-      } else {
-        console.log("Target already at max HP → no healing applied");
-      }
+      } 
     } else {
-      console.log("Different teams → Healing becomes damage modifier");
       if (target.team === -2 || target.team === -4) healer.factor = 1.34;
-      else healer.factor = 0.5;
-      console.log("Healer factor (enemy):", healer.factor);
+      else if (!target.isProjectile) repairer.factor = 0;
+      else healer.factor = 1;
     }
   }
 
@@ -19018,37 +18933,24 @@ try {
     let repaired = false;
     if (target.health.amount >= target.health.max) repaired = true;
     repairer.factor = 0;
-
-    console.log("[REPAIR EFFECT] Triggered between", repairer.type, "(repairer) and", target.type, "(target)");
-    console.log("Target HP:", target.health.amount, "/", target.health.max, "Repaired:", repaired);
-
     if (target.team === repairer.team) {
-      console.log("Same team → Repair attempt");
-
       if (!repaired) {
         if (target.isGate || target.isWall || (target.isProjectile && target.type !== "bullet")) repairer.factor = -1;
         if (target.isDominator) repairer.factor = -5;
         if (!repairer.isProjectile) repairer.factor /= 3;
-
-        console.log("Repairer factor after scaling:", repairer.factor);
-      } else {
-        console.log("Target already at max HP → no repair applied");
-      }
+      } 
     } else {
-      console.log("Different teams → Repair effect damages instead");
       if (target.isGate || target.isWall || (target.isProjectile && target.type !== "bullet")) repairer.factor = 1;
-      if (target.isDominator) repairer.factor = 5;
-      if (target.team === -3) repairer.factor = 1.34;
-      else repairer.factor = 0.5;
-
-      console.log("Repairer factor (enemy):", repairer.factor);
-
+      else if (target.isDominator) repairer.factor = 5;
+      else if (target.team === -3) repairer.factor = 1.34;
+      else if (!target.isProjectile) repairer.factor = 0;
+      else repairer.factor = 1;
+      
       // Non-projectile enemies → damage shields only
       if (!target.isProjectile) {
         let shieldBefore = target.shield.amount;
         if (repairer.isProjectile) target.shield.amount -= target.shield.max / 10;
         else target.shield.amount -= target.shield.max / 100;
-        console.log(`Shield reduced: ${shieldBefore.toFixed(2)} → ${target.shield.amount.toFixed(2)}`);
       }
     }
   }
@@ -19060,21 +18962,13 @@ try {
     my.ignoreCollision
   ) {
     my.damageRecieved += my.health.max / 350;
-    console.log("[SPECIAL] Self-damage from ignoreCollision, new damage:", my.damageRecieved);
   }
-  // ... your heal/repair code here
 
 if (my.type === "atmosphere"||(my.repairEffect||my.healEffect) && !my.isProjectile) n.factor = 0;
 if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) my.factor = 0;
 
-  console.log("→ Proceeding to damage/heal application stage");
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor;
-
-  console.log("Final factors → my:", my.factor, "n:", n.factor);
-  console.log("Applied damage/healing → my.damageRecieved:", my.damageRecieved, "n.damageRecieved:", n.damageRecieved);
-  console.log("=== COLLISION END ===\n");
-
 } catch (err) {
   console.error("Collision handler error:", err);
 }
@@ -21779,7 +21673,7 @@ var maintainloop = (() => {
     makecubedrifts();
     makeDummies();
     makeTeamedWalls();
-    makeFortGates();
+    if (chosenMode !== "The Denied") makeFortGates();
     makepentFortWalls();
     makeFortWalls();
     makeTrapFortWalls();
