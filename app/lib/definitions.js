@@ -26317,6 +26317,7 @@ TURRETS: [
             },
           ],
         },
+      ],
     {
       /*  SIZE     X       Y     ANGLE    ARC */
       POSITION: [12, 0, 15, 0, 360, 1],
