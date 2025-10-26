@@ -63,7 +63,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "The Denied";
+if (serverType === "testing") chosenMode = "Sandbox";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -7118,11 +7118,11 @@ class Entity {
             break;
           case "theInfestation":
             this.define(Class.infestationLegendaryClasses);
-            this.skill.score += 1000000;
+            if (this.skill.score < 1000000) this.skill.score += 1000000;
             break;
           case "theDenied":
             this.define(Class.deniedLegendaryClasses);
-            this.skill.score += 1000000;
+           if (this.skill.score < 1000000) this.skill.score += 1000000;
             break;
         }
         this.skill.points += 15;
