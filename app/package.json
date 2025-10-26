@@ -1,9 +1,10 @@
 {
   "name": "arras",
-  "version": "@.0.0",
+  "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server --port 3000"
+    "start": "node server.js --port 3000",
+    "build": "echo 'Skipping build step' && exit 0"
   },
   "dependencies": {
     "box-intersect": "^1.0.2",
@@ -19,3 +20,4 @@
   },
   "license": "GPL-3.0"
 }
+
