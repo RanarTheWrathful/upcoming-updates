@@ -15625,11 +15625,13 @@ class View {
       entities.forEach((e) => {
         if (e.valid() && this.isInView(e) && e.bond == null) {
           this.nearEntity.add(e);
+          this.isVisible = true;
         }
       });
       this.visibleEntity.forEach((e) => {
         if (!e.valid() || (!this.isInView(e) && e.alwaysExists | e.isDead())) {
           this.remove(e);
+          this.isVisible = false;
           e.collisionArray = [];
         }
       });
@@ -15645,7 +15647,6 @@ class View {
           Math.abs(e.y - this.y) < (this.fov / 2) * (9 / 16) + 1.5 * e.size
         ) {
           this.visibleEntity.add(e);
-          this.isVisible = true;
           if (!this.photos.has(e.id)) {
             this.photos.set(e.id, {});
           }
@@ -15659,7 +15660,6 @@ class View {
           }
         } else {
           this.remove(e);
-          this.isVisible = false;
         }
       }
     });
