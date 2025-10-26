@@ -17232,9 +17232,9 @@ const sockets = (() => {
               player.body.sendMessage(
                 "This server is down for maintenance, please play at: ranars-prophecy.glitch.me, thank you!"
               );
-              setTimeout(() => {
+              /*setTimeout(() => {
                 socket.kick("NO ENTRY!");
-              }, 5000);
+              }, 5000);*/
             }
             if (c.TESTBED_ACCESS === 2) {
               player.body.isDeveloper = true;
