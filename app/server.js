@@ -10217,7 +10217,10 @@ class Entity {
         this.define(Class.sanct);
       }
     }
-
+if (!this.isVisible && this.isProjectile && this.dieAtRange) {
+  this.kill();
+  this.destroy();
+  }
     if (
       (c.killWalls === true && this.type === "squareWall") ||
       (c.killWalls === true &&
@@ -15622,12 +15625,14 @@ class View {
       entities.forEach((e) => {
         if (e.valid() && this.isInView(e) && e.bond == null) {
           this.nearEntity.add(e);
+          e.isVisible = true;
         }
       });
       this.visibleEntity.forEach((e) => {
         if (!e.valid() || (!this.isInView(e) && e.alwaysExists | e.isDead())) {
           this.remove(e);
           e.collisionArray = [];
+          e.isVisible = false;
         }
       });
       this.lastVisibleUpdate = this.lastUpdate;
@@ -17211,8 +17216,8 @@ const sockets = (() => {
               if (socket.trueDev) {
                 player.body.trueDev = true;
               }
-            /*}
-              let devList = [
+            }
+             /* let devList = [
               process.env.kris2,
               process.end.kris3,
             ];
