@@ -10217,10 +10217,10 @@ class Entity {
         this.define(Class.sanct);
       }
     }
-if (!this.isVisible && this.isProjectile) {
+/*if (!this.isVisible && this.isProjectile) {
   this.kill();
   this.destroy();
-  }
+  }*/
     if (
       (c.killWalls === true && this.type === "squareWall") ||
       (c.killWalls === true &&
