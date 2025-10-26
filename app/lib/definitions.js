@@ -96755,7 +96755,7 @@ exports.neutralLegendaryClasses.UPGRADES_TIER_2 = [
   exports.basic,
 ];
 exports.deniedLegendaryClasses.UPGRADES_TIER_2 = [
-  exports.rebel,
+  exports.destructionist,
   exports.necrotyrant,
   exports.operator,
   exports.reaper,
