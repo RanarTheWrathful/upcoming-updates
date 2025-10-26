@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
+    "prestart": "npm install",
     "start": "node server.js --port 3000",
-    "build": "echo 'Skipping build step' && exit 0"
+    "build": "npm install && echo 'Skipping frontend build'"
   },
   "dependencies": {
     "box-intersect": "^1.0.2",
@@ -20,4 +21,3 @@
   },
   "license": "GPL-3.0"
 }
-
