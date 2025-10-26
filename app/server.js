@@ -7118,9 +7118,11 @@ class Entity {
             break;
           case "theInfestation":
             this.define(Class.infestationLegendaryClasses);
+            this.skill.score += 1000000;
             break;
           case "theDenied":
             this.define(Class.deniedLegendaryClasses);
+            this.skill.score += 1000000;
             break;
         }
         this.skill.points += 15;
@@ -11053,7 +11055,7 @@ class Entity {
             }
             if (this.label === "Ascendant") {
               this.resist = c.playerCount / 4 + 1;
-              this.damage = c.playerCount + 9;
+              this.damage = c.playerCount;
               //this.skill.rld = (c.playerCount/5) - 1.75; remember when he turned into a machine gun with 4 players
               this.skill.dam = c.playerCount / 10 + 3;
               this.skill.pen = c.playerCount / 6 + 3;
