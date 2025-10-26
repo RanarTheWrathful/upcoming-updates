@@ -18994,7 +18994,8 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
     if (n.health.amount >= n.health.max) n.shield.amount += n.shield.max/4;
   }
   } else {
-  my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
+  if (my.type === "atmosphere" && !n.isProjectile||n.type === "atmosphere" && !my.isProjectile) return;
+ my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
   }
 } catch (err) {
