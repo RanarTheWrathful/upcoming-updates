@@ -15625,7 +15625,6 @@ class View {
       entities.forEach((e) => {
         if (e.valid() && this.isInView(e) && e.bond == null) {
           this.nearEntity.add(e);
-          e.isVisible = true;
         }
       });
       this.visibleEntity.forEach((e) => {
