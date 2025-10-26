@@ -18969,7 +18969,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
   if (my.team === n.team) {
-  if (n.repairEffect && my.repaired||n.healEffect && my.healed) {
+  if (n.repairEffect && !my.repaired||n.healEffect && !my.healed) {
                     let scaleFactor = 10,
   missingShield = my.shield.max - my.shield.amount,
                       missingHealth = my.health.max - my.health.amount,
@@ -18982,7 +18982,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
                       );
     n.master.skill.score += scoreGain;
     if (my.health.amount >= my.health.max) my.shield.amount += -my.damageRecieved;
-  } if (my.repairEffect && n.repaired||my.healEffect && n.healed) {
+  } if (my.repairEffect && !n.repaired||my.healEffect && !n.healed) {
                     let scaleFactor = 10,
   missingShield = n.shield.max - n.shield.amount,
                       missingHealth = n.health.max - n.health.amount,
