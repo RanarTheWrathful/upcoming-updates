@@ -10935,6 +10935,15 @@ class Entity {
         }
       }
     }
+    if (!this.visible) {
+      if (this.alpha > 0) this.alpha = this.saveAlpha;
+      this.alpha = 0;
+    } else {
+      if (this.alpha !== this.saveAlpha) { 
+        this.alpha = this.saveAlpha;
+      this.saveAlpha = this.alpha;
+      }
+  }
     if (c.MODE === "theDenied") {
       if (this.isPlayer && !this.flip) {
         switch (this.label) {
@@ -15622,11 +15631,13 @@ class View {
       entities.forEach((e) => {
         if (e.valid() && this.isInView(e) && e.bond == null) {
           this.nearEntity.add(e);
+          e.visible = true;
         }
       });
       this.visibleEntity.forEach((e) => {
         if (!e.valid() || (!this.isInView(e) && e.alwaysExists | e.isDead())) {
           this.remove(e);
+          e.visible = false;
         }
       });
       this.lastVisibleUpdate = this.lastUpdate;
