@@ -63,7 +63,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Sandbox";
+if (serverType === "testing") chosenMode = "SandboxWD";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -18966,8 +18966,6 @@ if (n.team === my.team) {
 if (my.type === "atmosphere"||(my.repairEffect||my.healEffect) && !my.isProjectile) n.factor = 0;
 if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) my.factor = 0;
 }
-  my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
-  n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
   if (my.team === n.team) {
   if (n.repairEffect && !my.repaired||n.healEffect && !my.healed) {
                     let scaleFactor = 10,
@@ -18981,7 +18979,9 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
                               scaleFactor)
                       );
     n.master.skill.score += scoreGain;
-    if (my.health.amount >= my.health.max) my.shield.amount += -my.damageRecieved;
+  my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
+  n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
+    if (my.health.amount >= my.health.max) my.shield.amount += my.shield.max/4;
   } if (my.repairEffect && !n.repaired||my.healEffect && !n.healed) {
                     let scaleFactor = 10,
   missingShield = n.shield.max - n.shield.amount,
@@ -18994,8 +18994,13 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
                               scaleFactor)
                       );
     my.master.skill.score += scoreGain;
-    if (n.health.amount >= n.health.max) n.shield.amount += -n.damageRecieved;
+  my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
+  n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
+    if (n.health.amount >= n.health.max) n.shield.amount += n.shield.max/4;
   }
+  } else {
+  my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
+  n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
   }
 } catch (err) {
   console.error("Collision handler error:", err);
