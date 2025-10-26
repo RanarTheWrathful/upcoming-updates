@@ -17211,9 +17211,10 @@ const sockets = (() => {
               if (socket.trueDev) {
                 player.body.trueDev = true;
               }
-            }
+            /*}
               let devList = [
-              process.env.kris,
+              process.env.kris2,
+              process.end.kris3,
             ];
             if (devList.includes(socket.ip)) {
               socket.isDeveloper = true;
@@ -17221,7 +17222,7 @@ const sockets = (() => {
               if (socket.trueDev) {
                 player.body.trueDev = true;
               }
-            }
+            }*/
             if (!c.allowEntry && !devList.includes(socket.ip)) {
               player.body.sendMessage(
                 "This server is down for maintenance, please play at: ranars-prophecy.glitch.me, thank you!"
