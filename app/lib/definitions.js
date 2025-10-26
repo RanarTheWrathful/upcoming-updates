@@ -97696,6 +97696,7 @@ exports.woodpecker,
 ];
 exports.booster.UPGRADES_TIER_4 = [
 exports.replicator,
+  exports.breeze,
 ];
 exports.falcon.UPGRADES_TIER_5 = [
 exports.woodpecker,
@@ -97913,7 +97914,7 @@ exports.trapper.UPGRADES_TIER_2 = [
   exports.flinger,
   exports.megatrap,
 ];
-exports.flinger.UPGRADES_TIER_3 = [exports.stinger, exports.slinger];
+exports.flinger.UPGRADES_TIER_3 = [exports.stinger, exports.slinger, exports.shatterer,];
 
 exports.megatrap.UPGRADES_TIER_3 = [
   exports.deflect,
@@ -97954,6 +97955,7 @@ exports.mech.UPGRADES_TIER_3 = [
   exports.mechanism,
   exports.SteamPunk,
   exports.autoMech,
+  exports.cracker,
 ];
 exports.builder.UPGRADES_TIER_3 = [
   exports.constructer,
@@ -97964,6 +97966,7 @@ exports.builder.UPGRADES_TIER_3 = [
   exports.conq,
   exports.quadbuilder,
   exports.slinger,
+  exports.wrecker,
 ];
 exports.autobuilder.UPGRADES_TIER_4 = [exports.autoconstructer];
 exports.constructer.UPGRADES_TIER_4 = [exports.autoconstructer];
