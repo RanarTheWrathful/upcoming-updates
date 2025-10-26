@@ -10217,7 +10217,7 @@ class Entity {
         this.define(Class.sanct);
       }
     }
-if (!this.isVisible && this.isProjectile && this.dieAtRange) {
+if (!this.isVisible && this.isProjectile && this.settings.dieAtRange) {
   this.kill();
   this.destroy();
   }
