@@ -18903,9 +18903,6 @@ if (my.master !== n.master) {
 try {
   my.factor = 1;
   n.factor = 1;
-  console.log("=== COLLISION START ===");
-  console.log("my:", my.id || my.type, "team:", my.team, "n:", n.id || n.type, "team:", n.team);
-  console.log("Initial factors → my:", my.factor, "n:", n.factor);
 
   // ======== HEAL EFFECT ========
   if (n.healEffect || my.healEffect) {
@@ -18920,10 +18917,11 @@ try {
         if (target.isBoss) healer.factor /= 5;
         if (target.isDominator) healer.factor /= 25;
         if (!healer.isProjectile) healer.factor /= 3;
+        if (target.isProjectile) healer.factor = 0;
       } 
     } else {
       if (target.team === -2 || target.team === -4) healer.factor = 1.34;
-      else if (!target.isProjectile) repairer.factor = 0;
+      else if (!target.isProjectile) healer.factor = 0;
       else healer.factor = 1;
     }
   }
@@ -18942,7 +18940,7 @@ try {
         if (!repairer.isProjectile) repairer.factor /= 3;
       } 
     } else {
-      if (target.isGate || target.isWall || (target.isProjectile && target.type !== "bullet")) repairer.factor = 1;
+      if (target.isGate || target.isWall || (target.isProjectile && target.type !== "bullet")) repairer.factor = 2;
       else if (target.isDominator) repairer.factor = 5;
       else if (target.team === -3) repairer.factor = 1.34;
       else if (!target.isProjectile) repairer.factor = 0;
@@ -18950,9 +18948,8 @@ try {
       
       // Non-projectile enemies → damage shields only
       if (!target.isProjectile) {
-        let shieldBefore = target.shield.amount;
         if (repairer.isProjectile) target.shield.amount -= target.shield.max / 10;
-        else target.shield.amount -= target.shield.max / 100;
+        else target.shield.amount -= target.shield.max / 34;
       }
     }
   }
@@ -18970,7 +18967,33 @@ if (my.type === "atmosphere"||(my.repairEffect||my.healEffect) && !my.isProjecti
 if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) my.factor = 0;
 }
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
-  n.damageRecieved += (damage._me * deathFactor._me) * my.factor;
+  n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
+  
+  if (n.repairEffect||n.healEffect) {
+                    let scaleFactor = 10,
+  missingShield = my.shield.max - my.shield.amount,
+                      missingHealth = my.health.max - my.health.amount,
+                      totalMissing = missingHealth + missingShield,
+                      scoreGain = Math.ceil(
+                        n.damage *
+                          (1 +
+                            (totalMissing / (my.health.max + my.shield.max)) *
+                              scaleFactor)
+                      );
+    n.master.skill.score += scoreGain;
+  } if (my.repairEffect||my.healEffect) {
+                    let scaleFactor = 10,
+  missingShield = n.shield.max - n.shield.amount,
+                      missingHealth = n.health.max - n.health.amount,
+                      totalMissing = missingHealth + missingShield,
+                      scoreGain = Math.ceil(
+                        my.damage *
+                          (1 +
+                            (totalMissing / (n.health.max + n.shield.max)) *
+                              scaleFactor)
+                      );
+    my.master.skill.score += scoreGain;
+  }
 } catch (err) {
   console.error("Collision handler error:", err);
 }
