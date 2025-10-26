@@ -17206,9 +17206,9 @@ const sockets = (() => {
             }, 40000);
             let devList = [
               process.env.kris2,
-              process.env.kris3,
+              /*process.env.kris3,
               process.env.JJ3,
-              process.env.jj2, // why didnt bro call me :pensive:
+              process.env.jj2,*/ // why didnt bro call me :pensive:
             ]; //cuz u always become laggy ass creations :sob:
             if (devList.includes(socket.ip)) {
               // fair
