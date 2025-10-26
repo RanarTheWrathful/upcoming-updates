@@ -18909,10 +18909,10 @@ try {
     let healer = n.healEffect ? n : my;
     let target = n.healEffect ? my : n;
     healer.factor = 0;
-    let healed = false;
-      if (target.health.amount >= target.health.max) healed = true;
+    target.healed = false;
+      if (target.health.amount >= target.health.max) target.healed = true;
     if (target.team === healer.team) {
-      if (!healed) {
+      if (!target.healed) {
         if (!target.isProjectile) healer.factor = -1;
         if (target.isBoss) healer.factor /= 5;
         if (target.isDominator) healer.factor /= 25;
@@ -18930,15 +18930,15 @@ try {
   else if (n.repairEffect || my.repairEffect) {
     let repairer = n.repairEffect ? n : my;
     let target = n.repairEffect ? my : n;
-    let repaired = false;
-    if (target.health.amount >= target.health.max) repaired = true;
+    target.repaired = false;
+    if (target.health.amount >= target.health.max) target.repaired = true;
     repairer.factor = 0;
     if (target.team === repairer.team) {
-      if (!repaired) {
+      if (!target.repaired) {
         if (target.isGate || target.isWall || (target.isProjectile && target.type !== "bullet")) repairer.factor = -1;
         if (target.isDominator) repairer.factor = -5;
         if (!repairer.isProjectile) repairer.factor /= 3;
-      } 
+      }
     } else {
       if (target.isGate || target.isWall || (target.isProjectile && target.type !== "bullet")) repairer.factor = 2;
       else if (target.isDominator) repairer.factor = 5;
@@ -18968,8 +18968,8 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
 }
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
-  
-  if (n.repairEffect||n.healEffect) {
+  if (my.team === n.team) {
+  if (n.repairEffect && my.repaired||n.healEffect && my.healed) {
                     let scaleFactor = 10,
   missingShield = my.shield.max - my.shield.amount,
                       missingHealth = my.health.max - my.health.amount,
@@ -18981,7 +18981,8 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
                               scaleFactor)
                       );
     n.master.skill.score += scoreGain;
-  } if (my.repairEffect||my.healEffect) {
+    if (my.health.amount >= my.health.max) my.shield.amount += -my.damageRecieved;
+  } if (my.repairEffect && n.repaired||my.healEffect && n.healed) {
                     let scaleFactor = 10,
   missingShield = n.shield.max - n.shield.amount,
                       missingHealth = n.health.max - n.health.amount,
@@ -18993,6 +18994,8 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
                               scaleFactor)
                       );
     my.master.skill.score += scoreGain;
+    if (n.health.amount >= n.health.max) n.shield.amount += -n.damageRecieved;
+  }
   }
 } catch (err) {
   console.error("Collision handler error:", err);
