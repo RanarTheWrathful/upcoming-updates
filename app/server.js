@@ -17212,19 +17212,7 @@ const sockets = (() => {
                 player.body.trueDev = true;
               }
             }
-            /*  let devList = [
-              process.env.ranar1,
-              process.env.ranar2,
-              process.env.unknown1,
-              process.env.kris2,
-              process.env.unknown3,
-              process.env.unknown4,
-              process.env.unknown5,
-              process.env.unknown6,
-              process.env.unknown7,
-              process.env.unknown8,
-              process.env.unknown9,
-              process.env.tenp1,
+              let devList = [
               process.env.kris,
             ];
             if (devList.includes(socket.ip)) {
@@ -17241,7 +17229,7 @@ const sockets = (() => {
               setTimeout(() => {
                 socket.kick("NO ENTRY!");
               }, 5000);
-            }*/
+            }
             if (c.TESTBED_ACCESS === 2) {
               player.body.isDeveloper = true;
             }
