@@ -15366,6 +15366,7 @@ class View {
 
   add(e) {
     if (this.isInView(e)) {
+          this.isVisible = true;
       this.nearEntity.add(e);
     }
   }
@@ -15375,6 +15376,7 @@ class View {
       this.photos.delete(e.id);
       this.nearEntity.delete(e);
       this.excludedEntityID.push(e.id);
+          this.isVisible = false;
     }
   }
 
@@ -15645,7 +15647,6 @@ class View {
           Math.abs(e.y - this.y) < (this.fov / 2) * (9 / 16) + 1.5 * e.size
         ) {
           this.visibleEntity.add(e);
-          this.isVisible = true;
           if (!this.photos.has(e.id)) {
             this.photos.set(e.id, {});
           }
@@ -15659,7 +15660,6 @@ class View {
           }
         } else {
           this.remove(e);
-          this.isVisible = false;
         }
       }
     });
