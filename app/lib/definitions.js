@@ -6575,6 +6575,7 @@ exports.bang = {
         TYPE: [
           exports.bullet,
           {
+            TYPE: "atmosphere",
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
             SPECIAL_EFFECT: "push",
@@ -6613,6 +6614,7 @@ exports.bangAlt = {
         TYPE: [
           exports.bullet,
           {
+            TYPE: "atmosphere",
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
             SPECIAL_EFFECT: "push",
@@ -6656,6 +6658,7 @@ exports.bigBang = {
         TYPE: [
           exports.bullet,
           {
+            TYPE: "atmosphere",
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
             SPECIAL_EFFECT: "push",
@@ -6695,6 +6698,7 @@ exports.bangBang = {
         TYPE: [
           exports.bullet,
           {
+            TYPE: "atmosphere",
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
             SPECIAL_EFFECT: "push",
@@ -28802,6 +28806,7 @@ exports.whirlpool = {
         TYPE: [
           exports.bullet,
           {
+            TYPE: "atmosphere",
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
             SPECIAL_EFFECT: "push",
