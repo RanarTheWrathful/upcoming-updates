@@ -915,6 +915,7 @@ exports.boss = {
   PARENT: [exports.enemy],
   IS_ENEMY: false,
   IS_BOSS: true,
+  REACT: false,
   LAYER: 8,
   VALUE: 100000,
   DANGER: 9,
