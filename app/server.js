@@ -15372,8 +15372,6 @@ class View {
 
   remove(e) {
     if (this.visibleEntity.delete(e)) {
-          this.notVisible = true;
-          e.collisionArray = [];
       this.photos.delete(e.id);
       this.nearEntity.delete(e);
       this.excludedEntityID.push(e.id);
@@ -15627,12 +15625,14 @@ class View {
       entities.forEach((e) => {
         if (e.valid() && this.isInView(e) && e.bond == null) {
           this.nearEntity.add(e);
+          this.notVisible = true;
+          e.collisionArray = [];
         }
       });
       this.visibleEntity.forEach((e) => {
-          this.notVisible = false;
         if (!e.valid() || (!this.isInView(e) && e.alwaysExists | e.isDead())) {
           this.remove(e);
+          this.notVisible = false;
         }
       });
       this.lastVisibleUpdate = this.lastUpdate;
