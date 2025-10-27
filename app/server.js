@@ -8644,8 +8644,8 @@ class Entity {
       this.type === "food" &&
       this.label !== this.doit
     ) {
-      if (this.foodLevel === 0) {
         if (this.label === "Egg") this.DAMAGE = 25000;
+      if (this.foodLevel === 0) {
         if (this.label === "Albino Nonagon") return;
         else this.DAMAGE = 250;
       }
