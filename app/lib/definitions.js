@@ -915,7 +915,6 @@ exports.boss = {
   PARENT: [exports.enemy],
   IS_ENEMY: false,
   IS_BOSS: true,
-  REACT: false,
   LAYER: 8,
   VALUE: 100000,
   DANGER: 9,
@@ -79134,6 +79133,9 @@ exports.damagedArenaCloser = {
           g.pound,
           g.power,
           g.superHealth,
+          g.lesserReload,
+          g.greaterSpeed,
+          g.greaterDamage,
         ]),
         TYPE: exports.arenaBullet,
       },
@@ -79165,6 +79167,9 @@ exports.arenaslayer = {
           g.anni,
           g.power,
           g.superHealth,
+          g.lesserReload,
+          g.greaterSpeed,
+          g.greaterDamage,
         ]),
         TYPE: exports.arenaBullet,
       },
@@ -79558,7 +79563,7 @@ exports.CX = {
     HEALTH: 5500,
   },
   SKILL: skillSet({
-    rld: 0.2, //reload
+    rld: 0.4, //reload
     dam: 1.3, //bullet damage
     pen: 1, //bullet penetration
     str: 1.5, //bullet health
