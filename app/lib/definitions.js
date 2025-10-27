@@ -864,6 +864,7 @@ exports.ball = {
 exports.enemy = {
   PARENT: [exports.genericTank],
   IS_ENEMY: true,
+  REACT: true,
   SIZE: 10,
   DANGER: 7,
   GIVE_KILL_MESSAGE: true,
@@ -57974,6 +57975,7 @@ exports.elite_gunner = {
   PARENT: [exports.neutralRangedBoss, exports.elite],
   LABEL: "Elite Gunner",
   FACING_TYPE: "smoothToTarget",
+  REACT: true,
   GUNS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
@@ -65635,6 +65637,7 @@ exports.ranarDiscipleForm = {
   NAME: "Ranar",
   TYPE: "neutralBoss",
   LABEL: "Disciple",
+  REACT: true,
   ALLOW_PLATE: true,
   BODY: {
     DAMAGE: base.DAMAGE * 5,
@@ -65792,6 +65795,7 @@ exports.rainOfAcid = {
   NAME: "Oxini Vrochí",
   LABEL: "Descendant",
   SPECIAL_EFFECT: "animatable",
+  REACT: true,
   COLOR: 1,
   DANGER: 9,
   SIZE: 15,
@@ -65878,6 +65882,7 @@ exports.kristaps = {
   TYPE: "neutralBoss",
   LABEL: "Descendant",
   SPECIAL_EFFECT: "animatable",
+  REACT: true,
   CONTROLLERS: ["nearestDifferentMaster", "minion"],
   BODY: {
     HEALTH: 300,
@@ -66065,6 +66070,7 @@ exports.duodeci = {
   TYPE: "neutralBoss",
   LABEL: "Descendant",
   SPECIAL_EFFECT: "animatable",
+  REACT: true,
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -66084,6 +66090,8 @@ exports.annoyingDog = {
   NAME: "Annoying Dog",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
+  SPECIAL_EFFECT: "animatable",
+  REACT: true,
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -66104,6 +66112,7 @@ exports.icecream = {
   TYPE: "neutralBoss",
   LABEL: "Descendant",
   SPECIAL_EFFECT: "animatable",
+  REACT: true,
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -66124,6 +66133,7 @@ exports.possessor = {
   TYPE: "neutralBoss",
   LABEL: "Descendant",
   SPECIAL_EFFECT: "animatable",
+  REACT: true,
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -66190,6 +66200,7 @@ exports.xxtrianguli = {
   TYPE: "neutralBoss",
   LABEL: "Descendant",
   SPECIAL_EFFECT: "animatable",
+  REACT: true,
   BODY: {
     HEALTH: 250,
     REGEN: 0,
@@ -66225,6 +66236,7 @@ exports.chaser = {
   NAME: "Chaser",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
+  REACT: true,
   SPECIAL_EFFECT: "animatable",
   BODY: {
     HEALTH: 250,
@@ -66245,6 +66257,8 @@ exports.excaliber = {
   NAME: "Excaliber",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
+  REACT: true,
+  SPECIAL_EFFECT: "animatable",
   BODY: {
     HEALTH: 250,
     REGEN: 0,
@@ -66264,6 +66278,7 @@ exports.powernoob = {
   NAME: "PowerNoob",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
+  REACT: true,
   SPECIAL_EFFECT: "animatable",
   BODY: {
     HEALTH: 500,
@@ -66284,6 +66299,7 @@ exports.johnathon = {
   NAME: "Johnathon",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
+  REACT: true,
   SPECIAL_EFFECT: "animatable",
   BODY: {
     HEALTH: 250,
@@ -66304,6 +66320,7 @@ exports.alexTheDemonical = {
   NAME: "Alex, The Demonical",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
+  REACT: true,
   SPECIAL_EFFECT: "animatable",
   BODY: {
     HEALTH: 250,
@@ -66324,6 +66341,7 @@ exports.pop64 = makeMulti(
     ],
     NAME: "Pop64",
     TYPE: "neutralBoss",
+  REACT: true,
     SPECIAL_EFFECT: "animatable",
     BODY: {
       HEALTH: 250,
@@ -66364,6 +66382,7 @@ exports.ranarAscendantForm = {
   NAME: "Ranar",
   TYPE: "neutralBoss",
   LABEL: "Ascendant",
+  REACT: true,
   BODY: {
     FOV: 3.25,
     HEALTH: 6000,
@@ -80548,6 +80567,7 @@ exports.nulltype = {
   //  NAME: "Alhazred",
   LABEL: "Ancient",
   SPECIAL_EFFECT: "randomShit",
+  REACT: true,
   SIZE: 30,
   VALUE: 250000,
   SKILL: skillSet({
@@ -80917,6 +80937,7 @@ exports.elder = {
   PARENT: [exports.voidlordMeleeBoss],
   // NAME: "Abdul",
   LABEL: "Elder",
+  REACT: true,
   SIZE: 30,
   SKILL: skillSet({
     rld: 0,
@@ -81095,6 +81116,7 @@ exports.bacteriaBurst = makeMulti(
 exports.hiveMind = {
   PARENT: [exports.voidlordRangedBoss],
   LABEL: "Hive Mind",
+  REACT: true,
   SIZE: 30,
   AI_TARGET: "leastDeadly",
   VALUE: 250000,
@@ -81860,6 +81882,7 @@ exports.sardonyx = {
   TYPE: "voidlordBoss",
   SPECIAL_EFFECT: "dieWall",
   FACING_TYPE: "looseToTarget",
+  REACT: true,
   ALLOW_PLATE: true,
   DANGER: 8,
   SIZE: 25,
@@ -85503,6 +85526,7 @@ exports.highlordAidra = {
   TYPE: "highlordBoss",
   LABEL: "Mechanical Menace",
   ALLOW_PLATE: true,
+  REACT: true,
   BODY: {
     FOV: 1.3,
     REGEN: -1,
@@ -85787,6 +85811,7 @@ exports.weakHighlordAlbatar = {
   NAME: "Highlord Albatar",
   LABEL: "Rift Shaper",
   ALLOW_PLATE: true,
+  REACT: true,
   HAS_NO_RECOIL: true,
   SIZE: 20,
   COLOR: 7,
@@ -85897,6 +85922,7 @@ exports.highlordKairo = {
   TYPE: "highlordBoss",
   LABEL: "Care Taker",
   ALLOW_PLATE: true,
+  REACT: true,
   SHAPE: 6,
   DANGER: 8,
   SIZE: 25,
@@ -86099,6 +86125,7 @@ exports.highlordAkavir = {
   TYPE: "highlordBoss",
   LABEL: "Peace Keeper",
   ALLOW_PLATE: true,
+  REACT: true,
   BODY: {
     FOV: 1.3,
     REGEN: -1,
@@ -86758,6 +86785,7 @@ exports.enslaver = {
   PARENT: [exports.animator, exports.fallenRangedBoss],
   LABEL: "Enslaver",
   VALUE: 250000,
+  REACT: true,
   FACING_TYPE: "looseToTarget",
   BODY: {
     FOV: 1.2,
@@ -86948,6 +86976,7 @@ exports.fallenanni = {
 exports.fallenfalcon = {
   PARENT: [exports.falcon, exports.fallenRangedBoss],
   LABEL: "Fallen Falcon",
+  REACT: true,
   BODY: { SPEED: 0.75 },
   FACING_TYPE: "looseToTarget",
   GUNS: [
@@ -87059,6 +87088,7 @@ exports.fallenflankguard = {
   PARENT: [exports.flanktrap, exports.fallenRangedBoss],
   LABEL: "Fallen Trap Guard",
   FACING_TYPE: "looseToTarget",
+  REACT: true,
   RESET_UPGRADES: true,
   SKILL: skillSet({
     rld: 0.8, //reload
@@ -87077,6 +87107,7 @@ exports.fallenflankguard = {
 exports.fallenbooster = {
   PARENT: [exports.booster, exports.fallenMeleeBoss],
   LABEL: "Fallen Booster",
+  REACT: true,
   VALUE: 250000,
   BODY: {
     FOV: 1.2,
@@ -95208,6 +95239,7 @@ exports.twilight = {
   SIZE: 12,
   COLOR: 10,
   NAME: "Twilight <3",
+  REACT: true,
   VALUE: 1000000,
   BODY: {
     ACCELERATION: base.ACCEL,
