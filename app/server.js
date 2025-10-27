@@ -10217,7 +10217,8 @@ class Entity {
         this.define(Class.sanct);
       }
     }
-if (this.notVisible && this.isProjectile) {
+if (this.isInView(this) && this.isProjectile) {
+this.collisionArray = [];
   this.kill();
   this.destroy();
   }
@@ -15625,14 +15626,11 @@ class View {
       entities.forEach((e) => {
         if (e.valid() && this.isInView(e) && e.bond == null) {
           this.nearEntity.add(e);
-          this.notVisible = true;
-          e.collisionArray = [];
         }
       });
       this.visibleEntity.forEach((e) => {
         if (!e.valid() || (!this.isInView(e) && e.alwaysExists | e.isDead())) {
           this.remove(e);
-          this.notVisible = false;
         }
       });
       this.lastVisibleUpdate = this.lastUpdate;
