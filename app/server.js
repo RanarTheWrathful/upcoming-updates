@@ -10217,7 +10217,7 @@ class Entity {
         this.define(Class.sanct);
       }
     }
-if (!this.isVisible && this.isProjectile) {
+if (this.notVisible && this.isProjectile) {
   this.kill();
   this.destroy();
   }
@@ -15372,7 +15372,7 @@ class View {
 
   remove(e) {
     if (this.visibleEntity.delete(e)) {
-          this.isVisible = false;
+          this.notVisible = true;
           e.collisionArray = [];
       this.photos.delete(e.id);
       this.nearEntity.delete(e);
@@ -15630,7 +15630,7 @@ class View {
         }
       });
       this.visibleEntity.forEach((e) => {
-          this.isVisible = true;
+          this.notVisible = false;
         if (!e.valid() || (!this.isInView(e) && e.alwaysExists | e.isDead())) {
           this.remove(e);
         }
