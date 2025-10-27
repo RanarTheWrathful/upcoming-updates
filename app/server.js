@@ -6974,7 +6974,7 @@ class Entity {
         this.skill.str = c.playerCount / 2.5 + 3;
         this.skill.spd = c.playerCount / 10 + 2;
       }
-      if (this.label === "Abdul") {
+      if (this.name === "Abdul") {
         this.damage = 2 + c.playerCount / 2;
         this.skill.dam = c.playerCount / 10 + 3;
         this.skill.pen = c.playerCount / 6 + 3;
@@ -6993,7 +6993,7 @@ class Entity {
           }, 5000);
         }
       }
-      if (this.label === "Hive Mind") {
+      if (this.name === "Golothess") {
         this.damage = 2 + c.playerCount / 4;
         this.skill.dam = c.playerCount / 5 + 2.5;
         this.skill.pen = c.playerCount / 5 + 3;
@@ -7012,7 +7012,7 @@ class Entity {
           }, 5000);
         }
       }
-      if (this.label === "Ancient") {
+      if (this.name === "Alhazred") {
         this.damage = 2 + c.playerCount / 3;
         this.skill.dam = c.playerCount / 7.5 + 2;
         this.skill.pen = c.playerCount / 5 + 2.5;
@@ -20190,6 +20190,27 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
         )
           return;
         advancedcollide(instance, other, true, true);
+          if (c.MODE !== "siege") {
+            if (
+              other.specialEffect === "dieWall" ||
+              other.master.specialEffect === "dieWall"
+            ) {
+              instance.health.amount -=
+                instance.health.max / 50 - instance.SIZE / 2;
+            }
+          }
+        } else {
+          advancedcollide(other, instance, false, false, a);
+          if (c.MODE !== "siege") {
+            if (
+              instance.specialEffect === "dieWall" ||
+              instance.master.specialEffect === "dieWall"
+            ) {
+              other.health.amount -=
+                instance.health.max / 50 - instance.SIZE / 2;
+            }
+          }
+        }
       }
       if (instance.team !== other.team) {
         if (instance.master.myShip && other.isGate) {
