@@ -3582,18 +3582,7 @@ class io_nearestDifferentMaster extends IO {
     }
     // Lock onto whoever's shooting me.
 
-    switch (this.body.aiTarget) {
-      case "leastDeadly":
-      case "mostDeadly":
-      case "projectiles":
-      case "allHostiles":
-      case "self":
-      case "structures":
-      case "allies":
-      case "healAllies":
-        break;
-      case "general":
-      default:
+    if (this.body.react) {
         let damageRef = this.body.bond == null ? this.body : this.body.bond;
         if (
           damageRef.collisionArray.length &&
@@ -5396,6 +5385,9 @@ class Entity {
       }
       if (set.HEAL_EFFECT != null) {
         this.healEffect = set.HEAL_EFFECT;
+      }
+      if (set.REACT != null) {
+        this.react = set.REACT;
       }
       if (set.REPAIR_EFFECT != null) {
         this.repairEffect = set.REPAIR_EFFECT;
