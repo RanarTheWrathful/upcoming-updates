@@ -15366,17 +15366,17 @@ class View {
 
   add(e) {
     if (this.isInView(e)) {
-          this.isVisible = true;
       this.nearEntity.add(e);
     }
   }
 
   remove(e) {
     if (this.visibleEntity.delete(e)) {
+          this.isVisible = false;
+          e.collisionArray = [];
       this.photos.delete(e.id);
       this.nearEntity.delete(e);
       this.excludedEntityID.push(e.id);
-          this.isVisible = false;
     }
   }
 
@@ -15630,9 +15630,9 @@ class View {
         }
       });
       this.visibleEntity.forEach((e) => {
+          this.isVisible = true;
         if (!e.valid() || (!this.isInView(e) && e.alwaysExists | e.isDead())) {
           this.remove(e);
-          e.collisionArray = [];
         }
       });
       this.lastVisibleUpdate = this.lastUpdate;
