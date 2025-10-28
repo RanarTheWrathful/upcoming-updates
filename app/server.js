@@ -20211,7 +20211,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
             }
           }
         }
-      }
+      
       if (instance.team !== other.team) {
         if (instance.master.myShip && other.isGate) {
           other.destroy();
