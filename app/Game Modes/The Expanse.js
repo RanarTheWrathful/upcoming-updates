@@ -28,6 +28,11 @@ module.exports =
    ["wall", "none", "wall", "zne1", "zne1", "zne1", "zne1", "wall", "wall", "norm", "norm", "norm","norm", "norm", "norm", "norm", "norm", "norm", "wall"],
    ["wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall", "wall","wall", "wall", "wall"]
   ], 
+  ENEMY_INTENSITY: {
+    CRASHERS: 25,
+    THRASHERS: 50,
+    SENTINELS: 5,
+    },
   "TEAMS": [3],
   "FOOD_AMOUNT": 20, 
   "BOTS": 5,
