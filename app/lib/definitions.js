@@ -32717,11 +32717,12 @@ exports.shadowLord = {
   PARENT: [exports.genericTank],
   LABEL: "Shadow Lord",
   DANGER: 6,
+  INVISIBLE: [0.006, 0.003],
   STAT_NAMES: statnames.drone,
   BODY: {
     ACCELERATION: base.ACCEL * 0.7,
-    SPEED: base.SPEED * 0.8,
-    FOV: base.FOV * 1.15,
+    SPEED: base.SPEED * 0.9,
+    FOV: base.FOV * 1.1,
   },
   SHAPE: 4,
 
