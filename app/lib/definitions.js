@@ -3394,6 +3394,16 @@ exports.stealthedTriangleDrone = {
   LABEL: "Triangle",
   ALPHA: 0.15,
 };
+exports.stealthedPentagonDrone = {
+  PARENT: [exports.squareDrone],
+  LABEL: "Square",
+  ALPHA: 0.15,
+};
+exports.stealthedHexagonDrone = {
+  PARENT: [exports.triangleDrone],
+  LABEL: "Triangle",
+  ALPHA: 0.15,
+};
 exports.pentagonDrone = {
   PARENT: [exports.squareDrone],
   LABEL: "Pentagon",
@@ -3407,6 +3417,17 @@ exports.hexagonDrone = {
   BODY: {
     SHIELD: 1,
   },
+};
+
+exports.stealthedPentagonDrone = {
+  PARENT: [exports.pentagonDrone],
+  LABEL: "Square",
+  ALPHA: 0.15,
+};
+exports.stealthedHexagonDrone = {
+  PARENT: [exports.hexagonDrone],
+  LABEL: "Triangle",
+  ALPHA: 0.15,
 };
 exports.septagonDrone = {
   PARENT: [exports.pentagonDrone],
@@ -32643,6 +32664,132 @@ exports.shadowShaper = {
         TYPE: [exports.stealthedTriangleDrone],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+  ],
+};
+exports.voidShaper = {
+  PARENT: [exports.genericTank],
+  LABEL: "Void Shaper",
+  DANGER: 6,
+  INVISIBLE: [100, 0],
+  ALPHA: 0.15,
+  STAT_NAMES: statnames.drone,
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.7,
+    SPEED: base.SPEED * 0.9,
+    FOV: base.FOV * 1.1,
+  },
+  SHAPE: 4,
+  MAX_CHILDREN: 12,
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [4, 8, 1.2, 8, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.drone,
+          g.doubleSize,
+          g.lesserDamage,
+          g.lesserHealth,
+          g.lesserReload,
+        ]),
+        TYPE: [exports.stealthedSquareDrone],
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+    {
+      POSITION: [4, 8, 1.2, 8, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        TYPE: [exports.stealthedTriangleDrone],
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+  ],
+};
+exports.shadowLord = {
+  PARENT: [exports.genericTank],
+  LABEL: "Shadow Lord",
+  DANGER: 6,
+  STAT_NAMES: statnames.drone,
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.7,
+    SPEED: base.SPEED * 0.8,
+    FOV: base.FOV * 1.15,
+  },
+  SHAPE: 4,
+
+  MAX_CHILDREN: 10,
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [4, 8, 1.2, 8, 0, 90, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.drone,
+          g.doubleSize,
+          g.lesserDamage,
+          g.lesserHealth,
+          g.lesserReload,
+        ]),
+        TYPE: [exports.stealthedSquareDrone],
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+    {
+      POSITION: [4, 8, 1.2, 8, 0, 270, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        TYPE: [exports.stealthedTriangleDrone],
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+    {
+      POSITION: [4, 8, 1.2, 8, 0, 0, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.drone,
+          g.doubleSize,
+          g.greaterSize,
+          g.lesserDamage,
+          g.greaterHealth,
+          g.greaterReload,
+        ]),
+        TYPE: [exports.stealthedPentagonDrone],
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        MAX_CHILDREN: 4,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+    {
+      POSITION: [4, 8, 1.2, 8, 0, 180, 1.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.drone,
+          g.doubleSize,
+          g.greaterSize,
+          g.lesserStats,
+          g.halfSpeed,
+          g.superHealth,
+          g.superHealth,
+          g.greaterHealth,
+          g.superReload,
+        ]),
+        TYPE: [exports.stealthedHexagonDrone, { DRAW_HEALTH: true, GROWTH_FACTOR: 3 }],
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        MAX_CHILDREN: 1,
         STAT_CALCULATOR: gunCalcNames.drone,
       },
     },
@@ -96220,6 +96367,8 @@ exports.krispollies.UPGRADES_TIER_1 = [
   exports.polyLord,
   exports.mutant,
   exports.autoPolyFear,
+  exports.voidShaper,
+  exports.shadowLord,
 ];
 exports.krisbooms.UPGRADES_TIER_1 = [
   exports.neutron,
