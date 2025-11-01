@@ -38073,7 +38073,7 @@ exports.executioner = {
     {
       POSITION: [7, 7.5, 0.6, 7, 2, 210, 0.25],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.doubleRecoil,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.doubleRecoil, g.doubleRecoil, g.doubleRecoil,  ]),
         TYPE: exports.swarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
@@ -38081,7 +38081,7 @@ exports.executioner = {
     {
       POSITION: [7, 7.5, 0.6, 7, -2, 150, 0.25],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.doubleRecoil,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.doubleRecoil, g.doubleRecoil, g.doubleRecoil,  ]),
         TYPE: exports.swarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
