@@ -37893,6 +37893,42 @@ exports.rocketeer = {
   ],
 };
 
+exports.executioner = {
+  PARENT: [exports.genericTank],
+  LABEL: "Executioner",
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.8,
+    FOV: base.FOV * 1.2,
+  },
+  DANGER: 7,
+  GUNS: [
+    {
+      POSITION: [20, 5, 4, 1, 0, 0, 0],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [18, 13.5, -1.6, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.pound,
+          g.missile,
+          g.halfDamage,
+        ]),
+        TYPE: exports.rocket,
+        STAT_CALCULATOR: gunCalcNames.sustained,
+      },
+    },
+    {
+      POSITION: [20, 3, 4, 1, 0, 0, 0],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [18, 11.5, -1.6, 0, 0, 0, 0],
+    },
+  ],
+};
+
 exports.sidewind = {
   PARENT: [exports.genericTank],
   LABEL: "Sidewinder",
@@ -96476,6 +96512,7 @@ exports.kristanks3.UPGRADES_TIER_1 = [
   exports.testersphere,
   exports.randombullshit,
   exports.universalHealer,
+  exports.executioner,
   exports.kristanks4,
 ];
 exports.krisbosses1.UPGRADES_TIER_1 = [
