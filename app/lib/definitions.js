@@ -37903,11 +37903,11 @@ exports.executioner = {
   DANGER: 7,
   GUNS: [
     {
-      POSITION: [20, 5, 4, 1, 0, 0, 0],
+      POSITION: [20, 4, 4, 1, 0, 0, 0],
     },
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [18, 13.5, -1.6, 0, 0, 0, 0],
+      POSITION: [18, 12.5, -1.6, 0, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.basic,
@@ -37920,11 +37920,11 @@ exports.executioner = {
       },
     },
     {
-      POSITION: [20, 3, 4, 1, 0, 0, 0],
+      POSITION: [20, 1, 4, 1, 0, 0, 0],
     },
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [18, 11.5, -1.6, 0, 0, 0, 0],
+      POSITION: [18, 8.5, -1.6, 0, 0, 0, 0],
     },
   ],
 };
