@@ -37920,7 +37920,7 @@ exports.executioner = {
       },
     },
     {
-      POSITION: [20, 2, 4, 1, 0, 0, 0],
+      POSITION: [20, 2.5, 4, 1, 0, 0, 0],
     },
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
