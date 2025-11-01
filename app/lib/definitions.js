@@ -37985,6 +37985,39 @@ exports.executioner = {
     },
   ],
   GUNS: [
+  {
+    /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+    POSITION: [17, 3, 1, 0, -6, -7, 0.2],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.gunner,
+        g.arty,
+        g.nail,
+        g.power,
+        g.lesserSpeed,
+        g.doubleDamage,
+      ]),
+      TYPE: exports.bullet,
+      LABEL: "Secondary",
+    },
+  },
+  {
+    POSITION: [17, 3, 1, 0, 6, 7, 0.6],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.gunner,
+        g.arty,
+        g.nail,
+        g.power,
+        g.lesserSpeed,
+        g.doubleDamage,
+      ]),
+      TYPE: exports.bullet,
+      LABEL: "Secondary",
+    },
+  },
     {
       POSITION: [20, 4, 4, 1, 0, 0, 0],
     },
@@ -38015,7 +38048,7 @@ exports.executioner = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [10, 8.5, 0.6, 7, 0, 180, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize, g.doubleRecoil,]),
         TYPE: exports.uncontrolledSwarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
@@ -38023,7 +38056,7 @@ exports.executioner = {
     {
       POSITION: [10, 8.5, 0.6, 7, 2, 240, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize, g.doubleRecoil,]),
         TYPE: exports.uncontrolledSwarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
@@ -38031,7 +38064,7 @@ exports.executioner = {
     {
       POSITION: [10, 8.5, 0.6, 7, -2, 120, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil,  g.greaterSize, g.doubleRecoil,]),
         TYPE: exports.uncontrolledSwarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
