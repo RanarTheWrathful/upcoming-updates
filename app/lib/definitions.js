@@ -38030,7 +38030,8 @@ exports.executioner = {
           g.pound,
           g.destroy,
           g.missile,
-          g.halfDamage,
+          g.minorDamage,
+          g.minorRecoil,
         ]),
         TYPE: exports.executionerRocket,
         STAT_CALCULATOR: gunCalcNames.sustained,
@@ -38048,7 +38049,7 @@ exports.executioner = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [10, 8.5, 0.6, 7, 0, 180, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize, g.doubleRecoil,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.superRecoil, g.greaterSize, ]),
         TYPE: exports.uncontrolledSwarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
@@ -38056,7 +38057,7 @@ exports.executioner = {
     {
       POSITION: [10, 8.5, 0.6, 7, 2, 240, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize, g.doubleRecoil,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.superRecoil, g.greaterSize, ]),
         TYPE: exports.uncontrolledSwarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
@@ -38064,7 +38065,7 @@ exports.executioner = {
     {
       POSITION: [10, 8.5, 0.6, 7, -2, 120, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil,  g.greaterSize, g.doubleRecoil,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.superRecoil,  g.greaterSize, ]),
         TYPE: exports.uncontrolledSwarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
