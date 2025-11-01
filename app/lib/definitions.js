@@ -38015,39 +38015,39 @@ exports.executioner = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [10, 8.5, 0.6, 7, 0, 180, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize]),
         TYPE: exports.uncontrolledSwarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
     },
     {
-      POSITION: [10, 8.5, 0.6, 7, 2, 210, 0.5],
+      POSITION: [10, 8.5, 0.6, 7, 2, 240, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize]),
         TYPE: exports.uncontrolledSwarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
     },
     {
-      POSITION: [10, 8.5, 0.6, 7, -2, -150, 0.5],
+      POSITION: [10, 8.5, 0.6, 7, -2, 120, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil, g.greaterSize]),
         TYPE: exports.uncontrolledSwarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
     },
     {
-      POSITION: [7, 7.5, 0.6, 7, 2, 165, 0.25],
+      POSITION: [7, 7.5, 0.6, 7, 2, 210, 0.25],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.doubleRecoil,]),
         TYPE: exports.swarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
     },
     {
-      POSITION: [7, 7.5, 0.6, 7, -2, 195, 0.25],
+      POSITION: [7, 7.5, 0.6, 7, -2, 150, 0.25],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.doubleRecoil,]),
         TYPE: exports.swarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
