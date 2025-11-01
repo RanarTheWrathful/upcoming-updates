@@ -1503,6 +1503,13 @@ exports.grenadierSymbol = {
   CONTROLLERS: ["onlyAcceptInArc"],
   COLOR: 16,
 };
+exports.executionerSymbol = {
+  PARENT: [exports.genericTank],
+  LABEL: "",
+  SHAPE: 12,
+  CONTROLLERS: ["onlyAcceptInArc"],
+  COLOR: 16,
+};
 exports.breakerSymbol = {
   PARENT: [exports.genericTank],
   LABEL: "",
@@ -9544,6 +9551,43 @@ exports.rocket = {
     },
   ],
 };
+exports.executionerRocket = {
+  PARENT: [exports.bullet],
+  LABEL: "Rocket",
+  DEATH_THROES: "executionerExplosion",
+  INDEPENDENT: true,
+  BODY: {
+    RANGE: 120,
+    DENSITY: 3,
+  },
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.executionerSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [8, 12, 1.4, 8, 0, 180, 3.75],
+      PROPERTIES: {
+        AUTOFIRE: true,
+        STAT_CALCULATOR: gunCalcNames.thruster,
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.mach,
+          g.arty,
+          g.minorReload,
+          g.doubleHealth,
+          g.bitmoreDamage,
+          g.doubleRecoil,
+        ]),
+        TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
+      },
+    },
+  ],
+};
 exports.hive = {
   PARENT: [exports.bullet],
   LABEL: "Hive",
@@ -14592,6 +14636,37 @@ exports.grenadierExplosion = makeMulti(
     ],
   },
   10,
+  ""
+);
+exports.executionerExplosion = makeMulti(
+  {
+    PARENT: [exports.bullet],
+    ALPHA: 0,
+    FACING_TYPE: "autospin",
+    INDEPENDENT: true,
+    BODY: {
+      RANGE: 5,
+    },
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [15, 5, 1, 0, 0, 0, 0],
+        PROPERTIES: {
+          AUTOFIRE: true,
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.twin,
+            g.gunner,
+            g.cyclone,
+            g.power,
+            g.lesserStats,
+          ]),
+          TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
+        },
+      },
+    ],
+  },
+  12,
   ""
 );
 exports.lesserGrenadierExplosion = makeMulti(
@@ -37897,10 +37972,18 @@ exports.executioner = {
   PARENT: [exports.genericTank],
   LABEL: "Executioner",
   BODY: {
-    ACCELERATION: base.ACCEL * 0.8,
+    ACCELERATION: base.ACCEL * 1.2,
     FOV: base.FOV * 1.2,
   },
   DANGER: 7,
+  
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.executionerSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
   GUNS: [
     {
       POSITION: [20, 4, 4, 1, 0, 0, 0],
@@ -37912,10 +37995,11 @@ exports.executioner = {
         SHOOT_SETTINGS: combineStats([
           g.basic,
           g.pound,
+          g.destroy,
           g.missile,
           g.halfDamage,
         ]),
-        TYPE: exports.rocket,
+        TYPE: exports.executionerRocket,
         STAT_CALCULATOR: gunCalcNames.sustained,
       },
     },
@@ -37925,6 +38009,48 @@ exports.executioner = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [18, 8.5, -1.6, 0, 0, 0, 0],
+    },
+    
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [10, 8.5, 0.6, 7, 0, 180, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil,]),
+        TYPE: exports.uncontrolledSwarmDrone,
+        STAT_CALCULATOR: gunCalcNames.swarm,
+      },
+    },
+    {
+      POSITION: [10, 8.5, 0.6, 7, 2, 210, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil,]),
+        TYPE: exports.uncontrolledSwarmDrone,
+        STAT_CALCULATOR: gunCalcNames.swarm,
+      },
+    },
+    {
+      POSITION: [10, 8.5, 0.6, 7, -2, -150, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier, g.pound, g.doubleRecoil,]),
+        TYPE: exports.uncontrolledSwarmDrone,
+        STAT_CALCULATOR: gunCalcNames.swarm,
+      },
+    },
+    {
+      POSITION: [7, 7.5, 0.6, 7, 2, 165, 0.25],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier]),
+        TYPE: exports.swarmDrone,
+        STAT_CALCULATOR: gunCalcNames.swarm,
+      },
+    },
+    {
+      POSITION: [7, 7.5, 0.6, 7, -2, 195, 0.25],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.swarm, g.carrier]),
+        TYPE: exports.swarmDrone,
+        STAT_CALCULATOR: gunCalcNames.swarm,
+      },
     },
   ],
 };
