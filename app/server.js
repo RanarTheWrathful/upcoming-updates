@@ -6158,31 +6158,27 @@ class Entity {
   get m_y() {
     return (this.velocity.y + this.accel.y) / roomSpeed;
   } 
-  runTrigger(cause, other = null) {
-  if (!this.triggers || !Array.isArray(this.triggers)) return;
+ runTrigger(cause, other = null) {
+  if (!this.triggers) return;
 
   const now = Date.now();
+  cause = String(cause).toLowerCase();
 
-  for (let trig of this.triggers) {
+  for (const trig of this.triggers) {
     if (!trig.ENABLED) continue;
-    if (trig.CAUSE !== cause) continue;
+    if (String(trig.CAUSE).toLowerCase() !== cause) continue;
 
     // cooldown check
     if (!trig._lastTime) trig._lastTime = 0;
     if (now - trig._lastTime < trig.COOLDOWN) continue;
-
     trig._lastTime = now;
 
     try {
-      // expose useful context to EFFECT code
       const entity = this;
-      const secondary = other;
-
-      // run effect string in isolated function scope
-      const fn = new Function("entity", "other", trig.EFFECT);
-      fn(entity, secondary);
+      // call with this=entity so EFFECT can use both `this` and `entity`
+      new Function("entity", "other", trig.EFFECT).call(entity, entity, other);
     } catch (e) {
-      console.error(`Trigger error (${cause}):`, e);
+      console.error(`Trigger error on ${cause}:`, e);
     }
   }
 }
