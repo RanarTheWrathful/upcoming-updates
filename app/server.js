@@ -5873,19 +5873,11 @@ class Entity {
         this.refreshBodyAttributes();
       }
       if (set.TRIGGERS != null) {
-        if (set.TRIGGERS.CAUSE != null) {
-          this.triggerCause = set.TRIGGERS.ACCELERATION;
-        }
-        if (set.TRIGGERS.ENABLED != null) {
-          this.triggerEnabled = set.TRIGGERS.ENABLED;
-        }
-        if (set.TRIGGERS.COOLDOWN != null) {
-          this.triggerCooldown = set.TRIGGERS.COOLDOWN;
-        }
-        if (set.TRIGGERS.EFFECTS != null) {
-          this.triggerEffects = set.TRIGGERS.EFFECTS;
-        }
-      }
+  this.triggers = set.TRIGGERS.map(t => ({
+    ...t,
+    _lastTime: 0
+  }));
+}
       if (set.TURRETS != null) {
         let o;
         this.turrets.forEach((o) => o.destroy());
