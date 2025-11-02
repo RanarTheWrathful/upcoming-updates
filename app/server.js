@@ -5173,6 +5173,7 @@ class Entity {
     this.shield = new HealthType(0, "dynamic");
     this.guns = [];
     this.turrets = [];
+    this.triggers = [];
     this.upgrades = [];
     this.settings = {};
     this.aiSettings = {};
@@ -5870,6 +5871,20 @@ class Entity {
         }
         this.refreshBodyAttributes();
       }
+      if (set.TRIGGERS != null) {
+        if (set.TRIGGERS.CAUSE != null) {
+          this.triggerCause = set.TRIGGERS.ACCELERATION;
+        }
+        if (set.TRIGGERS.ENABLED != null) {
+          this.triggerEnabled = set.TRIGGERS.ENABLED;
+        }
+        if (set.TRIGGERS.COOLDOWN != null) {
+          this.triggerCooldown = set.TRIGGERS.COOLDOWN;
+        }
+        if (set.TRIGGERS.EFFECTS != null) {
+          this.triggerEffects = set.TRIGGERS.EFFECTS;
+        }
+      }
       if (set.TURRETS != null) {
         let o;
         this.turrets.forEach((o) => o.destroy());
@@ -6026,6 +6041,7 @@ class Entity {
       }
     } // else util.log(`ERROR: Something is wrong this entity, check it out: ` + this.define());
   }
+  resetEffects() {}
   refreshBodyAttributes() {
     let speedReduce = Math.pow(this.size / (this.coreSize || this.SIZE), 1);
 
@@ -6140,7 +6156,36 @@ class Entity {
   get m_y() {
     return (this.velocity.y + this.accel.y) / roomSpeed;
   }
+  // === TRIGGER SYSTEM ===
+  runTrigger(trigger, contextOverride = null) {
+    if (!trigger || !trigger.EFFECT || !trigger.ENABLED) return;
+    const ctx = contextOverride || this;
+    const now = Date.now();
+    trigger._last ??= 0;
+    if (now - trigger._last < (trigger.COOLDOWN || 0)) return;
 
+    trigger._last = now;
+    try {
+      const fn = new Function(`
+        "use strict";
+        return (function() {
+          ${trigger.EFFECT}
+        }).call(this);
+      `);
+      fn.call(ctx);
+    } catch (err) {
+      console.error(`[Trigger Error for ${ctx.label}]`, err);
+    }
+  }
+
+  triggerEvent(cause, contextOverride = null) {
+    const triggers = this.class?.TRIGGERS || [];
+    for (const trigger of triggers) {
+      if (trigger.CAUSE === cause) {
+        this.runTrigger(trigger, contextOverride);
+      }
+    }
+  }
   camera(tur = false) {
     return {
       type:
