@@ -23958,6 +23958,7 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       this.damage *= 2;
+      console.log(other.label);
       `  
     },
     {
@@ -23968,6 +23969,7 @@ exports.testy = {
       let o = new Entity(this.x, this.y);
       o.define(Class.hexagon);
       o.team = this.team;
+      console.log(other.label);
       `  
     },
     {
@@ -23984,6 +23986,7 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       this.SIZE *= 1.1;
+      console.log(other.label);
       `  
     },
     {
@@ -23992,6 +23995,7 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       this.color += 1;
+      console.log(other.label);
       `  
     },
     {
@@ -24000,6 +24004,7 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       other.define(Class.egg);
+      console.log(other.label);
       `  
     },
     {
