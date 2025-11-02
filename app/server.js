@@ -6187,7 +6187,7 @@ runTrigger(trigger, other = null, contextOverride = null) {
       console.error(`[Trigger Error for ${ctx.label || ctx.name || "Unknown"}]`, err);
     }
   }
-},
+}
 
 // === Event Entry Point ===
 triggerEvent(cause, other = null, contextOverride = null) {
