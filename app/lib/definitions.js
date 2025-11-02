@@ -23958,7 +23958,6 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       this.damage *= 2;
-      console.log(other.label);
       `  
     },
     {
@@ -23986,7 +23985,6 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       this.SIZE *= 1.1;
-      console.log(other.label);
       `  
     },
     {
