@@ -5906,7 +5906,7 @@ class Entity {
       //ON Define
       let dude = this.name;
       if (this.name === "") dude = "An unnamed player";
-      this.triggerEvent("spawn");
+      this.runTrigger("spawn");
       if (this.specialEffect === "Legend") {
         if (c.serverType === "lore") return;
         switch (this.label) {
@@ -6158,47 +6158,31 @@ class Entity {
   get m_y() {
     return (this.velocity.y + this.accel.y) / roomSpeed;
   } 
-  
-// === Trigger Runner ===
-runTrigger(trigger, other = null, contextOverride = null) {
-  if (!trigger || !trigger.ENABLED) return;
+  runTrigger(cause, other = null) {
+  if (!this.triggers || !Array.isArray(this.triggers)) return;
 
-  const ctx = contextOverride || this;
   const now = Date.now();
-  trigger._last ??= 0;
-  if (now - trigger._last < (trigger.COOLDOWN || 0)) return;
-  trigger._last = now;
 
-  const effects = Array.isArray(trigger.EFFECT)
-    ? trigger.EFFECT
-    : [trigger.EFFECT];
+  for (let trig of this.triggers) {
+    if (!trig.ENABLED) continue;
+    if (trig.CAUSE !== cause) continue;
 
-  for (const effect of effects) {
-    if (!effect) continue;
+    // cooldown check
+    if (!trig._lastTime) trig._lastTime = 0;
+    if (now - trig._lastTime < trig.COOLDOWN) continue;
+
+    trig._lastTime = now;
+
     try {
-      const fn = new Function("other", `
-        "use strict";
-        return (function() {
-          ${effect}
-        }).call(this, other);
-      `);
-      fn.call(ctx, other);
-    } catch (err) {
-      console.error(`[Trigger Error for ${ctx.label || ctx.name || "Unknown"}]`, err);
-    }
-  }
-}
+      // expose useful context to EFFECT code
+      const entity = this;
+      const secondary = other;
 
-// === Event Entry Point ===
-triggerEvent(cause, other = null, contextOverride = null) {
-  const triggerContainer = this.TRIGGER || [];
-  const triggers = Array.isArray(triggerContainer)
-    ? triggerContainer
-    : Object.values(triggerContainer);
-
-  for (const trigger of triggers) {
-    if (trigger.CAUSE === cause) {
-      this.runTrigger(trigger, other, contextOverride);
+      // run effect string in isolated function scope
+      const fn = new Function("entity", "other", trig.EFFECT);
+      fn(entity, secondary);
+    } catch (e) {
+      console.error(`Trigger error (${cause}):`, e);
     }
   }
 }
@@ -6797,7 +6781,7 @@ triggerEvent(cause, other = null, contextOverride = null) {
     }
   }
   confinementToTheseEarthlyShackles() {
-    this.triggerEvent("tick");
+    this.runTrigger("tick");
     if (this.bond) {
       return 0;
     }
@@ -14011,8 +13995,8 @@ console.log('Lore mode sequence advanced.');*/
 
       let killer = ran.choose(killers);
       killers.forEach((instance) => {
-      this.triggerEvent("dead", instance);
-instance.triggerEvent("kill", this);
+      this.runTrigger("dead", instance);
+instance.runTrigger("kill", this);
         if (
           //how do i make a stronger version of this, or well copy this one cuz ik how to make it stronger
           instance.master.voidCreation > 0 &&
@@ -19048,16 +19032,16 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
     if (n.health.amount >= n.health.max) n.shield.amount += n.shield.max/4;
-    my.triggerEvent("healed", my);
-    n.triggerEvent("healed", n);
+    my.runTrigger("healed", my);
+    n.runTrigger("healed", n);
   }
   } else {
   if (my.type === "atmosphere" && n.isProjectile) my.factor = 0;
     if (n.type === "atmosphere" && my.isProjectile) n.factor = 0;
  my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
-    my.triggerEvent("damaged", my);
-    n.triggerEvent("damaged", n);
+    my.runTrigger("damaged", my);
+    n.runTrigger("damaged", n);
   }
 } catch (err) {
   console.error("Collision handler error:", err);
@@ -19560,8 +19544,8 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
       // Pull the two objects from the collision grid
       let instance = collision[0],
         other = collision[1];
-      instance.triggerEvent("collide", other);
-      other.triggerEvent("collide", instance);
+      instance.runTrigger("collide", other);
+      other.runTrigger("collide", instance);
 
       // Check for ghosts...
       if (!other.valid()) {
