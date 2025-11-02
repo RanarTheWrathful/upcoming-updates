@@ -6159,40 +6159,50 @@ class Entity {
     return (this.velocity.y + this.accel.y) / roomSpeed;
   } 
   
-  // === Trigger Runner ===
-  runTrigger(trigger, other = null, contextOverride = null) {
-    if (!trigger || !trigger.EFFECT || !trigger.ENABLED) return;
+// === Trigger Runner ===
+runTrigger(trigger, other = null, contextOverride = null) {
+  if (!trigger || !trigger.ENABLED) return;
 
-    const ctx = contextOverride || this;
-    const now = Date.now();
-    trigger._last ??= 0;
-    if (now - trigger._last < (trigger.COOLDOWN || 0)) return;
-    trigger._last = now;
+  const ctx = contextOverride || this;
+  const now = Date.now();
+  trigger._last ??= 0;
+  if (now - trigger._last < (trigger.COOLDOWN || 0)) return;
+  trigger._last = now;
 
+  const effects = Array.isArray(trigger.EFFECT)
+    ? trigger.EFFECT
+    : [trigger.EFFECT];
+
+  for (const effect of effects) {
+    if (!effect) continue;
     try {
-      // Create a scoped function that gives access to both `this` and `other`
       const fn = new Function("other", `
         "use strict";
         return (function() {
-          ${trigger.EFFECT}
+          ${effect}
         }).call(this, other);
       `);
-
       fn.call(ctx, other);
     } catch (err) {
-      console.error(`[Trigger Error for ${ctx.label || "Unknown"}]`, err);
+      console.error(`[Trigger Error for ${ctx.label || ctx.name || "Unknown"}]`, err);
     }
   }
+},
 
-  // === Event Entry Point ===
-  triggerEvent(cause, other = null, contextOverride = null) {
-    const triggers = this.class?.TRIGGERS || [];
-    for (const trigger of triggers) {
-      if (trigger.CAUSE === cause) {
-        this.runTrigger(trigger, other, contextOverride);
-      }
+// === Event Entry Point ===
+triggerEvent(cause, other = null, contextOverride = null) {
+  const triggerContainer = this.TRIGGER || [];
+  const triggers = Array.isArray(triggerContainer)
+    ? triggerContainer
+    : Object.values(triggerContainer);
+
+  for (const trigger of triggers) {
+    if (trigger.CAUSE === cause) {
+      this.runTrigger(trigger, other, contextOverride);
     }
   }
+}
+
   camera(tur = false) {
     return {
       type:
