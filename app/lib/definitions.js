@@ -23957,7 +23957,7 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      console.log("OWIE!");
+      this.damage *= 2;
       `  
     },
     {
@@ -23965,7 +23965,9 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      console.log("TY!");
+      let o = new Entity(this.x, this.y);
+      o.define(Class.hexagon);
+      o.team = this.team;
       `  
     },
     {
@@ -23973,7 +23975,7 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      console.log("HI!");
+      this.SIZE = 5;
       `  
     },
     {
@@ -23981,15 +23983,7 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      console.log("BONK!");
-      `  
-    },
-    {
-      CAUSE: "damaged",
-      ENABLED: true,
-      COOLDOWN: 6000,
-      EFFECT: `
-      console.log("OWIE!");
+      this.SIZE *= 1.1;
       `  
     },
     {
@@ -23997,7 +23991,7 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      console.log("LEL, NOOB!");
+      this.color += 1;
       `  
     },
     {
@@ -24005,7 +23999,7 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      console.log("FUCKIN HACKER!");
+      other.define(Class.egg);
       `  
     },
     {
@@ -24013,7 +24007,7 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      console.log("REEEEEEEEEEE!");
+      this.health.amount *= 2;
       `  
     },
     ],
@@ -98565,3 +98559,4 @@ exports.Post.UPGRADES_TIER_3 = [
   exports.citadel,
   //1
 ]
+               
