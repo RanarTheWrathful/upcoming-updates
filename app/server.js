@@ -60,7 +60,7 @@ function pickTheBiggest(countMap) {
 }
 
 let modeList = ["Unknown"];
-let serverType = "testing"; //change this to play preset modes look
+let serverType = "The Denied"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
 if (serverType === "testing") chosenMode = "Sandbox";
@@ -5905,6 +5905,7 @@ class Entity {
       //ON Define
       let dude = this.name;
       if (this.name === "") dude = "An unnamed player";
+      this.triggerEvent("spawn");
       if (this.specialEffect === "Legend") {
         if (c.serverType === "lore") return;
         switch (this.label) {
@@ -6155,34 +6156,39 @@ class Entity {
 
   get m_y() {
     return (this.velocity.y + this.accel.y) / roomSpeed;
-  }
-  // === TRIGGER SYSTEM ===
-  runTrigger(trigger, contextOverride = null) {
+  } 
+  
+  // === Trigger Runner ===
+  runTrigger(trigger, other = null, contextOverride = null) {
     if (!trigger || !trigger.EFFECT || !trigger.ENABLED) return;
+
     const ctx = contextOverride || this;
     const now = Date.now();
     trigger._last ??= 0;
     if (now - trigger._last < (trigger.COOLDOWN || 0)) return;
-
     trigger._last = now;
+
     try {
-      const fn = new Function(`
+      // Create a scoped function that gives access to both `this` and `other`
+      const fn = new Function("other", `
         "use strict";
         return (function() {
           ${trigger.EFFECT}
-        }).call(this);
+        }).call(this, other);
       `);
-      fn.call(ctx);
+
+      fn.call(ctx, other);
     } catch (err) {
-      console.error(`[Trigger Error for ${ctx.label}]`, err);
+      console.error(`[Trigger Error for ${ctx.label || "Unknown"}]`, err);
     }
   }
 
-  triggerEvent(cause, contextOverride = null) {
+  // === Event Entry Point ===
+  triggerEvent(cause, other = null, contextOverride = null) {
     const triggers = this.class?.TRIGGERS || [];
     for (const trigger of triggers) {
       if (trigger.CAUSE === cause) {
-        this.runTrigger(trigger, contextOverride);
+        this.runTrigger(trigger, other, contextOverride);
       }
     }
   }
@@ -6780,6 +6786,7 @@ class Entity {
     }
   }
   confinementToTheseEarthlyShackles() {
+    this.triggerEvent("tick");
     if (this.bond) {
       return 0;
     }
@@ -13992,7 +13999,8 @@ console.log('Lore mode sequence advanced.');*/
       }
 
       let killer = ran.choose(killers);
-
+      this.triggerEvent("dead", killer);
+killer.triggerEvent("kill", this);
       killers.forEach((instance) => {
         if (
           //how do i make a stronger version of this, or well copy this one cuz ik how to make it stronger
@@ -18942,7 +18950,7 @@ try {
     let target = n.healEffect ? my : n;
     healer.factor = 0;
     target.healed = false;
-      if (target.health.amount >= target.health.max) target.healed = true;
+      if (target.health.amount >= target.health.max && target.shield.amount >= target.shield.max) target.healed = true;
     if (target.team === healer.team) {
       if (!target.healed) {
         if (!target.isProjectile) healer.factor = -1;
@@ -18963,7 +18971,7 @@ try {
     let repairer = n.repairEffect ? n : my;
     let target = n.repairEffect ? my : n;
     target.repaired = false;
-    if (target.health.amount >= target.health.max) target.repaired = true;
+    if (target.health.amount >= target.health.max && target.shield.amount >= target.shield.max) target.repaired = true;
     repairer.factor = 0;
     if (target.team === repairer.team) {
       if (!target.repaired) {
@@ -19029,11 +19037,16 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
   my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
     if (n.health.amount >= n.health.max) n.shield.amount += n.shield.max/4;
+    my.triggerEvent("healed", my);
+    n.triggerEvent("healed", n);
   }
   } else {
-  if (my.type === "atmosphere" && n.isProjectile && (my.healEffect||my.repairEffect)||n.type === "atmosphere" && my.isProjectile && (n.healEffect||n.repairEffect)) return;
+  if (my.type === "atmosphere" && n.isProjectile) my.factor = 0;
+    if (n.type === "atmosphere" && my.isProjectile) n.factor = 0;
  my.damageRecieved += (damage._n * deathFactor._n) * n.factor;
   n.damageRecieved += (damage._me * deathFactor._me) * my.factor; 
+    my.triggerEvent("damaged", my);
+    n.triggerEvent("damaged", n);
   }
 } catch (err) {
   console.error("Collision handler error:", err);
@@ -19536,6 +19549,8 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
       // Pull the two objects from the collision grid
       let instance = collision[0],
         other = collision[1];
+      instance.triggerEvent("collide", other);
+      other.triggerEvent("collide", instance);
 
       // Check for ghosts...
       if (!other.valid()) {
