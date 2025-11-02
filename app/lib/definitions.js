@@ -23957,9 +23957,7 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      if (this.health.amount <= this.health.max/4) {
-      this.damage *= 2
-      }
+      this.damage *= 2;
       `  
     },
     {
