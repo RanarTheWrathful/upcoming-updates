@@ -360,7 +360,7 @@ if (c.MODE === "theDistance") c.startingClass = "racer";
 if (c.MODE === "theRestless") c.startingClass = "highlordLegendaryClasses";
 if (c.MODE === "theAwakening") c.startingClass = "arenaguardpl";
 if (c.MODE === "theAssault") c.startingClass = "swarmProtector2";
-if (serverType === "testing") c.startingClass = "testbed";
+if (serverType === "testin") c.startingClass = "testbed";
 c.DomxClass = "minibois";
 function removeMuted(socketIP) {
   console.log("Removing from muteList:", socketIP);
