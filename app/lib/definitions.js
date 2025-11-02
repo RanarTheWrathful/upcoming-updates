@@ -4135,7 +4135,7 @@ exports.autoTurret = {
           g.basic,
           g.gunner,
           g.power,
-          g.greaterStats,
+          g.doubleDamage,
           g.superReload,
           g.doubleReload,
         ]),
@@ -4163,7 +4163,7 @@ exports.machineTurret = {
           g.gunner,
           g.power,
           g.mach,
-          g.greaterStats,
+          g.doubleDamage,
           g.superReload,
           g.doubleReload,
         ]),
@@ -4993,7 +4993,7 @@ exports.colliderDriveTurret = {
           g.basic,
           g.gunner,
           g.power,
-          g.greaterStats,
+          g.doubleDamage,
           g.superReload,
           g.doubleReload,
         ]),
@@ -5022,7 +5022,7 @@ exports.colliderDriveTurretWeak = {
           g.gunner,
           g.power,
           g.halfDamage,
-          g.greaterStats,
+          g.doubleDamage,
           g.superReload,
           g.doubleReload,
         ]),
@@ -23946,6 +23946,32 @@ exports.killIssue = {
   IS_SMASHER: true,
   SKILL_CAP: [smshskl, 0, 0, 0, 0, smshskl, smshskl, smshskl, smshskl, smshskl],
   STAT_NAMES: statnames.smasher,
+};
+exports.testy = {
+  PARENT: [exports.genericTank],
+  LABEL: "Testy",
+  GUNS: [...basicGun],
+  TRIGGERS: [
+    {
+      CAUSE: "damaged",
+      ENABLED: true,
+      COOLDOWN: 6000,
+      EFFECT: `
+      if (this.health.amount <= this.health.max/4) {
+      this.damage *= 2
+      }
+      `  
+    },
+    {
+      CAUSE: "spawn",
+      ENABLED: true,
+      COOLDOWN: 6000, //this might act as a delay, rather than a cooldown since the spawn only happens once.
+      EFFECT: `
+      let o = new Entity(this.x, this.y);
+      o.define(Class.elder);
+      o.team = this.team;
+      `  },
+    ],
 };
 exports.celestialSmasher = {
   PARENT: [exports.voidlordMeleeBoss],
@@ -97191,6 +97217,7 @@ exports.danger.UPGRADES_TIER_2 = [
   exports.inffactory,
   exports.wtf,
   exports.killIssue,
+  exports.testy,
 ];
 exports.pageJunk1.UPGRADES_TIER_2 = [
   exports.switch1,
