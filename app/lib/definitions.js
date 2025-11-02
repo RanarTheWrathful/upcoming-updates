@@ -66023,7 +66023,7 @@ exports.ranarDiscipleForm = {
   DANGER: 10,
   SIZE: 17.5,
   VALUE: 2000000,
-  AI: { STRAFE: true },
+  //AI: { STRAFE: true },
   COLOR: 34,
   SKILL: skillSet({
     rld: 0.25, //reload
