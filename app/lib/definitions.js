@@ -23957,18 +23957,65 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      this.damage *= 2;
+      console.log("OWIE!");
+      `  
+    },
+    {
+      CAUSE: "healed",
+      ENABLED: true,
+      COOLDOWN: 6000,
+      EFFECT: `
+      console.log("TY!");
       `  
     },
     {
       CAUSE: "spawn",
       ENABLED: true,
-      COOLDOWN: 6000, //this might act as a delay, rather than a cooldown since the spawn only happens once.
+      COOLDOWN: 6000,
       EFFECT: `
-      let o = new Entity(this.x, this.y);
-      o.define(Class.elder);
-      o.team = this.team;
-      `  },
+      console.log("HI!");
+      `  
+    },
+    {
+      CAUSE: "collide",
+      ENABLED: true,
+      COOLDOWN: 6000,
+      EFFECT: `
+      console.log("BONK!");
+      `  
+    },
+    {
+      CAUSE: "damaged",
+      ENABLED: true,
+      COOLDOWN: 6000,
+      EFFECT: `
+      console.log("OWIE!");
+      `  
+    },
+    {
+      CAUSE: "kill",
+      ENABLED: true,
+      COOLDOWN: 6000,
+      EFFECT: `
+      console.log("LEL, NOOB!");
+      `  
+    },
+    {
+      CAUSE: "dead",
+      ENABLED: true,
+      COOLDOWN: 6000,
+      EFFECT: `
+      console.log("FUCKIN HACKER!");
+      `  
+    },
+    {
+      CAUSE: "tick",
+      ENABLED: true,
+      COOLDOWN: 6000,
+      EFFECT: `
+      console.log("REEEEEEEEEEE!");
+      `  
+    },
     ],
 };
 exports.celestialSmasher = {
