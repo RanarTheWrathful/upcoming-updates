@@ -23958,7 +23958,6 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       this.damage *= 2;
-      console.log("Damaged by: "+other.label);
       `  
     },
     {
@@ -23969,7 +23968,6 @@ exports.testy = {
       let o = new Entity(this.x, this.y);
       o.define(Class.hexagon);
       o.team = this.team;
-      console.log("Healed by: "+other.label);
       `  
     },
     {
@@ -23986,7 +23984,6 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       this.SIZE *= 1.1;
-      console.log("Collide with: "+other.label);
       `  
     },
     {
@@ -23995,7 +23992,6 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       this.color += 1;
-      console.log("Killed: "+other.label);
       `  
     },
     {
@@ -24003,8 +23999,7 @@ exports.testy = {
       ENABLED: true,
       COOLDOWN: 6000,
       EFFECT: `
-      other.define(Class.egg);
-      console.log("Dead by: "+other.label);
+      other.kill();
       `  
     },
     {
@@ -24013,6 +24008,7 @@ exports.testy = {
       COOLDOWN: 6000,
       EFFECT: `
       this.health.amount *= 2;
+      refreshBodyAttributes();
       `  
     },
     ],
