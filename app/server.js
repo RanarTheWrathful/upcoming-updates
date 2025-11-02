@@ -6152,7 +6152,7 @@ class Entity {
   } 
  runTrigger(cause, other = null) {
   if (!this.triggers) return;
-
+      console.log("Trigger cause:", cause, "| other:", other);
   const now = Date.now();
   cause = String(cause).toLowerCase();
 
