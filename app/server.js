@@ -14000,9 +14000,9 @@ console.log('Lore mode sequence advanced.');*/
       }
 
       let killer = ran.choose(killers);
-      this.triggerEvent("dead", killer);
-killer.triggerEvent("kill", this);
       killers.forEach((instance) => {
+      this.triggerEvent("dead", instance);
+instance.triggerEvent("kill", this);
         if (
           //how do i make a stronger version of this, or well copy this one cuz ik how to make it stronger
           instance.master.voidCreation > 0 &&
@@ -14112,7 +14112,7 @@ killer.triggerEvent("kill", this);
           if (o.name === "Seraphim") {
             sockets.broadcast("Seraphim: D̶͖̀ō̴̯͕͠ ̴̲̄͝n̵͙̺̈́̌o̷͔̽ͅt̴͈̏̃ ̴͖̈́͗b̸̻͚̿e̷̐ͅ ̴̞̔̊ą̶̈́͝f̵̯̙͌̎r̶̨̝̀a̷̦̩͝i̴̦͇̋̐d̸͍̏̀.̸͈̺͊");
             if (c.MODE === "theDenied") {
-              sockets.broadcast("Ranar: Oh... my.."); //skul
+              sockets.broadcast("Ranar: Oh... my..."); //skul
               setTimeout(() => {
                 sockets.broadcast(
                   "Ranar: Valrayvn the hell is this??? VALRAYVN I DON'T REMEMBER THIS BEING A PART OF THE AGREEMENT??"
