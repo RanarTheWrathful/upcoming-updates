@@ -38033,6 +38033,134 @@ exports.rocketeer = {
     },
   ],
 };
+exports.infiltrator = {
+  PARENT: [exports.genericTank],
+  LABEL: "Infiltrator",
+  DANGER: 7,
+  GUNS: [
+    {
+    /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+    POSITION: [22, 3, 1, -2, 0, 20, 0],
+    PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.bee,
+          g.weak,
+        ]),
+        TYPE: exports.autoBee,
+        STAT_CALCULATOR: gunCalcNames.sustained,
+      },
+    },
+    {
+    /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+    POSITION: [22, 3, 1, 2, 0, -20, 0.5],
+    PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.bee,
+          g.weak,
+        ]),
+        TYPE: exports.autoBee,
+        STAT_CALCULATOR: gunCalcNames.sustained,
+      },
+    },
+    {
+    POSITION: [19, 2, 1, 0, -2.5, 0, 0.3],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.twin,
+        g.gunner,
+        g.nail,
+        g.power,
+        g.weak,
+      ]),
+      TYPE: exports.bullet,
+    },
+  },
+  {
+    POSITION: [19, 2, 1, 0, 2.5, 0, 0.8],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.twin,
+        g.gunner,
+        g.nail,
+        g.power,
+        g.weak,
+      ]),
+      TYPE: exports.bullet,
+    },
+  },
+  ],
+};
+exports.infiltrator = {
+  PARENT: [exports.genericTank],
+  LABEL: "Infiltrator",
+  DANGER: 7,
+  GUNS: [...pelletGuns,
+    {
+    /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+    POSITION: [22, 3, 1, -2, 0, 20, 0],
+    PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.bee,
+        ]),
+        TYPE: exports.autoBee,
+        STAT_CALCULATOR: gunCalcNames.sustained,
+      },
+    },
+    {
+    /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+    POSITION: [22, 3, 1, 2, 0, -20, 0.5],
+    PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.bee,
+        ]),
+        TYPE: exports.autoBee,
+        STAT_CALCULATOR: gunCalcNames.sustained,
+      },
+    },
+    {
+      /**** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [4.5, 10.5, 1, 10.5, 0, 120, 0],
+    },
+    {
+      POSITION: [1.2, 12.5, 1, 14.8, 0, 120, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.spawner, g.bitmoreSpeed, g.bitmoreSpeed]),
+        TYPE: exports.minion,
+        STAT_CALCULATOR: gunCalcNames.drone,
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+      },
+    },
+    {
+      POSITION: [3.5, 12.5, 1, 8, 0, 120, 0],
+    },
+    {
+      /**** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [4.5, 10.5, 1, 10.5, 0, -120, 0],
+    },
+    {
+      POSITION: [1.2, 12.5, 1, 14.8, 0, -120, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.spawner, g.bitmoreHealth, g.bitLessSpeed, g.bitmoreResistance]),
+        TYPE: exports.minion,
+        STAT_CALCULATOR: gunCalcNames.drone,
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+      },
+    },
+    {
+      POSITION: [3.5, 12.5, 1, 8, 0, -120, 0],
+    },
+    {
+      POSITION: [8.5, 7.5, 1, 8, 0, -120, 0],
+    },
+    {
+      POSITION: [8.5, 7.5, 1, 8, 0, -120, 0],
+    },
+  ],
+};
 
 exports.executioner = {
   PARENT: [exports.genericTank],
@@ -94952,6 +95080,26 @@ exports.cubedtankpage8 = {
   LEVEL: 45,
   SHAPE: 7,
 };
+
+exports.cubedtankpage9 = {
+  PARENT: [exports.genericTank],
+  LABEL: "J.J.'s Tanks Page 9",
+  LEVEL: 45,
+  SHAPE: 5,
+};
+exports.cubedtankpage10 = {
+  PARENT: [exports.genericTank],
+  LABEL: "J.J.'s Tanks Page 10",
+  LEVEL: 45,
+  SHAPE: 6,
+};
+exports.cubedtankpage11 = {
+  PARENT: [exports.genericTank],
+  LABEL: "J.J.'s Tanks Page 11",
+  LEVEL: 45,
+  SHAPE: 7,
+};
+
 exports.cubeddompage1 = {
   PARENT: [exports.genericTank],
   LABEL: "J.J.'s Domanator Page 8",
@@ -97054,7 +97202,8 @@ exports.cubedtankpage8.UPGRADES_TIER_1 = [
   exports.FlankT1,
   exports.Onset,
   exports.heli,
-  //10
+  exports.infiltrator,
+  //11
 ]
 
 exports.Stationaryexperimenter.UPGRADES_TIER_1 = [
