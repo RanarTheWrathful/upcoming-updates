@@ -38092,7 +38092,7 @@ exports.infiltrator = {
   },
   ],
 };
-exports.infiltrator = {
+exports.Infiltrator = {
   PARENT: [exports.genericTank],
   LABEL: "Infiltrator",
   DANGER: 7,
@@ -97202,7 +97202,7 @@ exports.cubedtankpage8.UPGRADES_TIER_1 = [
   exports.FlankT1,
   exports.Onset,
   exports.heli,
-  exports.infiltrator,
+  exports.Infiltrator,
   //11
 ]
 
