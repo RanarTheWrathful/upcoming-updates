@@ -38097,7 +38097,7 @@ exports.Infiltrator = {
   GUNS: [
     {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [20, 3, 1, -2, 0, 20, 0],
+    POSITION: [20, 3, 1, -2, 0, 30, 0],
     PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.bee,
@@ -38111,7 +38111,7 @@ exports.Infiltrator = {
     },
     {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [20, 3, 1, -2, 0, -20, 0.5],
+    POSITION: [20, 3, 1, -2, 0, -30, 0.5],
     PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.bee,
@@ -38159,10 +38159,10 @@ exports.Infiltrator = {
       POSITION: [3.5, 12.5, 1, 8, 0, -120, 0],
     },
     {
-      POSITION: [8.5, 7.5, 1, 8, 0, -120, 0],
+      POSITION: [8.5, 5.5, 1, 8, 0, -120, 0],
     },
     {
-      POSITION: [8.5, 7.5, 1, 8, 0, -120, 0],
+      POSITION: [8.5, 5.5, 1, 8, 0, 120, 0],
     },
   ],
 };
