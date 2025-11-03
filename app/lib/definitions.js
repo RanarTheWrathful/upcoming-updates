@@ -38044,7 +38044,38 @@ exports.infiltratorDrone = {
         TYPE: [exports.weakAutoTurret, { INDEPENDENT: true, COLOR: 16 }],
       },
     ],
-  GUNS: [...pelletGuns],
+  GUNS: [
+  {
+    POSITION: [19, 2, 1, 0, -2.5, 0, 0.3],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.twin,
+        g.gunner,
+        g.nail,
+        g.halfStats,
+        g.power,
+      ]),
+      TYPE: exports.bullet,
+    },
+  },
+  {
+    POSITION: [19, 2, 1, 0, 2.5, 0, 0.8],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.twin,
+        g.gunner,
+        g.nail,
+        g.halfStats,
+        g.power,
+      ]),
+      TYPE: exports.bullet,
+    },
+  },
+  {
+    POSITION: [12, 11, 1, 0, 0, 0, 0],
+  }],
 };
 exports.Infiltrator = {
   PARENT: [exports.genericTank],
@@ -38093,8 +38124,37 @@ exports.Infiltrator = {
         STAT_CALCULATOR: gunCalcNames.sustained,
       },
     },
-    ...pelletGuns,
-    {
+
+  {
+    POSITION: [19, 2, 1, 0, -2.5, 0, 0.3],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.twin,
+        g.gunner,
+        g.nail,
+        g.power,
+      ]),
+      TYPE: exports.bullet,
+    },
+  },
+  {
+    POSITION: [19, 2, 1, 0, 2.5, 0, 0.8],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.twin,
+        g.gunner,
+        g.nail,
+        g.power,
+      ]),
+      TYPE: exports.bullet,
+    },
+  },
+  {
+    POSITION: [12, 11, 1, 0, 0, 0, 0],
+  },
+      {
       /**** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [4.5, 10.5, 1, 10.5, 0, 120, 0],
     },
