@@ -38033,9 +38033,9 @@ exports.rocketeer = {
     },
   ],
 };
-exports.infiltrator = {
+exports.infiltratorDrone = {
   PARENT: [exports.genericTank],
-  LABEL: "Infiltrator",
+  LABEL: "Infiltrator Drone",
   DANGER: 7,
   GUNS: [
     {
@@ -38044,7 +38044,6 @@ exports.infiltrator = {
     PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.bee,
-          g.weak,
         ]),
         TYPE: exports.autoBee,
         STAT_CALCULATOR: gunCalcNames.sustained,
@@ -38056,7 +38055,6 @@ exports.infiltrator = {
     PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.bee,
-          g.weak,
         ]),
         TYPE: exports.autoBee,
         STAT_CALCULATOR: gunCalcNames.sustained,
@@ -38096,13 +38094,16 @@ exports.Infiltrator = {
   PARENT: [exports.genericTank],
   LABEL: "Infiltrator",
   DANGER: 7,
-  GUNS: [...pelletGuns,
+  GUNS: [
     {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [22, 3, 1, -2, 0, 20, 0],
+    POSITION: [20, 3, 1, -2, 0, 20, 0],
     PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.bee,
+          g.halfReload,
+          g.weak,
+          g.halfReload,
         ]),
         TYPE: exports.autoBee,
         STAT_CALCULATOR: gunCalcNames.sustained,
@@ -38110,15 +38111,19 @@ exports.Infiltrator = {
     },
     {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [22, 3, 1, 2, 0, -20, 0.5],
+    POSITION: [20, 3, 1, -2, 0, -20, 0.5],
     PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.bee,
+          g.halfReload,
+          g.weak,
+          g.halfReload,
         ]),
         TYPE: exports.autoBee,
         STAT_CALCULATOR: gunCalcNames.sustained,
       },
     },
+    ...pelletGuns,
     {
       /**** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [4.5, 10.5, 1, 10.5, 0, 120, 0],
@@ -38126,8 +38131,8 @@ exports.Infiltrator = {
     {
       POSITION: [1.2, 12.5, 1, 14.8, 0, 120, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.spawner, g.bitmoreSpeed, g.bitmoreSpeed]),
-        TYPE: exports.minion,
+        SHOOT_SETTINGS: combineStats([g.factory, g.bitmoreSpeed, g.bitmoreSpeed]),
+        TYPE: exports.infiltratorDrone,
         STAT_CALCULATOR: gunCalcNames.drone,
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
@@ -38143,8 +38148,8 @@ exports.Infiltrator = {
     {
       POSITION: [1.2, 12.5, 1, 14.8, 0, -120, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.spawner, g.bitmoreHealth, g.bitLessSpeed, g.bitmoreResistance]),
-        TYPE: exports.minion,
+        SHOOT_SETTINGS: combineStats([g.factory, g.bitmoreHealth, g.bitLessSpeed, g.bitmoreResistance]),
+        TYPE: exports.infiltratorDrone,
         STAT_CALCULATOR: gunCalcNames.drone,
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
