@@ -38037,52 +38037,34 @@ exports.infiltratorDrone = {
   PARENT: [exports.minion],
   LABEL: "Infiltrator Drone",
   DANGER: 7,
-  GUNS: [
-    {
-    POSITION: [19, 2, 1, 0, -2.5, 0, 0.3],
-    PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([
-        g.basic,
-        g.twin,
-        g.gunner,
-        g.nail,
-        g.power,
-        g.weak,
-      ]),
-      TYPE: exports.bullet,
-    },
-  },
-  {
-    POSITION: [19, 2, 1, 0, 2.5, 0, 0.8],
-    PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([
-        g.basic,
-        g.twin,
-        g.gunner,
-        g.nail,
-        g.power,
-        g.weak,
-      ]),
-      TYPE: exports.bullet,
-    },
-  },
-  ],
+  GUNS: [...pelletGuns],
 };
 exports.Infiltrator = {
   PARENT: [exports.genericTank],
   LABEL: "Infiltrator",
   DANGER: 7,
+  TURRETS: [
+      {
+        /*********  SIZE     X       Y     ANGLE    ARC */
+        POSITION: [9, 0, 0, 0, 360, 1],
+        TYPE: [exports.driveSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      },
+      {
+        /*********  SIZE     X       Y     ANGLE    ARC */
+        POSITION: [7, 0, 0, 0, 360, 1],
+        TYPE: [exports.triangleSaw2, { INDEPENDENT: true, COLOR: 16 }],
+      },
+    ],
   GUNS: [
     {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [18, 3, 1, -2, 0, 30, 0],
+    POSITION: [16, 5, 1, -2, 0, 30, 0],
     PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.bee,
-          g.halfReload,
+          g.doubleReload,
           g.weak,
-          g.halfReload,
-          g.greaterSize,
+          g.doubleReload,
         ]),
         TYPE: exports.autoBee,
         STAT_CALCULATOR: gunCalcNames.sustained,
@@ -38090,14 +38072,13 @@ exports.Infiltrator = {
     },
     {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [18, 3, 1, -2, 0, -30, 0.5],
+    POSITION: [16, 5, 1, -2, 0, -30, 0.5],
     PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.bee,
-          g.halfReload,
+          g.doubleReload,
           g.weak,
-          g.halfReload,
-          g.greaterSize,
+          g.doubleReload,
         ]),
         TYPE: exports.autoBee,
         STAT_CALCULATOR: gunCalcNames.sustained,
