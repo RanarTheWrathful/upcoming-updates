@@ -38037,6 +38037,13 @@ exports.infiltratorDrone = {
   PARENT: [exports.minion],
   LABEL: "Infiltrator Drone",
   DANGER: 7,
+  TURRETS: [
+      {
+        /*********  SIZE     X       Y     ANGLE    ARC */
+        POSITION: [12, 0, 0, 0, 360, 1],
+        TYPE: [exports.weakAutoTurret, { INDEPENDENT: true, COLOR: 16 }],
+      },
+    ],
   GUNS: [...pelletGuns],
 };
 exports.Infiltrator = {
@@ -38046,12 +38053,12 @@ exports.Infiltrator = {
   TURRETS: [
       {
         /*********  SIZE     X       Y     ANGLE    ARC */
-        POSITION: [9, 0, 0, 0, 360, 1],
+        POSITION: [12, 0, 0, 0, 360, 1],
         TYPE: [exports.driveSymbol, { INDEPENDENT: true, COLOR: 16 }],
       },
       {
         /*********  SIZE     X       Y     ANGLE    ARC */
-        POSITION: [7, 0, 0, 0, 360, 1],
+        POSITION: [8, 0, 0, 0, 360, 1],
         TYPE: [exports.triangleSaw2, { INDEPENDENT: true, COLOR: 16 }],
       },
     ],
@@ -38064,6 +38071,7 @@ exports.Infiltrator = {
           g.bee,
           g.doubleReload,
           g.weak,
+          g.doubleReload,
           g.doubleReload,
         ]),
         TYPE: exports.autoBee,
@@ -38078,6 +38086,7 @@ exports.Infiltrator = {
           g.bee,
           g.doubleReload,
           g.weak,
+          g.doubleReload,
           g.doubleReload,
         ]),
         TYPE: exports.autoBee,
@@ -38096,7 +38105,7 @@ exports.Infiltrator = {
         TYPE: exports.infiltratorDrone,
         STAT_CALCULATOR: gunCalcNames.drone,
         AUTOFIRE: true,
-        MAX_CHILDREN: 3,
+        MAX_CHILDREN: 2,
         SYNCS_SKILLS: true,
       },
     },
@@ -38114,7 +38123,7 @@ exports.Infiltrator = {
         TYPE: exports.infiltratorDrone,
         STAT_CALCULATOR: gunCalcNames.drone,
         AUTOFIRE: true,
-        MAX_CHILDREN: 3,
+        MAX_CHILDREN: 2,
         SYNCS_SKILLS: true,
       },
     },
