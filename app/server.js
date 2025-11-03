@@ -16511,7 +16511,7 @@ const sockets = (() => {
                         player.body.skill.points += 10;
                       }
                     }
-                    if (player.body.team === -4 || c.MODE === "siege") {
+                    if (player.body.team === -4) {
                       if (
                         player.body.label === "Master" ||
                         player.body.label === "Pulsar" ||
