@@ -9351,6 +9351,42 @@ exports.grenadierMissile = {
     },
   ],
 };
+
+exports.bombMissile = {
+  PARENT: [exports.bullet],
+  LABEL: "A BTD6 refference",
+  DEATH_THROES: "bombExplosion",
+  INDEPENDENT: true,
+  BODY: {
+    RANGE: 120,
+    DENSITY: 3,
+  },
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.grenadierSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [19, 6, 1, 1, 0, 180, 0],
+      PROPERTIES: {
+        AUTOFIRE: true,
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.gunner,
+          g.arty,
+          g.pound,
+          g.greaterDamage,
+        ]),
+        TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
+        STAT_CALCULATOR: gunCalcNames.thruster,
+      },
+    },
+  ],
+};
 exports.lesserGrenadierMissile = {
   PARENT: [exports.bullet],
   LABEL: "Missile",
@@ -14700,6 +14736,36 @@ exports.grenadierExplosion = makeMulti(
     ],
   },
   10,
+  ""
+  
+);
+exports.bombExplosion = makeMulti(
+  {
+    PARENT: [exports.bullet],
+    ALPHA: 0,
+    FACING_TYPE: "autospin",
+    INDEPENDENT: true,
+    BODY: {
+      RANGE: 5,
+    },
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [22, 5, 1, 0, 0, 0, 0],
+        PROPERTIES: {
+          AUTOFIRE: true,
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.pound,
+            g.destroy,
+            g.doubleSize,
+          ]),
+          TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
+        },
+      },
+    ],
+  },
+  1,
   ""
 );
 exports.executionerExplosion = makeMulti(
@@ -37991,6 +38057,38 @@ exports.grenadier = {
   ],
 };
 
+exports.bomb = {
+  PARENT: [exports.genericTank],
+  LABEL: "Bomb shooter",
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.8,
+    FOV: base.FOV * 1.2,
+  },
+  DANGER: 7,
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.grenadierSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
+  GUNS: [
+  {
+    POSITION: [22, 10, 1, , 0, , 0],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([g.basic]),
+    },
+  },
+  {
+    /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+    POSITION: [20, 13, 1, 0, 0, 0, 0],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy,]),
+      TYPE: exports.bombMissile,
+    },
+  }
+  ],
+};
 exports.beenader = {
   PARENT: [exports.genericTank],
   LABEL: "Beenade Chucker",
@@ -96965,6 +97063,7 @@ exports.krisbooms.UPGRADES_TIER_1 = [
   exports.neutron,
   exports.beenader,
   exports.c4,
+  exports.bomb,
 ];
 exports.krisfighters.UPGRADES_TIER_1 = [
   exports.splatterer,
