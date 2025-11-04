@@ -9371,7 +9371,7 @@ exports.bombMissile = {
   GUNS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [19, 6, 1, 1, 0, 180, 0],
+      POSITION: [15, 10, 1, 1, 0, 180, 0],
       PROPERTIES: {
         AUTOFIRE: true,
         SHOOT_SETTINGS: combineStats([
@@ -14759,6 +14759,7 @@ exports.bombExplosion = makeMulti(
             g.pound,
             g.destroy,
             g.doubleSize,
+            g.mediumSize,
           ]),
           TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
         },
@@ -38074,14 +38075,14 @@ exports.bomb = {
   ],
   GUNS: [
   {
-    POSITION: [22, 10, 1, , 0, , 0],
+    POSITION: [20, 14, 1, , 0, , 0],
     PROPERTIES: {
       SHOOT_SETTINGS: combineStats([g.basic]),
     },
   },
   {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [20, 13, 1, 0, 0, 0, 0],
+    POSITION: [18, 16, 1, 0, 0, 0, 0],
     PROPERTIES: {
       SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy,]),
       TYPE: exports.bombMissile,
