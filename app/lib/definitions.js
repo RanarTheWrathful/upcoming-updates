@@ -9490,40 +9490,6 @@ exports.neutronMissile = {
     },
   ],
 };
-exports.C4Missile = {
-  PARENT: [exports.bullet],
-  LABEL: "C4 on a Missile",
-  DEATH_THROES: "C4Explosion",
-  INDEPENDENT: true,
-  BODY: {
-    RANGE: 120,
-    DENSITY: 3,
-  },
-  TURRETS: [
-    {
-      /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [9, 0, 0, 0, 360, 1],
-      TYPE: [exports.grenadierSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-  ],
-  GUNS: [
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [15, 6, 1, 1, 0, 180, 0],
-      PROPERTIES: {
-        AUTOFIRE: true,
-        SHOOT_SETTINGS: combineStats([
-          g.basic,
-          g.gunner,
-          g.arty,
-          g.greaterDamage,
-        ]),
-        TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
-        STAT_CALCULATOR: gunCalcNames.thruster,
-      },
-    },
-  ],
-};
 exports.rocket = {
   PARENT: [exports.bullet],
   LABEL: "Rocket",
@@ -12340,6 +12306,72 @@ exports.researcherStationedTurret = {
     },
   ],
 };
+
+exports.inventorStationedTurret = {
+  PARENT: [exports.experimenterStationedTurret],
+  LABEL: "Stationed Mini-Turret",
+  GROWTH_FACTOR: 1.25,
+  BODY: {
+    FOV: 1.75,
+    SPEED: 0,
+    ACCELERATION: 0,
+    HEALTH: 2.5,
+    SHIELD: 0,
+    DAMAGE: 1.35,
+    RESIST: 1,
+    PENETRATION: 1,
+    RANGE: 100,
+    DENSITY: 0.4,
+    REGEN: -1,
+    PUSHABILITY: 0,
+  },
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [16, 8, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.single,
+          g.minorDamage,
+          g.halfHealth,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+
+    {
+      POSITION: [5.5, 8, -1.8, 6.5, 0, 0, 0],
+    },
+
+    {
+      POSITION: [5.5, 8, -1.8, 6.5, 0, 0, 0],
+    },
+  ],
+};
+exports.C4StationedTurret = {
+  PARENT: [exports.experimenterStationedTurret],
+  DEATH_THROES: "c4e",
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [10, 8.5, 0.6, 5, 4.5, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.swarm, g.lesserHealth]),
+        TYPE: exports.swarmDrone,
+        STAT_CALCULATOR: gunCalcNames.swarm,
+      },
+    },
+    {
+      POSITION: [10, 8.5, 0.6, 5, -4.5, 0, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.swarm, g.lesserHealth]),
+        TYPE: exports.swarmDrone,
+        STAT_CALCULATOR: gunCalcNames.swarm,
+      },
+    },
+  ],
+};
 exports.betaScientistStationedTurret = {
   PARENT: [exports.betaExperimenterStationedTurret],
   GUNS: [
@@ -14701,6 +14733,40 @@ exports.lesserGrenadierExplosion = makeMulti(
   5,
   ""
 );
+
+exports.c4e = makeMulti(
+  {
+    PARENT: [exports.bullet],
+    ALPHA: 0,
+    FACING_TYPE: "autospin",
+    INDEPENDENT: true,
+    BODY: {
+      RANGE: 5,
+    },
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [19, 5, 1, 0, 0, 0, 0],
+        PROPERTIES: {
+          AUTOFIRE: true,
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.twin,
+            g.gunner,
+            g.cyclone,
+            g.power,
+            g.lesserStats,
+            g.greaterSpeed,
+            g.pound,
+          ]),
+          TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
+        },
+      },
+    ],
+  },
+  5,
+  ""
+);
 exports.RealisticExplosion = makeMulti(
   {
     PARENT: [exports.bullet],
@@ -14796,38 +14862,6 @@ exports.RealisticExplosion = makeMulti(
     ],
   },
   7,
-  ""
-);
-exports.C4Explosion = makeMulti(
-  {
-    PARENT: [exports.bullet],
-    ALPHA: 0,
-    FACING_TYPE: "autospin",
-    INDEPENDENT: true,
-    BODY: {
-      RANGE: 5,
-    },
-    GUNS: [
-      {
-      POSITION: [20, 12, 0, 0, 0, 0, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([
-          g.basic,
-          g.pound,
-          g.superHealth,
-          g.greaterDamage,
-          g.minorSpeed,
-          g.minorSpeed,
-          g.minorSpeed,
-          g.minorSpeed,
-          
-        ]),
-        TYPE: [exports.bullet, { LABEL: "Flare", MOTION_TYPE: "grow" }],
-      },
-    },
-    ],
-  },
-  1,
   ""
 );
 exports.beenadeExplosion = makeMulti(
@@ -41249,6 +41283,55 @@ exports.inventor = {
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
         TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+
+        ALT_FIRE: true,
+        SYNCS_SKILLS: true,
+      },
+    },
+    {
+      POSITION: [5, 7, -1.8, 6.5, 0, 0, 0],
+    },
+  ],
+};
+
+exports.c4 = {
+  PARENT: [exports.genericTank],
+  DANGER: 7,
+  LABEL: "C4",
+  STAT_NAMES: statnames.trap,
+  SPECIAL_EFFECT: "experiment",
+  BODY: {
+    SPEED: base.SPEED * 0.75,
+    FOV: base.FOV * 1.15,
+  },
+  MAX_CHILDREN: 10,
+  TURRETS: [
+    
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [13.5, 0, 0, 0, 360, 1],
+      TYPE: [exports.grenadierSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [4, 12, 1, 10.5, 0, 0, 0],
+    },
+
+    {
+      POSITION: [2, 13, 1, 15.5, 0, 0, 0],
+    },
+    {
+      POSITION: [8, 11, 1.3, 18, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
+        TYPE: [exports.C4StationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -96821,6 +96904,7 @@ exports.krispollies.UPGRADES_TIER_1 = [
 exports.krisbooms.UPGRADES_TIER_1 = [
   exports.neutron,
   exports.beenader,
+  exports.c4,
 ];
 exports.krisfighters.UPGRADES_TIER_1 = [
   exports.splatterer,
