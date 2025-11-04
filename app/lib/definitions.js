@@ -12368,6 +12368,13 @@ exports.C4StationedTurret = {
     REGEN: -1,
     PUSHABILITY: 0,
   },
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [13.5, 0, 0, 0, 360, 1],
+      TYPE: [exports.grenadierSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
   GUNS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
