@@ -12352,23 +12352,43 @@ exports.inventorStationedTurret = {
 exports.C4StationedTurret = {
   PARENT: [exports.experimenterStationedTurret],
   DEATH_THROES: "c4e",
+  LABEL: "Stationed Mini-Turret",
+  GROWTH_FACTOR: 1.25,
+  BODY: {
+    FOV: 1.75,
+    SPEED: 0,
+    ACCELERATION: 0,
+    HEALTH: 2.5,
+    SHIELD: 0,
+    DAMAGE: 1.35,
+    RESIST: 1,
+    PENETRATION: 1,
+    RANGE: 100,
+    DENSITY: 0.4,
+    REGEN: -1,
+    PUSHABILITY: 0,
+  },
   GUNS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [10, 8.5, 0.6, 5, 4.5, 0, 0],
+      POSITION: [16, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.lesserHealth]),
-        TYPE: exports.swarmDrone,
-        STAT_CALCULATOR: gunCalcNames.swarm,
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.single,
+          g.minorDamage,
+          g.halfHealth,
+        ]),
+        TYPE: exports.bullet,
       },
     },
+
     {
-      POSITION: [10, 8.5, 0.6, 5, -4.5, 0, 0.5],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.lesserHealth]),
-        TYPE: exports.swarmDrone,
-        STAT_CALCULATOR: gunCalcNames.swarm,
-      },
+      POSITION: [5.5, 8, -1.8, 6.5, 0, 0, 0],
+    },
+
+    {
+      POSITION: [5.5, 8, -1.8, 6.5, 0, 0, 0],
     },
   ],
 };
@@ -14757,7 +14777,29 @@ exports.c4e = makeMulti(
             g.power,
             g.lesserStats,
             g.greaterSpeed,
+            g.halfRange,
             g.pound,
+          ]),
+          TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
+        },
+      },
+      
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [22, 5, 1, 0, 0, 36, 0],
+        PROPERTIES: {
+          AUTOFIRE: true,
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.twin,
+            g.gunner,
+            g.cyclone,
+            g.power,
+            g.lesserStats,
+            g.greaterSpeed,
+            g.halfRange,
+            g.pound,
+            g.destroy,
           ]),
           TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
         },
