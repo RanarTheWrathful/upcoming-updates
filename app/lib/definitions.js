@@ -12370,6 +12370,11 @@ exports.C4StationedTurret = {
   },
   TURRETS: [
     {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [21.5, 0, 0, 0, 361, 0],
+      TYPE: exports.dominatorBody,
+    },
+    {
       /*********  SIZE     X       Y     ANGLE    ARC */
       POSITION: [13.5, 0, 0, 0, 360, 1],
       TYPE: [exports.grenadierSymbol, { INDEPENDENT: true, COLOR: 16 }],
