@@ -9352,6 +9352,57 @@ exports.grenadierMissile = {
   ],
 };
 
+exports.grenadierBullet = {
+  PARENT: [exports.bullet],
+  LABEL: "Grenande",
+  DEATH_THROES: "cbExplosion",
+  INDEPENDENT: true,
+  BODY: {
+    RANGE: 120,
+    DENSITY: 3,
+  },
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.grenadierSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
+};
+exports.cbMissile = {
+  PARENT: [exports.missile],
+  LABEL: "Missile",
+  INDEPENDENT: true,
+  BODY: {
+    RANGE: 120,
+    DENSITY: 3,
+  },
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.grenadierSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [8, 12, 1.4, 8, 0, 180, 3.75],
+      PROPERTIES: {
+        AUTOFIRE: true,
+        STAT_CALCULATOR: gunCalcNames.thruster,
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.mach,
+          g.arty,
+          g.bitmoreReload,
+          g.doubleRecoil,
+        ]),
+        TYPE: [exports.grenadierBullet, { PERSISTS_AFTER_DEATH: true }],
+      },
+    },
+  ],
+};
 exports.bombMissile = {
   PARENT: [exports.bullet],
   LABEL: "A BTD6 refference",
@@ -14833,6 +14884,39 @@ exports.lesserGrenadierExplosion = makeMulti(
   ""
 );
 
+exports.cbExplosion = makeMulti(
+  {
+    PARENT: [exports.bullet],
+    ALPHA: 0,
+    FACING_TYPE: "autospin",
+    INDEPENDENT: true,
+    BODY: {
+      RANGE: 5,
+    },
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [15, 5, 1, 0, 0, 0, 0],
+        PROPERTIES: {
+          AUTOFIRE: true,
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.twin,
+            g.gunner,
+            g.cyclone,
+            g.power,
+            g.lesserStats,
+            g.lesserDamage,
+            g.doubleSize,
+          ]),
+          TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
+        },
+      },
+    ],
+  },
+  5,
+  ""
+);
 exports.c4e = makeMulti(
   {
     PARENT: [exports.bullet],
@@ -38221,6 +38305,35 @@ exports.rocketeer = {
           g.halfDamage,
         ]),
         TYPE: exports.rocket,
+        STAT_CALCULATOR: gunCalcNames.sustained,
+      },
+    },
+  ],
+};
+
+exports.cb = {
+  PARENT: [exports.genericTank],
+  LABEL: "Carpet Bomber",
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.8,
+    FOV: base.FOV * 1.2,
+  },
+  DANGER: 7,
+  GUNS: [
+    {
+      POSITION: [20, 3, 4, 1, 0, 0, 0],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [18, 11.5, -1.6, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.pound,
+          g.missile,
+          g.halfDamage,
+        ]),
+        TYPE: exports.cbMissile,
         STAT_CALCULATOR: gunCalcNames.sustained,
       },
     },
@@ -97065,6 +97178,7 @@ exports.krisbooms.UPGRADES_TIER_1 = [
   exports.beenader,
   exports.c4,
   exports.bomb,
+  exports.cb,
 ];
 exports.krisfighters.UPGRADES_TIER_1 = [
   exports.splatterer,
