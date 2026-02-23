@@ -14981,11 +14981,10 @@ instance.runTrigger("kill", this);
   this.isProtected = false;
     
     // Remove from minimap
-    const minimap = new Map();
-// On add
-minimap.set(this.id, data);
-// On destroy
-minimap.delete(this.id);
+    let i = minimap.findIndex((entry) => {
+      return entry[0] === this.id;
+    });
+    if (i != -1) util.remove(minimap, i);
     
     // Remove this from views
     views.forEach((v) => v.remove(this));
