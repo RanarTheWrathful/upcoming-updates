@@ -5321,7 +5321,7 @@ class Entity {
     if (Array.isArray(newIO)) {
       this.controllers = newIO.concat(this.controllers);
     } else {
-      this.controllers.unshift(newIO);
+      if (this && this.controllers === []) this.controllers.unshift(newIO);
     }
   }
 
