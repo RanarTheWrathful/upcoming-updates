@@ -378,14 +378,14 @@ function removeBanned(socketIP) {
     c.banList.splice(index, 1);
   }
 }
-setInterval(() => {
+/*setInterval(() => {
   console.log({
     entities: entities.length,
     sockets: sockets.clients.length,
     minimap: minimap.length,
     protected: entitiesToAvoid.length
   });
-}, 10000);
+}, 10000);*/
 const room = {
   lastCycle: undefined,
   cycleSpeed: 1000 / roomSpeed / 30,
