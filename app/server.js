@@ -15416,7 +15416,6 @@ class View {
   }
   
   remove(e) {  
-    this.nearby = this.nearby.filter(n => n !== e);
     if (this.visibleEntity.delete(e)) {
       this.photos.delete(e.id);
       this.nearEntity.delete(e);
