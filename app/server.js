@@ -381,7 +381,6 @@ function removeBanned(socketIP) {
 setInterval(() => {
   console.log({
     entities: entities.length,
-    players: players.length,
     sockets: sockets.clients.length,
     minimap: minimap.length,
     protected: entitiesToAvoid.length
