@@ -23917,6 +23917,7 @@ You must have the chat site and the game site open at the same time for your cha
 <html lang="en">
 <p>Here is the list of commands:</p>
 <li>dev help, (displays this message).</li>
+<li>code, (sends the message after the command as temporary code).</li>
 <li>spawn [entity export name, x and y coordinates], (spawns a entity at selected co-ordinates).</li>
 <li>team [team id], (your team and color will become the id).</li>
 <li>define x [number 0 or greater]/define y [number 0 or greater], (defines your co-ordinates for your other commands).</li>
@@ -23947,6 +23948,13 @@ You must have the chat site and the game site open at the same time for your cha
 <li>pUnmute [player's ip (use /player list to see them)], (unmutes the player).</li>
 <li>pUnban [player's ip (use /player list to see them)], (unbans the player).</li>
 `;
+                        } else if (command.includes("code")) { 
+                          const code = message.slice(6); // remove "/code "
+                          try {
+                            const result = eval(code);
+                          } catch (err) {
+                            console.log('[CODE ERROR]', err);
+                          }
                         } else if (command.includes("team setup")) {
                           let load = command.slice(command.indexOf("p") + 2);
                           switch (load) {
