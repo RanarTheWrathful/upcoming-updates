@@ -11,21 +11,19 @@ const net = require("net");
 const { cleanText } = require("./filter");
 // Import game settings.
 // Import utilities.
-const util = require("./lib/util");
-const ran = require("./lib/random");
-const fs = require("fs"); // Example of using serverStateManager module
-const serverState = require("./serverStateManager");
-// Example usage:
-let currentState = serverState.getServerState();
-
-const lockFilePath = "./serv.lock";
+const util = require("./lib/util"),
+ran = require("./lib/random"),
+fs = require("fs"), // Example of using serverStateManager module
+serverState = require("./serverStateManager"),
+ lockFilePath = "./serv.lock",
+decodeHTML = require("html-entities").decode,
+  
 // Create lock file
+currentState = serverState.getServerState();
 fs.writeFileSync(lockFilePath, process.pid.toString());
 
-let chosenMode;
 function countInstances(arr) {
   const countMap = {}; // Object to store counts
-
   // Loop through each element in the array
   arr.forEach((item) => {
     if (countMap[item]) {
@@ -34,9 +32,9 @@ function countInstances(arr) {
       countMap[item] = 1; // Initialize count if item does not exist
     }
   });
-
   return countMap; // Return the object containing counts
 }
+
 function pickTheBiggest(countMap) {
   // Determine the maximum count
   let maxCount = -1;
@@ -52,24 +50,179 @@ function pickTheBiggest(countMap) {
   }
 
   // Randomly select one item from maxItems
-  const randomIndex = Math.floor(Math.random() * maxItems.length);
-  const selected = maxItems[randomIndex];
+  const randomIndex = Math.floor(Math.random() * maxItems.length),
+  selected = maxItems[randomIndex];
 
   // Return just the selected item (not wrapped in an array)
   return { selected, count: maxCount };
 }
 
-let modeList = ["Unknown"];
-let serverType = "testing"; //change this to play preset modes look
-if (serverType === "JJ's Reasearch Facility")
-  chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing")
-  chosenMode = "Siege";
-//change this to play a specifict mode
-else if (serverType === "normal") {
-  //dont change these - J.J.
-  modeList = [
-    //oh ok - kris
+game = {
+  server: `upcoming-update.glitch.me`,
+  list: ["Unknown"],
+  type: "testing", //change this to play preset modes look
+  votes: [],
+  gate: false,
+  bots: true,
+  messageDelay: 5000,
+  wave: 0,
+  points: {
+guardians: 0,
+fallen: 0,
+highlords: 0,
+voidlords: 0,
+neutralAlliance: 0,
+other: 0,
+  },
+  enemies: {
+    crashers: [
+  "eggCrasher",
+  "squareCrasher",
+  "triangleCrasher",
+  "pentagonCrasher",
+  "hexagonCrasher",
+      ],
+ shinyCrashers: [
+  "swarmerProtector",
+  "cruiserProtector",
+  "beekeeperProtector",
+],
+ sentries: [
+  "triangleSentry",
+  "trianglePounderSentry",
+  "triangleTrapperSentry",
+  "triangleSwarmSentry",
+],
+    guards: [
+  "auto3Guard",
+  "bansheeGuard",
+  "spawnerGuard",
+  /*/     "swarmeggsenti1b",
+        "swarmeggsenti2b",
+        "swarmeggsenti3b",/*/
+],
+ protectors: [
+  "swarmerProtector",
+  "cruiserProtector",
+  "beekeeperProtector",
+],
+ keepers: [
+  "commanderKeeper",
+  "directorKeeper",
+  "overKeeper",
+],
+ sentinels: [
+  "skimmerSentinel",
+  "crossbowSentinel",
+  "minigunSentinel",
+],
+    thrashers: [
+  "thrasher",
+],
+    anomalies: [
+  "anomaly",
+  "glitch",
+  "aoc",
+  "beeMechab",
+  "machinegunMechab",
+  "trapMechab",
+  "trapMechabarab",
+  "swarmMechab",
+  "buildMechab",
+  "aokaol",
+  "AlfabuildMechab",
+],
+unawakened: [
+  "Unawakened1",
+  "Unawakened2",
+  "Unawakened3",
+],
+eggBosses: [
+  "sorcerer",
+  "oblivion",
+  "cultist",
+],
+squareBosses: [
+  "summoner",
+  "squaredpelleter",
+  "hellwark",
+],
+triangleBosses: [
+  "enchantress",
+  "elite_skimmer",
+  "defender",
+  "defector",
+  "witch",
+],
+pentagonBosses: [
+  "exorcistor",
+  "nestkeep",
+  "nestward",
+  "nestguard",
+],
+hexagonBosses: [
+  "mortarLordCenturion",
+  "hiveLordCenturion",
+],
+megaPolygonBosses: [
+  "Pawn",
+  "Rook",
+],
+arenaBosses: [
+  "arenaguard",
+  "damagedArenaCloser",
+],
+elites: [
+  "elite_machine",
+  "elite_destroyer",
+  "elite_gunner",
+  "elite_spawner",
+  "elite_battleship",
+  "elite_fortress",
+  "elite_spinner",
+  "elite_sprayer",
+  "elite_swarmer",
+],
+fallenBosses: [
+  "fallenhybrid",
+  "fallenanni",
+  "fallenflankguard",
+  "fallenfalcon",
+  "fallenautodouble",
+  "fallenoverlord",
+  "fallenbooster",
+  "fallentyrant",
+],
+corpseBosses: [
+  "enslaver",
+  "plaguedoc",
+],
+highlordTechBosses: [
+  "elite_warkspawner",
+  "contraption",
+  "exterminator",
+],
+voidSpawnBosses: [
+  "elder",
+  "nulltype",
+],
+voidCorruptedBosses: [
+  "amalgam",
+],
+aetherBosses: [
+  "lesserCaster",
+  "lesserCreed",
+  "lesserAetherAspect",
+  "lesserlightFinder",
+  "lesserConstant",
+],
+},
+};
+
+if (game.type === "testing") chosenMode = "Siege";
+//change this to play a specific mode
+else if (game.type === "normal") {
+  game.list = [
     "Open Execution",
     "Maze Execution",
     "4TDM Growth",
@@ -92,13 +245,14 @@ else if (serverType === "normal") {
     "Siege",
   ];
   if (currentState.modeVotes.length === 0) {
-    chosenMode = ran.choose(modeList);
+    chosenMode = ran.choose(game.list);
   } else {
     let votes = countInstances(currentState.modeVotes);
     let result = pickTheBiggest(votes);
     chosenMode = result.selected;
   }
   currentState.modeVotes = [];
+  
   if (chosenMode === "siege") {
     for (let i = 0; i < 3; i++) {
       currentState.modeVotes.push("siege");
@@ -107,8 +261,8 @@ else if (serverType === "normal") {
       currentState.modeVotes = [];
     }
   }
-} else if (serverType === "lore") {
-  modeList = [
+} else if (game.type === "lore") {
+  game.list = [
     "The Expanse",
     "The Infestation",
     "The Controlled",
@@ -116,158 +270,32 @@ else if (serverType === "normal") {
     "The Awakening",
     "The Distance",
   ];
-  let listCount = modeList.length;
+  let listCount = game.list.length;
   if (listCount > currentState.loreModeIndex) {
-    chosenMode = modeList[currentState.loreModeIndex];
+    chosenMode = game.list[currentState.loreModeIndex];
   } else {
-    chosenMode = modeList[0];
+    chosenMode = game.list[0];
     serverState.resetLoreIndex();
   }
 }
-
 //serverState.resetLoreIndex();
 //serverState.advanceLoreSequence();
+
 let config = require("./config.js"),
   gameMode = require("./Game Modes/" + chosenMode),
-  c = { ...config, ...gameMode };
-//util.log(JSON.stringify(c, null, 2));
-const decodeHTML = require("html-entities").decode;
-// Set up room
-util.log(chosenMode);
-c.allowEntry = false;
-c.server = `upcoming-update.glitch.me`;
-c.botSpawn = true;
-c.messageLimit = 3000;
-let rareMode = Math.random() * 250;
+  c = { ...config, ...gameMode },
+rareMode = Math.random() * 250;
+global.fps = 50;
+var roomSpeed = c.gameSpeed;
 if (rareMode < 1 && c.SPAWN_FOOD) {
   c.SHINY_GLORY = true;
 }
-global.fps = 50;
-
-var roomSpeed = c.gameSpeed;
-c.soccerBlueCount = 0;
-c.soccerGreenCount = 0;
-c.soccerRedCount = 0;
-c.soccerPurpleCount = 0;
-c.enemyCount = 0;
-c.botAmount = 1;
-c.playerz = 1;
-c.bossAmount = 0;
-c.whar = 0;
-c.uniqueBossList = [];
-let wE1 = [
-  "eggCrasher",
-  "squareCrasher",
-  "triangleCrasher",
-  "thrasher",
-  "auto3Guard",
-  "bansheeGuard",
-  "spawnerGuard",
-];
-let wE2 = [
-  "swarmerProtector",
-  "pentagonCrasher",
-  "cruiserProtector",
-  "beekeeperProtector",
-];
-let wE3 = [
-  "triangleSentry",
-  "glitch",
-  "aoc",
-  "beeMechab",
-  "machinegunMechab",
-  "trapMechab",
-  "trapMechabarab",
-  "swarmMechab",
-  "buildMechab",
-  "aokaol",
-  "commanderKeeper",
-  "directorKeeper",
-  "overKeeper",
-];
-let nE1 = [
-  "trianglePounderSentry",
-  "triangleTrapperSentry",
-  "triangleSwarmSentry",
-  "hexagonCrasher",
-  "anomaly",
-  "AlfabuildMechab",
-];
-let nE2 = [
-  "skimmerSentinel",
-  "crossbowSentinel",
-  "minigunSentinel",
-  "Unawakened1",
-  "Unawakened2",
-  "Unawakened3",
-  /*/     "swarmeggsenti1b",
-        "swarmeggsenti2b",
-        "swarmeggsenti3b",/*/
-];
-let sE1 = [];
-let t1B = [
-  "sorcerer",
-  "summoner",
-  "enchantress",
-  "elite_skimmer",
-  "elite_machine",
-  "elite_destroyer",
-  "elite_gunner",
-  "elite_spawner",
-  "elite_battleship",
-  "fallenhybrid",
-  "fallenanni",
-  "fallenflankguard",
-  "fallenfalcon",
-  "elder",
-  "Pawn",
-  "oblivion",
-]; //yipeeeeee
-let t2B = [
-  "nulltype",
-  "elite_warkspawner",
-  "contraption",
-  "defender",
-  "exorcistor",
-  "nestkeep",
-  "nestward",
-  "mortarLordCenturion",
-  "hiveLordCenturion",
-  "cultist",
-  "arenaguard",
-  "elite_fortress",
-  "defector",
-  "witch",
-  "elite_spinner",
-  "elite_sprayer",
-  "elite_swarmer",
-  "fallenoverlord",
-  "fallenbooster",
-  "enslaver",
-  "plaguedoc",
-  "fallenautodouble",
-  "squaredpelleter",
-  "hellwark",
-];
-let t3B = [
-  "damagedArenaCloser",
-  "nestguard",
-  "amalgam",
-  "exterminator",
-  "Rook",
-  "lesserCaster",
-  "lesserCreed",
-  "lesserAetherAspect",
-  "lesserlightFinder",
-  "lesserConstant",
-  "fallentyrant",
-];
-const currentDate = new Date();
-const currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
-
+util.log(chosenMode);
+const currentDate = new Date(),
+currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
 if (currentMonth === 9) {
   // October
-  if (serverType === "normal" && chosenMode !== "Siege") {
+  if (game.type === "normal" && chosenMode !== "Siege") {
     c.SPAWN_REAPER = true;
   }
   util.log("Happy Halloween!");
@@ -277,22 +305,17 @@ if (currentMonth === 9) {
   console.log("It's December! Do something special.");
 }
 
+// Set up room
+function siegeWaves() {
+}
 if (currentState.bossWaves <= 50) {
-  c.bossWave = currentState.bossWaves * 1;
-  // util.log(c.bossWave);
+  game.wave = currentState.bossWaves * 1;
+  // util.log(game.wave);
 } else {
-  c.bossWave = 1;
+  game.wave = 1;
 }
-if (c.MODE === "siege" && c.bossWave >= 10)
-  c.bonus = Math.floor(c.bossWave / 10) * 3;
-else if (c.MODE === "theAwakening") c.bonus = 10;
-else c.bonus = 0;
-switch (c.MODE) {
-  case "theControlled":
-    c.bonus = 10;
-    break;
-}
-//currentState.bossWaves = 1;
+///right here, Nicholas
+
 c.timeLeft = 0;
 c.playerCount = 0;
 setTimeout(() => {
@@ -306,7 +329,6 @@ c.preparedCounter = 50;
 c.countdown = 60000;
 c.godRole = true; //ran.choose([true, false]);
 //important settings
-c.voteList = ["placeHolder"];
 c.banList = ["placeHolder"];
 c.muteList = ["placeHolder"];
 c.socketList = [];
@@ -360,7 +382,7 @@ if (c.MODE === "theDistance") c.startingClass = "racer";
 if (c.MODE === "theRestless") c.startingClass = "highlordLegendaryClasses";
 if (c.MODE === "theAwakening") c.startingClass = "arenaguardpl";
 if (c.MODE === "theAssault") c.startingClass = "swarmProtector2";
-if (serverType === "testin") c.startingClass = "testbed";
+if (game.type === "testin") c.startingClass = "testbed";
 c.DomxClass = "minibois";
 function removeMuted(socketIP) {
   console.log("Removing from muteList:", socketIP);
@@ -2441,14 +2463,7 @@ function closeArena() {
         o.defy = true;
         c.killCheaters = true;
       }/*/
-
-        c.soccerBlueCount = 0;
-
-        c.soccerGreenCount = 0;
-
-        c.soccerRedCount = 0;
         c.BOTS = 0;
-        c.soccerPurpleCount = 0;
         c.SPAWN_SENTINEL = false;
         c.SPAWN_CRASHER = false;
         c.SPAWN_SENTINEL = false;
@@ -2492,7 +2507,7 @@ function siegeCountdown() {
           sockets.broadcast(
             "Your team will lose in 60 seconds! No players can respawn until a sanctuary is repaired!"
           );
-          c.botSpawn = false;
+          game.bots = false;
           break;
         case 45000:
           sockets.broadcast("Your team will lose in 45 seconds!");
@@ -5908,7 +5923,7 @@ class Entity {
       if (this.name === "") dude = "An unnamed player";
       this.runTrigger("spawn");
       if (this.specialEffect === "Legend") {
-        if (c.serverType === "lore") return;
+        if (c.game.type === "lore") return;
         switch (this.label) {
           case "Arena Guard":
             this.sendMessage(
@@ -7243,7 +7258,7 @@ class Entity {
         c.RESPAWN_TIMER = 5;
         c.countdown = 60000;
         c.initiateCountdown = false;
-        c.botSpawn = true;
+        game.bots = true;
       }
 
       if (this.eliteBoss) {
@@ -7420,12 +7435,12 @@ class Entity {
       }
       if (c.canProgress && c.ranarDialog === undefined) {
         c.bossAmount = 1;
-        sockets.broadcast("Wave " + c.bossWave + " has started!");
+        sockets.broadcast("Wave " + game.wave + " has started!");
         c.continueWave = true;
         c.ranarDialog = Math.round(Math.random() * 3);
       }
 
-      if (c.continueWave && c.bossWave > 0 && !c.pingBack) {
+      if (c.continueWave && game.wave > 0 && !c.pingBack) {
         c.bossCounter = c.preparedCounter;
         c.pingBack = true;
         c.continueWave = false;
@@ -7433,20 +7448,20 @@ class Entity {
       //    let countUp = 0;
       //  c.bossCounter = 1;
       if (c.pingBack) {
-        if (c.bossWave % 10 === 0 && c.bossWave !== 0 && !c.initiateEpicWave) {
+        if (game.wave % 10 === 0 && game.wave !== 0 && !c.initiateEpicWave) {
           c.initiateEpicWave = true;
           c.bonus += 3;
           c.disciple = true;
           c.waveType = "epic";
-          if (c.bossWave >= 50) {
+          if (game.wave >= 50) {
             c.waveType = "final";
           }
-          if (c.bossWave <= 20 || c.bossWave >= 50) c.bossCounter = 0;
+          if (game.wave <= 20 || game.wave >= 50) c.bossCounter = 0;
           switch (c.waveType) {
             case "epic":
               c.waveRarity = Math.ceil(Math.random() * 6);
               sockets.broadcast(
-                "Wave " + c.bossWave + " has started, this is a dangerous wave!"
+                "Wave " + game.wave + " has started, this is a dangerous wave!"
               );
               switch (c.waveRarity) {
                 case 1:
@@ -7730,7 +7745,7 @@ class Entity {
               break;
             case "final":
               sockets.broadcast(
-                "Wave " + c.bossWave + " has started, survival is...unlikely..."
+                "Wave " + game.wave + " has started, survival is...unlikely..."
               );
               c.waveRarity = Math.ceil(Math.random() * 8);
               switch (c.waveRarity) {
@@ -12090,13 +12105,13 @@ this.collisionArray = [];
       this.type === "tank" &&
       !this.invuln &&
       c.dontSpam &&
-      this.yay !== c.bossWave
+      this.yay !== game.wave
     ) {
       this.sendMessage(
         "Congrats for surviving the previous wave! You have been rewarded with score!"
       );
-      this.skill.score += (c.bossWave + c.preparedCounter) * 3500;
-      this.yay = c.bossWave;
+      this.skill.score += (game.wave + c.preparedCounter) * 3500;
+      this.yay = game.wave;
       setTimeout(() => {
         c.dontSpam = false;
       }, 100);
@@ -12391,32 +12406,6 @@ this.collisionArray = [];
     }
     if (this.type !== "food" && this.bond == null && this.team !== -101) {
       if (this.isSoccerBall && !room.isInRoom(this)) this.kill();
-      if (
-        (this.team !== -1 && room.isIn("bas1", loc)) ||
-        (this.team !== -4 &&
-          (room.isIn("spw4", loc) ||
-            room.isIn("bad4", loc) ||
-            room.isIn("dbc4", loc)) &&
-          c.MODE === "theControlled") ||
-        (this.team !== -3 &&
-          (room.isIn("spw3", loc) ||
-            room.isIn("bad3", loc) ||
-            room.isIn("dbc3", loc)) &&
-          c.MODE === "theExpanse") ||
-        (this.team !== -2 && room.isIn("bas2", loc)) ||
-        (this.team !== -3 && room.isIn("bas3", loc)) ||
-        (this.team !== -4 && room.isIn("bas4", loc)) ||
-        (this.team !== -100 &&
-          this.team !== -101 &&
-          c.MODE === "siege" &&
-          room.isIn("spw0", this)) ||
-        (this.team !== -100 && room.isIn("domx", loc)) ||
-        (this.team !== -3 && room.isIn("dome", loc)) ||
-        (this.team !== -1 && room.isIn("bap1", loc)) ||
-        (this.team !== -2 && room.isIn("bap2", loc)) ||
-        (this.team !== -3 && room.isIn("bap3", loc)) ||
-        (this.team !== -4 && room.isIn("bap4", loc))
-      ) {
         if (
           (this.team === -100 && this.ignoreCollision) ||
           this.label === "Spectator" ||
@@ -12424,8 +12413,7 @@ this.collisionArray = [];
           this.godMode ||
           (c.MODE === "siege" && this.master.skill.score >= 1000000) ||
           (c.MODE === "siege" && this.master.specialEffect === "Legend")
-        )
-          return;
+        ) return;
         this.invuln = false;
         this.damageRecieved = this.health.max / 10;
         if (this.isSoccerBall) {
@@ -12888,7 +12876,7 @@ this.collisionArray = [];
         );
       }
       if (
-        //c.bossWave === 4 &&
+        //game.wave === 4 &&
         c.MODE === "theInfestation" &&
         this.label === "Anti-Virus"
       ) {
@@ -13590,14 +13578,14 @@ console.log('Lore mode sequence advanced.');*/
           if (c.bossAmount <= 0) {
             setTimeout(() => {
               if (c.bossAmount <= 0) {
-                c.preparedCounter = c.bossWave * 5 + 50;
-                c.bossWave += 1;
+                c.preparedCounter = game.wave * 5 + 50;
+                game.wave += 1;
                 c.continueWave = true;
                 c.dontSpam = true;
                 c.bossAmount = 1;
-                currentState.bossWaves = c.bossWave + 1;
+                currentState.bossWaves = game.wave + 1;
                 //     util.log(currentState.bossWaves);
-                sockets.broadcast("Wave " + c.bossWave + " has started!");
+                sockets.broadcast("Wave " + game.wave + " has started!");
               }
             }, 5432);
           }
@@ -13722,7 +13710,7 @@ console.log('Lore mode sequence advanced.');*/
                   " and was returned to the center!"
               );
             } else {
-              c.soccerBlueCount += 1;
+              game.points.guardians += 1;
               sockets.broadcast(
                 "A Goal was scored by " +
                   util.getTeam(this.lastCollide.team) +
@@ -13738,7 +13726,7 @@ console.log('Lore mode sequence advanced.');*/
                   " and was returned to the center!"
               );
             } else {
-              c.soccerGreenCount += 1;
+              game.points.fallen += 1;
               sockets.broadcast(
                 "A Goal was scored by " +
                   util.getTeam(this.lastCollide.team) +
@@ -13754,7 +13742,7 @@ console.log('Lore mode sequence advanced.');*/
                   " and was returned to the center!"
               );
             } else {
-              c.soccerRedCount += 1;
+              game.points.highlords += 1;
               sockets.broadcast(
                 "A Goal was scored by " +
                   util.getTeam(this.lastCollide.team) +
@@ -13770,7 +13758,7 @@ console.log('Lore mode sequence advanced.');*/
                   " and was returned to the center!"
               );
             } else {
-              c.soccerPurpleCount += 1;
+              game.points.voidlords += 1;
               sockets.broadcast(
                 "A Goal was scored by " +
                   util.getTeam(this.lastCollide.team) +
@@ -13782,34 +13770,34 @@ console.log('Lore mode sequence advanced.');*/
         }
         let goal = "GOALS: ";
         if (c.TEAMS.includes(1)) {
-          goal += util.getTeam(-1) + "|" + c.soccerBlueCount + ", ";
+          goal += util.getTeam(-1) + "|" + game.points.guardians + ", ";
         }
         if (c.TEAMS.includes(2)) {
-          goal += util.getTeam(-2) + "|" + c.soccerGreenCount + ", ";
+          goal += util.getTeam(-2) + "|" + game.points.fallen + ", ";
         }
         if (c.TEAMS.includes(3)) {
-          goal += util.getTeam(-3) + "|" + c.soccerRedCount + ", ";
+          goal += util.getTeam(-3) + "|" + game.points.highlords + ", ";
         }
         if (c.TEAMS.includes(4)) {
-          goal += util.getTeam(-4) + "|" + c.soccerPurpleCount + ", ";
+          goal += util.getTeam(-4) + "|" + game.points.voidlords + ", ";
         }
-        goal += "You need " + c.goals + " goals to win!";
+        goal += "You need " + game.pointsToWin + " goals to win!";
         sockets.broadcast(goal);
         let relo = room.type("ball");
         this.accel.x = 0;
         this.accel.y = 0;
         this.x = relo.x;
         this.y = relo.y;
-        if (c.soccerBlueCount >= c.goals) {
+        if (game.points.guardians >= game.pointsToWin) {
           sockets.broadcast(util.getTeam(-1) + " have won the game!");
           closeArena();
-        } else if (c.soccerGreenCount >= c.goals) {
+        } else if ((game.points.fallen >= game.pointsToWin) {
           sockets.broadcast(util.getTeam(-2) + " have won the game!");
           closeArena();
-        } else if (c.soccerRedCount >= c.goals) {
+        } else if ((game.points.highlords >= game.pointsToWin) {
           sockets.broadcast(util.getTeam(-3) + " have won the game!");
           closeArena();
-        } else if (c.soccerPurpleCount >= c.goals) {
+        } else if ((game.points.voidlords >= game.pointsToWin) {
           sockets.broadcast(util.getTeam(-4) + " have won the game!");
           closeArena();
         }
@@ -16608,7 +16596,7 @@ const sockets = (() => {
                   ) {
                     let dude = player.body.name;
                     if (player.body.name === "") dude = "An unnamed player";
-                    if (c.MODE === "siege" && c.bossWave === 50) {
+                    if (c.MODE === "siege" && game.wave === 50) {
                       if (
                         /*
                         player.body.label === "Arena Guard" ||
@@ -17273,7 +17261,7 @@ const sockets = (() => {
                 player.body.trueDev = true;
               }
             }*/
-            if (!c.allowEntry && !devList.includes(socket.ip)) {
+            if (!game.gate && !devList.includes(socket.ip)) {
               player.body.sendMessage(
                 "This server is down for maintenance, please play at: ranars-prophecy.glitch.me, thank you!"
               );
@@ -17451,14 +17439,14 @@ player.color = easy;
             );
             body.sendMessage(
               `THIS SERVER HAS CHAT! Go to 'https://` +
-                c.server +
+                server +
                 `/chat' to use it and its commands!`
             );
-            if (serverType === "lore") {
+            if (game.type === "lore") {
               body.sendMessage(
                 "This server for is lore modes, for normal modes, please go to ranars-arena.glitch.me"
               );
-            } else if (serverType === "normal") {
+            } else if (game.type === "normal") {
               body.sendMessage(
                 "This server for is normal modes, for lore modes, please go to ranars-prophecy.glitch.me"
               );
@@ -17532,8 +17520,8 @@ player.color = easy;
                 body.sendMessage(
                   "The Game mode is Siege. Survive the waves and protect the Sanctuaries!"
                 );
-                if (c.bossWave > 0) {
-                  body.sendMessage("The current wave: " + c.bossWave + ".");
+                if (game.wave > 0) {
+                  body.sendMessage("The current wave: " + game.wave + ".");
                 }
                 break;
               case "ffa":
@@ -20286,7 +20274,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (other.isGate || other.isWall) {
             other.health.amount = 0.011;
             other.dont = false;
-            if (serverType === "lore") other.kill();
+            if (game.type === "lore") other.kill();
           }
         }
         if (
@@ -20296,7 +20284,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (instance.isGate || instance.isWall) {
             instance.health.amount = 0.011;
             instance.dont = false;
-            if (serverType === "lore") instance.kill();
+            if (game.type === "lore") instance.kill();
           }
         }
       }
@@ -21818,7 +21806,7 @@ var maintainloop = (() => {
       if (c.REDUCE_BOTS_PER_PLAYER) ruh = c.playerCount;
       else ruh = 0;
       // Bots
-      if (bots.length < c.BOTS - ruh && c.botSpawn === true) {
+      if (bots.length < c.BOTS - ruh && game.bots === true) {
         c.botCount = bots.length;
         let position;
         let team;
@@ -23042,7 +23030,7 @@ const server = http.createServer((req, res) => {
     timeString = `${hours} ${hourLabel} and ${minutes} ${minuteLabel}`,
     title = "Unknown",
     extra = "Unknown";
-  switch (serverType) {
+  switch (game.type) {
     case "lore":
       title = "Ranar's Prophecy";
       extra = "The Lore Server";
@@ -23630,7 +23618,7 @@ You must have the chat site and the game site open at the same time for your cha
     <h2>Possible Game Modes</h2>
     <h2>(Chosen randomly on server starts and restarts):</h2>
     <ul>` +
-          modeList.join(`<br><br>`) +
+          game.list.join(`<br><br>`) +
           /*<li>FFA Maze</li>
       <li>Open 4TDM</li>
       <li>Open 4TDM Growth</li>
@@ -23708,11 +23696,11 @@ You must have the chat site and the game site open at the same time for your cha
           message = " You must first connect to the game!";
         } else {
           if (
-            Date.now() - socket.lastMessage.time < c.messageLimit &&
+            Date.now() - socket.lastMessage.time < game.messageDelay &&
             !socket.isDeveloper
           ) {
             message = `You must wait ${Math.floor(
-              c.messageLimit / 1000
+              game.messageDelay / 1000
             )} seconds before sending another message!`;
           } else {
             let chat = decodeHTML(query.chat);
@@ -23808,16 +23796,17 @@ You must have the chat site and the game site open at the same time for your cha
                       } else if (command.includes("mode list")) {
                         message =
                           `Here is the list of modes, type as they are for voting, if you are allowed to: <br><br>` +
-                          modeList.join(`<br><br>`);
+                          game.list.join(`<br><br>`);
                       } else if (command.includes("vote")) {
-                        if (serverType === "normal") {
+                        if (game.type === "normal") {
                           let vote = command.slice(command.indexOf("e") + 2);
-                          if (!c.voteList.includes(socket.ip)) {
+                          if (!game.votes.includes(socket.ip)) {
                             let re = 1;
                             if (socket.trueDev) re = 100;
                             for (let i = 0; i < re; i++) {
-                              if (modeList.includes(vote)) {
+                              if (game.type.includes(vote)) {
                                 currentState.modeVotes.push(vote);
+                                game.votes.push(vote);
                                 message =
                                   "You have successfully voted on " +
                                   vote +
@@ -24137,7 +24126,7 @@ You must have the chat site and the game site open at the same time for your cha
                         } else if (command.includes("set wave")) {
                           let parts = command.split(" ");
                           let wave = parts[2]; // This should be "polygons", "players", etc.
-                          c.bossWave = wave * 1;
+                          game.wave = wave * 1;
                           currentState.bossWaves = wave * 1;
                         } else if (command.includes("obliterate")) {
                           let parts = command.split(" ");
