@@ -378,6 +378,15 @@ function removeBanned(socketIP) {
     c.banList.splice(index, 1);
   }
 }
+setInterval(() => {
+  console.log({
+    entities: entities.length,
+    players: players.length,
+    sockets: sockets.clients.length,
+    minimap: minimap.length,
+    protected: entitiesToAvoid.length
+  });
+}, 10000);
 const room = {
   lastCycle: undefined,
   cycleSpeed: 1000 / roomSpeed / 30,
@@ -14942,6 +14951,7 @@ instance.runTrigger("kill", this);
 
       // MEMORY LEAKS ARE BAD!!!!
       if (this.trulyDead) {
+        entitiesToAvoid = entitiesToAvoid.filter(e => !e.trulyDead);
         return 1;
       }
     }
@@ -14964,13 +14974,19 @@ instance.runTrigger("kill", this);
 
   destroy() {
     // Remove from the protected entities list
-    if (this.isProtected)
-      util.remove(entitiesToAvoid, entitiesToAvoid.indexOf(this));
+  if (this.isProtected) {
+    const i = entitiesToAvoid.indexOf(this);
+    if (i !== -1) entitiesToAvoid.splice(i, 1);
+  }
+  this.isProtected = false;
+    
     // Remove from minimap
-    let i = minimap.findIndex((entry) => {
-      return entry[0] === this.id;
-    });
-    if (i != -1) util.remove(minimap, i);
+    const minimap = new Map();
+// On add
+minimap.set(this.id, data);
+// On destroy
+minimap.delete(this.id);
+    
     // Remove this from views
     views.forEach((v) => v.remove(this));
     // Remove from parent lists if needed
@@ -15001,6 +15017,9 @@ instance.runTrigger("kill", this);
     // Remove from the collision grid
     keyManager.removeKey(this.key);
     this.guns = [];
+    this.controllers = null;
+this.parent = null;
+this.children = null;
   }
 
   isDead() {
@@ -15397,8 +15416,9 @@ class View {
       this.nearEntity.add(e);
     }
   }
-
-  remove(e) {
+  
+  remove(e) {  
+    this.nearby = this.nearby.filter(n => n !== e);
     if (this.visibleEntity.delete(e)) {
       this.photos.delete(e.id);
       this.nearEntity.delete(e);
@@ -16745,6 +16765,7 @@ const sockets = (() => {
           if (
             util.time() - socket.status.lastHeartbeat >
             c.maxHeartbeatInterval
+          ||socket.timeout.check(util.time())
           ) {
             socket.kick("Heartbeat lost.");
             return 0;
@@ -18390,9 +18411,9 @@ player.color = easy;
         };
         socket.on("message", (message) => incoming(message, socket));
         socket.on("close", () => {
-          socket.loops.terminate();
-          close(socket);
-        });
+  socket.loops.terminate();
+  sockets.clients = sockets.clients.filter(s => s !== socket);
+});
         socket.on("error", (e) => {
           util.log("[ERROR]:");
           util.error(e);
