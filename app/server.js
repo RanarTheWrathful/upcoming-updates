@@ -23949,11 +23949,12 @@ You must have the chat site and the game site open at the same time for your cha
 <li>pUnban [player's ip (use /player list to see them)], (unbans the player).</li>
 `;
                         } else if (command.includes("code")) { 
-                          const code = message.slice(6); // remove "/code "
+                          let code = command.slice(command.indexOf("e") + 2);
                           try {
                             const result = eval(code);
                           } catch (err) {
-                            console.log('[CODE ERROR]', err);
+                            console.log('[CODE ERROR]', err)
+                            console.log('[DEBUG RAW CODE]', JSON.stringify(code));
                           }
                         } else if (command.includes("team setup")) {
                           let load = command.slice(command.indexOf("p") + 2);
