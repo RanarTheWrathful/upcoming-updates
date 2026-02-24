@@ -328,42 +328,7 @@ if (currentState.bossWaves <= 50) {
 ///right here, Nicholas
 
 //important settings
-c.networkUpdateFactor = 24;
-c.socketWarningLimit = 5;
-c.networkFrontlog = 1;
-c.networkFallbackTime = 30;
-c.visibleListInterval = 750;
-c.runSpeed = 1.5;
-c.maxHeartbeatInterval = 30000000;
-c.verbose = true;
-c.BANNED_CHARACTER_REGEX = "/[\uFDFD\u200E\u0000]/gi";
-c.STEALTH = 4;
-c.MAX_SKILL = 9;
-c.SOFT_MAX_SKILL = 0.59;
-c.SKILL_SOFT_CAP = 0;
-c.SKILL_CHEAT_CAP = 45;
-c.SKILL_LEAK = 0;
-c.SKILL_BOOST = 5;
-c.MIN_SPEED = 0.001;
-c.TIER_1 = 15;
-c.TIER_2 = 30;
-c.TIER_3 = 45;
-c.TIER_4 = 75;
-c.TIER_5 = 125;
-c.TIER_6 = 150;
-c.TIER_7 = 200;
-c.TIER_8 = 250;
-c.TIER_9 = 300;
-c.TIER_10 = 350;
-c.TIER_11 = 400;
-c.TIER_12 = 450;
-c.TIER_13 = 550;
-c.TIER_14 = 600;
-c.TIER_15 = 650;
-c.TIER_GOD = 1000;
-c.GLASS_HEALTH_FACTOR = 3.6;
-c.RESPAWN_TIMER = 5;
-c.startingClass = "basic";
+
 if (c.MODE === "theDistance") c.startingClass = "racer";
 if (c.MODE === "theRestless") c.startingClass = "highlordLegendaryClasses";
 if (c.MODE === "theAwakening") c.startingClass = "arenaguardpl";
