@@ -6,7 +6,18 @@ module.exports =
   "WIDTH": 8000,
   "HEIGHT": 8000,
   "MODE": "ffa",
-  "RANDOM_COLORS": false,
+
+  /* ================= NETWORK ================= */
+
+  "NETWORK_UPDATE_FACTOR": 24,
+  "SOCKET_WARNING_LIMIT": 5,
+  "NETWORK_FRONTLOG": 1,
+  "NETWORK_FALLBACK_TIME": 30,
+  "VISIBLE_LIST_INTERVAL": 750,
+  "RUN_SPEED": 1.5,
+  "MAX_HEARTBEAT_INTERVAL": 30000000,
+  "VERBOSE": true,
+  "BANNED_CHARACTER_REGEX": /[\uFDFD\u200E\u0000]/gi,
 
   /* ================= SERVER ================= */
 
@@ -21,29 +32,18 @@ module.exports =
   "EVENT": 0,
   "TIME": 0,
   "PLAYERS": 0,
-
   "VOTES": [],
   "BANS": [],
   "MUTES": [],
   "SOCKETS": [],
   "SERVER_LIST": [],
+  
+  /* ================= GAMEPLAY ================= */
+
 
   "NPC_WANDER_LOC_1": [],
   "NPC_WANDER_LOC_2": [],
-
-  /* ================= NETWORK ================= */
-
-  "NETWORK_UPDATE_FACTOR": 24,
-  "SOCKET_WARNING_LIMIT": 5,
-  "NETWORK_FRONTLOG": 1,
-  "NETWORK_FALLBACK_TIME": 30,
-  "VISIBLE_LIST_INTERVAL": 750,
-  "RUN_SPEED": 1.5,
-  "MAX_HEARTBEAT_INTERVAL": 30000000,
-  "VERBOSE": true,
-  "BANNED_CHARACTER_REGEX": /[\uFDFD\u200E\u0000]/gi,
-
-  /* ================= GAMEPLAY ================= */
+  "RANDOM_COLORS": false,
 
   "STEALTH": 4,
   "MIN_SPEED": 0.001,
@@ -66,74 +66,167 @@ module.exports =
 
   "ENEMIES": {
     "crashers": [
-      "eggCrasher","squareCrasher","triangleCrasher",
-      "pentagonCrasher","hexagonCrasher"
+      "eggCrasher",
+      "squareCrasher",
+      "triangleCrasher",
+      "pentagonCrasher",
+      "hexagonCrasher"
     ],
     "shinyCrashers": [
-      "swarmerProtector","cruiserProtector","beekeeperProtector"
+      "swarmerProtector",
+      "cruiserProtector",
+      "beekeeperProtector"
     ],
     "sentries": [
-      "triangleSentry","trianglePounderSentry",
-      "triangleTrapperSentry","triangleSwarmSentry"
+      "triangleSentry",
+      "trianglePounderSentry",
+      "triangleTrapperSentry",
+      "triangleSwarmSentry"
     ],
     "guards": [
-      "auto3Guard","bansheeGuard","spawnerGuard"
+      "auto3Guard",
+      "bansheeGuard",
+      "spawnerGuard"
     ],
     "protectors": [
-      "swarmerProtector","cruiserProtector","beekeeperProtector"
+      "swarmerProtector",
+      "cruiserProtector",
+      "beekeeperProtector"
     ],
     "keepers": [
-      "commanderKeeper","directorKeeper","overKeeper"
+      "commanderKeeper",
+      "directorKeeper",
+      "overKeeper"
     ],
     "sentinels": [
-      "skimmerSentinel","crossbowSentinel","minigunSentinel"
+      "skimmerSentinel",
+      "crossbowSentinel",
+      "minigunSentinel"
     ],
-    "thrashers": ["thrasher"],
+    "thrashers": [
+      "thrasher"
+    ],
     "anomalies": [
-      "anomaly","glitch","aoc","beeMechab","machinegunMechab",
-      "trapMechab","trapMechabarab","swarmMechab",
-      "buildMechab","aokaol","AlfabuildMechab"
+      "anomaly",
+      "glitch",
+      "aoc",
+      "beeMechab",
+      "machinegunMechab",
+      "trapMechab",
+      "trapMechabarab",
+      "swarmMechab",
+      "buildMechab",
+      "aokaol",
+      "AlfabuildMechab"
     ],
     "unawakened": [
-      "Unawakened1","Unawakened2","Unawakened3"
+      "Unawakened1",
+      "Unawakened2",
+      "Unawakened3"
     ],
-    "eggBosses": ["sorcerer","oblivion","cultist"],
-    "squareBosses": ["summoner","squaredpelleter","hellwark"],
+    "eggBosses": [
+      "sorcerer",
+      "oblivion",
+      "cultist"
+    ],
+    "squareBosses": [
+      "summoner",
+      "squaredpelleter",
+      "hellwark"
+    ],
     "triangleBosses": [
-      "enchantress","elite_skimmer","defender",
-      "defector","witch"
+      "enchantress",
+      "elite_skimmer",
+      "defender",
+      "defector",
+      "witch"
     ],
     "pentagonBosses": [
-      "exorcistor","nestkeep","nestward","nestguard"
+      "exorcistor",
+      "nestkeep",
+      "nestward",
+      "nestguard"
     ],
     "hexagonBosses": [
-      "mortarLordCenturion","hiveLordCenturion"
+      "mortarLordCenturion",
+      "hiveLordCenturion"
     ],
-    "megaPolygonBosses": ["Pawn","Rook"],
-    "arenaBosses": ["arenaguard","damagedArenaCloser"],
+    "megaPolygonBosses": [
+      "Pawn",
+      "Rook"
+    ],
+    "arenaBosses": [
+      "arenaguard",
+      "damagedArenaCloser"
+    ],
     "elites": [
-      "elite_machine","elite_destroyer","elite_gunner",
-      "elite_spawner","elite_battleship","elite_fortress",
-      "elite_spinner","elite_sprayer","elite_swarmer"
+      "elite_machine",
+      "elite_destroyer",
+      "elite_gunner",
+      "elite_spawner",
+      "elite_battleship",
+      "elite_fortress",
+      "elite_spinner",
+      "elite_sprayer",
+      "elite_swarmer"
     ],
     "fallenBosses": [
-      "fallenhybrid","fallenanni","fallenflankguard",
-      "fallenfalcon","fallenautodouble","fallenoverlord",
-      "fallenbooster","fallentyrant"
+      "fallenhybrid",
+      "fallenanni",
+      "fallenflankguard",
+      "fallenfalcon",
+      "fallenautodouble",
+      "fallenoverlord",
+      "fallenbooster",
+      "fallentyrant"
     ],
-    "corpseBosses": ["enslaver","plaguedoc"],
+    "corpseBosses": [
+      "enslaver",
+      "plaguedoc"
+    ],
     "highlordTechBosses": [
-      "elite_warkspawner","contraption","exterminator"
+      "elite_warkspawner",
+      "contraption",
+      "exterminator"
     ],
-    "voidSpawnBosses": ["elder","nulltype"],
-    "voidCorruptedBosses": ["amalgam"],
+    "voidSpawnBosses": [
+      "elder",
+      "nulltype"
+    ],
+    "voidCorruptedBosses": [
+      "amalgam"
+    ],
     "aetherBosses": [
-      "lesserCaster","lesserCreed",
-      "lesserAetherAspect","lesserlightFinder",
+      "lesserCaster",
+      "lesserCreed",
+      "lesserAetherAspect",
+      "lesserlightFinder",
       "lesserConstant"
     ]
   },
 
+  "ENEMY_INTENSITY": {
+    "CRASHERS": 25,
+    "THRASHERS": 15,
+    "SENTINELS": 5
+  },
+
+  "BOSS_LIMIT": {
+    "GUARDIANS": 3,
+    "FALLEN": 3,
+    "HIGHLORDS": 3,
+    "VOIDLORDS": 3,
+    "NEUTRAL_ALLIANCE": 3
+  },
+  
+  "SPAWN_FOOD": true,
+  "SPAWN_NEUTRAL_BOSSES": true,
+  "SPAWN_CRASHER": true,
+  "SPAWN_SENTINEL": true,
+  "SPAWN_GUARDIAN_BOSSES": false,
+  "SPAWN_FALLEN_BOSSES": false,
+  "SPAWN_VOIDLORD_ENEMIES": false,
+  
   /* ================= ORIGINAL SETTINGS ================= */
 
   "DEADLY_BORDERS": false,
@@ -166,42 +259,20 @@ module.exports =
   "CONSIDER_BOT_TEAM_LOCATION": false,
   "BOT_SPAWN_LOCATION": "norm",
   "BOT_TEAMS": [1,2,3,4],
+  "REDUCE_BOTS_PER_PLAYER": 1,
+  "ACTIVATION_MODE": "normal"
 
-  "BASE_DRONES": false,
-  "SANCTUARIES": false,
+  /* ================= GAME MODE SETTINGS ================= */
+  
   "PLAGUE": false,
   "GROWTH": false,
-  "POLY_ATTACK": false,
+  "POLYGONS_FIGHT_BACK": false,
   "SHINY_GLORY": false,
   "SOCCER": false,
   "SIEGE": false,
   "DOMINATION": false,
   "DOMINATOR_COUNT": 4,
   "INSTANT_CAPTURE": false,
-
-  "SPAWN_FOOD": true,
-  "SPAWN_NEUTRAL_BOSSES": true,
-
-  "ENEMY_INTENSITY": {
-    "CRASHERS": 25,
-    "THRASHERS": 15,
-    "SENTINELS": 5
-  },
-
-  "BOSS_LIMIT": {
-    "GUARDIANS": 3,
-    "FALLEN": 3,
-    "HIGHLORDS": 3,
-    "VOIDLORDS": 3,
-    "NEUTRAL_ALLIANCE": 3
-  },
-
-  "SPAWN_CRASHER": true,
-  "SPAWN_SENTINEL": true,
-  "SPAWN_GUARDIAN_BOSSES": false,
-  "SPAWN_FALLEN_BOSSES": false,
-  "SPAWN_VOIDLORD_ENEMIES": false,
-
-  "REDUCE_BOTS_PER_PLAYER": 1,
-  "ACTIVATION_MODE": "normal"
+  "BASE_DRONES": false,
+  "SANCTUARIES": false,
 }
