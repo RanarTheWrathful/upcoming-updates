@@ -325,7 +325,7 @@ if (currentState.bossWaves <= 50) {
 } else {
   game.wave = 1;
 }
-///right here, Nicholas
+///Config file, nicholas
 
 //important settings
 
