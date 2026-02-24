@@ -58,14 +58,25 @@ function pickTheBiggest(countMap) {
 }
 
 game = {
+  host: "0.0.0.0",
+  port: 3000,
   server: `upcoming-update.glitch.me`,
   list: ["Unknown"],
   type: "testing", //change this to play preset modes look
   votes: [],
+  bans: [], 
+  mutes: [],
+  sockets: [],
   gate: false,
   bots: true,
   messageDelay: 5000,
   wave: 0,
+  event: 0, //could also be a string if needed.
+  time: 0,
+  players: 0,
+  list: [],
+ npcWanderLoc1: [],
+ npcWanderLoc2: [],
   points: {
 guardians: 0,
 fallen: 0,
@@ -218,7 +229,7 @@ aetherBosses: [
 ],
 },
 };
-
+//util.log(Date());
 if (game.type === "testing") chosenMode = "Siege";
 //change this to play a specific mode
 else if (game.type === "normal") {
@@ -316,37 +327,12 @@ if (currentState.bossWaves <= 50) {
 }
 ///right here, Nicholas
 
-c.timeLeft = 0;
-c.playerCount = 0;
-setTimeout(() => {
-  c.playerCount = 0;
-}, 2500);
-c.bossProgress = 0;
-c.bossStage = 0;
-if (c.MODE === "theAwakening") c.npcMove = "rep11";
-c.wavesSkipped = 0;
-c.preparedCounter = 50;
-c.countdown = 60000;
-c.godRole = true; //ran.choose([true, false]);
 //important settings
-c.banList = ["placeHolder"];
-c.muteList = ["placeHolder"];
-c.socketList = [];
-c.socketEnterList = [];
-c.socketExitList = [];
-c.host = "0.0.0.0";
-for (let i = 1; i < 11; i++) {
-  c["recentMessage" + i] = "";
-}
-//util.log(Date());
-c.servesStatic = true;
-c.port = 3000;
 c.networkUpdateFactor = 24;
 c.socketWarningLimit = 5;
 c.networkFrontlog = 1;
 c.networkFallbackTime = 30;
 c.visibleListInterval = 750;
-if (c.MODE === "theDistance") c.visibleListInterval = 1;
 c.runSpeed = 1.5;
 c.maxHeartbeatInterval = 30000000;
 c.verbose = true;
@@ -383,21 +369,20 @@ if (c.MODE === "theRestless") c.startingClass = "highlordLegendaryClasses";
 if (c.MODE === "theAwakening") c.startingClass = "arenaguardpl";
 if (c.MODE === "theAssault") c.startingClass = "swarmProtector2";
 if (game.type === "testin") c.startingClass = "testbed";
-c.DomxClass = "minibois";
 function removeMuted(socketIP) {
   console.log("Removing from muteList:", socketIP);
-  console.log("Current muteList:", c.muteList);
-  const index = c.muteList.indexOf(socketIP);
+  console.log("Current muteList:", game.mutes);
+  const index = game.mutes.indexOf(socketIP);
   if (index !== -1) {
-    c.muteList.splice(index, 1);
-    console.log("Updated muteList:", c.muteList);
+    game.mutes.splice(index, 1);
+    console.log("Updated muteList:", game.mutes);
   }
 }
 
 function removeBanned(socketIP) {
-  const index = c.banList.indexOf(socketIP);
+  const index = game.bans.indexOf(socketIP);
   if (index !== -1) {
-    c.banList.splice(index, 1);
+    game.bans.splice(index, 1);
   }
 }
 setInterval(() => {
@@ -2472,7 +2457,7 @@ function closeArena() {
         c.SPAWN_FALLEN_BOSSES = false;
         c.SPAWN_FOOD = false;
         c.MODE = "none";
-        if (c.playerCount < 1) {
+        if (game.players < 1) {
           util.log("ARENA CLOSED!");
           sockets.broadcast("Closing!");
           process.exit();
@@ -3988,7 +3973,7 @@ class io_guard1 extends IO {
       this.spot = room.type("vpr0");
     }
     if (c.MODE === "theAwakening") {
-      this.spot = room.type(c.npcMove);
+      this.spot = room.type(ran.choose(game.npcWanderLoc1));
     }
     if (c.MODE === "siege") {
       this.spot = room.randomType("dom1");
@@ -4010,7 +3995,7 @@ class io_guard1 extends IO {
         this.targetLock != undefined ||
         this.body.invuln
       ) {
-        if (c.MODE === "theAwakening") this.spot = room.type(c.npcMove);
+        if (c.MODE === "theAwakening") this.spot = room.type(ran.choose(game.npcWanderLoc1));
       }
     }
     return { goal: this.spot };
@@ -7025,18 +7010,18 @@ class Entity {
         }, 1000);
       }
       if (this.label === "Dark Fate") {
-        this.damage = 2 + c.playerCount;
-        this.skill.dam = c.playerCount / 7.5 + 2;
-        this.skill.pen = c.playerCount / 5 + 2.5;
-        this.skill.str = c.playerCount / 2.5 + 3;
-        this.skill.spd = c.playerCount / 10 + 2;
+        this.damage = 2 + game.players;
+        this.skill.dam = game.players / 7.5 + 2;
+        this.skill.pen = game.players / 5 + 2.5;
+        this.skill.str = game.players / 2.5 + 3;
+        this.skill.spd = game.players / 10 + 2;
       }
       if (this.name === "Abdul") {
-        this.damage = 2 + c.playerCount / 2;
-        this.skill.dam = c.playerCount / 10 + 3;
-        this.skill.pen = c.playerCount / 6 + 3;
-        this.skill.str = c.playerCount / 6 + 3;
-        this.skill.spd = c.playerCount / 10 + 2;
+        this.damage = 2 + game.players / 2;
+        this.skill.dam = game.players / 10 + 3;
+        this.skill.pen = game.players / 6 + 3;
+        this.skill.str = game.players / 6 + 3;
+        this.skill.spd = game.players / 10 + 2;
         if (
           !room.isIn("bos" + c.bossStage, this) &&
           !room.isIn("zne" + c.bossStage, this)
@@ -7051,11 +7036,11 @@ class Entity {
         }
       }
       if (this.name === "Golothess") {
-        this.damage = 2 + c.playerCount / 4;
-        this.skill.dam = c.playerCount / 5 + 2.5;
-        this.skill.pen = c.playerCount / 5 + 3;
-        this.skill.str = c.playerCount / 2.5 + 2.5;
-        this.skill.spd = c.playerCount / 10 + 2;
+        this.damage = 2 + game.players / 4;
+        this.skill.dam = game.players / 5 + 2.5;
+        this.skill.pen = game.players / 5 + 3;
+        this.skill.str = game.players / 2.5 + 2.5;
+        this.skill.spd = game.players / 10 + 2;
         if (
           !room.isIn("bos" + c.bossStage, this) &&
           !room.isIn("zne" + c.bossStage, this)
@@ -7070,11 +7055,11 @@ class Entity {
         }
       }
       if (this.name === "Alhazred") {
-        this.damage = 2 + c.playerCount / 3;
-        this.skill.dam = c.playerCount / 7.5 + 2;
-        this.skill.pen = c.playerCount / 5 + 2.5;
-        this.skill.str = c.playerCount / 2.5 + 3;
-        this.skill.spd = c.playerCount / 10 + 2;
+        this.damage = 2 + game.players / 3;
+        this.skill.dam = game.players / 7.5 + 2;
+        this.skill.pen = game.players / 5 + 2.5;
+        this.skill.str = game.players / 2.5 + 3;
+        this.skill.spd = game.players / 10 + 2;
         if (
           !room.isIn("bos" + c.bossStage, this) &&
           !room.isIn("zne" + c.bossStage, this)
@@ -7102,7 +7087,7 @@ class Entity {
             "Ranar: Ah yes, come child, destroy the interlopers within my domain, I don't need Valrayvn being distracted."
           );
           this.upgrades = [];
-          this.define(Class[c.DomxClass]);
+          this.define(Class.minibosses);
           this.skill.setCaps([9, 9, 9, 9, 9, 9, 9, 9, 9, 9]);
           this.skill.reset();
           this.skill.score = 26263;
@@ -7196,11 +7181,11 @@ class Entity {
       )
         this.ignoreCollision = false;
       if (this.isBoss && this.team === -5) {
-        this.damage = c.playerCount + 5;
-        this.skill.dam = c.playerCount / 5 + 1;
-        this.skill.pen = c.playerCount / 5 + 1.5;
-        this.skill.str = c.playerCount / 5 + 1.5;
-        // this.skill.spd = c.playerCount / 10 + 2;
+        this.damage = game.players + 5;
+        this.skill.dam = game.players / 5 + 1;
+        this.skill.pen = game.players / 5 + 1.5;
+        this.skill.str = game.players / 5 + 1.5;
+        // this.skill.spd = game.players / 10 + 2;
         if (
           !room.isIn("nest", this) &&
           !room.isIn(this.area, this) &&
@@ -7269,7 +7254,7 @@ class Entity {
           o.stayTeam = false;
           o.define(Class.sardonyxPower0);
           o.team = -100;
-          o.maxChildren = Math.ceil(c.playerCount * 1.5);
+          o.maxChildren = Math.ceil(game.players * 1.5);
           o.SIZE = this.SIZE;
           o.color = 0;
           o.tp = true;
@@ -7285,7 +7270,7 @@ class Entity {
           o.team = -100;
           o.SIZE = this.SIZE;
           o.invuln = false;
-          o.skill.dam = 1 + c.playerCount * 2.5;
+          o.skill.dam = 1 + game.players * 2.5;
           o.tp = true;
           this.stage += 1;
           this.color = 3;
@@ -7295,8 +7280,8 @@ class Entity {
           o.master = this;
           o.stayTeam = false;
           o.color = 33;
-          o.skill.str = 2 + c.playerCount * 2;
-          o.skill.spd = 0.5 + c.playerCount / 2;
+          o.skill.str = 2 + game.players * 2;
+          o.skill.spd = 0.5 + game.players / 2;
           o.define(Class.sardonyxPower2);
           o.team = -100;
           o.SIZE = this.SIZE;
@@ -7311,7 +7296,7 @@ class Entity {
           o.stayTeam = false;
           o.color = 12;
           o.define(Class.sardonyxPower3);
-          o.RANGE += c.playerCount * 150;
+          o.RANGE += game.players * 150;
           o.team = -100;
           o.SIZE = this.SIZE;
           o.invuln = false;
@@ -7337,7 +7322,7 @@ class Entity {
               o.stayTeam = false;
               o.define(Class.ranarPower1);
               o.team = -100;
-              o.maxChildren = Math.ceil(c.playerCount * 1.5);
+              o.maxChildren = Math.ceil(game.players * 1.5);
               o.SIZE = this.SIZE;
               o.color = 0;
               o.tp = true;
@@ -7354,7 +7339,7 @@ class Entity {
                 o.team = -100;
                 o.SIZE = this.SIZE;
                 o.invuln = false;
-                o.skill.dam = 1 + c.playerCount * 2.5;
+                o.skill.dam = 1 + game.players * 2.5;
                 o.tp = true;
                 this.stage += 1;
                 this.color = 3;
@@ -7369,8 +7354,8 @@ class Entity {
               o.master = this;
               o.stayTeam = false;
               o.color = 33;
-              o.skill.str = 2 + c.playerCount * 2;
-              o.skill.spd = 0.5 + c.playerCount / 2;
+              o.skill.str = 2 + game.players * 2;
+              o.skill.spd = 0.5 + game.players / 2;
               o.define(Class.ranarPower4);
               o.team = -100;
               o.SIZE = this.SIZE;
@@ -7387,7 +7372,7 @@ class Entity {
               o.stayTeam = false;
               o.color = 12;
               o.define(Class.ranarPower5);
-              o.RANGE += c.playerCount * 150;
+              o.RANGE += game.players * 150;
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
@@ -9865,9 +9850,9 @@ class Entity {
       }
       if (
         this.label === "Anti-Virus" &&
-        this.DAMAGE !== c.playerCount + 10 - c.cxPowerDrain
+        this.DAMAGE !== game.players + 10 - c.cxPowerDrain
       ) {
-        this.DAMAGE = c.playerCount + 10 - c.cxPowerDrain;
+        this.DAMAGE = game.players + 10 - c.cxPowerDrain;
       }
       let census = [0, 0, 0, 0, 0, 0, 0, 0, 0];
       room.dominators.forEach((o) => {
@@ -9979,14 +9964,14 @@ class Entity {
             c.SIEGE = true;
           }, 5000);
         }, 1000);
-        for (let i = 0; i < c.playerCount * 3; i++) {
+        for (let i = 0; i < game.players * 3; i++) {
           let o = new Entity(room.type("bos2"));
           o.define(Class.arenaguard);
           o.team = -100;
           o.impervious = true;
           o.ignoreCollision = false;
         }
-        for (let i = 0; i < Math.ceil(c.playerCount / 2) + 1; i++) {
+        for (let i = 0; i < Math.ceil(game.players / 2) + 1; i++) {
           let o = new Entity(room.type("bos2"));
           o.define(Class.damagedArenaCloser);
           o.team = -100;
@@ -10031,14 +10016,14 @@ class Entity {
             }, 2500);
           }, 5000);
         }, 5000);
-        for (let i = 0; i < c.playerCount; i++) {
+        for (let i = 0; i < game.players; i++) {
           let o = new Entity(room.type("vpr0"));
           o.define(Class.damagedArenaCloser);
           o.team = -100;
           o.impervious = true;
           o.ignoreCollision = false;
         }
-        for (let i = 0; i < Math.ceil(c.playerCount / 2); i++) {
+        for (let i = 0; i < Math.ceil(game.players / 2); i++) {
           let o = new Entity(room.type("vpr0"));
           o.define(Class.arenaslayer);
           o.team = -100;
@@ -10100,32 +10085,32 @@ class Entity {
         this.REGEN = 0;
       }
       if (this.label === "Rift Shaper") {
-        this.damage = 2 + c.playerCount / 2;
-        this.skill.dam = c.playerCount / 7.5 + 2;
-        this.skill.pen = c.playerCount / 5 + 2.5;
-        this.skill.str = c.playerCount / 2.5 + 3;
-        this.skill.spd = c.playerCount / 5 + 2;
+        this.damage = 2 + game.players / 2;
+        this.skill.dam = game.players / 7.5 + 2;
+        this.skill.pen = game.players / 5 + 2.5;
+        this.skill.str = game.players / 2.5 + 3;
+        this.skill.spd = game.players / 5 + 2;
       }
       if (this.label === "Care Taker") {
-        this.damage = 2 + c.playerCount / 2;
-        this.skill.dam = c.playerCount / 7.5 + 3;
-        this.skill.pen = c.playerCount / 7.5 + 3;
-        this.skill.str = c.playerCount / 5 + 3;
-        this.skill.spd = c.playerCount / 10 + 2;
+        this.damage = 2 + game.players / 2;
+        this.skill.dam = game.players / 7.5 + 3;
+        this.skill.pen = game.players / 7.5 + 3;
+        this.skill.str = game.players / 5 + 3;
+        this.skill.spd = game.players / 10 + 2;
       }
       if (this.label === "Peace Keeper") {
-        this.damage = 2 + c.playerCount / 2;
-        this.skill.dam = c.playerCount / 7.5 + 3;
-        this.skill.pen = c.playerCount / 7.5 + 3;
-        this.skill.str = c.playerCount / 5 + 3;
-        this.skill.spd = c.playerCount / 10 + 2;
+        this.damage = 2 + game.players / 2;
+        this.skill.dam = game.players / 7.5 + 3;
+        this.skill.pen = game.players / 7.5 + 3;
+        this.skill.str = game.players / 5 + 3;
+        this.skill.spd = game.players / 10 + 2;
       }
       if (this.label === "Mechanical Menace") {
-        this.damage = 2 + c.playerCount / 2;
-        this.skill.dam = c.playerCount / 7.5 + 2;
-        this.skill.pen = c.playerCount / 5 + 2.5;
-        this.skill.str = c.playerCount / 2.5 + 3;
-        this.skill.spd = c.playerCount / 10 + 2;
+        this.damage = 2 + game.players / 2;
+        this.skill.dam = game.players / 7.5 + 2;
+        this.skill.pen = game.players / 5 + 2.5;
+        this.skill.str = game.players / 2.5 + 3;
+        this.skill.spd = game.players / 10 + 2;
       }
       if (
         c.fuckYouAnomalies &&
@@ -10384,7 +10369,7 @@ this.collisionArray = [];
         //c.killWalls = true;
 
         if (c.wave === 0) {
-          c.ranarLoseCondition = c.playerCount * 5;
+          c.ranarLoseCondition = game.players * 5;
         }
         if (this.isWall && this.team === -1) {
           this.kill();
@@ -10425,21 +10410,21 @@ this.collisionArray = [];
           }
           if (this.color !== 10) {
             if (this.label === "Dark Fate") {
-              this.resist = c.playerCount / 3 + 1;
-              this.damage = c.playerCount + 5;
-              this.skill.dam = c.playerCount / 10 + 3;
-              this.skill.pen = c.playerCount / 6 + 3;
-              this.skill.str = c.playerCount / 6 + 3;
-              this.skill.spd = c.playerCount / 10 + 2;
+              this.resist = game.players / 3 + 1;
+              this.damage = game.players + 5;
+              this.skill.dam = game.players / 10 + 3;
+              this.skill.pen = game.players / 6 + 3;
+              this.skill.str = game.players / 6 + 3;
+              this.skill.spd = game.players / 10 + 2;
             }
             if (this.label === "Grim Truth") {
-              this.resist = c.playerCount / 3 + 1;
-              this.damage = c.playerCount * 2 + 5;
-              //this.skill.rld = (c.playerCount/5) - 1.75;
-              this.skill.dam = c.playerCount / 10 + 3;
-              this.skill.pen = c.playerCount / 6 + 3;
-              this.skill.str = c.playerCount / 6 + 3;
-              this.skill.spd = c.playerCount / 10 + 3;
+              this.resist = game.players / 3 + 1;
+              this.damage = game.players * 2 + 5;
+              //this.skill.rld = (game.players/5) - 1.75;
+              this.skill.dam = game.players / 10 + 3;
+              this.skill.pen = game.players / 6 + 3;
+              this.skill.str = game.players / 6 + 3;
+              this.skill.spd = game.players / 10 + 3;
             }
           }
           if (
@@ -10468,7 +10453,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.define(Class.sardonyxPower1);
               o.team = -100;
-              o.maxChildren = Math.ceil(c.playerCount * 1.5);
+              o.maxChildren = Math.ceil(game.players * 1.5);
               o.SIZE = this.SIZE;
               o.color = 1;
               o.tp = true;
@@ -10508,7 +10493,7 @@ this.collisionArray = [];
                   "Twilight: Look out, Ranar is summoning minions!"
                 );
               }, 4000);
-              for (let i = 0; i < c.playerCount * 4 + 4; i++) {
+              for (let i = 0; i < game.players * 4 + 4; i++) {
                 let o = new Entity(room.randomType("port"));
 
                 o.rarity = Math.random() * 300;
@@ -10619,7 +10604,7 @@ this.collisionArray = [];
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
-              o.skill.dam = 1 + c.playerCount * 2.5;
+              o.skill.dam = 1 + game.players * 2.5;
               o.tp = true;
             }, 15000);
             setTimeout(() => {
@@ -10651,9 +10636,9 @@ this.collisionArray = [];
               c.unlockClasses = true;
               c.startingClass = "highlordLegendaryClasses";
             }, 12000);
-            c.BOTS = c.playerCount * 3;
+            c.BOTS = game.players * 3;
             setTimeout(() => {
-              for (let i = 0; i < Math.round(c.playerCount / 2); i++) {
+              for (let i = 0; i < Math.round(game.players / 2); i++) {
                 let o = new Entity(room.randomType("port"));
                 o.define(
                   Class[
@@ -10708,13 +10693,13 @@ this.collisionArray = [];
               );
             }, 6000);
             setTimeout(() => {
-              for (let i = 0; i < c.playerCount; i++) {
+              for (let i = 0; i < game.players; i++) {
                 let o = new Entity(room.randomType("bos0"));
                 o.master = this;
                 o.stayTeam = false;
                 o.color = 33;
-                o.skill.str = 2 + c.playerCount * 2;
-                o.skill.spd = 0.5 + c.playerCount / 2;
+                o.skill.str = 2 + game.players * 2;
+                o.skill.spd = 0.5 + game.players / 2;
                 o.define(Class.ranarPower4);
                 o.team = -100;
                 o.SIZE = this.SIZE;
@@ -10743,7 +10728,7 @@ this.collisionArray = [];
             this.refreshBodyAttributes();
             this.collisionArray = [];
             this.runAway = true;
-            if (c.playerCount >= 5)
+            if (game.players >= 5)
               sockets.broadcast(
                 "Ranar: I see you have a proper gang, thats cool, I have too :D."
               );
@@ -10754,7 +10739,7 @@ this.collisionArray = [];
               );
             }, 6000);
             setTimeout(() => {
-              for (let i = 0; i < Math.ceil(c.playerCount * 1.25); i++) {
+              for (let i = 0; i < Math.ceil(game.players * 1.25); i++) {
                 let o = new Entity(room.randomType("spw5"));
                 switch (i) {
                   case 0:
@@ -10839,7 +10824,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.color = 12;
               o.define(Class.ranarPower5);
-              o.RANGE += c.playerCount * 150;
+              o.RANGE += game.players * 150;
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
@@ -10862,7 +10847,7 @@ this.collisionArray = [];
               sockets.broadcast("Kairo: Stand your ground, he's powering up!");
             }, 6000);
             c.stopFoodSpawn = true;
-            c.BOTS = c.playerCount * 2;
+            c.BOTS = game.players * 2;
             setTimeout(() => {
               for (let i = 0; i < 6; i++) {
                 let o = new Entity(room.randomType("bos0"));
@@ -10875,7 +10860,7 @@ this.collisionArray = [];
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
-                    o.skill.dam = 1 + c.playerCount / 2;
+                    o.skill.dam = 1 + game.players / 2;
                     o.tp = true;
                     break;
                   case 2:
@@ -10885,14 +10870,14 @@ this.collisionArray = [];
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
-                    o.maxChildren = Math.ceil(1 + c.playerCount * 1.5);
+                    o.maxChildren = Math.ceil(1 + game.players * 1.5);
                     o.fov = 50000;
                     o.tp = true;
                     break;
                   case 3:
                     o.color = 33;
-                    o.skill.str = 2 + c.playerCount * 1.5;
-                    o.skill.spd = 0.5 + c.playerCount / 3;
+                    o.skill.str = 2 + game.players * 1.5;
+                    o.skill.spd = 0.5 + game.players / 3;
                     o.define(Class.sardonyxPower4);
                     o.team = -100;
                     o.SIZE = this.SIZE;
@@ -10902,7 +10887,7 @@ this.collisionArray = [];
                   default:
                     o.define(Class.sardonyxPower0);
                     o.team = -100;
-                    o.maxChildren = Math.ceil(c.playerCount / 4);
+                    o.maxChildren = Math.ceil(game.players / 4);
                     o.SIZE = this.SIZE;
                     o.color = 1;
                     o.tp = true;
@@ -10919,7 +10904,7 @@ this.collisionArray = [];
           }
           if (c.wave === 15 && !c.stop1 && !room.closed) {
             c.BOTS = 0;
-            if (c.sardonyxLoseCondition >= c.playerCount * 5) {
+            if (c.sardonyxLoseCondition >= game.players * 5) {
               setTimeout(() => {
                 sockets.broadcast("Albatar: Dammit!");
               }, 2000);
@@ -11026,7 +11011,7 @@ this.collisionArray = [];
           }
         }
         if (c.wave === 0) {
-          c.ranarLoseCondition = c.playerCount * 5;
+          c.ranarLoseCondition = game.players * 5;
         }
         if (this.isWall && this.team === -1) {
           this.kill();
@@ -11099,21 +11084,21 @@ this.collisionArray = [];
           }
           if (this.color !== 10) {
             if (this.label === "Disciple") {
-              this.resist = c.playerCount / 4 + 1;
-              this.damage = c.playerCount + 9;
-              this.skill.dam = c.playerCount / 10 + 3;
-              this.skill.pen = c.playerCount / 6 + 3;
-              this.skill.str = c.playerCount / 6 + 3;
-              this.skill.spd = c.playerCount / 10 + 2;
+              this.resist = game.players / 4 + 1;
+              this.damage = game.players + 9;
+              this.skill.dam = game.players / 10 + 3;
+              this.skill.pen = game.players / 6 + 3;
+              this.skill.str = game.players / 6 + 3;
+              this.skill.spd = game.players / 10 + 2;
             }
             if (this.label === "Ascendant") {
-              this.resist = c.playerCount / 4 + 1;
-              this.damage = c.playerCount;
-              //this.skill.rld = (c.playerCount/5) - 1.75; remember when he turned into a machine gun with 4 players
-              this.skill.dam = c.playerCount / 10 + 3;
-              this.skill.pen = c.playerCount / 6 + 3;
-              this.skill.str = c.playerCount / 6 + 3;
-              this.skill.spd = c.playerCount / 10 + 3;
+              this.resist = game.players / 4 + 1;
+              this.damage = game.players;
+              //this.skill.rld = (game.players/5) - 1.75; remember when he turned into a machine gun with 4 players
+              this.skill.dam = game.players / 10 + 3;
+              this.skill.pen = game.players / 6 + 3;
+              this.skill.str = game.players / 6 + 3;
+              this.skill.spd = game.players / 10 + 3;
             }
           }
           if (
@@ -11169,7 +11154,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.define(Class.ranarPower1);
               o.team = -100;
-              o.maxChildren = Math.ceil(c.playerCount * 1.5);
+              o.maxChildren = Math.ceil(game.players * 1.5);
               o.SIZE = this.SIZE;
               o.color = 1;
               o.tp = true;
@@ -11209,7 +11194,7 @@ this.collisionArray = [];
                   "Twilight: Look out, Ranar is summoning minions!"
                 );
               }, 4000);
-              for (let i = 0; i < c.playerCount * 4 + 4; i++) {
+              for (let i = 0; i < game.players * 4 + 4; i++) {
                 let o = new Entity(room.randomType("nest"));
 
                 o.rarity = Math.random() * 300;
@@ -11320,7 +11305,7 @@ this.collisionArray = [];
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
-              o.skill.dam = 1 + c.playerCount * 2.5;
+              o.skill.dam = 1 + game.players * 2.5;
               o.tp = true;
             }, 15000);
             setTimeout(() => {
@@ -11351,9 +11336,9 @@ this.collisionArray = [];
               );
               c.unlockClasses = true;
             }, 12000);
-            c.BOTS = c.playerCount * 3;
+            c.BOTS = game.players * 3;
             setTimeout(() => {
-              for (let i = 0; i < Math.round(c.playerCount / 2); i++) {
+              for (let i = 0; i < Math.round(game.players / 2); i++) {
                 let o = new Entity(room.randomType("nest"));
                 o.define(
                   Class[
@@ -11408,13 +11393,13 @@ this.collisionArray = [];
               );
             }, 6000);
             setTimeout(() => {
-              for (let i = 0; i < c.playerCount; i++) {
+              for (let i = 0; i < game.players; i++) {
                 let o = new Entity(room.randomType("spw0"));
                 o.master = this;
                 o.stayTeam = false;
                 o.color = 33;
-                o.skill.str = 2 + c.playerCount * 2;
-                o.skill.spd = 0.5 + c.playerCount / 2;
+                o.skill.str = 2 + game.players * 2;
+                o.skill.spd = 0.5 + game.players / 2;
                 o.define(Class.ranarPower4);
                 o.team = -100;
                 o.SIZE = this.SIZE;
@@ -11443,7 +11428,7 @@ this.collisionArray = [];
             this.refreshBodyAttributes();
             this.collisionArray = [];
             this.runAway = true;
-            if (c.playerCount >= 5)
+            if (game.players >= 5)
               sockets.broadcast(
                 "Ranar: I see you have a proper gang, thats cool, I have too :D."
               );
@@ -11455,7 +11440,7 @@ this.collisionArray = [];
               );
             }, 6000);
             setTimeout(() => {
-              for (let i = 0; i < Math.ceil(c.playerCount * 1.25); i++) {
+              for (let i = 0; i < Math.ceil(game.players * 1.25); i++) {
                 let o = new Entity(room.randomType("nest"));
                 switch (i) {
                   case 0:
@@ -11540,7 +11525,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.color = 12;
               o.define(Class.ranarPower5);
-              o.RANGE += c.playerCount * 150;
+              o.RANGE += game.players * 150;
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
@@ -11565,7 +11550,7 @@ this.collisionArray = [];
               sockets.broadcast("Twilight: What the F---?!");
             }, 6000);
             c.stopFoodSpawn = true;
-            c.BOTS = c.playerCount * 2;
+            c.BOTS = game.players * 2;
             setTimeout(() => {
               for (let i = 0; i < 6; i++) {
                 let o = new Entity(room.randomType("spw0"));
@@ -11578,7 +11563,7 @@ this.collisionArray = [];
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
-                    o.skill.dam = 1 + c.playerCount / 2;
+                    o.skill.dam = 1 + game.players / 2;
                     o.tp = true;
                     break;
                   case 2:
@@ -11588,14 +11573,14 @@ this.collisionArray = [];
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
-                    o.maxChildren = Math.ceil(1 + c.playerCount * 1.5);
+                    o.maxChildren = Math.ceil(1 + game.players * 1.5);
                     o.fov = 50000;
                     o.tp = true;
                     break;
                   case 3:
                     o.color = 33;
-                    o.skill.str = 2 + c.playerCount * 1.5;
-                    o.skill.spd = 0.5 + c.playerCount / 3;
+                    o.skill.str = 2 + game.players * 1.5;
+                    o.skill.spd = 0.5 + game.players / 3;
                     o.define(Class.ranarPower4);
                     o.team = -100;
                     o.SIZE = this.SIZE;
@@ -11605,7 +11590,7 @@ this.collisionArray = [];
                   case 4:
                     o.color = 12;
                     o.define(Class.ranarPower5);
-                    o.RANGE += c.playerCount * 100;
+                    o.RANGE += game.players * 100;
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
@@ -11614,7 +11599,7 @@ this.collisionArray = [];
                   default:
                     o.define(Class.ranarPower0);
                     o.team = -100;
-                    o.maxChildren = Math.ceil(c.playerCount / 4);
+                    o.maxChildren = Math.ceil(game.players / 4);
                     o.SIZE = this.SIZE;
                     o.color = 1;
                     o.tp = true;
@@ -11626,7 +11611,7 @@ this.collisionArray = [];
               c.stopFoodSpawn = false;
             }, 9000);
             setTimeout(() => {
-              for (let i = 0; i < Math.ceil(c.playerCount * 1.25); i++) {
+              for (let i = 0; i < Math.ceil(game.players * 1.25); i++) {
                 let o = new Entity(room.randomType("nest"));
                 switch (i) {
                   case 12:
@@ -11685,7 +11670,7 @@ this.collisionArray = [];
           }
           if (c.wave === 15 && !c.stop1 && !room.closed) {
             c.BOTS = 0;
-            if (c.ranarLoseCondition >= c.playerCount * 5) {
+            if (c.ranarLoseCondition >= game.players * 5) {
               setTimeout(() => {
                 sockets.broadcast(
                   "Twilight: Wow, good job, I guess you guys did not need me..."
@@ -11837,12 +11822,12 @@ this.collisionArray = [];
           }
           if (this.color !== 19) {
             if (this.label === "Arrasian Lord") {
-              this.resist = c.playerCount / 3 + 1;
-              this.damage = c.playerCount + 5;
-              this.skill.dam = c.playerCount / 3 + 4;
-              this.skill.pen = c.playerCount / 4 + 3;
-              this.skill.str = c.playerCount / 3 + 3;
-              this.skill.spd = c.playerCount / 5 + 2;
+              this.resist = game.players / 3 + 1;
+              this.damage = game.players + 5;
+              this.skill.dam = game.players / 3 + 4;
+              this.skill.pen = game.players / 4 + 3;
+              this.skill.str = game.players / 3 + 3;
+              this.skill.spd = game.players / 5 + 2;
             }
           }
           if (
@@ -11877,7 +11862,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.define(Class.valrayvnPower0);
               o.team = -100;
-              o.maxChildren = Math.ceil(c.playerCount * 1.5);
+              o.maxChildren = Math.ceil(game.players * 1.5);
               o.SIZE = this.SIZE;
               o.color = 1;
               o.tp = true;
@@ -11912,7 +11897,7 @@ this.collisionArray = [];
                   "Cubed: We may or may not have pissed Val off too badly Tryi."
                 );
               }, 4000);
-              for (let i = 0; i < c.playerCount * 5 + 5; i++) {
+              for (let i = 0; i < game.players * 5 + 5; i++) {
                 let o = new Entity(room.randomType("bos4"));
 
                 o.rarity = Math.random() * 300;
@@ -11995,7 +11980,7 @@ this.collisionArray = [];
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
-              o.skill.dam = 1 + c.playerCount * 2.5;
+              o.skill.dam = 1 + game.players * 2.5;
               o.tp = true;
             }, 15000);
             setTimeout(() => {
@@ -12986,7 +12971,7 @@ console.log('Lore mode sequence advanced.');*/
                   "Valrayvn: Hmmm...why don't we try releasing one?"
                 );
                 c.bossStage += 1;
-                c.npcMove = "hmmm";
+                game.npcWanderLoc1 = ["hmmm"];
                 o.facingType = "smoothWithMotion";
                 o.controllers = [new io_guard1(o)];
                 setTimeout(() => {
@@ -15463,7 +15448,7 @@ class View {
             this.socket.talk("F", ...player.records(), 100000000000);
           }
         } else if (player.body.bannable) {
-          c.banList.push(player.body.ip);
+          game.bans.push(player.body.ip);
           this.socket.kick("Go. Away. Fatman.");
         }
         // Remove the body
@@ -15722,7 +15707,7 @@ const sockets = (() => {
         switch (thing) {
           case "mute":
             if (IP === dude.ip) {
-              c.muteList.push(dude.ip);
+              game.mutes.push(dude.ip);
               util.log(dude.name + " was muted temporarily!");
             }
             break;
@@ -15739,7 +15724,7 @@ const sockets = (() => {
             break;
           case "ban":
             if (IP === dude.ip) {
-              c.banList.push(dude.ip);
+              game.bans.push(dude.ip);
               util.log(dude.name + " was banned temporarily!");
             }
             break;
@@ -15806,7 +15791,7 @@ const sockets = (() => {
           }
           let updated = players.length - 1;
           // Disconnect everything
-          if (!c.socketExitList.includes(socket.ip)) {
+          if (game.sockets.includes(socket.ip)) {
             let call = socket.name;
             if (socket.name === "") {
               call = "An unnamed player";
@@ -15816,7 +15801,7 @@ const sockets = (() => {
 
             sockets.broadcast(exitMessage);
             util.log(exitMessage);
-            c.socketExitList.push(socket.ip);
+game.sockets = game.sockets.filter(ip => ip !== socket.ip);
           }
           // util.log("[INFO] User " + player.body.name + " disconnected!");
           util.remove(players, index);
@@ -15977,7 +15962,7 @@ const sockets = (() => {
               if (!socket.name) {
                 socket.name = name;
               }
-              if (!c.socketEnterList.includes(socket.ip) && !socket.no) {
+              if (!game.sockets.includes(socket.ip) && !socket.no) {
                 let call = socket.name;
                 if (socket.name === "") {
                   call = "An unnamed player";
@@ -15985,17 +15970,15 @@ const sockets = (() => {
                 let enterMessage =
                   call +
                   " has joined the game! Players: " +
-                  c.playerCount +
+                  game.players +
                   ".";
 
                 sockets.broadcast(enterMessage);
                 util.log(enterMessage);
                 socket.no = true;
-                c.socketEnterList.push(socket.ip);
+                game.sockets.push(socket.ip);
               }
-              if (!c.socketList.includes(socket.ip)) {
-                c.socketList.push(socket.ip);
-              }
+              
               socket.commandLoopCount = 1;
               socket.creationTeam = -100;
             }
@@ -18443,15 +18426,15 @@ player.color = easy;
 
         socket.ip = ips[0];
         clients.push(socket);
-        if (c.banList.includes(socket.ip)) {
+        if (game.bans.includes(socket.ip)) {
           socket.kick("This ip is banned: " + socket.ip);
           // socket.sendMessage("You have been banned!");
         }
         util.log("[INFO] A New socket opened with ip: " + socket.ip);
 
-        c.playerCount = clients.length;
+        game.players = clients.length;
 
-        //c.playerCount = 1e10;
+        //game.players = 1e10;
         setTimeout(() => {
           if (c.canProgress !== true) {
             c.wave = 0;
@@ -20522,14 +20505,6 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
         // Update collisions.
 
         e.collisionArray = [];
-        if (!c.cooldown) {
-          setTimeout(() => {
-            c.socketEnterList = [];
-            c.socketExitList = [];
-            c.cooldown = false;
-          }, 10000);
-          c.cooldown = true;
-        }
       }
     });
   };
@@ -21490,7 +21465,7 @@ var maintainloop = (() => {
           (0.5 * census.thrasher) /
             room.maxFood /
             room.nestFoodAmount /
-            (c.playerCount * 1.5 + 2.5)
+            (game.players * 1.5 + 2.5)
       )
     ) {
       let spot,
@@ -21541,7 +21516,7 @@ var maintainloop = (() => {
           (3.5 * census.thrasher) /
             room.maxFood /
             room.nestFoodAmount /
-            (c.playerCount * 1.5 + 2.5)
+            (game.players * 1.5 + 2.5)
       )
     ) {
       let spot,
@@ -21592,7 +21567,7 @@ var maintainloop = (() => {
           (3.5 * census.thrasher) /
             room.maxFood /
             room.nestFoodAmount /
-            (c.playerCount * 7.5 + 4.5)
+            (game.players * 7.5 + 4.5)
       )
     ) {
       let spot,
@@ -21734,7 +21709,7 @@ var maintainloop = (() => {
 
   if (c.MODE !== "siege") {
     setInterval(() => {
-      c.timeLeft += 1000;
+      game.time += 1000;
     }, 1000);
     setTimeout(() => {
       closeArena();
@@ -21803,7 +21778,7 @@ var maintainloop = (() => {
           return e;
         });
       let ruh;
-      if (c.REDUCE_BOTS_PER_PLAYER) ruh = c.playerCount;
+      if (c.REDUCE_BOTS_PER_PLAYER) ruh = game.players;
       else ruh = 0;
       // Bots
       if (bots.length < c.BOTS - ruh && game.bots === true) {
@@ -23022,7 +22997,7 @@ if (c.MODE === "execution") {
 const server = http.createServer((req, res) => {
   // Receiving the data:
   let { pathname, query } = url.parse(req.url, true),
-    totalSeconds = (7200000 - c.timeLeft) / 1000,
+    totalSeconds = (7200000 - game.time) / 1000,
     hours = Math.floor(totalSeconds / 3600),
     minutes = Math.floor((totalSeconds % 3600) / 60),
     hourLabel = hours === 1 ? "hour" : "hours",
@@ -23129,7 +23104,7 @@ const server = http.createServer((req, res) => {
           chosenMode +
           `.<br>
     <b>Players:</b> ` +
-          c.playerCount +
+          game.players +
           `.<br>
 <b>Estimated Time Before Server Refreshes:</b> ${timeString}.<br><br>
 You must have the chat site and the game site open at the same time for your chats to be sent.
@@ -23790,7 +23765,7 @@ You must have the chat site and the game site open at the same time for your cha
                         let playerList = "<ul>" + list.join("") + "</ul>"; // Join elements without separator
                         message =
                           "There are " +
-                          c.playerCount +
+                          game.players +
                           " players online:\n" +
                           playerList;
                       } else if (command.includes("mode list")) {
@@ -24453,7 +24428,7 @@ You must have the chat site and the game site open at the same time for your cha
                           "You do not have permission to use this command!";
                       c.recentMessage1 = "";
                     } else {
-                      if (c.muteList.includes(socket.ip)) {
+                      if (game.mutes.includes(socket.ip)) {
                         message = "You have been muted, message was not sent!";
                         c.recentMessage1 = "";
                       } else {
