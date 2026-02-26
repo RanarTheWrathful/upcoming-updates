@@ -26,6 +26,7 @@ module.exports =
   "FOOD_AMOUNT": 0.4,
   "PLAYER_SPAWN_LOCATION": "dom",
   "CONSIDER_PLAYER_TEAM_LOCATION": true,
+  "STARTING_CLASS": "highlordLegendaryClasses",
   "TEAMS": [3],
   "BOT_TEAMS": [100],
   "DOMINATION": true,
