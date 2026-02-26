@@ -36,6 +36,7 @@ module.exports =
   "BOTS": 4,
   "PLAYER_SPAWN_LOCATION": "bas",
   "CONSIDER_PLAYER_TEAM_LOCATION": true,
+  "STARTING_CLASS": "racer",
   "TEAMS": [1],
   "BOT_SPAWN_LOCATION": "bas",
   "CONSIDER_BOT_TEAM_LOCATION": true,
