@@ -36,7 +36,7 @@ module.exports =
   "BANS": [],
   "MUTES": [],
   "SOCKETS": [],
-  "SERVER_LIST": [],
+  "LIST": [],
   
   /* ================= GAMEPLAY ================= */
 
