@@ -35,6 +35,7 @@ module.exports =
   "TEAMS": [100],
   "FOOD_AMOUNT": 5, 
   "BOTS": 5,
+  "STARTING_CLASS": "arenaguardpl",
   "PLAYER_SPAWN_LOCATION": "bas0",
   "BOT_SPAWN_LOCATION": "bas0",
   "BOT_TEAMS": [100],
