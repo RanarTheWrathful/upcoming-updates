@@ -297,9 +297,9 @@ let config = require("./config.js"),
   c = { ...config, ...gameMode },
 rareMode = Math.random() * 250;
 global.fps = 50;
-var roomSpeed = c.gameSpeed;
-if (rareMode < 1 && c.SPAWN_FOOD) {
-  c.SHINY_GLORY = true;
+var roomSpeed = game.SPEED;
+if (rareMode < 1 && game.SPAWN_FOOD) {
+  game.SHINY_GLORY = true;
 }
 util.log(chosenMode);
 const currentDate = new Date(),
@@ -307,10 +307,8 @@ currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
 if (currentMonth === 9) {
   // October
   if (game.type === "normal" && chosenMode !== "Siege") {
-    c.SPAWN_REAPER = true;
+    game.SPAWN_REAPER = true;
   }
-  util.log("Happy Halloween!");
-  c.hallowsPaint = true;
 } else if (currentMonth === 11) {
   // December
   console.log("It's December! Do something special.");
@@ -328,12 +326,6 @@ if (currentState.bossWaves <= 50) {
 ///Config file, nicholas
 
 //important settings
-
-if (c.MODE === "theDistance") c.startingClass = "racer";
-if (c.MODE === "theRestless") c.startingClass = "highlordLegendaryClasses";
-if (c.MODE === "theAwakening") c.startingClass = "arenaguardpl";
-if (c.MODE === "theAssault") c.startingClass = "swarmProtector2";
-if (game.type === "testin") c.startingClass = "testbed";
 function removeMuted(socketIP) {
   console.log("Removing from muteList:", socketIP);
   console.log("Current muteList:", game.mutes);
@@ -361,18 +353,18 @@ setInterval(() => {
 const room = {
   lastCycle: undefined,
   cycleSpeed: 1000 / roomSpeed / 30,
-  width: c.WIDTH,
-  height: c.HEIGHT,
-  setup: c.ROOM_SETUP,
-  xgrid: c.X_GRID,
-  ygrid: c.Y_GRID,
-  gameMode: c.MODE,
-  skillBoost: c.SKILL_BOOST,
+  width: game.WIDTH,
+  height: game.HEIGHT,
+  setup: game.ROOM_SETUP,
+  xgrid: game.x_grid,
+  ygrid: game.y_grid,
+  gameMode: game.MODE,
+  skillBoost: game.SKILL_BOOST,
   scale: {
-    square: (c.WIDTH * c.HEIGHT) / 100000000,
-    linear: Math.sqrt(c.WIDTH * c.HEIGHT) / 100000000,
+    square: (game.WIDTH * game.HEIGHT) / 100000000,
+    linear: Math.sqrt(game.WIDTH * game.HEIGHT) / 100000000,
   },
-  maxFood: ((c.WIDTH * c.HEIGHT) / 20000) * c.FOOD_AMOUNT,
+  maxFood: ((game.WIDTH * game.HEIGHT) / 20000) * game.FOOD_AMOUNT,
   isInRoom: (location) => {
     return (
       location.x >= 0 &&
@@ -383,8 +375,9 @@ const room = {
   },
   topPlayerID: -1,
 };
-room.xgrid = c.ROOM_SETUP[0].length;
-room.ygrid = c.ROOM_SETUP.length;
+let temp = {};
+room.xgrid = game.ROOM_SETUP[0].length;
+room.ygrid = game.ROOM_SETUP.length;
 room.findType = () => {
   let j = 0;
   room.setup.forEach((row) => {
@@ -401,7 +394,6 @@ room.findType = () => {
   });
 };
 room.findType();
-
 room.nestFoodAmount = 0;
 if (room.nest) {
   room.nestFoodAmount =
@@ -504,9 +496,9 @@ util.log(
     room.maxFood * room.nestFoodAmount +
     "."
 );
-if (c.MODE === "theInfestation") {
-  c.anubLocX = room.type("dbc2").x;
-  c.anubLocY = room.type("dbc2").y;
+if (game.MODE === "theInfestation") {
+  temp.anubLocX = room.type("dbc2").x;
+  temp.anubLocY = room.type("dbc2").y;
 }
 // Define a vector
 class Vector {
@@ -606,1727 +598,289 @@ let Class = (() => {
 
 //Makenpc functions
 
-function racingTiles() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
+ // let gridWidth = room.width / room.xgrid;
+ // let gridHeight = room.height / room.ygrid;
 
-  let racing = (loc, grid) => {
-    let o;
-    let a = Class.tileFloor;
-    if (c.beginRace) {
-      a = Class.arrowFloor;
-    }
-    let alpha = 0.5;
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
-    o.filled = true;
-    o.spawnLoc = loc;
-    o.coreSize = o.SIZE;
-    o.team = -100;
-    o.color = 16;
-    o.alpha = alpha;
-    if (c.beginRace) {
-      o.color = 10;
-      o.alpha = 0.35;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-  };
-  if (room["bstS"]) {
-    room["bstS"].forEach((loc) => {
-      racing(loc, {
-        x: Math.floor(loc.x / gridWidth),
-        y: Math.floor(loc.y / gridHeight),
-      });
+function spawnEntity({
+  loc,
+  classRef,
+  size = null,
+  team = -100,
+  color = null,
+  alpha = 1,
+  protect = false,
+  filled = false,
+  grid = null,
+  extra = null
+}) {
+  const o = new Entity(loc);
+  o.define(classRef);
+
+  if (size !== null) {
+    o.SIZE = size;
+    o.coreSize = size;
+  }
+
+  if (filled) o.filled = true;
+  if (protect) o.protect();
+
+  o.team = team;
+  if (color !== null) o.color = color;
+  o.alpha = alpha;
+  o.grid = grid;
+
+  // Static object defaults
+  o.VELOCITY.x = 0;
+  o.VELOCITY.y = 0;
+  o.ACCEL.x = 0;
+  o.ACCEL.y = 0;
+
+  if (extra) extra(o);
+
+  o.refreshBodyAttributes();
+  return o;
+}
+
+function spawnGridStrip({
+  loc,
+  classRef,
+  gridWidth,
+  gridHeight,
+  sizeScale = 2,
+  team = -100,
+  color = 3,
+  alpha = 1,
+  protect = false,
+  filled = false,
+  grid = null,
+  extra = null
+}) {
+  const spawn = (x, y, size) =>
+    spawnEntity({
+      loc: { x, y },
+      classRef,
+      size,
+      team,
+      color,
+      alpha,
+      protect,
+      filled,
+      grid,
+      extra
     });
+
+  if (gridWidth > gridHeight) {
+    let start = loc.x - gridWidth / 2 + gridHeight / 2;
+    let end   = loc.x + gridWidth / 2 - gridHeight / 2;
+
+    for (let x = start; x <= end; x += gridHeight) {
+      spawn(Math.min(x, end), loc.y, gridHeight / sizeScale);
+    }
+
+  } else if (gridWidth < gridHeight) {
+    let start = loc.y + gridWidth / 2 - gridHeight / 2;
+    let end   = loc.y - gridWidth / 2 + gridHeight / 2;
+
+    for (let y = start; y <= end; y += gridWidth) {
+      spawn(loc.x, Math.min(y, end), gridWidth / sizeScale);
+    }
+
+  } else {
+    spawn(loc.x, loc.y, gridWidth / sizeScale);
   }
 }
-function makeTiling() {
-  let alpha = 0.25;
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  if ((c.MODE === "theDenied" && c.wave > 0) || c.MODE === "theAwakening") {
-    let tileSet1 = (loc, team, grid) => {
-      let o;
-      let a = Class.tileFloor;
-      if (gridWidth > gridHeight) {
-        let start = loc.x - gridWidth / 2 + gridHeight / 2;
-        let end = loc.x + gridWidth / 2 - gridHeight / 2;
-        let x = start;
-        for (;;) {
-          o = new Entity({
-            x: Math.min(x, end),
-            y: loc.y,
-          });
-          o.define(a);
-          o.SIZE = gridHeight / 2;
-          if (x >= end) {
-            break;
-          }
-          x += gridHeight;
-        }
-      } else if (gridWidth < gridHeight) {
-        let start = loc.y + gridWidth / 2 - gridHeight / 2;
-        let end = loc.y - gridWidth / 2 + gridHeight / 2;
-        let y = start;
-        for (;;) {
-          o = new Entity({
-            x: loc.x,
-            y: Math.min(y, end),
-          });
-          o.define(a);
-          o.SIZE = gridWidth / 2;
-          if (y >= end) {
-            break;
-          }
-          y += gridWidth;
-        }
-      } else {
-        o = new Entity(loc);
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-      }
-      o.filled = true;
-      o.coreSize = o.SIZE;
-      o.protect();
-      o.team = -100;
-      o.color = 3;
-      o.alpha = alpha;
-      o.refreshBodyAttributes();
-      o.grid = grid;
-      o.VELOCITY.x = 0;
-      o.VELOCITY.y = 0;
-      o.ACCEL.x = 0;
-      o.ACCEL.y = 0;
-    };
 
-    if (room["bas0"]) {
-      room["bas0"].forEach((loc) => {
-        tileSet1(loc, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
+function forRoomKey(prefix, count, callback) {
+  for (let i = 0; i < count; i++) {
+    const key = prefix + i;
+    if (!room[key]) continue;
+    room[key].forEach(loc => callback(loc, i));
   }
-  if (c.MODE === "theExpanse") {
-    let tileSet2 = (loc, team, grid) => {
-      let o;
-      let a = Class.tileFloor;
-      alpha = 0.5;
-      if (gridWidth > gridHeight) {
-        let start = loc.x - gridWidth / 2 + gridHeight / 2;
-        let end = loc.x + gridWidth / 2 - gridHeight / 2;
-        let x = start;
-        for (;;) {
-          o = new Entity({
-            x: Math.min(x, end),
-            y: loc.y,
-          });
-          o.define(a);
-          o.SIZE = gridHeight / 2;
-          if (x >= end) {
-            break;
-          }
-          x += gridHeight;
-        }
-      } else if (gridWidth < gridHeight) {
-        let start = loc.y + gridWidth / 2 - gridHeight / 2;
-        let end = loc.y - gridWidth / 2 + gridHeight / 2;
-        let y = start;
-        for (;;) {
-          o = new Entity({
-            x: loc.x,
-            y: Math.min(y, end),
-          });
-          o.define(a);
-          o.SIZE = gridWidth / 2;
-          if (y >= end) {
-            break;
-          }
-          y += gridWidth;
-        }
-      } else {
-        o = new Entity(loc);
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-      }
+}
 
-      o.coreSize = o.SIZE;
-      o.protect();
-      o.team = -4;
-      o.color = 17;
-      o.alpha = alpha;
-      o.refreshBodyAttributes();
-      o.grid = grid;
-      o.VELOCITY.x = 0;
-      o.VELOCITY.y = 0;
-      o.ACCEL.x = 0;
-      o.ACCEL.y = 0;
-    };
-    const roomsToCheck = [
-      "zne0",
-      "zne1",
-      "zne2",
-      "zne3",
-      "zne4",
-      "zne5",
-      "rep0",
-      "rep1",
-      "rep2",
-      "rep3",
-      "rep4",
-      "rep5",
-      "bos0",
-      "bos1",
-      "bos2",
-      "bos3",
-      "bos4",
-      "bos5",
-    ];
-    roomsToCheck.forEach((roomName) => {
-      if (room.hasOwnProperty(roomName)) {
-        room[roomName].forEach((loc) => {
-          tileSet2(loc, {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          });
-        });
-      }
+
+function makeMazeWalls() {
+  if (!room.maze) return;
+
+  room.maze.forEach(loc => {
+    spawnEntity({
+      loc,
+      classRef: Class.mazeWall,
+      protect: true,
+      team: -100,
+      color: 16
     });
-  }
-  if (c.MODE === "theDistance") {
-    let tileSet4 = (loc, team, grid) => {
-      let o;
-      let a = Class.tileFloor;
-      alpha = 0.5;
-      if (gridWidth > gridHeight) {
-        let start = loc.x - gridWidth / 2 + gridHeight / 2;
-        let end = loc.x + gridWidth / 2 - gridHeight / 2;
-        let x = start;
-        for (;;) {
-          o = new Entity({
-            x: Math.min(x, end),
-            y: loc.y,
-          });
-          o.define(a);
-          o.SIZE = gridHeight / 2;
-          if (x >= end) {
-            break;
-          }
-          x += gridHeight;
-        }
-      } else if (gridWidth < gridHeight) {
-        let start = loc.y + gridWidth / 2 - gridHeight / 2;
-        let end = loc.y - gridWidth / 2 + gridHeight / 2;
-        let y = start;
-        for (;;) {
-          o = new Entity({
-            x: loc.x,
-            y: Math.min(y, end),
-          });
-          o.define(a);
-          o.SIZE = gridWidth / 2;
-          if (y >= end) {
-            break;
-          }
-          y += gridWidth;
-        }
-      } else {
-        o = new Entity(loc);
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-      }
-      o.spawnLoc = loc;
-      o.coreSize = o.SIZE;
-      o.protect();
-      o.team = -1;
-      o.color = 10;
-      o.alpha = alpha;
-      o.refreshBodyAttributes();
-      o.grid = grid;
-      o.VELOCITY.x = 0;
-      o.VELOCITY.y = 0;
-      o.ACCEL.x = 0;
-      o.ACCEL.y = 0;
-    };
-    const roomsToCheck = ["bdrR", "bdrL", "bdrU", "bdrD"];
-    roomsToCheck.forEach((roomName) => {
-      if (room.hasOwnProperty(roomName)) {
-        room[roomName].forEach((loc) => {
-          tileSet4(loc, {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          });
-        });
-      }
-    });
-  }
-  if (c.MODE === "theControlled") {
-    let tileSet3 = (loc, team, grid) => {
-      let o;
-      let a = Class.tileFloor;
-      alpha = 0.5;
-      if (gridWidth > gridHeight) {
-        let start = loc.x - gridWidth / 2 + gridHeight / 2;
-        let end = loc.x + gridWidth / 2 - gridHeight / 2;
-        let x = start;
-        for (;;) {
-          o = new Entity({
-            x: Math.min(x, end),
-            y: loc.y,
-          });
-          o.define(a);
-          o.SIZE = gridHeight / 2;
-          if (x >= end) {
-            break;
-          }
-          x += gridHeight;
-        }
-      } else if (gridWidth < gridHeight) {
-        let start = loc.y + gridWidth / 2 - gridHeight / 2;
-        let end = loc.y - gridWidth / 2 + gridHeight / 2;
-        let y = start;
-        for (;;) {
-          o = new Entity({
-            x: loc.x,
-            y: Math.min(y, end),
-          });
-          o.define(a);
-          o.SIZE = gridWidth / 2;
-          if (y >= end) {
-            break;
-          }
-          y += gridWidth;
-        }
-      } else {
-        o = new Entity(loc);
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-      }
-
-      o.coreSize = o.SIZE;
-      o.protect();
-      o.team = -4;
-      o.color = 7;
-      o.alpha = alpha;
-      o.refreshBodyAttributes();
-      o.grid = grid;
-      o.VELOCITY.x = 0;
-      o.VELOCITY.y = 0;
-      o.ACCEL.x = 0;
-      o.ACCEL.y = 0;
-    };
-    const roomsToCheck = ["bos0", "lab3"];
-    roomsToCheck.forEach((roomName) => {
-      if (room.hasOwnProperty(roomName)) {
-        room[roomName].forEach((loc) => {
-          tileSet3(loc, {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          });
-        });
-      }
-    });
-  }
-
-  if (c.MODE === "theDistance") {
-    let tileSet5 = (loc, team, grid) => {
-      let o;
-      let a = Class.tileFloor;
-      alpha = 0.75;
-      if (gridWidth > gridHeight) {
-        let start = loc.x - gridWidth / 2 + gridHeight / 2;
-        let end = loc.x + gridWidth / 2 - gridHeight / 2;
-
-        let x = start;
-        for (;;) {
-          o = new Entity({
-            x: Math.min(x, end),
-            y: loc.y,
-          });
-          o.define(a);
-          o.SIZE = gridHeight / 4;
-          if (x >= end) {
-            break;
-          }
-          x += gridHeight;
-        }
-      } else if (gridWidth < gridHeight) {
-        let start = loc.y + gridWidth / 2 - gridHeight / 2;
-        let end = loc.y - gridWidth / 2 + gridHeight / 2;
-        let y = start;
-        for (;;) {
-          o = new Entity({
-            x: loc.x,
-            y: Math.min(y, end),
-          });
-          o.define(a);
-          o.SIZE = gridWidth / 4;
-          if (y >= end) {
-            break;
-          }
-          y += gridWidth;
-        }
-      } else {
-        o = new Entity(loc);
-        o.define(a);
-        o.SIZE = gridWidth / 4;
-      }
-      o.filled = true;
-      o.spawnLoc = loc;
-      o.coreSize = o.SIZE;
-      o.protect();
-      o.team = -100;
-      o.color = 12;
-      o.alpha = alpha;
-      o.refreshBodyAttributes();
-      o.grid = grid;
-      o.VELOCITY.x = 0;
-      o.VELOCITY.y = 0;
-      o.ACCEL.x = 0;
-      o.ACCEL.y = 0;
-    };
-    if (room["gggo"]) {
-      room["gggo"].forEach((loc) => {
-        tileSet5(loc, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
-    function placeArrowFloors(loc, grid, controller) {
-      let o = new Entity(loc);
-      o.define(Class.arrowFloor);
-      o.spawnLoc = loc;
-      o.SIZE = gridWidth / 2;
-      o.coreSize = o.SIZE;
-      o.protect();
-      o.alpha = 0.35;
-      o.color = 10;
-      o.team = -1;
-      o.refreshBodyAttributes();
-      o.grid = grid;
-      o.VELOCITY.x = 0;
-      o.VELOCITY.y = 0;
-      o.ACCEL.x = 0;
-      o.ACCEL.y = 0;
-      if (controller) {
-        o.addController(controller);
-      }
-    }
-    if (room["bstL"]) {
-      room["bstL"].forEach((loc) => {
-        placeArrowFloors(
-          loc,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          new io_rightTurn()
-        );
-        loc = null;
-      });
-    }
-
-    if (room["bstR"]) {
-      room["bstR"].forEach((loc) => {
-        placeArrowFloors(
-          loc,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          null
-        );
-      });
-    }
-
-    if (room["bstU"]) {
-      room["bstU"].forEach((loc) => {
-        placeArrowFloors(
-          loc,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          new io_downTurn()
-        );
-      });
-    }
-
-    if (room["bstD"]) {
-      room["bstD"].forEach((loc) => {
-        placeArrowFloors(
-          loc,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          new io_dontTurn()
-        );
-      });
-    }
-  }
-
-  if (c.MODE === "theAwakening") {
-    let switches = (loc, team, grid) => {
-      let o;
-      let a = Class.tileFloor;
-      alpha = 0.75;
-      if (gridWidth > gridHeight) {
-        let start = loc.x - gridWidth / 2 + gridHeight / 2;
-        let end = loc.x + gridWidth / 2 - gridHeight / 2;
-
-        let x = start;
-        for (;;) {
-          o = new Entity({
-            x: Math.min(x, end),
-            y: loc.y,
-          });
-          o.define(a);
-          o.SIZE = gridHeight / 4;
-          if (x >= end) {
-            break;
-          }
-          x += gridHeight;
-        }
-      } else if (gridWidth < gridHeight) {
-        let start = loc.y + gridWidth / 2 - gridHeight / 2;
-        let end = loc.y - gridWidth / 2 + gridHeight / 2;
-        let y = start;
-        for (;;) {
-          o = new Entity({
-            x: loc.x,
-            y: Math.min(y, end),
-          });
-          o.define(a);
-          o.SIZE = gridWidth / 4;
-          if (y >= end) {
-            break;
-          }
-          y += gridWidth;
-        }
-      } else {
-        o = new Entity(loc);
-        o.define(a);
-        o.SIZE = gridWidth / 4;
-      }
-      o.filled = true;
-      o.coreSize = o.SIZE;
-      o.protect();
-      o.team = -100;
-      o.color = 12;
-      o.off = true;
-      o.alpha = alpha;
-      o.refreshBodyAttributes();
-      o.grid = grid;
-      o.VELOCITY.x = 0;
-      o.VELOCITY.y = 0;
-      o.ACCEL.x = 0;
-      o.ACCEL.y = 0;
-    };
-    if (room["swch"]) {
-      room["swch"].forEach((loc) => {
-        switches(loc, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
-  }
-}
-
-function makeBaseProtectors() {
-  // Make base protectors if needed.
-
-  let entity = (loc, team) => {
-    if (c.BASE_DRONES === true) {
-      let o = new Entity(loc);
-      o.define(Class.baseProtector);
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    }
-  };
-  for (let i = 1; i < 9; i++) {
-    if (room["bap" + i]) {
-      room["bap" + i].forEach((loc) => {
-        entity(loc, i);
-      });
-    }
-  }
-}
-function makeAntiTanks() {
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    o.define(Class.anti_tank);
-    o.team = -100;
-    o.color = 12;
-  };
-  if (room["anti"]) {
-    room["anti"].forEach((loc) => {
-      entity(loc);
-    });
-  }
-}
-function makeAnubis() {
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    o.define(Class.zomblord1);
-    o.team = -2;
-    o.isAnubis = true;
-    //o.ignoreCollision = true;
-    o.addController(new io_guard1(o));
-  };
-  if (room["dbc2"]) {
-    room["dbc2"].forEach((loc) => {
-      entity(loc);
-    });
-  }
-}
-function makeNiceAntiTanks() {
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    o.define(Class[ran.choose(["anti_tank", "anti_tankdestroy"])]);
-    o.ignoreCollision = true;
-    o.spooky = true;
-    o.FOV /= 20;
-    o.team = -1;
-    o.color = 10;
-    o.targetable = false;
-  };
-  if (c.MODE !== "theDenied") {
-    if (room["bad1"]) {
-      room["bad1"].forEach((loc) => {
-        entity(loc);
-      });
-    }
-  }
-}
-function makeBall() {
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    o.define(Class.ball);
-    o.isSoccerBall = true;
-    o.team = -100;
-    //o.color = 3;
-  };
-  if (room["ball"]) {
-    room["ball"].forEach((loc) => {
-      entity(loc);
-    });
-  }
-}
-function makeReaper() {
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    o.define(Class.skullGunner);
-    o.impervious = true;
-    o.team = -1000;
-    //o.color = 3;
-  };
-  entity(room.random());
-}
-function makeCasings() {
-  let stfu = 0;
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    switch (stfu) {
-      case 1:
-        o.define(Class.eggDefinerCasing);
-        break;
-      case 2:
-        o.define(Class.squareDefinerCasing);
-        break;
-      case 3:
-        o.define(Class.triangleDefinerCasing);
-        break;
-      case 4:
-        o.define(Class.pentagonDefinerCasing);
-        break;
-      case 5:
-        o.define(Class.hexagonDefinerCasing);
-        break;
-    }
-    o.team = -5;
-    //o.color = 3;
-  };
-  for (let i = 0; i < 6; i++) {
-    if (room["cse" + i]) {
-      room["cse" + i].forEach((loc) => {
-        entity(loc);
-      });
-    }
-    stfu += 1;
-  }
+  });
 }
 function makeDominators() {
-  // Make dominators.
-  let entity = (loc, team, grid) => {
-    let o = new Entity(loc);
-    o.define(
-      Class[
-        ran.choose(["dominator_single", "dominator_trap", "dominator_nail"])
-      ]
-    );
-    if (c.SANCTUARIES === true) {
-      o.define(Class[ran.choose(["sanct_single", "sanct_trap", "sanct_nail"])]);
-    } //no
-    if (o.team === 3) {
-      //yes
-      o.define(Class[ran.choose(["basic", "twin"])]);
-    }
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-    o.coreSize = o.SIZE;
-    o.refreshBodyAttributes();
-    if (c.MODE === "territoryControl" || c.MODE === "theExpanse") {
-      o.define(Class.dominator);
-      o.health.max = 0.01;
-      // o.health.amount = o.health.max;
+  forRoomKey("dom", 9, (loc, i) => {
+    spawnEntity({
+      loc,
+      classRef: Class.dominator,
+      team: -i,
+      color: [10, 18, 7, 19][i - 1]
+    });
+  });
+}
+function makeBaseProtectors() {
+  if (!c.BASE_DRONES) return;
 
-      o.resist = 0.05;
-      if (c.MODE === "theExpanse") o.dangerValue = -1;
-    }
-    o.grid = grid;
-    o.spawnLoc = loc;
-    o.isDominator = true;
-    o.isTaken = false;
-    room.dominators.push(o);
-  };
-  let gridWidth = room.width / room.xgrid,
-    gridHeight = room.height / room.ygrid;
-  for (let i = 0; i < 9; i++) {
-    if (room["dom" + i]) {
-      room["dom" + i].forEach((loc) => {
-        entity(loc, i, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
-  }
+  forRoomKey("bap", 9, (loc, i) => {
+    spawnEntity({
+      loc,
+      classRef: Class.baseProtector,
+      team: -i,
+      color: [10, 18, 7, 19][i - 1]
+    });
+  });
+}
+function makeAntiTanks() {
+  if (!room.anti) return;
+
+  room.anti.forEach(loc => {
+    spawnEntity({
+      loc,
+      classRef: Class.anti_tank,
+      team: -100,
+      color: 12
+    });
+  });
+}
+function makeWorkbench() {
+  if (!room.workbench) return;
+
+  room.workbench.forEach(loc => {
+    spawnEntity({
+      loc,
+      classRef: Class.workbench,
+      protect: true,
+      team: -100,
+      color: 16
+    });
+  });
 }
 function makeFortGates() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
+  const gridWidth  = room.width  / room.xgrid;
+  const gridHeight = room.height / room.ygrid;
 
-  let placegate = (loc, team, grid) => {
-    let a = Class.fortgate;
-    let o;
+  if (!room.fortgate) return;
 
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
-
-    o.coreSize = o.SIZE;
-    o.protect();
-
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-    if (c.MODE === "theAwakening") o.color = 8;
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-    o.isGate = true;
-    o.spawnLoc = loc;
-  };
-
-  // Assuming this loop is correctly controlled elsewhere in your code
-  for (let i = 0; i < 9; i++) {
-    if (room["gte" + i]) {
-      room["gte" + i].forEach((loc) => {
-        placegate(loc, i, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-        //util.log("ruh");
-      });
-    }
-    if (c.MODE === "theDenied") {
-      if (room["bad" + i]) {
-        room["bad" + i].forEach((loc) => {
-          placegate(loc, i, {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          });
-          //util.log("ruh");
-        });
-      }
-    }
-  }
+  room.fortgate.forEach(loc => {
+    spawnGridStrip({
+      loc,
+      classRef: Class.fortgate,
+      gridWidth,
+      gridHeight,
+      protect: true,
+      team: -100,
+      color: 16
+    });
+  });
 }
-
 function makeFortWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let placefort = (loc, team, grid) => {
-    let a = Class.fortwall;
-    let o;
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
+  const gridWidth  = room.width  / room.xgrid;
+  const gridHeight = room.height / room.ygrid;
+
+  if (!room.fort) return;
+
+  room.fort.forEach(loc => {
+    spawnGridStrip({
+      loc,
+      classRef: Class.fortwall,
+      gridWidth,
+      gridHeight,
+      protect: true,
+      team: -100,
+      color: 16,
+      grid: {
+        x: Math.floor(loc.x / gridWidth),
+        y: Math.floor(loc.y / gridHeight)
+      },
+      extra: o => {
+        o.isWall = true;
+        o.spawnLoc = loc;
       }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
-    o.coreSize = o.SIZE;
-    o.protect();
-
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-    o.isWall = true;
-    o.spawnLoc = loc;
-  };
-  for (let i = 0; i < 9; i++) {
-    if (room["frt" + i]) {
-      room["frt" + i].forEach((loc) => {
-        placefort(loc, i, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
-  }
+    });
+  });
 }
-function makepentFortWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o = new Entity(loc);
-    o.define(Class.pentagonfortwall);
-    o.SIZE = gridWidth / 2.01;
-    o.coreSize = o.SIZE;
-    o.protect();
-
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 14;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-    o.isWall = true;
-    o.spawnLoc = loc;
-    o.facingType = 0;
-  };
-  for (let i = 0; i < 9; i++) {
-    if (room["pft" + i]) {
-      room["pft" + i].forEach((loc) => {
-        entity(loc, i, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
-  }
-}
-function makeAutoFortWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o = new Entity(loc);
-    o.define(Class.autowall1);
-    o.SIZE = gridWidth / 2;
-    o.coreSize = o.SIZE;
-    o.protect();
-
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-    o.isWall = true;
-    o.spawnLoc = loc;
-    o.facingType = 0;
-  };
-
-  for (let i = 0; i < 9; i++) {
-    if (room["fao" + i]) {
-      room["fao" + i].forEach((loc) => {
-        entity(loc, i, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
-  }
-}
-function makepentagontrapperFortWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o = new Entity(loc);
-    o.define(Class.pentagontrapperwall360);
-    o.SIZE = gridWidth / 2;
-    o.coreSize = o.SIZE;
-    o.protect();
-
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 14;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-    o.isWall = true;
-    o.spawnLoc = loc;
-    o.facingType = 0;
-  };
-  for (let i = 0; i < 9; i++) {
-    if (room["fta" + i]) {
-      room["fta" + i].forEach((loc) => {
-        entity(loc, i, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
-  }
-}
-function makepentagonAutoFortWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o = new Entity(loc);
-    o.define(Class.pentagonautowall);
-    o.SIZE = gridWidth / 2;
-    o.coreSize = o.SIZE;
-    o.protect();
-
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 14;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-    o.isWall = true;
-    o.spawnLoc = loc;
-    o.facingType = 0;
-  };
-  for (let i = 0; i < 9; i++) {
-    if (room["paf" + i]) {
-      room["paf" + i].forEach((loc) => {
-        entity(loc, i, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
-  }
-}
-function makeTrapFortWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-
-  function placeTrapFort(loc, team, grid, controller) {
-    let o = new Entity(loc);
-    o.define(Class.trapperwall);
-    o.SIZE = gridWidth / 2;
-    o.coreSize = o.SIZE;
-    o.protect();
-
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-    o.isWall = true;
-    o.spawnLoc = loc;
-    if (controller) {
-      o.addController(controller);
-    }
-  }
-
-  for (let i = 0; i < 9; i++) {
-    if (room["ftR" + i]) {
-      room["ftR" + i].forEach((loc) => {
-        placeTrapFort(
-          loc,
-          i,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          new io_rightTurn()
-        );
-      });
-    }
-
-    if (room["ftL" + i]) {
-      room["ftL" + i].forEach((loc) => {
-        placeTrapFort(
-          loc,
-          i,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          null
-        );
-      });
-    }
-
-    if (room["ftU" + i]) {
-      room["ftU" + i].forEach((loc) => {
-        placeTrapFort(
-          loc,
-          i,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          new io_dontTurn()
-        );
-      });
-    }
-
-    if (room["ftD" + i]) {
-      room["ftD" + i].forEach((loc) => {
-        placeTrapFort(
-          loc,
-          i,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          new io_downTurn()
-        );
-      });
-    }
-  }
-}
-function makeCrusherFortWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-
-  function placeCrusherFort(loc, team, grid, controller) {
-    let o = new Entity(loc);
-    o.define(Class.crusherFortWall);
-    o.SIZE = gridWidth / 2;
-    o.coreSize = o.SIZE;
-    o.protect();
-
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-    o.isWall = true;
-    if (controller) {
-      o.addController(controller);
-    }
-  }
-
-  for (let i = 0; i < 9; i++) {
-    if (room["fcR" + i]) {
-      room["fcR" + i].forEach((loc) => {
-        placeCrusherFort(
-          loc,
-          i,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          new io_rightTurn()
-        );
-      });
-    }
-
-    if (room["fcL" + i]) {
-      room["fcL" + i].forEach((loc) => {
-        placeCrusherFort(
-          loc,
-          i,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          null
-        );
-      });
-    }
-
-    if (room["fcU" + i]) {
-      room["fcU" + i].forEach((loc) => {
-        placeCrusherFort(
-          loc,
-          i,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          new io_dontTurn()
-        );
-      });
-    }
-
-    if (room["fcD" + i]) {
-      room["fcD" + i].forEach((loc) => {
-        placeCrusherFort(
-          loc,
-          i,
-          {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          },
-          new io_downTurn()
-        );
-      });
-    }
-  }
-}
-
 function makeTeamedWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o;
-    let a = Class.wall;
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
+  const gridWidth  = room.width  / room.xgrid;
+  const gridHeight = room.height / room.ygrid;
 
-    o.coreSize = o.SIZE;
-    o.protect();
-    o.alwaysExists = true;
-    o.isMazeWall = true;
-    o.spawnLoc = loc;
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-  };
-  for (let i = 0; i < 9; i++) {
-    if (room["wal" + i]) {
-      room["wal" + i].forEach((loc) => {
-        entity(loc, i, {
+  forRoomKey("wal", 9, (loc, i) => {
+    spawnGridStrip({
+      loc,
+      classRef: Class.wall,
+      gridWidth,
+      gridHeight,
+      protect: true,
+      team: -i,
+      color: [10, 18, 7, 19][i - 1],
+      grid: {
+        x: Math.floor(loc.x / gridWidth),
+        y: Math.floor(loc.y / gridHeight)
+      },
+      extra: o => {
+        o.isWall = true;
+        o.spawnLoc = loc;
+      }
+    });
+  });
+}
+function makeTiling() {
+  const gridWidth  = room.width  / room.xgrid;
+  const gridHeight = room.height / room.ygrid;
+
+  const tileMap = [
+    ["nest", 15],
+    ["norm", 3],
+    ["bas1", 10],
+    ["bas2", 11],
+    ["bas3", 12],
+    ["bas4", 13],
+  ];
+ function makeRacingTiles() {
+  const gridWidth  = room.width  / room.xgrid;
+  const gridHeight = room.height / room.ygrid;
+
+  if (!room.racing) return;
+
+  room.racing.forEach(loc => {
+    spawnGridStrip({
+      loc,
+      classRef: Class.tile,
+      gridWidth,
+      gridHeight,
+      protect: true,
+      team: -100,
+      color: 3,
+      grid: {
+        x: Math.floor(loc.x / gridWidth),
+        y: Math.floor(loc.y / gridHeight)
+      }
+    });
+  });
+}
+
+  tileMap.forEach(([key, color]) => {
+    if (!room[key]) return;
+
+    room[key].forEach(loc => {
+      spawnGridStrip({
+        loc,
+        classRef: Class.tile,
+        gridWidth,
+        gridHeight,
+        protect: true,
+        team: -100,
+        color,
+        grid: {
           x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
-    }
-  }
-}
-function makepentagonWorkbench() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o;
-    let a = Class.Workbench;
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
-    o.spawnLoc = loc;
-    o.coreSize = o.SIZE;
-    o.protect();
-    o.team = -101;
-    o.color = 7;
-    o.isMazeWall = true;
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-  };
-  if (room["wrkb"]) {
-    room["wrkb"].forEach((loc) => {
-      entity(loc, {
-        x: Math.floor(loc.x / gridWidth),
-        y: Math.floor(loc.y / gridHeight),
-      });
-    });
-  }
-}
-function makeMazeWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o;
-    let a = Class.wall;
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
-    o.spawnLoc = loc;
-    o.coreSize = o.SIZE;
-    o.protect();
-    o.team = -101;
-    o.color = 16;
-    o.alwaysExists = true;
-    o.isMazeWall = true;
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
-  };
-  if (room["wall"]) {
-    room["wall"].forEach((loc) => {
-      entity(loc, {
-        x: Math.floor(loc.x / gridWidth),
-        y: Math.floor(loc.y / gridHeight),
-      });
-    });
-  }
-}
-function makePortals() {
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    o.define(Class.voidportal);
-
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-    o.targetable = false;
-    o.settings.drawHealth = false;
-    if (c.MODE === "theInfestation") {
-      o.godMode = true;
-    }
-    if (c.MODE === "theControlled") {
-      o.targetable = false;
-    }
-  };
-  for (let i = 0; i < 9; i++) {
-    if (room["vpr" + i]) {
-      room["vpr" + i].forEach((loc) => {
-        entity(loc, i);
-      });
-    }
-  }
-}
-function makepentarifts() {
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    o.define(Class.pentarift);
-
-    if (team) {
-      o.team = -team;
-      o.color = [15, 15, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 14;
-    }
-    if (c.MODE === "theGreatPlague") {
-      o.godMode = true;
-    }
-  };
-  for (let i = 0; i < 9; i++) {
-    if (room["prf" + i]) {
-      room["prf" + i].forEach((loc) => {
-        entity(loc, i);
-      });
-    }
-  }
-}
-function makecubedrifts() {
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    o.define(Class.Cubedrift);
-
-    if (team) {
-      o.team = -team;
-      o.color = [13, 13, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 13;
-    }
-  };
-  for (let i = 0; i < 9; i++) {
-    if (room["crf" + i]) {
-      room["crf" + i].forEach((loc) => {
-        entity(loc, i);
-      });
-    }
-  }
-}
-
-function makeRepairMen() {
-  let entity = (loc) => {
-    let o = new Entity(loc);
-    o.define(Class.repPod);
-    o.targetable = false;
-    o.settings.drawHealth = false;
-    if (c.MODE === "theExpanse") {
-      o.team = -4;
-      o.color = 7;
-    } else if (c.MODE === "theControlled") {
-      o.team = -3;
-      o.color = 19;
-    } else if (c.MODE === "theAwakening") {
-      o.team = -100;
-      o.color = 3;
-    }
-  };
-
-  if (room["rep" + c.bossStage]) {
-    room["rep" + c.bossStage].forEach((loc) => {
-      entity(loc);
-    });
-  }
-}
-function makeDummies() {
-  for (let i = 0; i < 100; i++) {
-    if (room["tst" + i]) {
-      room["tst" + i].forEach((loc) => {
-        let o = new Entity(loc);
-        o.godMode = true;
-        o.skill.score = 26263;
-        o.area = loc;
-        switch (i) {
-          case 0:
-            o.define(Class.buildGlass);
-            o.define(Class.testDummy);
-            o.name = "Glass Dummy";
-            break;
-          case 1:
-            o.define(Class.buildExpert);
-            o.define(Class.testDummy);
-            o.name = "Tough Dummy";
-            break;
-          case 2:
-            o.define(Class.buildRam);
-            o.define(Class.testDummy);
-            o.name = "Rammer Dummy";
-            break;
-          case 3:
-            o.define(Class.buildGlass);
-            o.define(Class.testDummy);
-            o.addController(new io_nearestDifferentMaster(o));
-            o.aiTarget = "self";
-            o.team = -100;
-            o.color = 3;
-            o.name = "AI Dummy";
-            break;
-          case 4:
-            o.define(Class.counterDenied);
-            o.team = -100;
-            o.settings.leaderboardable = false;
-            o.godMode = true;
-            break;
-          case 5:
-            o.define(Class.dummyelite);
-            o.name = "Elite Dummy";
-            break;
-          case 6:
-            o.define(Class.buildGlass);
-            o.define(Class.testDummy);
-            o.team = -4;
-            o.name = "Voidlord Glass Dummy";
-            break;
-          case 7:
-            o.define(Class.buildExpert);
-            o.define(Class.testDummy);
-            o.name = "Voidlord Tough Dummy";
-            o.team = -4;
-            break;
-          case 8:
-            o.define(Class.buildRam);
-            o.define(Class.testDummy);
-            o.name = "Voidlord Rammer Dummy";
-            o.team = -4;
-            break;
-          default:
-            o.define(Class.buildGlass);
-            o.define(Class.testDummy);
+          y: Math.floor(loc.y / gridHeight)
         }
       });
-    }
-  }
-}
-function makeEventBosses() {
-  let entity = (loc) => {
-    let o = new Entity(loc);
-    if (c.MODE === "theExpanse") {
-      o.define(Class.voidportal);
-      switch (c.bossStage) {
-        case 0:
-          o.deathSpawn = "elder";
-          break;
-        case 1:
-          o.deathSpawn = "weakHiveMind";
-          c.BOT_SPAWN_LOCATION, (c.PLAYER_SPAWN_LOCATION = "bad");
-          break;
-        case 2:
-          o.deathSpawn = "weakNulltype";
-          c.BOT_SPAWN_LOCATION, (c.PLAYER_SPAWN_LOCATION = "spw");
-          break;
-        case 3:
-          o.deathSpawn = "weakSardonyx";
-          c.BOT_SPAWN_LOCATION, (c.PLAYER_SPAWN_LOCATION = "dbc");
-          c.DEADLY_BORDERS = false;
-          break;
-      }
-      o.team = -4;
-      o.color = 19;
-      o.impervious = true;
-    }
-    if (c.MODE === "theControlled") {
-      o.define(Class.voidportal);
-      switch (c.bossStage) {
-        case 2:
-          o.deathSpawn = "highlordKairo";
-          break;
-        case 3:
-          o.deathSpawn = "highlordAkavir";
-          c.PLAYER_SPAWN_LOCATION = "bad";
-          break;
-        case 4:
-          o.deathSpawn = "highlordAidra";
-          setTimeout(() => {
-            c.PLAYER_SPAWN_LOCATION = "spw";
-          }, 60000);
-          break;
-        case 5:
-          o.deathSpawn = "weakHighlordAlbatar";
-          break;
-      }
-      o.team = -3;
-      o.color = 7;
-      o.impervious = true;
-      setTimeout(() => {
-        o.kill();
-      }, 5000);
-    }
-    if (c.MODE === "theAwakening") {
-      switch (c.bossStage) {
-        case 1:
-          o.define(Class.lesserCaster);
-          o.bossProgress = true;
-          break;
-        case 2:
-          o.define(Class.lesserlightFinder);
-          o.bossProgress = true;
-          break;
-        case 6:
-          o.define(Class.lesserAetherAspect);
-          break;
-        case 7:
-          o.define(Class.lesserConstant);
-          break;
-        case 9:
-          o.define(Class.lesserCreed);
-          o.bossProgress = true;
-          sockets.broadcast(
-            "An Ancient Guardian rises through the ruined floors..."
-          );
-          break;
-      }
-      o.team = -5;
-      o.area = "bos" + c.bossStage;
-      o.zone = "zne" + c.bossStage;
-    }
-  };
-  if (room["bos" + c.bossStage]) {
-    room["bos" + c.bossStage].forEach((loc) => {
-      entity(loc);
     });
-  }
-}
-
-function makeShrine() {
-  let entity = (loc, team) => {
-    let o = new Entity(loc);
-    o.define(Class.ranarShrine);
-    o.team = -100;
-    if (c.MODE === "theDistance") {
-      o.win = true;
-    }
-    if (c.MODE === "theInfestation") o.define(Class.cxShrine);
-  };
-
-  if (room["tmpl"]) {
-    room["tmpl"].forEach((loc) => {
-      entity(loc);
-    });
-  }
+  });
 }
 function closeArena() {
   if (!room.closed) {
@@ -2420,8 +974,8 @@ function closeArena() {
         c.SPAWN_VOIDLORD_ENEMIES = false;
         c.SPAWN_NEUTRAL_BOSSES = false;
         c.SPAWN_FALLEN_BOSSES = false;
-        c.SPAWN_FOOD = false;
-        c.MODE = "none";
+        game.SPAWN_FOOD = false;
+        game.MODE = "none";
         if (game.players < 1) {
           util.log("ARENA CLOSED!");
           sockets.broadcast("Closing!");
@@ -2495,14 +1049,14 @@ function siegeCountdown() {
 }
 
 function createMaze() {
-  for (let i = 0; i < Math.ceil((c.WIDTH + c.HEIGHT / 2) / 50); i++) {
+  for (let i = 0; i < Math.ceil((game.WIDTH + game.HEIGHT / 2) / 50); i++) {
     let loc = room.randomType("norm");
     do {
       let o = new Entity(loc);
       o.define(Class.wall);
       o.alwaysExists = true;
       o.team = -101;
-      o.SIZE = Math.ceil(Math.random() * 40 + (c.HEIGHT / 100) * 2.25);
+      o.SIZE = Math.ceil(Math.random() * 40 + (game.HEIGHT / 100) * 2.25);
       o.coreSize = o.SIZE;
       o.ACCELERATION = 0;
       o.SPEED = 0;
@@ -2886,7 +1440,7 @@ class io_nearestDifferentMaster extends IO {
                 case "allHostiles":
                   if (e.master.master.team !== this.body.master.master.team && !e.isProjectile) {
               if ((this.body.label === "Harvest") && (e.isDominator||e.isGate||e.isWall||e.isSoccerBall||e.impervious||e.type === "base"||e.label === "Target Dummy")) return;
-                    if (c.MODE === "JJ's RF" && this.body.aiTarget === "allHostiles" && (!room.isIn("gte1", e) && !room.isIn("bas1", e) && !room.isIn("bad1", e) && !room.isIn("wall", e)||e.isProjectile)) return;
+                    if (game.MODE === "JJ's RF" && this.body.aiTarget === "allHostiles" && (!room.isIn("gte1", e) && !room.isIn("bas1", e) && !room.isIn("bad1", e) && !room.isIn("wall", e)||e.isProjectile)) return;
                     if (
                       Math.abs(e.x - m.x) < range &&
                       Math.abs(e.y - m.y) < range
@@ -2927,7 +1481,7 @@ class io_nearestDifferentMaster extends IO {
                   ) {
                       if (
                         e.name !== "Baltyla" &&
-                          c.MODE === "theAwakening" &&
+                          game.MODE === "theAwakening" &&
                         this.body.name === "Valrayvn"
                       )
                         return;
@@ -2993,9 +1547,9 @@ class io_nearestDifferentMaster extends IO {
                     ) {
                       if (
                         !e.isGate &&
-                        (c.MODE === "theExpanse" ||
-                          c.MODE === "theControlled" ||
-                          c.MODE === "theAwakening")
+                        (game.MODE === "theExpanse" ||
+                          game.MODE === "theControlled" ||
+                          game.MODE === "theAwakening")
                       )
                         return;
                       if (
@@ -3042,14 +1596,14 @@ class io_nearestDifferentMaster extends IO {
                         if (
                           (this.body.specialEffect === "crusherFortWall" &&
                             e.ignoreCollision) ||
-                          (c.MODE === "theDenied" && e.isGate)||(this.body.isAnubis && c.MODE === "theInfestation" && (e.isGate && e.isWall))
+                          (game.MODE === "theDenied" && e.isGate)||(this.body.isAnubis && game.MODE === "theInfestation" && (e.isGate && e.isWall))
                   )
                           return; 
                         if (
                           e.isGate &&
-                          (c.MODE === "theExpanse" ||
-                            c.MODE === "theControlled" ||
-                            c.MODE === "theAwakening")
+                          (game.MODE === "theExpanse" ||
+                            game.MODE === "theControlled" ||
+                            game.MODE === "theAwakening")
                         )
                           return;
                         if (
@@ -3166,18 +1720,18 @@ class io_nearestDifferentMaster extends IO {
                         if (
                           (this.body.specialEffect === "crusherFortWall" &&
                             e.ignoreCollision) ||
-                          (c.MODE === "theDenied" && e.isGate) ||
+                          (game.MODE === "theDenied" && e.isGate) ||
                           (this.body.isAnubis &&
-                            c.MODE === "theInfestation" &&
+                            game.MODE === "theInfestation" &&
                             e.isGate &&
                             e.isWall)
                         )
                           return;
                         if (
                           e.isGate &&
-                          (c.MODE === "theExpanse" ||
-                            c.MODE === "theControlled" ||
-                            c.MODE === "theAwakening")
+                          (game.MODE === "theExpanse" ||
+                            game.MODE === "theControlled" ||
+                            game.MODE === "theAwakening")
                         )
                           return;
                         if (
@@ -3235,7 +1789,7 @@ class io_nearestDifferentMaster extends IO {
                     )
                       return;
                     if (
-                      c.MODE === "JJ's RF" &&
+                      game.MODE === "JJ's RF" &&
                       this.body.aiTarget === "allHostiles" &&
                       ((!room.isIn("gte1", e) &&
                         !room.isIn("bas1", e) &&
@@ -3281,9 +1835,9 @@ class io_nearestDifferentMaster extends IO {
                     ) {
                       if (
                         !e.isGate &&
-                        (c.MODE === "theExpanse" ||
-                          c.MODE === "theControlled" ||
-                          c.MODE === "theAwakening")
+                        (game.MODE === "theExpanse" ||
+                          game.MODE === "theControlled" ||
+                          game.MODE === "theAwakening")
                       )
                         return;
                       if (
@@ -3328,7 +1882,7 @@ class io_nearestDifferentMaster extends IO {
                   ) {
                     if (
                       e.name !== "Baltyla" &&
-                      c.MODE === "theAwakening" &&
+                      game.MODE === "theAwakening" &&
                       this.body.name === "Valrayvn"
                     )
                       return;
@@ -3399,18 +1953,18 @@ class io_nearestDifferentMaster extends IO {
                         if (
                           (this.body.specialEffect === "crusherFortWall" &&
                             e.ignoreCollision) ||
-                          (c.MODE === "theDenied" && e.isGate) ||
+                          (game.MODE === "theDenied" && e.isGate) ||
                           (this.body.isAnubis &&
-                            c.MODE === "theInfestation" &&
+                            game.MODE === "theInfestation" &&
                             e.isGate &&
                             e.isWall)
                         )
                           return;
                         if (
                           e.isGate &&
-                          (c.MODE === "theExpanse" ||
-                            c.MODE === "theControlled" ||
-                            c.MODE === "theAwakening")
+                          (game.MODE === "theExpanse" ||
+                            game.MODE === "theControlled" ||
+                            game.MODE === "theAwakening")
                         )
                           return;
                         if (
@@ -3653,7 +2207,7 @@ class io_Dominator extends IO {
               !room.isIn("bas4", e) &&
               !room.isIn("bas4", e)
             ) {
-              if (this.body.aiTarget === "allHostiles" && c.MODE === "JJ's RF")
+              if (this.body.aiTarget === "allHostiles" && game.MODE === "JJ's RF")
                 return;
               if (e.master.master.team !== -101) {
                 if (
@@ -3927,28 +2481,28 @@ class io_pathFinder extends IO {
 class io_guard1 extends IO {
   constructor(b) {
     super(b);
-    if (c.MODE === "theDenied" || c.MODE === "theDivided") {
+    if (game.MODE === "theDenied" || game.MODE === "theDivided") {
       if (this.body.isRanar || this.body.eliteBoss) {
         this.spot = room.type("spw0");
       } else {
         this.spot = room.type("nest");
       }
     }
-    if (c.MODE === "BossArena") {
+    if (game.MODE === "BossArena") {
       this.spot = room.type("vpr0");
     }
-    if (c.MODE === "theAwakening") {
+    if (game.MODE === "theAwakening") {
       this.spot = room.type(ran.choose(game.npcWanderLoc1));
     }
-    if (c.MODE === "siege") {
+    if (game.MODE === "siege") {
       this.spot = room.randomType("dom1");
     }
-    if (c.MODE === "theInfestation") {
+    if (game.MODE === "theInfestation") {
       if (this.body.isAnubis) {
         this.spot = room.randomType("vpr0");
       } else this.spot = room.randomType("dom0");
     }
-    if (c.MODE === "theGreatPlague") {
+    if (game.MODE === "theGreatPlague") {
       this.spot = room.randomType("dom0");
     }
   }
@@ -3960,7 +2514,7 @@ class io_guard1 extends IO {
         this.targetLock != undefined ||
         this.body.invuln
       ) {
-        if (c.MODE === "theAwakening") this.spot = room.type(ran.choose(game.npcWanderLoc1));
+        if (game.MODE === "theAwakening") this.spot = room.type(ran.choose(game.npcWanderLoc1));
       }
     }
     return { goal: this.spot };
@@ -5114,7 +3668,7 @@ class Entity {
     this.key = keyManager.createKey();
     // Inheritance
     this.extraMinions = 0;
-    if (c.MODE === "theDistance") this.laps = 0;
+    if (game.MODE === "theDistance") this.laps = 0;
     this.master = master;
     this.source = this;
     this.parent = this;
@@ -5884,7 +4438,7 @@ class Entity {
             break;
         }
       }
-      if (this.team === -100 || c.MODE === "siege") {
+      if (this.team === -100 || game.MODE === "siege") {
         switch (this.label) {
           case "Mini Bosses":
             this.sendMessage(
@@ -5893,7 +4447,7 @@ class Entity {
             break;
         }
       }
-      if (this.team === -1 || c.MODE === "siege") {
+      if (this.team === -1 || game.MODE === "siege") {
         switch (this.label) {
           case "Surfer":
           case "Eagle":
@@ -5921,7 +4475,7 @@ class Entity {
             break;*/
         }
       }
-      if (this.team === -2 || c.MODE === "siege") {
+      if (this.team === -2 || game.MODE === "siege") {
         switch (this.label) {
           case "Necromancer":
           case "Enchanter":
@@ -5943,7 +4497,7 @@ class Entity {
             break;
         }
       }
-      if (this.team === -3 || c.MODE === "siege") {
+      if (this.team === -3 || game.MODE === "siege") {
         switch (this.label) {
           case "Engineer":
           case "Interceptor":
@@ -5984,7 +4538,7 @@ class Entity {
             break;
         }
       }
-      if (this.team === -4 || c.MODE === "siege") {
+      if (this.team === -4 || game.MODE === "siege") {
         switch (this.label) {
           case "Ordnance":
           case "Mortar":
@@ -6056,7 +4610,7 @@ class Entity {
       250 *
       Math.sqrt(this.size) *
       (1 + 0.003 * this.skill.growthCap);
-    if (c.MODE === "theDistance") this.fov *= 1.35;
+    if (game.MODE === "theDistance") this.fov *= 1.35;
     this.density = (1 + 0.08 * this.skill.growthCap) * this.DENSITY;
 
     this.stealth = this.STEALTH;
@@ -6265,7 +4819,7 @@ class Entity {
       this.upgrades = [];
       this.define(saveMe);
       this.sendMessage("You have upgraded to " + this.label + ".");
-      /*  if (this.team === -1 || c.MODE === "siege") {
+      /*  if (this.team === -1 || game.MODE === "siege") {
         if (this.label === "Spike") {
           this.sendMessage(
             "When 1 Million score is achieved, you may use the '~' button(or ??? button) to transform!"
@@ -6287,7 +4841,7 @@ class Entity {
           );
         }
       }
-      if (this.team === -2 || c.MODE === "siege") {
+      if (this.team === -2 || game.MODE === "siege") {
         if (this.label === "Necromancer") {
           this.sendMessage(
             "When 1 Million score is achieved, you may use the '~' button(or ??? button) to transform!"
@@ -6309,7 +4863,7 @@ class Entity {
           );
         }
       }
-      if (this.team === -3 || c.MODE === "siege") {
+      if (this.team === -3 || game.MODE === "siege") {
         if (this.label === "Auto-Spawner") {
           this.sendMessage(
             "When 1 Million score is achieved, you may use the '~' button(or ??? button) to transform!"
@@ -6331,7 +4885,7 @@ class Entity {
           );
         }
       }
-      if (this.team === -4 || c.MODE === "siege") {
+      if (this.team === -4 || game.MODE === "siege") {
         if (this.label === "X-Hunter") {
           this.sendMessage(
             "When 1 Million score is achieved, you may use the '~' button(or ??? button) to transform!"
@@ -6353,7 +4907,7 @@ class Entity {
           );
         }
       }
-      if (this.team === -100 || c.MODE === "siege" && this.label === "Master") {
+      if (this.team === -100 || game.MODE === "siege" && this.label === "Master") {
           this.sendMessage(
             "When 1 Million score is achieved, you may use the '~' button(or ??? button) to transform!"
           );
@@ -6963,7 +5517,7 @@ class Entity {
         this.stopStuff = true;
       }
     }
-    if (c.MODE === "theExpanse") {
+    if (game.MODE === "theExpanse") {
       if (
         c.bossStage >= 3 &&
         c.SPAWN_VOIDLORD_ENEMIES &&
@@ -7040,7 +5594,7 @@ class Entity {
       }
     }
     if (this.type === "tank") {
-      if (c.MODE === "kingOfHill" && room.isIn("dom" + -this.team, this)) {
+      if (game.MODE === "kingOfHill" && room.isIn("dom" + -this.team, this)) {
         let king = Math.round(this.skill.level) / 10;
         this.skill.score += king;
       }
@@ -7111,7 +5665,7 @@ class Entity {
         this.specialEffect = "none";
         this.skill.setCaps([9, 9, 9, 9, 9, 9, 9, 9, 9, 9]);
 
-        switch (c.MODE) {
+        switch (game.MODE) {
           case "siege":
             this.define(Class.currentLegendaryClasses);
             break;
@@ -7138,7 +5692,7 @@ class Entity {
           }
       }
   }*/
-    if (c.MODE === "theAwakening") {
+    if (game.MODE === "theAwakening") {
       if (
         this.type === "tank" &&
         this.ignoreCollision &&
@@ -7171,7 +5725,7 @@ class Entity {
       if (this.master.isBoss && this.team === -100 && this.master !== this)
         this.kill();
     }
-    if (c.MODE === "siege") {
+    if (game.MODE === "siege") {
       if (!c.waveCount) {
         c.bossAmount = 0;
         entities.forEach((entity) => {
@@ -7415,7 +5969,7 @@ class Entity {
               );
               switch (c.waveRarity) {
                 case 1:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
                     o.define(Class.CX2);
                     o.siegeProgress = true;
@@ -7429,7 +5983,7 @@ class Entity {
                   }
                   break;
                 case 2:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     let groupList = Math.ceil(Math.random() * 2);
                     switch (groupList) {
                       case 1:
@@ -7532,7 +6086,7 @@ class Entity {
 
                   break;
                 case 3:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     for (let i = 0; i < 20; i++) {
                       let o = new Entity(room.randomType("spw0"));
                       switch (i) {
@@ -7590,7 +6144,7 @@ class Entity {
                   }
                   break;
                 case 4:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
                     o.define(Class.zomblord2);
                     o.siegeProgress = true;
@@ -7606,7 +6160,7 @@ class Entity {
                   }
                   break;
                 case 5:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     for (let i = 0; i < 20; i++) {
                       let o = new Entity(room.randomType("spw0"));
                       switch (i) {
@@ -7656,7 +6210,7 @@ class Entity {
                   }
                   break;
                 case 6:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     for (let i = 0; i < 4; i++) {
                       let o = new Entity(room.randomType("spw0"));
                       switch (i) {
@@ -7700,7 +6254,7 @@ class Entity {
               c.waveRarity = Math.ceil(Math.random() * 8);
               switch (c.waveRarity) {
                 case 1:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
                     for (let i = 0; i < 11; i++) {
                       let o = new Entity(room.randomType("spw0"));
@@ -7754,7 +6308,7 @@ class Entity {
                   }
                   break;
                 case 2:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     for (let i = 0; i < 17; i++) {
                       let o = new Entity(room.randomType("spw0"));
                       switch (i) {
@@ -7846,7 +6400,7 @@ class Entity {
                   }
                   break;
                 case 3:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     for (let i = 0; i < 50; i++) {
                       let o = new Entity(room.randomType("spw0"));
                       switch (i) {
@@ -7896,7 +6450,7 @@ class Entity {
                   }
                   break;
                 case 4:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
                     for (let i = 0; i < 50; i++) {
                       let o = new Entity(room.randomType("spw0"));
@@ -7954,7 +6508,7 @@ class Entity {
                   }
                   break;
                 case 6:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     for (let i = 0; i < 10; i++) {
                       let o = new Entity(room.randomType("spw0"));
                       switch (i) {
@@ -8003,7 +6557,7 @@ class Entity {
                   }
                   break;
                 case 7:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     for (let i = 0; i < 15; i++) {
                       let o = new Entity(room.randomType("spw0"));
                       switch (i) {
@@ -8076,7 +6630,7 @@ class Entity {
                   break;
 
                 case 8:
-                  if (c.MODE === "siege") {
+                  if (game.MODE === "siege") {
                     for (let i = 0; i < 11; i++) {
                       let o = new Entity(room.randomType("spw0"));
                       switch (i) {
@@ -8619,7 +7173,7 @@ class Entity {
         room.isIn("dom3", this) &&
         this.specialEffect !== "Legend" &&
         this.team === -3 &&
-        c.MODE === "theExpanse"
+        game.MODE === "theExpanse"
       ) {
         this.upgrades = [];
         this.define(Class.operator);
@@ -8636,7 +7190,7 @@ class Entity {
         this.sendMessage("You: (Let us see what this tank can do!)");
       }
 
-      if (c.MODE === "theDenied" && c.eventProgress) {
+      if (game.MODE === "theDenied" && c.eventProgress) {
         if (room.isIn("spw0", this)) {
           let loc = room.randomType("norm");
           if (c.wave < 12) {
@@ -8787,12 +7341,12 @@ class Entity {
     if (
       this.skill.score >= 200000 &&
       this.isPlayer &&
-      c.MODE === "theRestless"
+      game.MODE === "theRestless"
     ) {
       c.eventProgress = true;
       c.sardonyxEventStopper = true;
     }
-    if (c.MODE === "theAwakening") {
+    if (game.MODE === "theAwakening") {
       if (c.bruv !== c.bossStage) {
         c.bruv = c.bossStage;
         //util.log(c.bruv);
@@ -8938,18 +7492,18 @@ class Entity {
         }, 80000);
       }
     }
-    if (c.hallowsPaint) {
+    if (game.SPAWN_REAPER) {
       if (
         (this.type === "wall" || this.type === "squareWall") &&
         this.color === 16
       )
         this.color = ran.choose([17, 33, 30]);
     }
-    if (c.MODE === "theDistance") {
+    if (game.MODE === "theDistance") {
       if (
         this.type === "tank" &&
         this.label !== this.done &&
-        c.startingClass === "racer"
+        game.STARTING_CLASS === "racer"
       ) {
         setTimeout(() => {
           this.ACCELERATION /= 5;
@@ -8957,7 +7511,7 @@ class Entity {
         }, 5000);
         this.done = this.label;
       }
-      if (this.isRacer && c.startingClass === "basic") {
+      if (this.isRacer && game.STARTING_CLASS === "basic") {
         this.upgrades = [];
         this.define(Class.rebel);
         this.skill.points += 30;
@@ -9004,7 +7558,7 @@ class Entity {
             o.specialEffect = "dieWall";
             o.impervious = true;
             o.counter = 0;
-            c.startingClass = "basic";
+            game.STARTING_CLASS = "basic";
             switch (i) {
               case 0:
                 o.define(Class.ranarDiscipleForm);
@@ -9448,7 +8002,7 @@ class Entity {
         if (this.ignoreCollision) this.ignoreCollision = false;
       }
     }
-    if (c.MODE === "theGreatPlague") {
+    if (game.MODE === "theGreatPlague") {
       if (this.isPlayer && this.team === -2 && this.label !== "Spectator") {
         if (this.SIZE < 20) {
           this.define({
@@ -9680,7 +8234,7 @@ class Entity {
         }, 3500);
       }
     }
-    if (c.MODE === "theRestless") {
+    if (game.MODE === "theRestless") {
       if (this.isPlayer && this.team === -3 && this.label !== "Spectator") {
         if (this.SIZE < 17) {
           this.define({
@@ -9720,7 +8274,7 @@ class Entity {
         }
       }
     }
-    if (c.MODE === "theInfestation") {
+    if (game.MODE === "theInfestation") {
       if (this.isPlayer && this.team === -2 && this.label !== "Spectator") {
         if (this.SIZE < 20) {
           this.define({
@@ -9810,8 +8364,8 @@ class Entity {
         }
       }
       if (this.isAnubis) {
-        c.anubLocX = this.x;
-        c.anubLocY = this.y;
+        temp.anubLocX = this.x;
+        temp.anubLocY = this.y;
       }
       if (
         this.label === "Anti-Virus" &&
@@ -9955,8 +8509,8 @@ class Entity {
         c.unlockClasses = true;
         entities.forEach((boss) => {
           if (boss.tier === 1) {
-            boss.x = c.anubLocX;
-            boss.y = c.anubLocY;
+            boss.x = temp.anubLocX;
+            boss.y = temp.anubLocY;
           }
 
           if (boss.isPlayer && boss.label !== "Spectator") {
@@ -10035,17 +8589,17 @@ class Entity {
     }
     if (this.isGate) {
       if (
-        c.MODE === "theExpanse" ||
-        c.MODE === "theControlled" ||
-        c.MODE === "theAwakening"
+        game.MODE === "theExpanse" ||
+        game.MODE === "theControlled" ||
+        game.MODE === "theAwakening"
       ) {
         this.health.max = 999999999999999999999999999999999999999999999999999999999999999999;
         this.settings.drawHealth = false;
         this.health.amount = this.health.max;
       }
-      // if (c.MODE === "theDenied") this.damage /= 3;
+      // if (game.MODE === "theDenied") this.damage /= 3;
     }
-    if (c.MODE === "theControlled") {
+    if (game.MODE === "theControlled") {
       if (this.isDominator && this.REGEN > 0) {
         this.REGEN = 0;
       }
@@ -10176,7 +8730,7 @@ class Entity {
           }
           o.targetable = false;
           o.settings.drawHealth = false;
-          if (c.MODE === "theInfestation") {
+          if (game.MODE === "theInfestation") {
             o.godMode = true;
           }
         };
@@ -10193,13 +8747,13 @@ class Entity {
       }
     }
     if (
-      (this.isDominator && c.MODE === "territoryControl") ||
-      (this.isDominator && c.MODE === "theExpanse")
+      (this.isDominator && game.MODE === "territoryControl") ||
+      (this.isDominator && game.MODE === "theExpanse")
     ) {
       this.health.max = 0.01;
       this.skill.score = 1000;
       this.settings.givesKillMessage = false;
-      if (c.MODE === "theExpanse") this.dangerValue = -1;
+      if (game.MODE === "theExpanse") this.dangerValue = -1;
     }
     if (this.label === "Sanctuary" && this.team === -100) {
       this.define(Class.dominator);
@@ -10212,7 +8766,7 @@ class Entity {
       this.define(
         Class[ran.choose(["sanct_single", "sanct_trap", "sanct_nail"])]
       );
-      if (c.MODE === "kingOfHill") {
+      if (game.MODE === "kingOfHill") {
         this.define(Class.sanct);
       }
     }
@@ -10224,7 +8778,7 @@ this.collisionArray = [];
     if (
       (c.killWalls === true && this.type === "squareWall") ||
       (c.killWalls === true &&
-        c.MODE === "theControlled" &&
+        game.MODE === "theControlled" &&
         (this.isMazeWall || this.isGate || this.isWall))
     ) {
       if (this.team !== -100) {
@@ -10265,14 +8819,14 @@ this.collisionArray = [];
     }
     if (room.width < 100) room.width = 100;
     if (room.height < 100) room.height = 100;
-    if (c.MODE === "execution" && c.doItNow) {
+    if (game.MODE === "execution" && c.doItNow) {
       roomShrinkage();
       if (room.width <= 100 || room.height <= 100) {
         c.doItNow = false;
         closeArena();
       }
-      if (c.startingClass === "basic") {
-        c.startingClass = "spectator";
+      if (game.STARTING_CLASS === "basic") {
+        game.STARTING_CLASS = "spectator";
         c.BOTS = 0;
       }
       if (!c.shift) {
@@ -10326,7 +8880,7 @@ this.collisionArray = [];
         });
       }*/
     }
-    if (c.MODE === "theRestless") {
+    if (game.MODE === "theRestless") {
       if (!c.eventProgress && this.team === -3 && this.type === "squareWall") {
         this.kill();
       }
@@ -10599,7 +9153,7 @@ this.collisionArray = [];
                 "Twilight: Okay, choose your class and kick his barrel!"
               );
               c.unlockClasses = true;
-              c.startingClass = "highlordLegendaryClasses";
+              game.STARTING_CLASS = "highlordLegendaryClasses";
             }, 12000);
             c.BOTS = game.players * 3;
             setTimeout(() => {
@@ -10938,7 +9492,7 @@ this.collisionArray = [];
         }
       }
     }
-    if (c.MODE === "theDenied") {
+    if (game.MODE === "theDenied") {
       if (this.isPlayer && !this.flip) {
         switch (this.label) {
           case "Rebel":
@@ -11758,7 +10312,7 @@ this.collisionArray = [];
     if (this.master.invuln && !this.targetable && this.type !== "food") {
       this.kill();
     }
-    if (c.MODE === "theDivided") {
+    if (game.MODE === "theDivided") {
       if (c.eventProgress) {
         if (c.wave === 0) {
         }
@@ -12035,8 +10589,8 @@ this.collisionArray = [];
       if (
         (c.hexagonCount >= 5 &&
           this.passiveEffect !== "uniqueFood" &&
-          !c.SHINY_GLORY) ||
-        (c.hexagonCount >= 5 && c.SHINY_GLORY)
+          !game.SHINY_GLORY) ||
+        (c.hexagonCount >= 5 && game.SHINY_GLORY)
       ) {
         this.invuln = false;
         this.define(Class.hexagon);
@@ -12074,7 +10628,7 @@ this.collisionArray = [];
     }
     if (c.globalTestbed === true && this.isDeveloper && !this.trueDev) {
       this.upgrades = [];
-      this.define(Class[c.startingClass]);
+      this.define(Class[game.STARTING_CLASS]);
       this.maxChildren = 0;
       this.skill.reset();
       //this.skill.points = 42;
@@ -12135,7 +10689,7 @@ this.collisionArray = [];
         c.globalScoreTake = false;
       }, 100);
     }
-    if (this.skill.score >= 5000000 && c.MODE === "siege" && !this.dayum) {
+    if (this.skill.score >= 5000000 && game.MODE === "siege" && !this.dayum) {
       if (this.specialEffect === "Legend") {
         this.sendMessage(
           "You hear the calling...you have been chosen, warrior."
@@ -12144,7 +10698,7 @@ this.collisionArray = [];
       this.dayum = true;
     }
     if (this.skill.score >= 1000000 && this.okGo !== true) {
-      if (this.team === -1 || c.MODE === "siege") {
+      if (this.team === -1 || game.MODE === "siege") {
         switch (this.label) {
           case "Spike":
           case "Eagle":
@@ -12172,7 +10726,7 @@ this.collisionArray = [];
             break;*/
         }
       }
-      if (this.team === -2 || c.MODE === "siege") {
+      if (this.team === -2 || game.MODE === "siege") {
         switch (this.label) {
           case "Necromancer":
           case "Enchanter":
@@ -12193,7 +10747,7 @@ this.collisionArray = [];
             break;
         }
       }
-      if (this.team === -3 || c.MODE === "siege") {
+      if (this.team === -3 || game.MODE === "siege") {
         switch (this.label) {
           case "Trilogy of Traps":
           case "Constructionist":
@@ -12232,7 +10786,7 @@ this.collisionArray = [];
             break;
         }
       }
-      if (this.team === -4 || c.MODE === "siege") {
+      if (this.team === -4 || game.MODE === "siege") {
         switch (this.label) {
           case "Mortar":
           case "Ordnance":
@@ -12244,7 +10798,7 @@ this.collisionArray = [];
             break;
         }
       }
-      if (this.team === -4 || c.MODE === "siege") {
+      if (this.team === -4 || game.MODE === "siege") {
         switch (this.label) {
           case "Master":
           case "Hexanomaly":
@@ -12258,7 +10812,7 @@ this.collisionArray = [];
 
         if (
           this.team === -100 ||
-          (c.MODE === "siege" && this.label === "Master")
+          (game.MODE === "siege" && this.label === "Master")
         ) {
           if (this.specialEffect === "Legend") return;
           this.sendMessage(
@@ -12287,7 +10841,7 @@ this.collisionArray = [];
       this.kill();
       this.destroy();
     }
-    if (this.skill.score >= 200000 && c.MODE !== "siege") {
+    if (this.skill.score >= 200000 && game.MODE !== "siege") {
       if (this.specialEffect === "sentryEvolveG") {
         this.specialEffect = "none";
 
@@ -12327,7 +10881,7 @@ this.collisionArray = [];
       }
     }
 
-    if (this.skill.score >= 500000 && c.MODE !== "siege") {
+    if (this.skill.score >= 500000 && game.MODE !== "siege") {
       if (this.specialEffect === "palisadeEvolve") {
         this.specialEffect = "none";
         this.define(Class.roguecitadel);
@@ -12344,7 +10898,7 @@ this.collisionArray = [];
       }
     }
 
-    if (c.eventProgress2 && c.MODE === "theExpanse" && this.type === "base") {
+    if (c.eventProgress2 && game.MODE === "theExpanse" && this.type === "base") {
       this.kill();
     }
     if (this.zombied && this.color !== this.master.color) {
@@ -12361,8 +10915,8 @@ this.collisionArray = [];
           this.label === "Spectator" ||
           this.master.impervious ||
           this.godMode ||
-          (c.MODE === "siege" && this.master.skill.score >= 1000000) ||
-          (c.MODE === "siege" && this.master.specialEffect === "Legend")
+          (game.MODE === "siege" && this.master.skill.score >= 1000000) ||
+          (game.MODE === "siege" && this.master.specialEffect === "Legend")
         ) return;
         this.invuln = false;
         this.damageRecieved = this.health.max / 10;
@@ -12423,7 +10977,7 @@ this.collisionArray = [];
       }
     }
 
-    if (c.MODE === "devServer") {
+    if (game.MODE === "devServer") {
       if (this.isDominator && this.team !== -100) {
         this.kill();
       }
@@ -12434,7 +10988,7 @@ this.collisionArray = [];
       this.continueChance !== false
     ) {
       this.rarity = Math.random() * 1000000;
-      if (c.SHINY_GLORY) {
+      if (game.SHINY_GLORY) {
         this.rarity = Math.random() * 100;
       }
       if (this.rarity <= 57 && this.rarity > 37) {
@@ -12574,7 +11128,7 @@ this.collisionArray = [];
         this.refreshBodyAttributes();
         this.deathThroes = "none";
       }
-      if (c.MODE === "execution" && c.startingClass === "spectator") {
+      if (game.MODE === "execution" && game.STARTING_CLASS === "spectator") {
         c.playerz = 0;
         c.botCount = 0;
         entities.forEach((instance) => {
@@ -12582,7 +11136,7 @@ this.collisionArray = [];
           if (this.isBot && this.type === "tank") c.botCount += 1;
         });
       }
-      if (c.MODE === "BossArena" && this.label === "Void Portal") {
+      if (game.MODE === "BossArena" && this.label === "Void Portal") {
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
         sockets.broadcast("LET THE GAMES BEGIN!");
@@ -12754,7 +11308,7 @@ this.collisionArray = [];
           }
         }
       }
-      if (c.MODE === "theInfestation" && this.isAnubis && !c.vruh) {
+      if (game.MODE === "theInfestation" && this.isAnubis && !c.vruh) {
         sockets.broadcast(
           "Anubis: I am sorry...it must be destiny...that we can never be found..."
         );
@@ -12769,13 +11323,13 @@ this.collisionArray = [];
         }, 5000);
       }
 
-      if (c.MODE === "execution") {
+      if (game.MODE === "execution") {
         //    if (this.isPlayer || this.isBot) c.thing--;
         if (c.thing <= 1) {
           c.goNow = true;
         }
       }
-      if (c.MODE === "theDistance") {
+      if (game.MODE === "theDistance") {
         if (this.label === "Undertaker") {
           console.log("Current lore mode index:", currentState.loreModeIndex);
           serverState.advanceLoreSequence();
@@ -12808,7 +11362,7 @@ this.collisionArray = [];
           //this.win = false;
         }
       }
-      if (this.foodLevel > 4 && c.MODE === "theDenied" && c.wave > 0) {
+      if (this.foodLevel > 4 && game.MODE === "theDenied" && c.wave > 0) {
         let lifeUp = this.foodLevel - 4;
         let plur;
         if (lifeUp === 1) {
@@ -12827,7 +11381,7 @@ this.collisionArray = [];
       }
       if (
         //game.wave === 4 &&
-        c.MODE === "theInfestation" &&
+        game.MODE === "theInfestation" &&
         this.label === "Anti-Virus"
       ) {
         sockets.broadcast(
@@ -12846,7 +11400,7 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (
         this.isPlayer &&
-        c.MODE === "theDenied" &&
+        game.MODE === "theDenied" &&
         c.wave > 0 &&
         !this.godMode
       ) {
@@ -12875,7 +11429,7 @@ console.log('Lore mode sequence advanced.');*/
           }, 5000);
         }
       }
-      if (c.MODE === "theAwakening") {
+      if (game.MODE === "theAwakening") {
         if (this.bossProgress) {
           c.bossStage += 1;
           switch (c.bossStage) {
@@ -12950,7 +11504,7 @@ console.log('Lore mode sequence advanced.');*/
           }
         }
       }
-      if (c.MODE === "theExpanse") {
+      if (game.MODE === "theExpanse") {
         if (this.bossProgress && c.bossStage <= 2) {
           c.bossStage += 1;
           makeEventBosses();
@@ -13035,7 +11589,7 @@ console.log('Lore mode sequence advanced.');*/
           }
         }
       }
-      if (c.MODE === "theControlled") {
+      if (game.MODE === "theControlled") {
         if (c.bossProgress >= 4) {
           c.bossProgress = 0;
           console.log("Current lore mode index:", currentState.loreModeIndex);
@@ -13159,10 +11713,10 @@ console.log('Lore mode sequence advanced.');*/
           }
         }
       }
-      if (this.specialEffect === "cxShrine" && c.MODE === "theInfestation") {
+      if (this.specialEffect === "cxShrine" && game.MODE === "theInfestation") {
         c.cxPowerDrain += 1;
       }
-      if (c.MODE === "theDenied" && !this.godMode) {
+      if (game.MODE === "theDenied" && !this.godMode) {
         if (c.wave >= 6 && this.isTwilight) {
           this.invuln = true;
           this.trulyDead = false;
@@ -13234,8 +11788,8 @@ console.log('Lore mode sequence advanced.');*/
       }
 
       if (
-        (this.enemy && c.MODE === "theDenied") ||
-        (this.isBot && c.MODE === "theDenied")
+        (this.enemy && game.MODE === "theDenied") ||
+        (this.isBot && game.MODE === "theDenied")
       ) {
         c.enemyCount -= 1;
       }
@@ -13244,7 +11798,7 @@ console.log('Lore mode sequence advanced.');*/
         if (this.name === "") dude = "An unnamed player";
         util.log(dude + " has died as a " + this.label + ".");
       }
-      if (this.isRanar && c.MODE === "theDenied") {
+      if (this.isRanar && game.MODE === "theDenied") {
         if (this.label === "Ascendant") {
           c.wave = 15;
           this.trulyDead = false;
@@ -13278,8 +11832,8 @@ console.log('Lore mode sequence advanced.');*/
         }
       }
       if (
-        (this.enemy && c.MODE === "theRestless") ||
-        (this.isBot && c.MODE === "theRestless")
+        (this.enemy && game.MODE === "theRestless") ||
+        (this.isBot && game.MODE === "theRestless")
       ) {
         c.enemyCount -= 1;
       }
@@ -13288,7 +11842,7 @@ console.log('Lore mode sequence advanced.');*/
         if (this.name === "") dude = "An unnamed player";
         util.log(dude + " has died as a " + this.label + ".");
       }
-      if (this.eliteBoss && c.MODE === "theDivided") {
+      if (this.eliteBoss && game.MODE === "theDivided") {
         if (this.label === "Arrasian Lord") {
           c.wave = 6;
           this.trulyDead = true;
@@ -13310,7 +11864,7 @@ console.log('Lore mode sequence advanced.');*/
         this.shield.amount = this.shield.max;
         this.trulyDead = false;
       }
-      if (this.label === "Shrine" && c.MODE === "theDenied") {
+      if (this.label === "Shrine" && game.MODE === "theDenied") {
         c.eventProgress = true;
         // Assuming this loop is correctly controlled elsewhere in your code
         makeFortGates();
@@ -13379,7 +11933,7 @@ console.log('Lore mode sequence advanced.');*/
         }, 67000);
         o.team = -100;
       }
-      if (this.label === "Shrine" && c.MODE === "theDivided") {
+      if (this.label === "Shrine" && game.MODE === "theDivided") {
         c.eventProgress = true;
         // Assuming this loop is correctly controlled elsewhere in your code
         /*  for (let i = 0; i < 9; i++) {
@@ -13516,7 +12070,7 @@ console.log('Lore mode sequence advanced.');*/
         }, 67000);
         o.team = -100;
       }
-      if (c.MODE === "siege" && !this.isProjectile && this.team === -100) {
+      if (game.MODE === "siege" && !this.isProjectile && this.team === -100) {
         c.bossAmount = 0;
         entities.forEach((entity) => {
           if (entity.siegeProgress && entity.team === -100 && !entity.isDead())
@@ -13582,19 +12136,19 @@ console.log('Lore mode sequence advanced.');*/
         let loc = { x: this.x, y: this.y };
         let o = new Entity(loc);
         o.define(Class.repairMan);
-        if (c.MODE === "theExpanse") {
+        if (game.MODE === "theExpanse") {
           o.team = -3;
           o.color = 7;
         }
-        if (c.MODE === "theAwakening") {
+        if (game.MODE === "theAwakening") {
           o.team = -100;
           o.color = 3;
         }
-        if (c.MODE === "theControlled") {
+        if (game.MODE === "theControlled") {
           o.team = -4;
           o.color = 19;
         }
-        if (c.MODE === "theDenied") {
+        if (game.MODE === "theDenied") {
           o.team = -1;
           o.color = 10;
           o.fov += 50000;
@@ -13605,7 +12159,7 @@ console.log('Lore mode sequence advanced.');*/
         this.shield.amount = this.shield.max;
         this.trulyDead = false;
       }
-      if (c.MODE === "theGreatPlague") {
+      if (game.MODE === "theGreatPlague") {
         if (
           this.type !== "food" &&
           this.team !== -2 &&
@@ -14020,7 +12574,7 @@ instance.runTrigger("kill", this);
           }
           if (o.name === "Sardonyx") {
             sockets.broadcast("Sardonyx: Finally, I have been summoned!");
-            if (c.MODE === "theDenied") {
+            if (game.MODE === "theDenied") {
               sockets.broadcast(
                 "Ranar: Who the heck are you and who said you could talk?!"
               ); //skul
@@ -14038,7 +12592,7 @@ instance.runTrigger("kill", this);
           }
           if (o.name === "Seraphim") {
             sockets.broadcast("Seraphim: D̶͖̀ō̴̯͕͠ ̴̲̄͝n̵͙̺̈́̌o̷͔̽ͅt̴͈̏̃ ̴͖̈́͗b̸̻͚̿e̷̐ͅ ̴̞̔̊ą̶̈́͝f̵̯̙͌̎r̶̨̝̀a̷̦̩͝i̴̦͇̋̐d̸͍̏̀.̸͈̺͊");
-            if (c.MODE === "theDenied") {
+            if (game.MODE === "theDenied") {
               sockets.broadcast("Ranar: Oh... my..."); //skul
               setTimeout(() => {
                 sockets.broadcast(
@@ -14057,7 +12611,7 @@ instance.runTrigger("kill", this);
           o.color = instance.color;
           o.master = instance.master;
         }
-        if (c.MODE === "theInfestation") {
+        if (game.MODE === "theInfestation") {
           if (
             this.type !== "food" &&
             this.team !== -2 &&
@@ -14128,7 +12682,7 @@ instance.runTrigger("kill", this);
             if (
               // instance.skill.score > instance.master.skill.score ||
               instance.master.skill.score < instance.master.extraMinions &&
-              c.MODE !== "hehehehaw"
+              game.MODE !== "hehehehaw"
             ) {
               this.kill();
             } else {
@@ -14182,7 +12736,7 @@ instance.runTrigger("kill", this);
             if (
               // instance.skill.score > instance.master.skill.score ||
               instance.master.skill.score < instance.master.extraMinions &&
-              c.MODE !== "plague"
+              game.MODE !== "plague"
             ) {
               this.kill();
             } else {
@@ -14192,7 +12746,7 @@ instance.runTrigger("kill", this);
                 instance.sendMessage(
                   dude + "'s " + this.label + " was revived under your control!"
                 );
-                if (c.MODE === "theDenied") {
+                if (game.MODE === "theDenied") {
                   if (this.label === "Descendant") {
                     setTimeout(() => {
                       sockets.broadcast(
@@ -14262,7 +12816,7 @@ instance.runTrigger("kill", this);
         if (!isNaN(this.x) || !isNaN(this.y)) {
           var plce = { x: this.x, y: this.y };
         }
-        if (c.MODE !== "JJ's RF" && c.MODE !== "test") {
+        if (game.MODE !== "JJ's RF" && game.MODE !== "test") {
           if (killer) {
             this.team = killer.team;
             switch (this.team) {
@@ -14324,7 +12878,7 @@ instance.runTrigger("kill", this);
           var plce = { x: this.x, y: this.y };
         }
         if (killer) {
-          if (c.MODE !== "JJ's RF" && c.MODE !== "test") {
+          if (game.MODE !== "JJ's RF" && game.MODE !== "test") {
             this.team = killer.team;
             switch (this.team) {
               case -1:
@@ -14366,7 +12920,7 @@ instance.runTrigger("kill", this);
           this.ACCEL.x = 0;
           this.ACCEL.y = 0;
           this.refreshBodyAttributes();
-          if (c.MODE === "JJ's RF" || c.MODE === "test") return;
+          if (game.MODE === "JJ's RF" || game.MODE === "test") return;
           room.setup[this.grid.y][this.grid.x] = "gte" + -this.team;
         } else {
           let o = new Entity(plce);
@@ -14426,7 +12980,7 @@ instance.runTrigger("kill", this);
         }
         if (killer) {
           killers.forEach((instance) => {
-            if (c.MODE === "JJ's RF" || c.MODE === "test") return;
+            if (game.MODE === "JJ's RF" || game.MODE === "test") return;
             if (this.team === -100 || c.INSTANT_CAPTURE) {
               if (killer.team) {
                 this.team = killer.team;
@@ -14466,11 +13020,11 @@ instance.runTrigger("kill", this);
           this.health.amount = this.health.max;
           this.shield.amount = this.shield.max;
           this.refreshBodyAttributes();
-          if (c.MODE === "JJ's RF" || c.MODE === "test") return;
+          if (game.MODE === "JJ's RF" || game.MODE === "test") return;
           if (this.team === -100) {
             room.setup[this.grid.y][this.grid.x] = "dom0";
           } else room.setup[this.grid.y][this.grid.x] = "dom" + -this.team;
-          if (c.MODE !== "territoryControl") {
+          if (game.MODE !== "territoryControl") {
             sockets.broadcast(
               "A " +
                 this.label +
@@ -14496,7 +13050,7 @@ instance.runTrigger("kill", this);
           if (c.SIEGE) {
             for (let i = 0; i < 9; i++) {
               if (i && census[0] >= c.DOMINATOR_COUNT) {
-                if (c.MODE !== "siege") {
+                if (game.MODE !== "siege") {
                   sockets.broadcast(
                     util.getTeam(this.team) + " have lost the game!"
                   );
@@ -14860,7 +13414,7 @@ instance.runTrigger("kill", this);
       if (
         this.type === "wall" &&
         this.team === -101 &&
-        c.MODE === "theDenied"
+        game.MODE === "theDenied"
       ) {
         let loc = { x: this.x, y: this.y };
         if (this.label === "Rock" && room.isIn("rock", this)) {
@@ -15404,7 +13958,7 @@ class View {
         // Let the client know it died
         if (
           //!room.closed ||
-          (c.MODE === "siege" && !c.initiateCountdown) ||
+          (game.MODE === "siege" && !c.initiateCountdown) ||
           !player.body.bannable
         ) {
           if (player.body.trueDev) {
@@ -15732,7 +14286,7 @@ const sockets = (() => {
           ) {
             player.body.invuln = false;
             setTimeout(() => {
-              if (player.body.skill.score >= 500000 && c.MODE !== "siege") {
+              if (player.body.skill.score >= 500000 && game.MODE !== "siege") {
                 let o = new Entity(player.body);
                 o.define(Class.goldenEgg);
                 o.name = player.body.name;
@@ -16230,7 +14784,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                   ) {
                     let dude = player.body.name;
                     if (player.body.name === "") dude = "An unnamed player";
-                    if (player.body.team === -1 || c.MODE === "siege") {
+                    if (player.body.team === -1 || game.MODE === "siege") {
                       if (
                         player.body.label === "Spike" ||
                         player.body.label === "Eagle" ||
@@ -16257,7 +14811,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                       }
                     }
                     
-                    /*if (player.body.team === -1 || c.MODE === "siege") {
+                    /*if (player.body.team === -1 || game.MODE === "siege") {
                       if (
                         player.body.label === "Ordnance" ||
                         player.body.label === "Auto-Tri-Angle" ||
@@ -16284,7 +14838,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                       }//saving this incase.
                     }*/
 
-                    if (player.body.team === -2 || c.MODE === "siege") {
+                    if (player.body.team === -2 || game.MODE === "siege") {
                       if (
                         player.body.label === "Necromancer" ||
                         player.body.label === "Enchanter" ||
@@ -16310,7 +14864,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                         player.body.skill.points += 10;
                       }
                     }
-                    if (player.body.team === -3 || c.MODE === "siege") {
+                    if (player.body.team === -3 || game.MODE === "siege") {
                       if (
                         player.body.label === "Auto-Spawner" ||
                         player.body.label === "Engineer" ||
@@ -16335,7 +14889,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                         player.body.skill.points += 10;
                       }
                     }
-                    if (player.body.team === -3 || c.MODE === "siege") {
+                    if (player.body.team === -3 || game.MODE === "siege") {
                       if (
                         player.body.label === "Auto-Smasher" ||
                         player.body.label === "Carrier" ||
@@ -16360,7 +14914,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                         player.body.skill.points += 10;
                       }
                     }
-                    if (player.body.team === -3 || c.MODE === "siege") {
+                    if (player.body.team === -3 || game.MODE === "siege") {
                       if (
                         player.body.label === "Auto-5" ||
                         player.body.label === "Hardshell Spawner" ||
@@ -16384,7 +14938,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                       }
                     }
 
-                    if (player.body.team === -1 || c.MODE === "siege") {
+                    if (player.body.team === -1 || game.MODE === "siege") {
                       if (
                         player.body.label === "Collider" ||
                         player.body.label === "Twister" ||
@@ -16409,7 +14963,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                         player.body.skill.points += 10;
                       }
                     }
-                    if (player.body.team === -3 || c.MODE === "siege") {
+                    if (player.body.team === -3 || game.MODE === "siege") {
                       if (
                         player.body.label === "Trilogy of Traps" ||
                         player.body.label === "Constructionist" ||
@@ -16438,7 +14992,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                         player.body.skill.points += 10;
                       }
                     }
-                    if (player.body.team === -4 || c.MODE === "siege") {
+                    if (player.body.team === -4 || game.MODE === "siege") {
                       if (
                         player.body.label === "X-Hunter" ||
                         player.body.label === "Mortar" ||
@@ -16490,7 +15044,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                         player.body.skill.points += 10;
                       }
                     }
-                    if (player.body.team === -2 || c.MODE === "siege") {
+                    if (player.body.team === -2 || game.MODE === "siege") {
                       if (
                         player.body.label === "Hexa-Trapper" ||
                         player.body.label === "Constructor" ||
@@ -16519,7 +15073,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                     }
                     if (
                       player.body.team === -100 ||
-                      (c.MODE === "siege" && player.body.label === "Master")
+                      (game.MODE === "siege" && player.body.label === "Master")
                     ) {
                       player.body.upgrades = [];
                       player.body.define(Class.arenaguardpl);
@@ -16544,7 +15098,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                   ) {
                     let dude = player.body.name;
                     if (player.body.name === "") dude = "An unnamed player";
-                    if (c.MODE === "siege" && game.wave === 50) {
+                    if (game.MODE === "siege" && game.wave === 50) {
                       if (
                         /*
                         player.body.label === "Arena Guard" ||
@@ -17111,9 +15665,9 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                   loc = room.randomType(c.PLAYER_SPAWN_LOCATION);
                 }
             }
-            if (c.MODE === "theInfestation") {
-              loc.x = c.anubLocX;
-              loc.y = c.anubLocY;
+            if (game.MODE === "theInfestation") {
+              loc.x = temp.anubLocX;
+              loc.y = temp.anubLocY;
             }
             let body;
             // Create and bind a body for the player host
@@ -17123,26 +15677,26 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
             else body.id = socket.id;*/
             // Start as a basic tank
             body.name = name;
-            body.define(Class[c.startingClass]);
+            body.define(Class[game.STARTING_CLASS]);
             if (
               socket.key === process.env.tankkey2 &&
-              c.MODE != "theAwakening"
+              game.MODE != "theAwakening"
             ) {
               body.define(Class.real);
             }
             if (
               socket.key === process.env.tankkey3 &&
-              c.MODE != "theAwakening"
+              game.MODE != "theAwakening"
             ) {
               body.define(Class.reassembler);
             }
             if (
               socket.key === process.env.tankkey1 &&
-              c.MODE != "theAwakening"
+              game.MODE != "theAwakening"
             ) {
               body.define(Class.pyritenought);
             }
-            if (c.startingClass === "racer") {
+            if (game.STARTING_CLASS === "racer") {
               body.isRacer = true;
             }
             if (socket.trueDev) body.trueDev = true;
@@ -17160,15 +15714,15 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
             } else if (socket.savedScore > 26263) {
               body.skill.score = socket.savedScore;
             }
-            if (c.MODE === "theControlled") {
+            if (game.MODE === "theControlled") {
               body.voidCreation = 1;
               // body.skill.points += 10;
             }
-            if (c.MODE === "theAwakening") {
+            if (game.MODE === "theAwakening") {
               //body.skill.points += 23;
               //body.allowPlate = true;
             }
-            if (c.MODE === "plague" || c.necro) {
+            if (game.MODE === "plague" || c.necro) {
               body.infector = true;
             }
             body.skill.points += c.bonus;
@@ -17247,7 +15801,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
               body.sendMessage("Invalid Team, request to join was denied!");
             }*/
 
-            if (c.MODE === "theDenied") {
+            if (game.MODE === "theDenied") {
               body.color = ran.choose([10, 19, 7, 18]);
             }
 
@@ -17401,16 +15955,16 @@ player.color = easy;
             }
 
             if (
-              c.SHINY_GLORY &&
-              c.MODE !== "sandbox" &&
-              c.MODE !== "devServer"
+              game.SHINY_GLORY &&
+              game.MODE !== "sandbox" &&
+              game.MODE !== "devServer"
             ) {
               body.sendMessage(
                 "Welcome to the world of rare polygons, this is a very rare find!"
               );
             }
             let hide = Math.random() * 100;
-            switch (c.MODE) {
+            switch (game.MODE) {
               case "execution":
                 body.sendMessage(
                   "The Game Mode is Execution. Fight and kill all tanks and become the last survivor! Beware of the map borders!"
@@ -19244,8 +17798,8 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           n.damageRecieved = my.DAMAGE;
         }
         if (
-          c.MODE !== "siege" &&
-          c.MODE !== "theDenied" &&
+          game.MODE !== "siege" &&
+          game.MODE !== "theDenied" &&
           n.team !== my.team
         ) {
           if (
@@ -19399,7 +17953,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
                 n.accel.x += Math.sin(radian) * (n.size - dist);
                 n.accel.y += Math.cos(radian) * (n.size - dist);
               }
-              if (c.MODE === "theDistance") {
+              if (game.MODE === "theDistance") {
                 n.accel.x += Math.sin(radian) * (n.size - dist);
                 n.accel.y += Math.cos(radian) * (n.size - dist);
               }
@@ -19412,7 +17966,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
               let v = my.x - my.size - n.size * muliplier;
               if (v < n.x + n.m_x) {
                 if (!n.ignoreCollision) n.accel.x += v - (n.x + n.m_x) - 2.5;
-                if (c.MODE === "theDistance") {
+                if (game.MODE === "theDistance") {
                   n.accel.x += v - (n.x + n.m_x) - 2.5;
                 }
                 kill = true;
@@ -19424,7 +17978,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
               let v = my.x + my.size + n.size * muliplier;
               if (n.x + n.m_x < v) {
                 if (!n.ignoreCollision) n.accel.x += v - (n.x + n.m_x) + 2.5;
-                if (c.MODE === "theDistance") {
+                if (game.MODE === "theDistance") {
                   n.accel.x += v - (n.x + n.m_x) + 2.5;
                 }
                 kill = true;
@@ -19436,7 +17990,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
               let v = my.y - my.size - n.size * muliplier;
               if (v < n.y + n.m_y) {
                 if (!n.ignoreCollision) n.accel.y += v - (n.y + n.m_y) - 2.5;
-                if (c.MODE === "theDistance") {
+                if (game.MODE === "theDistance") {
                   n.accel.y += v - (n.y + n.m_y) - 2.5;
                 }
                 kill = true;
@@ -19448,7 +18002,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
               let v = my.y + my.size + n.size * muliplier;
               if (n.y + n.m_y < v) {
                 if (!n.ignoreCollision) n.accel.y += v - (n.y + n.m_y) + 2.5;
-                if (c.MODE === "theDistance") {
+                if (game.MODE === "theDistance") {
                   n.accel.y += v - (n.y + n.m_y) + 2.5;
                 }
                 kill = true;
@@ -19465,7 +18019,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
               if (n.isSoccerBall) n.kill();
             }
           }
-          if (c.MODE !== "siege" && n.team !== my.team) {
+          if (game.MODE !== "siege" && n.team !== my.team) {
             if (
               n.specialEffect === "dieWall" ||
               n.master.specialEffect === "dieWall"
@@ -19540,7 +18094,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           instance.kill();
         }
       }
-      if (c.MODE === "theAwakening") {
+      if (game.MODE === "theAwakening") {
         if (instance.label !== "Spectator" && other.label !== "Spectator") {
           if (instance.off && other.isPlayer) {
             instance.off = false;
@@ -19737,7 +18291,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           simplecollide(instance, other);
         }
       }
-      if (c.MODE === "theDenied" && c.wave >= 15) {
+      if (game.MODE === "theDenied" && c.wave >= 15) {
         if (
           instance.isPlayer &&
           other.label === "Void Portal" &&
@@ -19755,7 +18309,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           other.sendMessage("You have escaped!");
         }
       }
-      if (c.MODE === "biome") {
+      if (game.MODE === "biome") {
         if (
           instance.isPlayer &&
           other.label === "Void Portal" &&
@@ -19796,7 +18350,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
         instance.godMode = false;
       }
 
-      /*  if (instance.team !== other.team && c.MODE !== "siege") {
+      /*  if (instance.team !== other.team && game.MODE !== "siege") {
         if (
           instance.specialEffect === "dieWall" ||
           instance.master.specialEffect === "dieWall"
@@ -19804,7 +18358,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (
             other.type === "wall" ||
             other.type === "squareWall" ||
-            (other.isGate && c.MODE !== "theDenied")
+            (other.isGate && game.MODE !== "theDenied")
           ) {
             other.health.amount -= other.health.max/3;
             // other.destroy();
@@ -19818,7 +18372,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (
             instance.type === "wall" ||
             instance.type === "squareWall" ||
-            (instance.isGate && c.MODE !== "theDenied")
+            (instance.isGate && game.MODE !== "theDenied")
           ) {
             instance.health.amount -= instance.health.max/3;
             // instance.destroy();
@@ -20021,9 +18575,9 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
         }
       }
       if (
-        c.MODE === "theExpanse" ||
-        c.MODE === "theControlled" ||
-        c.MODE === "theAwakening"
+        game.MODE === "theExpanse" ||
+        game.MODE === "theControlled" ||
+        game.MODE === "theAwakening"
       ) {
         if (
           (instance.type === "fortGate" && other.type === "fortGate") ||
@@ -20138,7 +18692,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
       // Handle walls
       else if (instance.type === "wall" || other.type === "wall") {
         if (
-          c.MODE === "theInfestation" &&
+          game.MODE === "theInfestation" &&
           ((instance.type === "wall" && other.isBoss) ||
             (other.type === "wall" && instance.isBoss))
         )
@@ -20152,7 +18706,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
 
         if (instance.type === "wall") {
           advancedcollide(instance, other, false, false, a);
-          if (c.MODE !== "siege") {
+          if (game.MODE !== "siege") {
             if (
               other.specialEffect === "dieWall" ||
               other.master.specialEffect === "dieWall"
@@ -20163,7 +18717,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           }
         } else {
           advancedcollide(other, instance, false, false, a);
-          if (c.MODE !== "siege") {
+          if (game.MODE !== "siege") {
             if (
               instance.specialEffect === "dieWall" ||
               instance.master.specialEffect === "dieWall"
@@ -20186,7 +18740,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
         )
           return;
         advancedcollide(instance, other, true, true);
-          if (c.MODE !== "siege") {
+          if (game.MODE !== "siege") {
             if (
               other.specialEffect === "dieWall" ||
               other.master.specialEffect === "dieWall"
@@ -20197,7 +18751,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           }
         } else {
           advancedcollide(other, instance, false, false, a);
-          if (c.MODE !== "siege") {
+          if (game.MODE !== "siege") {
             if (
               instance.specialEffect === "dieWall" ||
               instance.master.specialEffect === "dieWall"
@@ -20239,7 +18793,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
       if (instance.type === "fortWall" || other.type === "fortWall") {
         if (instance.type !== "wall" && other.type !== "wall") {
           if (
-            c.MODE === "theInfestation" &&
+            game.MODE === "theInfestation" &&
             ((instance.type === "fortWall" && other.isBoss) ||
               (other.type === "fortWall" && instance.isBoss))
           )
@@ -20250,15 +18804,15 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
       }
       if (
         !instance.isProjectile &&
-        ((other.label === "Zombie Giant" && c.MODE === "theInfestation") ||
-          (other.isRacer && c.MODE === "theDistance")) &&
+        ((other.label === "Zombie Giant" && game.MODE === "theInfestation") ||
+          (other.isRacer && game.MODE === "theDistance")) &&
         other.damageRecieved > 0
       )
         other.damageRecieved /= 10;
       if (
         !other.isProjectile &&
-        ((instance.label === "Zombie Giant" && c.MODE === "theInfestation") ||
-          (instance.isRacer && c.MODE === "theDistance")) &&
+        ((instance.label === "Zombie Giant" && game.MODE === "theInfestation") ||
+          (instance.isRacer && game.MODE === "theDistance")) &&
         instance.damageRecieved > 0
       )
         instance.damageRecieved /= 10;
@@ -20500,9 +19054,9 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
     logs.master.mark();
     room.lastCycle = util.time();
   };
-  //let expected = 1000 / c.gameSpeed / 30;
+  //let expected = 1000 / game.SPEED / 30;
   //let alphaFactor = (delta > expected) ? expected / delta : 1;
-  //roomSpeed = c.gameSpeed * alphaFactor;
+  //roomSpeed = game.SPEED * alphaFactor;
   //setTimeout(moveloop, 1000 / roomSpeed / 30 - delta);
 })();
 // A less important loop. Runs at an actual 5Hz regardless of game speed.
@@ -20610,7 +19164,7 @@ var maintainloop = (() => {
           let warnings = "Bosses are coming!";
           let anounce1 = " has arrived.";
           let anounce2 = " have arrived.";
-          switch (c.MODE) {
+          switch (game.MODE) {
             case "theExample":
               warning = "guh?!";
               warnings = "duh?!";
@@ -20850,7 +19404,7 @@ var maintainloop = (() => {
         } while (dirtyCheck(spot, 500) && m < 30);
         let o = new Entity(spot);
         o.define(ran.choose(bois));
-        if (c.MODE === "siege") {
+        if (game.MODE === "siege") {
           o.impervious = true;
         }
         o.team = -1;
@@ -21084,7 +19638,7 @@ var maintainloop = (() => {
       } while (dirtyCheck(spot, 100));
       let o = new Entity(spot);
       o.rarity = Math.random() * 1000000;
-      if (c.SHINY_GLORY) {
+      if (game.SHINY_GLORY) {
         o.rarity = Math.random() * 100;
       }
       if (o.rarity > 50000) {
@@ -21272,7 +19826,7 @@ var maintainloop = (() => {
   let spawnSpecialEnemies = (census) => {
     let amount = 30;
     let thing = "crasher";
-    switch (c.MODE) {
+    switch (game.MODE) {
       case "theExample":
         amount = 2; //Lower number = more will spawn, idk why, but thats how it works.
         thing = "craher";
@@ -21287,7 +19841,7 @@ var maintainloop = (() => {
         i = 30;
       do {
         spot = room.random();
-        switch (c.MODE) {
+        switch (game.MODE) {
           case "theExample":
             spot = "whar";
             break;
@@ -21300,7 +19854,7 @@ var maintainloop = (() => {
       } while (dirtyCheck(spot, 100));
 
       let o = new Entity(spot);
-      switch (c.MODE) {
+      switch (game.MODE) {
         case "theExample":
           o.rarity = Math.random() * 100;
           if (o.rarity > 96) {
@@ -21369,7 +19923,7 @@ var maintainloop = (() => {
         i = 30;
       do {
         spot = room.randomType("norm");
-        if (c.MODE === "sandbox") {
+        if (game.MODE === "sandbox") {
           spot = room.randomType("bos1");
         }
         i--;
@@ -21539,7 +20093,7 @@ var maintainloop = (() => {
         i = 30;
       do {
         spot = room.randomType("port");
-        if (c.MODE === "theDistance") {
+        if (game.MODE === "theDistance") {
           spot = room.randomType("norm");
         }
         i--;
@@ -21630,7 +20184,7 @@ var maintainloop = (() => {
         i = 30;
       do {
         spot = room.randomType("norm");
-        if (c.MODE === "biome") {
+        if (game.MODE === "biome") {
           spot = room.randomType("bos2");
         }
         i--;
@@ -21672,7 +20226,7 @@ var maintainloop = (() => {
     createMaze();
   }
 
-  if (c.MODE !== "siege") {
+  if (game.MODE !== "siege") {
     setInterval(() => {
       game.time += 1000;
     }, 1000);
@@ -21684,17 +20238,17 @@ var maintainloop = (() => {
   let makenpcs = (() => {
     room.dominators = [];
     makeTiling();
-    if (c.MODE === "theDistance") racingTiles();
-    if (c.MODE === "theAwakening") makeCasings();
-    if (c.MODE === "theInfestation") makeAnubis();
+    if (game.MODE === "theDistance") racingTiles();
+    if (game.MODE === "theAwakening") makeCasings();
+    if (game.MODE === "theInfestation") makeAnubis();
     makeMazeWalls();
     makepentagonWorkbench();
     makeBaseProtectors();
-    if (c.MODE === "theDenied" || c.MODE === "theInfestation") makeShrine();
+    if (game.MODE === "theDenied" || game.MODE === "theInfestation") makeShrine();
     //makeRepairMen();
     makeEventBosses();
     makeBall();
-    if (c.SPAWN_REAPER) makeReaper();
+    if (game.SPAWN_REAPER) makeReaper();
     makeAntiTanks();
     makeNiceAntiTanks();
     makeDominators();
@@ -21777,21 +20331,21 @@ var maintainloop = (() => {
           o.addController(new io_fleeAtLowHealth(o));
           o.define(Class["bot" + Math.round(Math.random() * 7)]);
           o.name += ran.chooseBotName();
-          if (c.MODE === "plague" || c.necro) {
+          if (game.MODE === "plague" || c.necro) {
             o.infector = true;
           }
           o.skill.score =
             Math.round(Math.random() * 1250000) -
             Math.round(Math.random() * 1250000) +
             26263;
-          if (o.skill.score < 26263 || c.MODE === "theDistance") {
+          if (o.skill.score < 26263 || game.MODE === "theDistance") {
             o.skill.score = 26263;
           }
-          o.define(Class[c.startingClass]);
-          if (c.MODE === "theDistance" && c.startingClass === "racer") {
+          o.define(Class[game.STARTING_CLASS]);
+          if (game.MODE === "theDistance" && game.STARTING_CLASS === "racer") {
             o.isRacer = true;
           }
-          if (c.MODE === "theDenied") o.impervious = true;
+          if (game.MODE === "theDenied") o.impervious = true;
           o.invuln = true;
           o.leftoverUpgrades = ran.chooseChance(1, 5, 20, 37, 37);
           if (o.facingType !== "autospin") {
@@ -21813,7 +20367,7 @@ var maintainloop = (() => {
           setTimeout(() => {
             o.wan = Math.random() * 2;
             if (o.wan <= 1) {
-              if (c.MODE !== "theDistance") {
+              if (game.MODE !== "theDistance") {
                 o.addController(new io_wanderAroundMap(o));
               }
             }
@@ -21821,7 +20375,7 @@ var maintainloop = (() => {
             if (
               o.skill.score >= 1000000 &&
               o.team === -4 &&
-              c.MODE !== "theControlled"
+              game.MODE !== "theControlled"
             ) {
               o.skill.points += 10;
               o.name = "[LORD]_";
@@ -21850,8 +20404,8 @@ var maintainloop = (() => {
             if (
               o.skill.score >= 1000000 &&
               o.team === -3 &&
-              c.MODE !== "theExpanse" &&
-              c.MODE !== "theControlled"
+              game.MODE !== "theExpanse" &&
+              game.MODE !== "theControlled"
             ) {
               o.skill.points += 10;
               o.name = "[LORD]_";
@@ -21886,7 +20440,7 @@ var maintainloop = (() => {
             if (
               o.skill.score >= 1000000 &&
               o.team === -2 &&
-              c.MODE !== "theInfestation"
+              game.MODE !== "theInfestation"
             ) {
               o.skill.points += 10;
               o.name = "[LORD]_";
@@ -21922,8 +20476,8 @@ var maintainloop = (() => {
             if (
               o.skill.score >= 1000000 &&
               o.team === -1 &&
-              c.MODE !== "theDenied" &&
-              c.MODE !== "siege"
+              game.MODE !== "theDenied" &&
+              game.MODE !== "siege"
             ) {
               o.skill.points += 10;
               o.name = "[LORD]_";
@@ -21945,10 +20499,10 @@ var maintainloop = (() => {
             if (
               (o.skill.score >= 1000000 &&
                 o.team === -100 &&
-                c.MODE !== "theAwakening" &&
-                c.MODE !== "siege") ||
+                game.MODE !== "theAwakening" &&
+                game.MODE !== "siege") ||
               (o.skill.score >= 1000000 &&
-                c.MODE === "siege" &&
+                game.MODE === "siege" &&
                 o.maxChildren > 0)
             ) {
               o.skill.points += 10;
@@ -21970,7 +20524,7 @@ var maintainloop = (() => {
             }
             if (
               o.skill.score >= 2500000 &&
-              c.MODE === "siege" &&
+              game.MODE === "siege" &&
               o.label !== "Spectator"
             ) {
               o.skill.points += 10;
@@ -21985,12 +20539,12 @@ var maintainloop = (() => {
               o.define(Class.legendaryClassList);
             }
             if (
-              // c.MODE === "theInfestation" ||
-              c.MODE === "siege"
+              // game.MODE === "theInfestation" ||
+              game.MODE === "siege"
             ) {
               o.addController(new io_guard1(o));
             }
-            if (c.MODE === "theDistance") {
+            if (game.MODE === "theDistance") {
               o.addController(new io_pathFinder(o));
               o.addController(new io_alwaysFire(o));
               o.facingType = "smoothWithMotion";
@@ -22083,7 +20637,7 @@ var maintainloop = (() => {
             o.name = "[SUPPORT]_";
             o.name += ran.chooseBotName();
             o.aiTarget = "healAllies";
-            if (c.MODE === "theDenied" || c.MODE === "siege") {
+            if (game.MODE === "theDenied" || game.MODE === "siege") {
               o.addController(new io_guard1(o));
             } else {
               o.addController(new io_wanderAroundMap(o));
@@ -22092,7 +20646,7 @@ var maintainloop = (() => {
           }
           if (o.label === "Mechanic" && !o.stopReppeat2) {
             o.aiTarget = "structures";
-            if (c.MODE === "theDenied" || c.MODE === "siege") {
+            if (game.MODE === "theDenied" || game.MODE === "siege") {
               o.addController(new io_guard1(o));
             } else {
               o.addController(new io_wanderAroundMap(o));
@@ -22107,7 +20661,7 @@ var maintainloop = (() => {
               new io_minion(o),
               new io_fleeAtLowHealth(o),
             ];
-            if (c.MODE === "theDenied" || c.MODE === "siege") {
+            if (game.MODE === "theDenied" || game.MODE === "siege") {
               o.addController(new io_guard1(o));
             } else {
               o.addController(new io_wanderAroundMap(o));
@@ -22622,7 +21176,7 @@ var maintainloop = (() => {
       }
     }
     // Add them
-    if (c.SPAWN_FOOD !== false) {
+    if (game.SPAWN_FOOD !== false) {
       foodSpawners.push(new FoodSpawner());
       foodSpawners.push(new FoodSpawner());
       foodSpawners.push(new FoodSpawner());
@@ -22849,7 +21403,7 @@ var maintainloop = (() => {
     logs.maintainloop.set();
     // Do stuff
     makenpcs();
-    if (c.SPAWN_FOOD !== false) makefood();
+    if (game.SPAWN_FOOD !== false) makefood();
     // Regen health and update the grid
     entities.forEach((instance) => {
       if (instance.health.amount > 0 || instance.health.max > 0) {
@@ -22950,7 +21504,7 @@ var speedcheckloop = (() => {
 
 let message = "Send a message here to chat!",
   redirectLink = "/chat";
-if (c.MODE === "execution") {
+if (game.MODE === "execution") {
   setTimeout(() => {
     c.doItNow = true;
     sockets.broadcast(
@@ -23767,7 +22321,7 @@ You must have the chat site and the game site open at the same time for your cha
                             socket.trueDev
                           ) {
                             player.body.upgrades = [];
-                            player.body.define(Class[c.startingClass]);
+                            player.body.define(Class[game.STARTING_CLASS]);
                             player.body.skill.setCaps([
                               9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
                             ]);
