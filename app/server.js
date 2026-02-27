@@ -1608,70 +1608,110 @@ class io_wanderAroundMap extends IO {
   }
 }
 class io_pathFinder extends IO {
-  constructor(b) {
-    super(b);
-    this.path = 1;
-    this.spot = room.randomType("pth1");
-  }
-  think(input) {
-    if (!this.body.invuln) {
-      if (room["pth" + this.path]) {
-        if (
-          new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y)
-            .length < 50 ||
-          this.targetLock != undefined
-        ) {
-          this.path += 1;
-          this.spot = room.randomType("pth" + this.path);
-        }
-      } else {
-        this.path = 1;
-        this.spot = room.randomType("pth" + this.path);
-      }
+  constructor(body) {
+    super(body);
 
-      return { goal: this.spot };
+    this.pathIndex = 1;
+    this.goal = null;
+    this.reachDistance = 50;
+
+    this.pickNewGoal();
+  }
+
+  pickNewGoal() {
+    const type = "pth" + this.pathIndex;
+
+    // If the path type doesn't exist, wander randomly
+    if (!room[type] || !room[type].length) {
+      this.goal = room.random();
+      return;
     }
+
+    const selection = room.randomType(type);
+
+    // If randomType somehow fails, fallback to random
+    this.goal = selection || room.random();
+  }
+
+  reachedGoal() {
+    if (!this.goal) return true;
+
+    const dx = this.body.x - this.goal.x;
+    const dy = this.body.y - this.goal.y;
+
+    return dx * dx + dy * dy <= this.reachDistance * this.reachDistance;
+  }
+
+  think() {
+    if (this.body.invuln) return;
+
+    if (!this.goal || this.reachedGoal()) {
+      this.pathIndex++;
+      this.pickNewGoal();
+    }
+
+    return { goal: this.goal };
   }
 }
 class io_guard1 extends IO {
   constructor(b) {
     super(b);
-    if (game.MODE === "theDenied" || game.MODE === "theDivided") {
-      if (this.body.isRanar || this.body.eliteBoss) {
-        this.spot = room.type("spw0");
-      } else {
-        this.spot = room.type("nest");
-      }
+
+    this.roomType = null;
+    this.spot = null;
+
+    this.assignRoom();
+  }
+
+  assignRoom() {
+    switch (game.MODE) {
+      case "theDenied":
+      case "theDivided":
+        if (this.body.isRanar || this.body.eliteBoss) {
+          this.roomType = "spw0";
+        } else {
+          this.roomType = "nest";
+        }
+        break;
+
+      case "BossArena":
+        this.roomType = "vpr0";
+        break;
+
+      case "theAwakening":
+        this.roomType = ran.choose(game.npcWanderLoc1);
+        break;
+
+      case "siege":
+        this.roomType = "dom1";
+        break;
+
+      case "theInfestation":
+        this.roomType = this.body.isAnubis ? "vpr0" : "dom0";
+        break;
+
+      case "theGreatPlague":
+        this.roomType = "dom0";
+        break;
     }
-    if (game.MODE === "BossArena") {
-      this.spot = room.type("vpr0");
-    }
-    if (game.MODE === "theAwakening") {
-      this.spot = room.type(ran.choose(game.npcWanderLoc1));
-    }
-    if (game.MODE === "siege") {
-      this.spot = room.randomType("dom1");
-    }
-    if (game.MODE === "theInfestation") {
-      if (this.body.isAnubis) {
-        this.spot = room.randomType("vpr0");
-      } else this.spot = room.randomType("dom0");
-    }
-    if (game.MODE === "theGreatPlague") {
-      this.spot = room.randomType("dom0");
+
+    if (this.roomType) {
+      // Use center tile reference
+      this.spot = room.type(this.roomType) || room.random();
+    } else {
+      this.spot = room.random();
     }
   }
-  think(input) {
-    if (this.body) {
-      if (
-        new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y)
-          .length < 50 ||
-        this.targetLock != undefined ||
-        this.body.invuln
-      ) {
-        if (game.MODE === "theAwakening") this.spot = room.type(ran.choose(game.npcWanderLoc1));
-      }
+
+  think() {
+    if (!this.body || !this.spot) return;
+
+    // If we're inside the room tile, stop moving
+    if (this.roomType && room.isIn(this.roomType, this.body)) {
+      return { goal: { x: this.body.x, y: this.body.y } };
     }
+
+    // If we somehow left or no longer valid, keep moving toward spot
     return { goal: this.spot };
   }
 }
