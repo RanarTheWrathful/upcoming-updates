@@ -90317,6 +90317,7 @@ exports.dominator_single = {
           g.superReload,
           g.doubleReload,
           g.halfSpeed,
+          g.doubleRange,
         ]),
         TYPE: exports.bullet,
       },
