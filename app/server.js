@@ -230,10 +230,10 @@ aetherBosses: [
 },
 };
 //util.log(Date());
-if (game.type === "testing") chosenMode = "Siege";
+if (game.TYPE === "testing") chosenMode = "Siege";
 //change this to play a specific mode
-else if (game.type === "normal") {
-  game.list = [
+else if (game.TYPE === "normal") {
+  game.LIST = [
     "Open Execution",
     "Maze Execution",
     "4TDM Growth",
@@ -256,7 +256,7 @@ else if (game.type === "normal") {
     "Siege",
   ];
   if (currentState.modeVotes.length === 0) {
-    chosenMode = ran.choose(game.list);
+    chosenMode = ran.choose(game.LIST);
   } else {
     let votes = countInstances(currentState.modeVotes);
     let result = pickTheBiggest(votes);
@@ -272,8 +272,8 @@ else if (game.type === "normal") {
       currentState.modeVotes = [];
     }
   }
-} else if (game.type === "lore") {
-  game.list = [
+} else if (game.TYPE === "lore") {
+  game.LIST = [
     "The Expanse",
     "The Infestation",
     "The Controlled",
@@ -281,11 +281,11 @@ else if (game.type === "normal") {
     "The Awakening",
     "The Distance",
   ];
-  let listCount = game.list.length;
+  let listCount = game.LIST.length;
   if (listCount > currentState.loreModeIndex) {
-    chosenMode = game.list[currentState.loreModeIndex];
+    chosenMode = game.LIST[currentState.loreModeIndex];
   } else {
-    chosenMode = game.list[0];
+    chosenMode = game.LIST[0];
     serverState.resetLoreIndex();
   }
 }
@@ -306,7 +306,7 @@ const currentDate = new Date(),
 currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
 if (currentMonth === 9) {
   // October
-  if (game.type === "normal" && chosenMode !== "Siege") {
+  if (game.TYPE === "normal" && chosenMode !== "Siege") {
     game.SPAWN_REAPER = true;
   }
 } else if (currentMonth === 11) {
@@ -318,28 +318,28 @@ if (currentMonth === 9) {
 function siegeWaves() {
 }
 if (currentState.bossWaves <= 50) {
-  game.wave = currentState.bossWaves * 1;
-  // util.log(game.wave);
+  game.WAVE = currentState.bossWaves * 1;
+  // util.log(game.WAVE);
 } else {
-  game.wave = 1;
+  game.WAVE = 1;
 }
 ///Config file, nicholas
 
 //important settings
 function removeMuted(socketIP) {
   console.log("Removing from muteList:", socketIP);
-  console.log("Current muteList:", game.mutes);
-  const index = game.mutes.indexOf(socketIP);
+  console.log("Current muteList:", game.MUTES);
+  const index = game.MUTES.indexOf(socketIP);
   if (index !== -1) {
-    game.mutes.splice(index, 1);
-    console.log("Updated muteList:", game.mutes);
+    game.MUTES.splice(index, 1);
+    console.log("Updated muteList:", game.MUTES);
   }
 }
 
 function removeBanned(socketIP) {
-  const index = game.bans.indexOf(socketIP);
+  const index = game.BANS.indexOf(socketIP);
   if (index !== -1) {
-    game.bans.splice(index, 1);
+    game.BANS.splice(index, 1);
   }
 }
 setInterval(() => {
@@ -670,23 +670,23 @@ function spawnGridStrip({
     });
 
   if (gridWidth > gridHeight) {
-    let start = logame.x - gridWidth / 2 + gridHeight / 2;
-    let end   = logame.x + gridWidth / 2 - gridHeight / 2;
+    let start = loc.x - gridWidth / 2 + gridHeight / 2;
+    let end   = loc.x + gridWidth / 2 - gridHeight / 2;
 
     for (let x = start; x <= end; x += gridHeight) {
-      spawn(Math.min(x, end), logame.y, gridHeight / sizeScale);
+      spawn(Math.min(x, end), loc.y, gridHeight / sizeScale);
     }
 
   } else if (gridWidth < gridHeight) {
-    let start = logame.y + gridWidth / 2 - gridHeight / 2;
-    let end   = logame.y - gridWidth / 2 + gridHeight / 2;
+    let start = loc.y + gridWidth / 2 - gridHeight / 2;
+    let end   = loc.y - gridWidth / 2 + gridHeight / 2;
 
     for (let y = start; y <= end; y += gridWidth) {
-      spawn(logame.x, Math.min(y, end), gridWidth / sizeScale);
+      spawn(loc.x, Math.min(y, end), gridWidth / sizeScale);
     }
 
   } else {
-    spawn(logame.x, logame.y, gridWidth / sizeScale);
+    spawn(loc.x, loc.y, gridWidth / sizeScale);
   }
 }
 
@@ -793,8 +793,8 @@ function makeFortWalls() {
       team: -100,
       color: 16,
       grid: {
-        x: Math.floor(logame.x / gridWidth),
-        y: Math.floor(logame.y / gridHeight)
+        x: Math.floor(loc.x / gridWidth),
+        y: Math.floor(loc.y / gridHeight)
       },
       extra: o => {
         o.isWall = true;
@@ -817,8 +817,8 @@ function makeTeamedWalls() {
       team: -i,
       color: [10, 18, 7, 19][i - 1],
       grid: {
-        x: Math.floor(logame.x / gridWidth),
-        y: Math.floor(logame.y / gridHeight)
+        x: Math.floor(loc.x / gridWidth),
+        y: Math.floor(loc.y / gridHeight)
       },
       extra: o => {
         o.isWall = true;
@@ -855,8 +855,8 @@ function makeTiling() {
       team: -100,
       color: 3,
       grid: {
-        x: Math.floor(logame.x / gridWidth),
-        y: Math.floor(logame.y / gridHeight)
+        x: Math.floor(loc.x / gridWidth),
+        y: Math.floor(loc.y / gridHeight)
       }
     });
   });
@@ -875,8 +875,8 @@ function makeTiling() {
         team: -100,
         color,
         grid: {
-          x: Math.floor(logame.x / gridWidth),
-          y: Math.floor(logame.y / gridHeight)
+          x: Math.floor(loc.x / gridWidth),
+          y: Math.floor(loc.y / gridHeight)
         }
       });
     });
@@ -886,7 +886,7 @@ function closeArena() {
   if (!room.closed) {
     setTimeout(() => {
       sockets.broadcast("Arena closed. No players can join!");
-      game.visibleListInterval = 0;
+      game.VISIBLE_LIST_INTERVAL = 0;
       game.RESPAWN_TIMER = Infinity;
       room.closed = true;
       setTimeout(() => {
@@ -945,7 +945,7 @@ function closeArena() {
           o.refreshBodyAttributes();
           o.invuln = false;
           o.defy = true;
-          game.killCheaters = true;
+      
           o.impervious = true;
           o.alwaysExists = true;
         }
@@ -965,18 +965,8 @@ function closeArena() {
         o.refreshBodyAttributes();
         o.invuln = false;
         o.defy = true;
-        game.killCheaters = true;
       }/*/
-        game.BOTS = 0;
-        game.SPAWN_SENTINEL = false;
-        game.SPAWN_CRASHER = false;
-        game.SPAWN_SENTINEL = false;
-        game.SPAWN_VOIDLORD_ENEMIES = false;
-        game.SPAWN_NEUTRAL_BOSSES = false;
-        game.SPAWN_FALLEN_BOSSES = false;
-        game.SPAWN_FOOD = false;
-        game.MODE = "none";
-        if (game.players < 1) {
+        if (game.PLAYERS < 1) {
           util.log("ARENA CLOSED!");
           sockets.broadcast("Closing!");
           process.exit();
@@ -992,13 +982,13 @@ function closeArena() {
   }
 }
 function roomShrinkage() {
-  if (!game.delay) {
+  if (!temp.delay) {
     room.width -= 2;
     room.height -= 2;
     sockets.changeroom();
-    game.delay = true;
+    temp.delay = true;
     setTimeout(() => {
-      game.delay = false;
+      temp.delay = false;
     }, 1);
   }
 }
@@ -1006,7 +996,7 @@ function roomShrinkage() {
 function siegeCountdown() {
   setInterval(() => {
     if (game.initiateCountdown) {
-      switch (game.countdown) {
+      switch (temp.countdown) {
         case 60000:
           sockets.broadcast(
             "Your team will lose in 60 seconds! No players can respawn until a sanctuary is repaired!"
@@ -1043,7 +1033,7 @@ function siegeCountdown() {
           currentState.modeVotes = [];
           closeArena();
       }
-      game.countdown -= 1000;
+      temp.countdown -= 1000;
     }
   }, 1000);
 }
@@ -1220,6 +1210,9 @@ class io_listenToPlayer extends IO {
         x: 100 * Math.cos(kk),
         y: 100 * Math.sin(kk),
       };
+          if (this.body.label === "Spectator" && this.body.alpha < 1) {
+           this.body.alpha = 1;
+          } else this.body.alpha = 0;
     }
     if (this.body.invuln) {
       if (
@@ -1396,978 +1389,140 @@ class io_onlyAcceptInArc extends IO {
 class io_nearestDifferentMaster extends IO {
   constructor(body) {
     super(body);
+
     this.targetLock = undefined;
-    this.tick = ran.irandom(30);
-    this.lead = 0;
-    this.validTargets = this.buildList(body.fov / 2);
-    this.oldHealth = body.health.display();
-    this.body.facing = 0;
+    this.tick = 0;
+
+    // AI configuration
+    const ai = body.aiSettings || {};
+    this.viewRange = ai.viewRange || body.fov || 1000;
+    this.targetMode = ai.targetMode || "general"; 
+    this.turnWhileIdle = ai.turnWhileIdle || false;
+
+    // Dominator-style options
+    this.idleSpinSpeed = ai.idleSpinSpeed || 0;
+    this.spinFire = ai.spinFire || false;
   }
 
-  /* buildList(range) {
-    // Establish whom we judge in reference to
-    let m = { x: this.body.x, y: this.body.y },
-      mm = { x: this.body.master.master.x, y: this.body.master.master.y },
-      mostDangerous = 0,
-      sqrRange = range * range,
-      keepTarget = false;
-    // Filter through everybody...
-    let out = getEntitiesFromRange(m, range)
-      .map((e) => {
-        // Only look at those within our view, and our parent's view, not dead, not our kind, not a bullet/trap/block etc
-        if (!game.globalAIDisable && !this.body.master.AIDisable) {
-          if (e.health.amount > 0 && e.team !== -101 && e.type !== "deity") {
-            if (!e.invuln && !this.body.excludedTargets.includes(e.type)) {
-              switch (this.body.aiTarget) {
-                case "projectiles":
-                  if (
-                    e.master.master.team !== this.body.master.master.team &&
-                    e.isProjectile
-                  ) {
-                    if (
-                      Math.abs(e.x - m.x) < range &&
-                      Math.abs(e.y - m.y) < range
-                    ) {
-                      if (
-                        !this.body.aiSettings.blind ||
-                        (Math.abs(e.x - mm.x) < range &&
-                          Math.abs(e.y - mm.y) < range)
-                      )
-                        return e;
-                    }
-                  }
-                  break;
-                case "allHostiles":
-                  if (e.master.master.team !== this.body.master.master.team && !e.isProjectile) {
-              if ((this.body.label === "Harvest") && (e.isDominator||e.isGate||e.isWall||e.isSoccerBall||e.impervious||e.type === "base"||e.label === "Target Dummy")) return;
-                    if (game.MODE === "JJ's RF" && this.body.aiTarget === "allHostiles" && (!room.isIn("gte1", e) && !room.isIn("bas1", e) && !room.isIn("bad1", e) && !room.isIn("wall", e)||e.isProjectile)) return;
-                    if (
-                      Math.abs(e.x - m.x) < range &&
-                      Math.abs(e.y - m.y) < range
-                    ) {
-                      if (
-                        !this.body.aiSettings.blind ||
-                        (Math.abs(e.x - mm.x) < range &&
-                          Math.abs(e.y - mm.y) < range)
-                      )
-                        return e;
-                    }
-                  }
-                  break;
-
-                case "self":
-                  if (e.master === this.body.master) {
-                    if (
-                      Math.abs(e.x - m.x) < range &&
-                      Math.abs(e.y - m.y) < range
-                    ) {
-                      if (
-                        !this.body.aiSettings.blind ||
-                        (Math.abs(e.x - mm.x) < range &&
-                          Math.abs(e.y - mm.y) < range)
-                      )
-                        return e;
-                    }
-                  }
-
-                  break;
-                case "allies":
-                  if (
-                    e.master.master.team === this.body.master.master.team &&
-                    e.master !== this.body.master &&
-                    !e.isDominator &&
-                    !e.isWall &&
-                    !e.isGate
-                  ) {
-                      if (
-                        e.name !== "Baltyla" &&
-                          game.MODE === "theAwakening" &&
-                        this.body.name === "Valrayvn"
-                      )
-                        return;
-                    if (e.targetable === true) {
-                      if (
-                        Math.abs(e.x - m.x) < range &&
-                        Math.abs(e.y - m.y) < range
-                      ) {
-                        if (
-                          !this.body.aiSettings.blind ||
-                          (Math.abs(e.x - mm.x) < range &&
-                            Math.abs(e.y - mm.y) < range)
-                        )
-                          return e;
-                      }
-                    }
-                  }
-                  break;
-                case "healAllies":
-                  if (
-                    e.master.master.team === this.body.master.master.team &&
-                    e.master !== this.body.master &&
-                    e.health.amount < e.health.max &&
-                    !e.isDominator &&
-                    !e.isWall &&
-                    !e.isGate
-                  ) {
-                    if (e.targetable === true) {
-                      if (
-                        Math.abs(e.x - m.x) < range &&
-                        Math.abs(e.y - m.y) < range
-                      ) {
-                        if (
-                          !this.body.aiSettings.blind ||
-                          (Math.abs(e.x - mm.x) < range &&
-                            Math.abs(e.y - mm.y) < range)
-                        )
-                          return e;
-                      }
-                    }
-                  }
-                  break;
-                case "structures":
-                  if (e.master !== this.body.master) {
-                    if (
-                      ((e.isDominator ||
-                        e.isGate ||
-                        e.isWall ||
-                        e.type === "drone" ||
-                        e.type === "minion" ||
-                        e.type === "trap") &&
-                        e.master !== this.body.master &&
-                        e.team !== this.body.team) ||
-                      ((e.isDominator ||
-                        e.isGate ||
-                        e.isWall ||
-                        e.type === "drone" ||
-                        e.type === "minion" ||
-                        e.type === "trap") &&
-                        e.master !== this.body.master &&
-                        e.team === this.body.team &&
-                        e.health.amount < e.health.max)
-                    ) {
-                      if (
-                        !e.isGate &&
-                        (game.MODE === "theExpanse" ||
-                          game.MODE === "theControlled" ||
-                          game.MODE === "theAwakening")
-                      )
-                        return;
-                      if (
-                        Math.abs(e.x - m.x) < range &&
-                        Math.abs(e.y - m.y) < range
-                      ) {
-                        if (
-                          !this.body.aiSettings.blind ||
-                          (Math.abs(e.x - mm.x) < range &&
-                            Math.abs(e.y - mm.y) < range)
-                        )
-                          return e;
-                      }
-                    }
-                  }
-
-                  break;
-                case "general":
-                case "mostDeadly":
-                case "leastDeadly":
-                default:
-                  if (
-                    e.master.master.team !== this.body.master.master.team &&
-                    e.alpha > 0.3 &&
-                    !room.isIn("bas0", e) &&
-                    !room.isIn("bas1", e) &&
-                    !room.isIn("bap1", e) &&
-                    !room.isIn("bas2", e) &&
-                    !room.isIn("bap2", e) &&
-                    !room.isIn("bas3", e) &&
-                    !room.isIn("bap3", e) &&
-                    !room.isIn("bas4", e) &&
-                    !room.isIn("bas4", e)
-                  ) {
-                    if (e.master.master.team !== -101) {
-                      if (
-                        e.targetable === true ||
-                        (!this.body.aiSettings.shapefriend &&
-                          e.type === "food") ||
-                        (e.isDominator &&
-                          this.body.team !== -101 &&
-                          this.body.type !== "food")
-                      ) {
-                        if (
-                          (this.body.specialEffect === "crusherFortWall" &&
-                            e.ignoreCollision) ||
-                          (game.MODE === "theDenied" && e.isGate)||(this.body.isAnubis && game.MODE === "theInfestation" && (e.isGate && e.isWall))
-                  )
-                          return; 
-                        if (
-                          e.isGate &&
-                          (game.MODE === "theExpanse" ||
-                            game.MODE === "theControlled" ||
-                            game.MODE === "theAwakening")
-                        )
-                          return;
-                        if (
-                          Math.abs(e.x - m.x) < range &&
-                          Math.abs(e.y - m.y) < range
-                        ) {
-                          if (
-                            !this.body.aiSettings.blind ||
-                            (Math.abs(e.x - mm.x) < range &&
-                              Math.abs(e.y - mm.y) < range)
-                          )
-                            return e;
-                        }
-                      }
-                    }
-                  }
-              }
-            }
-          }
-        }
-      })
-      .filter((e) => {
-        return e;
-      });
-    if (!out.length) return [];
-
-    out = out
-      .map((e) => {
-        // Only look at those within range and arc (more expensive, so we only do it on the few)
-        let yaboi = false;
-        if (
-          Math.pow(this.body.x - e.x, 2) + Math.pow(this.body.y - e.y, 2) <
-          sqrRange
-        ) {
-          if (this.body.firingArc == null || this.body.aiSettings.view360) {
-            yaboi = true;
-          } else if (
-            Math.abs(
-              util.angleDifference(
-                util.getDirection(this.body, e),
-                this.body.firingArc[0]
-              )
-            ) < this.body.firingArc[1]
-          )
-            yaboi = true;
-        }
-        switch (this.body.aiTarget) {
-          case "leastDeadly":
-            mostDangerous = Infinity;
-            mostDangerous = Math.min(e.dangerValue, mostDangerous);
-            break;
-            
-          default:
-            if (yaboi) {
-              mostDangerous = Math.max(e.dangerValue, mostDangerous);
-            }
-        }
-        return e;
-      })
-      .filter((e) => {
-        // Only return the highest tier of danger
-        if (e != null) {
-          if (this.body.aiSettings.farm || e.dangerValue === mostDangerous) {
-            if (this.targetLock) {
-              if (e.id === this.targetLock.id) keepTarget = true;
-            }
-            return e;
-          }
-        }
-      });
-    // Reset target if it's not in there
-    if (!keepTarget || this.notWorthIt) this.targetLock = undefined;
-    return out;
-  }*/
   buildList(range) {
-    let m = { x: this.body.x, y: this.body.y },
-      mm = { x: this.body.master.master.x, y: this.body.master.master.y },
-      mostDangerous = 0, // Default: most dangerous (highest dangerValue)
-      leastDangerous = Infinity, // For least deadly case (lowest dangerValue)
-      sqrRange = range * range,
-      keepTarget = false;
+    const list = [];
+    const myTeam = this.body.team;
+    const myMaster = this.body.master.master;
 
-    // Filter entities in range and process their details
-    let out = getEntitiesFromRange(m, range)
-      .map((e) => {
-        if (!game.globalAIDisable && !this.body.master.AIDisable) {
-          if (e.health.amount > 0 && e.team !== -101 && e.type !== "deity") {
-            if (!e.invuln && !this.body.excludedTargets.includes(e.type)) {
-              switch (this.body.aiTarget) {
-                case "leastDeadly":
-                  // Track the least dangerous target (lowest dangerValue)
-                  if (
-                    e.master.master.team !== this.body.master.master.team &&
-                    e.alpha > 0.3 &&
-                    !room.isIn("bas0", e) &&
-                    !room.isIn("bas1", e) &&
-                    !room.isIn("bap1", e) &&
-                    !room.isIn("bas2", e) &&
-                    !room.isIn("bap2", e) &&
-                    !room.isIn("bas3", e) &&
-                    !room.isIn("bap3", e) &&
-                    !room.isIn("bas4", e) &&
-                    !room.isIn("bas4", e)
-                  ) {
-                    if (e.master.master.team !== -101) {
-                      if (
-                        e.targetable === true ||
-                        (!this.body.aiSettings.shapefriend &&
-                          e.type === "food") ||
-                        (e.isDominator &&
-                          this.body.team !== -101 &&
-                          this.body.type !== "food")
-                      ) {
-                        if (
-                          (this.body.specialEffect === "crusherFortWall" &&
-                            e.ignoreCollision) ||
-                          (game.MODE === "theDenied" && e.isGate) ||
-                          (this.body.isAnubis &&
-                            game.MODE === "theInfestation" &&
-                            e.isGate &&
-                            e.isWall)
-                        )
-                          return;
-                        if (
-                          e.isGate &&
-                          (game.MODE === "theExpanse" ||
-                            game.MODE === "theControlled" ||
-                            game.MODE === "theAwakening")
-                        )
-                          return;
-                        if (
-                          Math.abs(e.x - m.x) < range &&
-                          Math.abs(e.y - m.y) < range
-                        ) {
-                          if (
-                            !this.body.aiSettings.blind ||
-                            (Math.abs(e.x - mm.x) < range &&
-                              Math.abs(e.y - mm.y) < range)
-                          ) {
-                            leastDangerous = Math.min(
-                              e.dangerValue,
-                              leastDangerous
-                            );
-                            return e; // Return this target if it has the least dangerValue
-                          }
-                        }
-                      }
-                    }
-                  }
-                  break;
-                case "projectiles":
-                  if (
-                    e.master.master.team !== this.body.master.master.team &&
-                    e.isProjectile
-                  ) {
-                    if (
-                      Math.abs(e.x - m.x) < range &&
-                      Math.abs(e.y - m.y) < range
-                    ) {
-                      if (
-                        !this.body.aiSettings.blind ||
-                        (Math.abs(e.x - mm.x) < range &&
-                          Math.abs(e.y - mm.y) < range)
-                      )
-                        return e;
-                    }
-                  }
-                  break;
-                case "allHostiles":
-                  if (
-                    e.master.master.team !== this.body.master.master.team &&
-                    !e.isProjectile
-                  ) {
-                    if (
-                      this.body.label === "Harvest" &&
-                      (e.isDominator ||
-                        e.isGate ||
-                        e.isWall ||
-                        e.isSoccerBall ||
-                        e.impervious ||
-                        e.type === "base" ||
-                        e.label === "Target Dummy")
-                    )
-                      return;
-                    if (
-                      game.MODE === "JJ's RF" &&
-                      this.body.aiTarget === "allHostiles" &&
-                      ((!room.isIn("gte1", e) &&
-                        !room.isIn("bas1", e) &&
-                        !room.isIn("bad1", e) &&
-                        !room.isIn("wall", e)) ||
-                        e.isProjectile)
-                    )
-                      return;
-                    if (
-                      Math.abs(e.x - m.x) < range &&
-                      Math.abs(e.y - m.y) < range
-                    ) {
-                      if (
-                        !this.body.aiSettings.blind ||
-                        (Math.abs(e.x - mm.x) < range &&
-                          Math.abs(e.y - mm.y) < range)
-                      )
-                        return e;
-                    }
-                  }
-                  break;
+    for (let i = 0; i < entities.length; i++) {
+      const e = entities[i];
+      if (!e) continue;
+      if (e === this.body) continue;
+      if (e.master.master === myMaster) continue;
+      if (e.team === myTeam && myTeam !== -100) continue;
+      if (e.invuln) continue;
+      if (e.alpha <= 0) continue;
+      if (e.type === "wall") continue;
 
-                case "structures":
-                  if (e.master !== this.body.master) {
-                    if (
-                      ((e.isDominator ||
-                        e.isGate ||
-                        e.isWall ||
-                        e.type === "drone" ||
-                        e.type === "minion" ||
-                        e.type === "trap") &&
-                        e.master !== this.body.master &&
-                        e.team !== this.body.team) ||
-                      ((e.isDominator ||
-                        e.isGate ||
-                        e.isWall ||
-                        e.type === "drone" ||
-                        e.type === "minion" ||
-                        e.type === "trap") &&
-                        e.master !== this.body.master &&
-                        e.team === this.body.team &&
-                        e.health.amount < e.health.max)
-                    ) {
-                      if (
-                        !e.isGate &&
-                        (game.MODE === "theExpanse" ||
-                          game.MODE === "theControlled" ||
-                          game.MODE === "theAwakening")
-                      )
-                        return;
-                      if (
-                        Math.abs(e.x - m.x) < range &&
-                        Math.abs(e.y - m.y) < range
-                      ) {
-                        if (
-                          !this.body.aiSettings.blind ||
-                          (Math.abs(e.x - mm.x) < range &&
-                            Math.abs(e.y - mm.y) < range)
-                        )
-                          return e;
-                      }
-                    }
-                  }
+      const dx = e.x - this.body.x;
+      const dy = e.y - this.body.y;
+      const dist = dx * dx + dy * dy;
 
-                  break;
+      if (dist > range * range) continue;
 
-                case "self":
-                  if (e.master === this.body.master) {
-                    if (
-                      Math.abs(e.x - m.x) < range &&
-                      Math.abs(e.y - m.y) < range
-                    ) {
-                      if (
-                        !this.body.aiSettings.blind ||
-                        (Math.abs(e.x - mm.x) < range &&
-                          Math.abs(e.y - mm.y) < range)
-                      )
-                        return e;
-                    }
-                  }
+      list.push({
+        entity: e,
+        dist,
+        danger: e.dangerValue || 0
+      });
+    }
 
-                  break;
-                case "allies":
-                  if (
-                    e.master.master.team === this.body.master.master.team &&
-                    e.master !== this.body.master &&
-                    !e.isDominator &&
-                    !e.isWall &&
-                    !e.isGate
-                  ) {
-                    if (
-                      e.name !== "Baltyla" &&
-                      game.MODE === "theAwakening" &&
-                      this.body.name === "Valrayvn"
-                    )
-                      return;
-                    if (e.targetable === true) {
-                      if (
-                        Math.abs(e.x - m.x) < range &&
-                        Math.abs(e.y - m.y) < range
-                      ) {
-                        if (
-                          !this.body.aiSettings.blind ||
-                          (Math.abs(e.x - mm.x) < range &&
-                            Math.abs(e.y - mm.y) < range)
-                        )
-                          return e;
-                      }
-                    }
-                  }
-                  break;
-                case "healAllies":
-                  if (
-                    e.master.master.team === this.body.master.master.team &&
-                    e.master !== this.body.master &&
-                    e.health.amount < e.health.max &&
-                    !e.isDominator &&
-                    !e.isWall &&
-                    !e.isGate
-                  ) {
-                    if (e.targetable === true) {
-                      if (
-                        Math.abs(e.x - m.x) < range &&
-                        Math.abs(e.y - m.y) < range
-                      ) {
-                        if (
-                          !this.body.aiSettings.blind ||
-                          (Math.abs(e.x - mm.x) < range &&
-                            Math.abs(e.y - mm.y) < range)
-                        )
-                          return e;
-                      }
-                    }
-                  }
-                  break;
-                case "general":
-                case "mostDeadly":
-                default:
-                  if (
-                    e.master.master.team !== this.body.master.master.team &&
-                    e.alpha > 0.3 &&
-                    !room.isIn("bas0", e) &&
-                    !room.isIn("bas1", e) &&
-                    !room.isIn("bap1", e) &&
-                    !room.isIn("bas2", e) &&
-                    !room.isIn("bap2", e) &&
-                    !room.isIn("bas3", e) &&
-                    !room.isIn("bap3", e) &&
-                    !room.isIn("bas4", e) &&
-                    !room.isIn("bas4", e)
-                  ) {
-                    if (e.master.master.team !== -101) {
-                      if (
-                        e.targetable === true ||
-                        (!this.body.aiSettings.shapefriend &&
-                          e.type === "food") ||
-                        (e.isDominator &&
-                          this.body.team !== -101 &&
-                          this.body.type !== "food")
-                      ) {
-                        if (
-                          (this.body.specialEffect === "crusherFortWall" &&
-                            e.ignoreCollision) ||
-                          (game.MODE === "theDenied" && e.isGate) ||
-                          (this.body.isAnubis &&
-                            game.MODE === "theInfestation" &&
-                            e.isGate &&
-                            e.isWall)
-                        )
-                          return;
-                        if (
-                          e.isGate &&
-                          (game.MODE === "theExpanse" ||
-                            game.MODE === "theControlled" ||
-                            game.MODE === "theAwakening")
-                        )
-                          return;
-                        if (
-                          Math.abs(e.x - m.x) < range &&
-                          Math.abs(e.y - m.y) < range
-                        ) {
-                          if (
-                            !this.body.aiSettings.blind ||
-                            (Math.abs(e.x - mm.x) < range &&
-                              Math.abs(e.y - mm.y) < range)
-                          )
-                            return e;
-                        }
-                      }
-                    }
-                  }
-              }
-            }
-          }
-        }
-      })
-      .filter((e) => e); // Remove any null or undefined entries
-
-    // If there are no valid targets, return an empty array
-    if (!out.length) return [];
-
-    // Post-processing: select target based on most or least dangerous
-    out = out
-      .map((e) => {
-        let yaboi = false;
-        if (
-          Math.pow(this.body.x - e.x, 2) + Math.pow(this.body.y - e.y, 2) <
-          sqrRange
-        ) {
-          if (this.body.firingArc == null || this.body.aiSettings.view360) {
-            yaboi = true;
-          } else if (
-            Math.abs(
-              util.angleDifference(
-                util.getDirection(this.body, e),
-                this.body.firingArc[0]
-              )
-            ) < this.body.firingArc[1]
-          ) {
-            yaboi = true;
-          }
-        }
-
-        // Choose the target based on the most or least dangerous
-        if (this.body.aiTarget === "leastDeadly") {
-          // Only return the target with the least dangerValue
-          if (yaboi && e.dangerValue < leastDangerous) {
-            return e;
-          }
-        } else {
-          // Default behavior: Most dangerous target
-          if (yaboi && e.dangerValue > mostDangerous) {
-            return e;
-          }
-        }
-
-        return e;
-      })
-      .filter((e) => e); // Remove any null or undefined entries
-
-    // Reset target if it's not in the list
-    if (!keepTarget || this.notWorthIt) this.targetLock = undefined;
-    return out;
+    return list;
   }
 
-  think(input) {
-    // Override target lock upon other commandscommandspull
-    if (input.main || input.alt || this.body.master.autoOverride) {
-      this.targetLock = undefined;
-      return {};
-    }
-    // Otherwise, consider how fast we can either move to ram it or shoot at a potiential target.
-    let tracking = this.body.topSpeed,
-      range = this.body.fov / 2;
-    // Use whether we have functional guns to decide
-    for (let i = 0; i < this.body.guns.length; i++) {
-      if (this.body.guns[i].canShoot && !this.body.aiSettings.skynet) {
-        let v = this.body.guns[i].getTracking();
-        tracking = v.speed;
-        range = Math.min(range, v.speed * v.range);
-        if (this.body.guns[i].altFire) {
-          this.body.guns[i].altFire = false;
-        }
+  chooseTarget(list) {
+    if (!list.length) return null;
 
-        break;
-      }
+    switch (this.targetMode) {
+      case "nearest":
+        list.sort((a, b) => a.dist - b.dist);
+        return list[0].entity;
+
+      case "leastDeadly":
+        list.sort((a, b) => a.danger - b.danger);
+        return list[0].entity;
+
+      case "mostDeadly":
+        list.sort((a, b) => b.danger - a.danger);
+        return list[0].entity;
+
+      case "general":
+      default:
+        // Prefer most dangerous within reasonable distance
+        list.sort((a, b) => {
+          if (b.danger === a.danger) {
+            return a.dist - b.dist;
+          }
+          return b.danger - a.danger;
+        });
+        return list[0].entity;
     }
-    // Check if my target's alive
+  }
+
+  think() {
+    this.tick++;
+
+    // Validate target lock
     if (this.targetLock) {
       if (
-        this.targetLock.health.amount <= 0 ||
-        isNaN(this.targetLock.x) ||
-        isNaN(this.targetLock.y)
-      ) {
-        switch (this.body.aiTarget) {
-          case "allies":
-            if (
-              this.targetLock.team === this.body.team &&
-              this.targetLock.health.amount === this.targetLock.health.max
-            ) {
-              this.targetLock = undefined;
-              this.tick = 100;
-            }
-            break;
-          default:
-            this.targetLock = undefined;
-            this.tick = 100;
-        }
-        /* if (!this.click) {
-      setTimeout(()=> {
-          this.targetLock = undefined;
-          this.tick = 100;
-          this.click = false;
-        }, 60000);
-                this.click = true;
-                }*/
-      }
-    }
-    // Think damn hard
-    if (this.tick++ > 15 * roomSpeed) {
-      this.tick = 0;
-      this.validTargets = this.buildList(range);
-      // Ditch our old target if it's invalid
-      if (
-        this.targetLock &&
-        this.validTargets.indexOf(this.targetLock) === -1
+        this.targetLock.isDead ||
+        this.targetLock.alpha <= 0 ||
+        this.targetLock.invuln ||
+        this.targetLock.team === this.body.team
       ) {
         this.targetLock = undefined;
       }
-      // Lock new target if we still don't have one.
-      if (this.targetLock == null && this.validTargets.length) {
-        this.targetLock =
-          this.validTargets.length === 1
-            ? this.validTargets[0]
-            : nearest(this.validTargets, { x: this.body.x, y: this.body.y });
-        this.tick = -90;
-      }
     }
-    // Lock onto whoever's shooting me.
 
-    if (this.body.react) {
-        let damageRef = this.body.bond == null ? this.body : this.body.bond;
-        if (
-          damageRef.collisionArray.length &&
-          damageRef.health.display() < this.oldHealth
-        ) {
-          this.oldHealth = damageRef.health.display();
-          if (this.validTargets.indexOf(damageRef.collisionArray[0]) === -1) {
-            this.targetLock =
-              damageRef.collisionArray[0].master.id === -1
-                ? damageRef.collisionArray[0].source
-                : damageRef.collisionArray[0].master;
-          }
-        }
+    // Acquire target if none
+    if (!this.targetLock) {
+      const list = this.buildList(this.viewRange);
+      const target = this.chooseTarget(list);
+      if (target) this.targetLock = target;
     }
-    // Consider how fast it's moving and shoot at it
-    if (this.targetLock != null && this.targetLock.valid()) {
-      let radial = this.targetLock.velocity;
-      let diff = {
-        x: this.targetLock.x - this.body.x,
-        y: this.targetLock.y - this.body.y,
+
+    // If target exists
+    if (this.targetLock) {
+      const dx = this.targetLock.x - this.body.x;
+      const dy = this.targetLock.y - this.body.y;
+
+      return {
+        target: { x: dx, y: dy },
+        fire: true,
+        main: true
       };
-      /// Refresh lead time
-      if (this.tick % 4 === 0) {
-        this.lead = 0;
-        // Find lead time (or don't)
-        if (!this.body.aiSettings.chase) {
-          let toi = timeOfImpact(diff, radial, tracking);
-          this.lead = toi;
-        }
-      }
-      // And return our aim
-      if (!this.body.isWall) {
-        return {
-          target: {
-            x: diff.x + this.lead * radial.x,
-            y: diff.y + this.lead * radial.y,
-          },
-          fire: true,
-          main: true,
-        };
-      } else {
-        return {
-          fire: true,
-          main: true,
-        };
-      }
     }
-    if (this.body.turnWhileIdle) {
-      this.body.facing += 0.025;
+
+    // Idle behavior (Dominator-style if configured)
+    if (this.idleSpinSpeed !== 0) {
+      this.body.facing += this.idleSpinSpeed;
+
       return {
         target: {
           x: Math.cos(this.body.facing),
-          y: Math.sin(this.body.facing),
+          y: Math.sin(this.body.facing)
         },
-        //main: true,
+        fire: this.spinFire,
+        main: this.spinFire
       };
-    } else return {};
-  }
-}
-class io_Dominator extends IO {
-  constructor(body) {
-    super(body);
-    this.targetLock = undefined;
-    this.tick = ran.irandom(30);
-    this.lead = 0;
-    this.validTargets = this.buildList(body.fov / 2);
-    this.oldHealth = body.health.display();
-    this.body.facing = 0;
-  }
-
-  buildList(range) {
-    // Establish whom we judge in reference to
-    let m = { x: this.body.x, y: this.body.y },
-      mm = { x: this.body.master.master.x, y: this.body.master.master.y },
-      mostDangerous = 0,
-      sqrRange = range * range,
-      keepTarget = false;
-    // Filter through everybody...
-    let out = getEntitiesFromRange(m, range)
-      .map((e) => {
-        // Only look at those within our view, and our parent's view, not dead, not our kind, not a bullet/trap/block etc
-        if (e.health.amount > 0) {
-          if (!e.invuln) {
-            if (
-              e.master.master.team !== this.body.master.master.team &&
-              e.alpha > 0.3 &&
-              !room.isIn("bas0", e) &&
-              !room.isIn("bas1", e) &&
-              !room.isIn("bap1", e) &&
-              !room.isIn("bas2", e) &&
-              !room.isIn("bap2", e) &&
-              !room.isIn("bas3", e) &&
-              !room.isIn("bap3", e) &&
-              !room.isIn("bas4", e) &&
-              !room.isIn("bas4", e)
-            ) {
-              if (this.body.aiTarget === "allHostiles" && game.MODE === "JJ's RF")
-                return;
-              if (e.master.master.team !== -101) {
-                if (
-                  e.targetable === true ||
-                  (!this.body.aiSettings.shapefriend && e.type === "food") ||
-                  (e.isDominator &&
-                    this.body.team !== -101 &&
-                    this.body.type !== "food")
-                ) {
-                  if (
-                    Math.abs(e.x - m.x) < range &&
-                    Math.abs(e.y - m.y) < range
-                  ) {
-                    if (
-                      !this.body.aiSettings.blind ||
-                      (Math.abs(e.x - mm.x) < range &&
-                        Math.abs(e.y - mm.y) < range)
-                    )
-                      return e;
-                  }
-                }
-              }
-            }
-          }
-        }
-      })
-      .filter((e) => {
-        return e;
-      });
-
-    if (!out.length) return [];
-
-    out = out
-      .map((e) => {
-        // Only look at those within range and arc (more expensive, so we only do it on the few)
-        let yaboi = false;
-        if (
-          Math.pow(this.body.x - e.x, 2) + Math.pow(this.body.y - e.y, 2) <
-          sqrRange
-        ) {
-          if (this.body.firingArc == null || this.body.aiSettings.view360) {
-            yaboi = true;
-          } else if (
-            Math.abs(
-              util.angleDifference(
-                util.getDirection(this.body, e),
-                this.body.firingArc[0]
-              )
-            ) < this.body.firingArc[1]
-          )
-            yaboi = true;
-        }
-        if (yaboi) {
-          mostDangerous = Math.max(e.dangerValue, mostDangerous);
-          return e;
-        }
-      })
-      .filter((e) => {
-        // Only return the highest tier of danger
-        if (e != null) {
-          if (this.body.aiSettings.farm || e.dangerValue === mostDangerous) {
-            if (this.targetLock) {
-              if (e.id === this.targetLock.id) keepTarget = true;
-            }
-            return e;
-          }
-        }
-      });
-    // Reset target if it's not in there
-    if (!keepTarget) this.targetLock = undefined;
-    return out;
-  }
-
-  think(input) {
-    // Override target lock upon other commands
-    if (input.main || input.alt || this.body.master.autoOverride) {
-      this.targetLock = undefined;
-      return {};
     }
-    // Otherwise, consider how fast we can either move to ram it or shoot at a potiential target.
-    let tracking = this.body.topSpeed,
-      range = this.body.fov / 2;
-    // Use whether we have functional guns to decide
-    for (let i = 0; i < this.body.guns.length; i++) {
-      if (this.body.guns[i].canShoot && !this.body.aiSettings.skynet) {
-        let v = this.body.guns[i].getTracking();
-        tracking = v.speed;
-        range = Math.min(range, v.speed * v.range);
-        break;
-      }
-    }
-    // Check if my target's alive
-    if (this.targetLock) {
-      if (this.targetLock.health.amount <= 0) {
-        this.targetLock = undefined;
-        this.tick = 100;
-      }
-    }
-    // Think damn hard
-    if (this.tick++ > 15 * roomSpeed) {
-      this.tick = 0;
-      this.validTargets = this.buildList(range);
-      // Ditch our old target if it's invalid
-      if (
-        this.targetLock &&
-        this.validTargets.indexOf(this.targetLock) === -1
-      ) {
-        this.targetLock = undefined;
-      }
-      // Lock new target if we still don't have one.
-      if (this.targetLock == null && this.validTargets.length) {
-        this.targetLock =
-          this.validTargets.length === 1
-            ? this.validTargets[0]
-            : nearest(this.validTargets, { x: this.body.x, y: this.body.y });
-        this.tick = -90;
-      }
-    }
-    // Lock onto whoever's shooting me.
-    // let damageRef = (this.body.bond == null) ? this.body : this.body.bond;
-    // if (damageRef.collisionArray.length && damageRef.health.display() < this.oldHealth) {
-    //     this.oldHealth = damageRef.health.display();
-    //     if (this.validTargets.indexOf(damageRef.collisionArray[0]) === -1) {
-    //         this.targetLock = (damageRef.collisionArray[0].master.id === -1) ? damageRef.collisionArray[0].source : damageRef.collisionArray[0].master;
-    //     }
-    // }
-    // Consider how fast it's moving and shoot at it
-    if (this.targetLock != null && this.targetLock.valid()) {
-      let radial = this.targetLock.velocity;
-      let diff = {
-        x: this.targetLock.x - this.body.x,
-        y: this.targetLock.y - this.body.y,
-      };
-      /// Refresh lead time
-      if (this.tick % 4 === 0) {
-        this.lead = 0;
-        // Find lead time (or don't)
-        if (!this.body.aiSettings.chase) {
-          let toi = timeOfImpact(diff, radial, tracking);
-          this.lead = toi;
-        }
-      }
-      // And return our aim
+
+    if (this.turnWhileIdle) {
+      this.body.facing += 0.01;
       return {
         target: {
-          x: diff.x + this.lead * radial.x,
-          y: diff.y + this.lead * radial.y,
-        },
-        fire: true,
-        main: true,
+          x: Math.cos(this.body.facing),
+          y: Math.sin(this.body.facing)
+        }
       };
     }
-    this.body.facing += 0.02;
-    return {
-      target: {
-        x: Math.cos(this.body.facing),
-        y: Math.sin(this.body.facing),
-      },
-      main: true,
-    };
+
+    return {};
   }
 }
 class io_minion extends IO {
@@ -4427,7 +3582,7 @@ class Entity {
       if (this.name === "") dude = "An unnamed player";
       this.runTrigger("spawn");
       if (this.specialEffect === "Legend") {
-        if (game.game.type === "lore") return;
+        if (game.game.TYPE === "lore") return;
         switch (this.label) {
           case "Arena Guard":
             this.sendMessage(
@@ -5529,64 +4684,64 @@ class Entity {
         }, 1000);
       }
       if (this.label === "Dark Fate") {
-        this.damage = 2 + game.players;
-        this.skill.dam = game.players / 7.5 + 2;
-        this.skill.pen = game.players / 5 + 2.5;
-        this.skill.str = game.players / 2.5 + 3;
-        this.skill.spd = game.players / 10 + 2;
+        this.damage = 2 + game.PLAYERS;
+        this.skill.dam = game.PLAYERS / 7.5 + 2;
+        this.skill.pen = game.PLAYERS / 5 + 2.5;
+        this.skill.str = game.PLAYERS / 2.5 + 3;
+        this.skill.spd = game.PLAYERS / 10 + 2;
       }
       if (this.name === "Abdul") {
-        this.damage = 2 + game.players / 2;
-        this.skill.dam = game.players / 10 + 3;
-        this.skill.pen = game.players / 6 + 3;
-        this.skill.str = game.players / 6 + 3;
-        this.skill.spd = game.players / 10 + 2;
+        this.damage = 2 + game.PLAYERS / 2;
+        this.skill.dam = game.PLAYERS / 10 + 3;
+        this.skill.pen = game.PLAYERS / 6 + 3;
+        this.skill.str = game.PLAYERS / 6 + 3;
+        this.skill.spd = game.PLAYERS / 10 + 2;
         if (
           !room.isIn("bos" + game.bossStage, this) &&
           !room.isIn("zne" + game.bossStage, this)
         ) {
           let loc = room.type("bos" + game.bossStage);
           this.invuln = true;
-          this.x = logame.x;
-          this.y = logame.y;
+          this.x = loc.x;
+          this.y = loc.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
         }
       }
       if (this.name === "Golothess") {
-        this.damage = 2 + game.players / 4;
-        this.skill.dam = game.players / 5 + 2.5;
-        this.skill.pen = game.players / 5 + 3;
-        this.skill.str = game.players / 2.5 + 2.5;
-        this.skill.spd = game.players / 10 + 2;
+        this.damage = 2 + game.PLAYERS / 4;
+        this.skill.dam = game.PLAYERS / 5 + 2.5;
+        this.skill.pen = game.PLAYERS / 5 + 3;
+        this.skill.str = game.PLAYERS / 2.5 + 2.5;
+        this.skill.spd = game.PLAYERS / 10 + 2;
         if (
           !room.isIn("bos" + game.bossStage, this) &&
           !room.isIn("zne" + game.bossStage, this)
         ) {
           let loc = room.type("bos" + game.bossStage);
           this.invuln = true;
-          this.x = logame.x;
-          this.y = logame.y;
+          this.x = loc.x;
+          this.y = loc.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
         }
       }
       if (this.name === "Alhazred") {
-        this.damage = 2 + game.players / 3;
-        this.skill.dam = game.players / 7.5 + 2;
-        this.skill.pen = game.players / 5 + 2.5;
-        this.skill.str = game.players / 2.5 + 3;
-        this.skill.spd = game.players / 10 + 2;
+        this.damage = 2 + game.PLAYERS / 3;
+        this.skill.dam = game.PLAYERS / 7.5 + 2;
+        this.skill.pen = game.PLAYERS / 5 + 2.5;
+        this.skill.str = game.PLAYERS / 2.5 + 3;
+        this.skill.spd = game.PLAYERS / 10 + 2;
         if (
           !room.isIn("bos" + game.bossStage, this) &&
           !room.isIn("zne" + game.bossStage, this)
         ) {
           let loc = room.type("bos" + game.bossStage);
           this.invuln = true;
-          this.x = logame.x;
-          this.y = logame.y;
+          this.x = loc.x;
+          this.y = loc.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
@@ -5700,11 +4855,11 @@ class Entity {
       )
         this.ignoreCollision = false;
       if (this.isBoss && this.team === -5) {
-        this.damage = game.players + 5;
-        this.skill.dam = game.players / 5 + 1;
-        this.skill.pen = game.players / 5 + 1.5;
-        this.skill.str = game.players / 5 + 1.5;
-        // this.skill.spd = game.players / 10 + 2;
+        this.damage = game.PLAYERS + 5;
+        this.skill.dam = game.PLAYERS / 5 + 1;
+        this.skill.pen = game.PLAYERS / 5 + 1.5;
+        this.skill.str = game.PLAYERS / 5 + 1.5;
+        // this.skill.spd = game.PLAYERS / 10 + 2;
         if (
           !room.isIn("nest", this) &&
           !room.isIn(this.area, this) &&
@@ -5715,8 +4870,8 @@ class Entity {
         ) {
           let loc = room.type(this.area);
           this.invuln = true;
-          this.x = logame.x;
-          this.y = logame.y;
+          this.x = loc.x;
+          this.y = loc.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
@@ -5726,7 +4881,7 @@ class Entity {
         this.kill();
     }
     if (game.MODE === "siege") {
-      if (!game.waveCount) {
+      if (!game.WAVECount) {
         game.bossAmount = 0;
         entities.forEach((entity) => {
           if (entity.siegeProgress && entity.team === -100 && !entity.isDead())
@@ -5736,10 +4891,10 @@ class Entity {
         let o = new Entity(room.type("spw0"));
         o.siegeProgress = true;
         o.kill();
-        game.waveCount = true;
+        game.WAVECount = true;
         setTimeout(() => {
-          game.waveCount = false;
-          game.waveLoop += 1;
+          game.WAVECount = false;
+          game.WAVELoop += 1;
         }, 5000);
       }
       let census = [0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -5760,7 +4915,7 @@ class Entity {
         }
       } else {
         game.RESPAWN_TIMER = 5;
-        game.countdown = 60000;
+        temp.countdown = 60000;
         game.initiateCountdown = false;
         game.bots = true;
       }
@@ -5773,7 +4928,7 @@ class Entity {
           o.stayTeam = false;
           o.define(Class.sardonyxPower0);
           o.team = -100;
-          o.maxChildren = Math.ceil(game.players * 1.5);
+          o.maxChildren = Math.ceil(game.PLAYERS * 1.5);
           o.SIZE = this.SIZE;
           o.color = 0;
           o.tp = true;
@@ -5789,7 +4944,7 @@ class Entity {
           o.team = -100;
           o.SIZE = this.SIZE;
           o.invuln = false;
-          o.skill.dam = 1 + game.players * 2.5;
+          o.skill.dam = 1 + game.PLAYERS * 2.5;
           o.tp = true;
           this.stage += 1;
           this.color = 3;
@@ -5799,8 +4954,8 @@ class Entity {
           o.master = this;
           o.stayTeam = false;
           o.color = 33;
-          o.skill.str = 2 + game.players * 2;
-          o.skill.spd = 0.5 + game.players / 2;
+          o.skill.str = 2 + game.PLAYERS * 2;
+          o.skill.spd = 0.5 + game.PLAYERS / 2;
           o.define(Class.sardonyxPower2);
           o.team = -100;
           o.SIZE = this.SIZE;
@@ -5815,7 +4970,7 @@ class Entity {
           o.stayTeam = false;
           o.color = 12;
           o.define(Class.sardonyxPower3);
-          o.RANGE += game.players * 150;
+          o.RANGE += game.PLAYERS * 150;
           o.team = -100;
           o.SIZE = this.SIZE;
           o.invuln = false;
@@ -5841,7 +4996,7 @@ class Entity {
               o.stayTeam = false;
               o.define(Class.ranarPower1);
               o.team = -100;
-              o.maxChildren = Math.ceil(game.players * 1.5);
+              o.maxChildren = Math.ceil(game.PLAYERS * 1.5);
               o.SIZE = this.SIZE;
               o.color = 0;
               o.tp = true;
@@ -5858,7 +5013,7 @@ class Entity {
                 o.team = -100;
                 o.SIZE = this.SIZE;
                 o.invuln = false;
-                o.skill.dam = 1 + game.players * 2.5;
+                o.skill.dam = 1 + game.PLAYERS * 2.5;
                 o.tp = true;
                 this.stage += 1;
                 this.color = 3;
@@ -5873,8 +5028,8 @@ class Entity {
               o.master = this;
               o.stayTeam = false;
               o.color = 33;
-              o.skill.str = 2 + game.players * 2;
-              o.skill.spd = 0.5 + game.players / 2;
+              o.skill.str = 2 + game.PLAYERS * 2;
+              o.skill.spd = 0.5 + game.PLAYERS / 2;
               o.define(Class.ranarPower4);
               o.team = -100;
               o.SIZE = this.SIZE;
@@ -5891,7 +5046,7 @@ class Entity {
               o.stayTeam = false;
               o.color = 12;
               o.define(Class.ranarPower5);
-              o.RANGE += game.players * 150;
+              o.RANGE += game.PLAYERS * 150;
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
@@ -5939,12 +5094,12 @@ class Entity {
       }
       if (game.canProgress && game.ranarDialog === undefined) {
         game.bossAmount = 1;
-        sockets.broadcast("Wave " + game.wave + " has started!");
+        sockets.broadcast("Wave " + game.WAVE + " has started!");
         game.continueWave = true;
         game.ranarDialog = Math.round(Math.random() * 3);
       }
 
-      if (game.continueWave && game.wave > 0 && !game.pingBack) {
+      if (game.continueWave && game.WAVE > 0 && !game.pingBack) {
         game.bossCounter = game.preparedCounter;
         game.pingBack = true;
         game.continueWave = false;
@@ -5952,22 +5107,22 @@ class Entity {
       //    let countUp = 0;
       //  game.bossCounter = 1;
       if (game.pingBack) {
-        if (game.wave % 10 === 0 && game.wave !== 0 && !game.initiateEpicWave) {
+        if (game.WAVE % 10 === 0 && game.WAVE !== 0 && !game.initiateEpicWave) {
           game.initiateEpicWave = true;
           game.bonus += 3;
           game.disciple = true;
-          game.waveType = "epic";
-          if (game.wave >= 50) {
-            game.waveType = "final";
+          game.WAVEType = "epic";
+          if (game.WAVE >= 50) {
+            game.WAVEType = "final";
           }
-          if (game.wave <= 20 || game.wave >= 50) game.bossCounter = 0;
-          switch (game.waveType) {
+          if (game.WAVE <= 20 || game.WAVE >= 50) game.bossCounter = 0;
+          switch (game.WAVEType) {
             case "epic":
-              game.waveRarity = Math.ceil(Math.random() * 6);
+              game.WAVERarity = Math.ceil(Math.random() * 6);
               sockets.broadcast(
-                "Wave " + game.wave + " has started, this is a dangerous wave!"
+                "Wave " + game.WAVE + " has started, this is a dangerous wave!"
               );
-              switch (game.waveRarity) {
+              switch (game.WAVERarity) {
                 case 1:
                   if (game.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
@@ -6249,10 +5404,10 @@ class Entity {
               break;
             case "final":
               sockets.broadcast(
-                "Wave " + game.wave + " has started, survival is...unlikely..."
+                "Wave " + game.WAVE + " has started, survival is...unlikely..."
               );
-              game.waveRarity = Math.ceil(Math.random() * 8);
-              switch (game.waveRarity) {
+              game.WAVERarity = Math.ceil(Math.random() * 8);
+              switch (game.WAVERarity) {
                 case 1:
                   if (game.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
@@ -7193,9 +6348,9 @@ class Entity {
       if (game.MODE === "theDenied" && game.eventProgress) {
         if (room.isIn("spw0", this)) {
           let loc = room.randomType("norm");
-          if (game.wave < 12) {
-            this.x = logame.x;
-            this.y = logame.y;
+          if (game.WAVE < 12) {
+            this.x = loc.x;
+            this.y = loc.y;
           }
         }
       }
@@ -7334,8 +6489,8 @@ class Entity {
     ) {
       let loc = { x: this.x, y: this.y };
       if (this.spawnLoc && this.spawnLoc !== loc) {
-        this.x = this.spawnLogame.x;
-        this.y = this.spawnLogame.y;
+        this.x = this.spawnloc.x;
+        this.y = this.spawnloc.y;
       }
     }
     if (
@@ -7525,8 +6680,8 @@ class Entity {
         !room.isIn("bstR", this)
       ) {
         loc = room.type("bas1");
-        this.x = logame.x;
-        this.y = logame.y;
+        this.x = loc.x;
+        this.y = loc.y;
       }
       if (
         this.counter !== game.win &&
@@ -7548,7 +6703,7 @@ class Entity {
         game.CONSIDER_PLAYER_TEAM_LOCATION = false;
         game.CONSIDER_BOT_TEAM_LOCATION = false;
         game.DEADLY_BORDERS = false;
-        game.visibleListInterval = 750;
+        game.VISIBLE_LIST_INTERVAL = 750;
         setTimeout(() => {
           sockets.broadcast(
             "The arena shakes...many powerful forces are emerging, your defenses have activated."
@@ -8369,9 +7524,9 @@ class Entity {
       }
       if (
         this.label === "Anti-Virus" &&
-        this.DAMAGE !== game.players + 10 - game.cxPowerDrain
+        this.DAMAGE !== game.PLAYERS + 10 - game.cxPowerDrain
       ) {
-        this.DAMAGE = game.players + 10 - game.cxPowerDrain;
+        this.DAMAGE = game.PLAYERS + 10 - game.cxPowerDrain;
       }
       let census = [0, 0, 0, 0, 0, 0, 0, 0, 0];
       room.dominators.forEach((o) => {
@@ -8483,14 +7638,14 @@ class Entity {
             game.SIEGE = true;
           }, 5000);
         }, 1000);
-        for (let i = 0; i < game.players * 3; i++) {
+        for (let i = 0; i < game.PLAYERS * 3; i++) {
           let o = new Entity(room.type("bos2"));
           o.define(Class.arenaguard);
           o.team = -100;
           o.impervious = true;
           o.ignoreCollision = false;
         }
-        for (let i = 0; i < Math.ceil(game.players / 2) + 1; i++) {
+        for (let i = 0; i < Math.ceil(game.PLAYERS / 2) + 1; i++) {
           let o = new Entity(room.type("bos2"));
           o.define(Class.damagedArenaCloser);
           o.team = -100;
@@ -8535,14 +7690,14 @@ class Entity {
             }, 2500);
           }, 5000);
         }, 5000);
-        for (let i = 0; i < game.players; i++) {
+        for (let i = 0; i < game.PLAYERS; i++) {
           let o = new Entity(room.type("vpr0"));
           o.define(Class.damagedArenaCloser);
           o.team = -100;
           o.impervious = true;
           o.ignoreCollision = false;
         }
-        for (let i = 0; i < Math.ceil(game.players / 2); i++) {
+        for (let i = 0; i < Math.ceil(game.PLAYERS / 2); i++) {
           let o = new Entity(room.type("vpr0"));
           o.define(Class.arenaslayer);
           o.team = -100;
@@ -8604,32 +7759,32 @@ class Entity {
         this.REGEN = 0;
       }
       if (this.label === "Rift Shaper") {
-        this.damage = 2 + game.players / 2;
-        this.skill.dam = game.players / 7.5 + 2;
-        this.skill.pen = game.players / 5 + 2.5;
-        this.skill.str = game.players / 2.5 + 3;
-        this.skill.spd = game.players / 5 + 2;
+        this.damage = 2 + game.PLAYERS / 2;
+        this.skill.dam = game.PLAYERS / 7.5 + 2;
+        this.skill.pen = game.PLAYERS / 5 + 2.5;
+        this.skill.str = game.PLAYERS / 2.5 + 3;
+        this.skill.spd = game.PLAYERS / 5 + 2;
       }
       if (this.label === "Care Taker") {
-        this.damage = 2 + game.players / 2;
-        this.skill.dam = game.players / 7.5 + 3;
-        this.skill.pen = game.players / 7.5 + 3;
-        this.skill.str = game.players / 5 + 3;
-        this.skill.spd = game.players / 10 + 2;
+        this.damage = 2 + game.PLAYERS / 2;
+        this.skill.dam = game.PLAYERS / 7.5 + 3;
+        this.skill.pen = game.PLAYERS / 7.5 + 3;
+        this.skill.str = game.PLAYERS / 5 + 3;
+        this.skill.spd = game.PLAYERS / 10 + 2;
       }
       if (this.label === "Peace Keeper") {
-        this.damage = 2 + game.players / 2;
-        this.skill.dam = game.players / 7.5 + 3;
-        this.skill.pen = game.players / 7.5 + 3;
-        this.skill.str = game.players / 5 + 3;
-        this.skill.spd = game.players / 10 + 2;
+        this.damage = 2 + game.PLAYERS / 2;
+        this.skill.dam = game.PLAYERS / 7.5 + 3;
+        this.skill.pen = game.PLAYERS / 7.5 + 3;
+        this.skill.str = game.PLAYERS / 5 + 3;
+        this.skill.spd = game.PLAYERS / 10 + 2;
       }
       if (this.label === "Mechanical Menace") {
-        this.damage = 2 + game.players / 2;
-        this.skill.dam = game.players / 7.5 + 2;
-        this.skill.pen = game.players / 5 + 2.5;
-        this.skill.str = game.players / 2.5 + 3;
-        this.skill.spd = game.players / 10 + 2;
+        this.damage = 2 + game.PLAYERS / 2;
+        this.skill.dam = game.PLAYERS / 7.5 + 2;
+        this.skill.pen = game.PLAYERS / 5 + 2.5;
+        this.skill.str = game.PLAYERS / 2.5 + 3;
+        this.skill.spd = game.PLAYERS / 10 + 2;
       }
       if (
         game.fuckYouAnomalies &&
@@ -8738,8 +7893,8 @@ class Entity {
           if (room["vpr" + i]) {
             room["vpr" + i].forEach((loc) => {
               placePortals(loc, i, {
-                x: Math.floor(logame.x / gridWidth),
-                y: Math.floor(logame.y / gridHeight),
+                x: Math.floor(loc.x / gridWidth),
+                y: Math.floor(loc.y / gridHeight),
               });
             });
           }
@@ -8803,9 +7958,9 @@ this.collisionArray = [];
       }
     }
 
-    if (this.specialEffect === "denied" && game.wave > 0) {
+    if (this.specialEffect === "denied" && game.WAVE > 0) {
       this.name = "Player Lives Remaining: " + game.ranarLoseCondition;
-      if (game.wave > 0 && this.skill.score < 5000000) {
+      if (game.WAVE > 0 && this.skill.score < 5000000) {
         this.settings.leaderboardable = true;
       }
     }
@@ -8887,14 +8042,14 @@ this.collisionArray = [];
       if (game.eventProgress) {
         //game.killWalls = true;
 
-        if (game.wave === 0) {
-          game.ranarLoseCondition = game.players * 5;
+        if (game.WAVE === 0) {
+          game.ranarLoseCondition = game.PLAYERS * 5;
         }
         if (this.isWall && this.team === -1) {
           this.kill();
         }
 
-        /*   if (this.type === "squareWall" && game.wave >= 13) {
+        /*   if (this.type === "squareWall" && game.WAVE >= 13) {
           this.destroy();
         }
         if (this.isWall && !room.isIn("frt0", this)) {
@@ -8929,29 +8084,29 @@ this.collisionArray = [];
           }
           if (this.color !== 10) {
             if (this.label === "Dark Fate") {
-              this.resist = game.players / 3 + 1;
-              this.damage = game.players + 5;
-              this.skill.dam = game.players / 10 + 3;
-              this.skill.pen = game.players / 6 + 3;
-              this.skill.str = game.players / 6 + 3;
-              this.skill.spd = game.players / 10 + 2;
+              this.resist = game.PLAYERS / 3 + 1;
+              this.damage = game.PLAYERS + 5;
+              this.skill.dam = game.PLAYERS / 10 + 3;
+              this.skill.pen = game.PLAYERS / 6 + 3;
+              this.skill.str = game.PLAYERS / 6 + 3;
+              this.skill.spd = game.PLAYERS / 10 + 2;
             }
             if (this.label === "Grim Truth") {
-              this.resist = game.players / 3 + 1;
-              this.damage = game.players * 2 + 5;
-              //this.skill.rld = (game.players/5) - 1.75;
-              this.skill.dam = game.players / 10 + 3;
-              this.skill.pen = game.players / 6 + 3;
-              this.skill.str = game.players / 6 + 3;
-              this.skill.spd = game.players / 10 + 3;
+              this.resist = game.PLAYERS / 3 + 1;
+              this.damage = game.PLAYERS * 2 + 5;
+              //this.skill.rld = (game.PLAYERS/5) - 1.75;
+              this.skill.dam = game.PLAYERS / 10 + 3;
+              this.skill.pen = game.PLAYERS / 6 + 3;
+              this.skill.str = game.PLAYERS / 6 + 3;
+              this.skill.spd = game.PLAYERS / 10 + 3;
             }
           }
           if (
             this.health.amount <= this.health.max * 0.75 &&
-            game.wave === 0 &&
+            game.WAVE === 0 &&
             this.haltActions !== true
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 9;
             this.haltActions = true;
             sockets.broadcast("Sardonyx: Become one with the void!");
@@ -8972,7 +8127,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.define(Class.sardonyxPower1);
               o.team = -100;
-              o.maxChildren = Math.ceil(game.players * 1.5);
+              o.maxChildren = Math.ceil(game.PLAYERS * 1.5);
               o.SIZE = this.SIZE;
               o.color = 1;
               o.tp = true;
@@ -8983,7 +8138,7 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.5 &&
-            game.wave === 1 &&
+            game.WAVE === 1 &&
             !this.haltActions
           ) {
             this.goBack = true;
@@ -8992,12 +8147,12 @@ this.collisionArray = [];
               "Ranar: You shouldn't have fought back, now I am going to have to inflict some pain!"
             );
 
-            game.wave += 1;
+            game.WAVE += 1;
             this.haltActions = true;
           }
-          if (this.goBack && game.wave === 2) {
+          if (this.goBack && game.WAVE === 2) {
             this.goBack = false;
-            game.wave += 1;
+            game.WAVE += 1;
             let loc = room.type("bos0");
             this.runAway = true;
             this.refreshBodyAttributes();
@@ -9012,7 +8167,7 @@ this.collisionArray = [];
                   "Twilight: Look out, Ranar is summoning minions!"
                 );
               }, 4000);
-              for (let i = 0; i < game.players * 4 + 4; i++) {
+              for (let i = 0; i < game.PLAYERS * 4 + 4; i++) {
                 let o = new Entity(room.randomType("port"));
 
                 o.rarity = Math.random() * 300;
@@ -9088,17 +8243,17 @@ this.collisionArray = [];
               game.enemyCount -= 1;
             }, 12000);
           }
-          if (game.enemyCount <= 0 && game.wave === 3) {
+          if (game.enemyCount <= 0 && game.WAVE === 3) {
             this.haltActions = false;
             this.runAway = false;
-            game.wave += 1;
+            game.WAVE += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.25 &&
-            game.wave === 4 &&
+            game.WAVE === 4 &&
             !this.haltActions
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 3;
             this.haltActions = true;
             sockets.broadcast(
@@ -9123,7 +8278,7 @@ this.collisionArray = [];
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
-              o.skill.dam = 1 + game.players * 2.5;
+              o.skill.dam = 1 + game.PLAYERS * 2.5;
               o.tp = true;
             }, 15000);
             setTimeout(() => {
@@ -9131,10 +8286,10 @@ this.collisionArray = [];
             }, 25000);
           }
 
-          if (this.goBack && game.wave === 6) {
+          if (this.goBack && game.WAVE === 6) {
             this.goBack = false;
             game.enemyCount = 1;
-            game.wave += 1;
+            game.WAVE += 1;
             this.refreshBodyAttributes();
             this.collisionArray = [];
             /*  makeTiling();
@@ -9155,9 +8310,9 @@ this.collisionArray = [];
               game.unlockClasses = true;
               game.STARTING_CLASS = "highlordLegendaryClasses";
             }, 12000);
-            game.BOTS = game.players * 3;
+            game.BOTS = game.PLAYERS * 3;
             setTimeout(() => {
-              for (let i = 0; i < Math.round(game.players / 2); i++) {
+              for (let i = 0; i < Math.round(game.PLAYERS / 2); i++) {
                 let o = new Entity(room.randomType("port"));
                 o.define(
                   Class[
@@ -9189,18 +8344,18 @@ this.collisionArray = [];
               game.BOTS = 0;
             }, 22000);
           }
-          if (game.enemyCount < 1 && game.wave === 7) {
+          if (game.enemyCount < 1 && game.WAVE === 7) {
             this.haltActions = false;
             this.runAway = false;
             game.BOTS = 0;
-            game.wave += 1;
+            game.WAVE += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.75 &&
-            game.wave === 8 &&
+            game.WAVE === 8 &&
             !this.haltActions
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 33;
             this.haltActions = true;
             sockets.broadcast(
@@ -9212,13 +8367,13 @@ this.collisionArray = [];
               );
             }, 6000);
             setTimeout(() => {
-              for (let i = 0; i < game.players; i++) {
+              for (let i = 0; i < game.PLAYERS; i++) {
                 let o = new Entity(room.randomType("bos0"));
                 o.master = this;
                 o.stayTeam = false;
                 o.color = 33;
-                o.skill.str = 2 + game.players * 2;
-                o.skill.spd = 0.5 + game.players / 2;
+                o.skill.str = 2 + game.PLAYERS * 2;
+                o.skill.spd = 0.5 + game.PLAYERS / 2;
                 o.define(Class.ranarPower4);
                 o.team = -100;
                 o.SIZE = this.SIZE;
@@ -9233,21 +8388,21 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.5 &&
-            game.wave === 9 &&
+            game.WAVE === 9 &&
             !this.haltActions
           ) {
             this.goBack = true;
             this.runAway = true;
-            game.wave += 1;
+            game.WAVE += 1;
           }
-          if (this.goBack && game.wave === 10) {
+          if (this.goBack && game.WAVE === 10) {
             this.goBack = false;
             game.enemyCount = 1;
-            game.wave += 1;
+            game.WAVE += 1;
             this.refreshBodyAttributes();
             this.collisionArray = [];
             this.runAway = true;
-            if (game.players >= 5)
+            if (game.PLAYERS >= 5)
               sockets.broadcast(
                 "Ranar: I see you have a proper gang, thats cool, I have too :D."
               );
@@ -9258,7 +8413,7 @@ this.collisionArray = [];
               );
             }, 6000);
             setTimeout(() => {
-              for (let i = 0; i < Math.ceil(game.players * 1.25); i++) {
+              for (let i = 0; i < Math.ceil(game.PLAYERS * 1.25); i++) {
                 let o = new Entity(room.randomType("spw5"));
                 switch (i) {
                   case 0:
@@ -9316,17 +8471,17 @@ this.collisionArray = [];
             }, 10000);
           }
 
-          if (game.enemyCount < 1 && game.wave === 11) {
+          if (game.enemyCount < 1 && game.WAVE === 11) {
             this.haltActions = false;
             this.runAway = false;
-            game.wave += 1;
+            game.WAVE += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.25 &&
-            game.wave === 12 &&
+            game.WAVE === 12 &&
             !this.haltActions
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 12;
             this.haltActions = true;
             sockets.broadcast(
@@ -9343,7 +8498,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.color = 12;
               o.define(Class.ranarPower5);
-              o.RANGE += game.players * 150;
+              o.RANGE += game.PLAYERS * 150;
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
@@ -9355,10 +8510,10 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.1 &&
-            game.wave === 13 &&
+            game.WAVE === 13 &&
             !this.haltActions
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 32;
             this.haltActions = true;
             sockets.broadcast("???: We are endless.");
@@ -9366,7 +8521,7 @@ this.collisionArray = [];
               sockets.broadcast("Kairo: Stand your ground, he's powering up!");
             }, 6000);
             game.stopFoodSpawn = true;
-            game.BOTS = game.players * 2;
+            game.BOTS = game.PLAYERS * 2;
             setTimeout(() => {
               for (let i = 0; i < 6; i++) {
                 let o = new Entity(room.randomType("bos0"));
@@ -9379,7 +8534,7 @@ this.collisionArray = [];
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
-                    o.skill.dam = 1 + game.players / 2;
+                    o.skill.dam = 1 + game.PLAYERS / 2;
                     o.tp = true;
                     break;
                   case 2:
@@ -9389,14 +8544,14 @@ this.collisionArray = [];
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
-                    o.maxChildren = Math.ceil(1 + game.players * 1.5);
+                    o.maxChildren = Math.ceil(1 + game.PLAYERS * 1.5);
                     o.fov = 50000;
                     o.tp = true;
                     break;
                   case 3:
                     o.color = 33;
-                    o.skill.str = 2 + game.players * 1.5;
-                    o.skill.spd = 0.5 + game.players / 3;
+                    o.skill.str = 2 + game.PLAYERS * 1.5;
+                    o.skill.spd = 0.5 + game.PLAYERS / 3;
                     o.define(Class.sardonyxPower4);
                     o.team = -100;
                     o.SIZE = this.SIZE;
@@ -9406,7 +8561,7 @@ this.collisionArray = [];
                   default:
                     o.define(Class.sardonyxPower0);
                     o.team = -100;
-                    o.maxChildren = Math.ceil(game.players / 4);
+                    o.maxChildren = Math.ceil(game.PLAYERS / 4);
                     o.SIZE = this.SIZE;
                     o.color = 1;
                     o.tp = true;
@@ -9421,9 +8576,9 @@ this.collisionArray = [];
               this.haltActions = false;
             }, 10000);
           }
-          if (game.wave === 15 && !game.stop1 && !room.closed) {
+          if (game.WAVE === 15 && !game.stop1 && !room.closed) {
             game.BOTS = 0;
-            if (game.sardonyxLoseCondition >= game.players * 5) {
+            if (game.sardonyxLoseCondition >= game.PLAYERS * 5) {
               setTimeout(() => {
                 sockets.broadcast("Albatar: Dammit!");
               }, 2000);
@@ -9473,13 +8628,13 @@ this.collisionArray = [];
             game.stop1 = true;
           }
 
-          if (game.wave === 16) {
+          if (game.WAVE === 16) {
             let o = new Entity(room.randomType("dom3"));
             o.define(Class.voidportal);
             o.godMode = true;
             o.team = -1;
             o.color = 10;
-            game.wave += 1;
+            game.WAVE += 1;
             sockets.broadcast(
               "Akavir: We lost Coldus...mission failed, head back to base."
             );
@@ -9522,21 +8677,21 @@ this.collisionArray = [];
         if (
           (this.type === "neutralBoss" || this.isEnemy) &&
           !this.isRanar &&
-          game.wave > 1
+          game.WAVE > 1
         ) {
           if (room.isIn("wal0", this) || room.isIn("spw0", this)) {
             this.x = room.random().x;
             this.y = room.random().y;
           }
         }
-        if (game.wave === 0) {
-          game.ranarLoseCondition = game.players * 5;
+        if (game.WAVE === 0) {
+          game.ranarLoseCondition = game.PLAYERS * 5;
         }
         if (this.isWall && this.team === -1) {
           this.kill();
         }
 
-        /*   if (this.type === "squareWall" && game.wave >= 13) {
+        /*   if (this.type === "squareWall" && game.WAVE >= 13) {
           this.destroy();
         }
         if (this.isWall && !room.isIn("frt0", this)) {
@@ -9544,7 +8699,7 @@ this.collisionArray = [];
         }*/
         if (this.isTwilight) {
           if (
-            game.wave >= 6 &&
+            game.WAVE >= 6 &&
             this.health.amount === this.health.max &&
             this.REGEN > -1
           ) {
@@ -9553,7 +8708,7 @@ this.collisionArray = [];
             this.intangibility = false;
             this.REGEN = -1;
           }
-          if (game.wave < 6) {
+          if (game.WAVE < 6) {
             this.invuln = true;
           }
         }
@@ -9603,29 +8758,29 @@ this.collisionArray = [];
           }
           if (this.color !== 10) {
             if (this.label === "Disciple") {
-              this.resist = game.players / 4 + 1;
-              this.damage = game.players + 9;
-              this.skill.dam = game.players / 10 + 3;
-              this.skill.pen = game.players / 6 + 3;
-              this.skill.str = game.players / 6 + 3;
-              this.skill.spd = game.players / 10 + 2;
+              this.resist = game.PLAYERS / 4 + 1;
+              this.damage = game.PLAYERS + 9;
+              this.skill.dam = game.PLAYERS / 10 + 3;
+              this.skill.pen = game.PLAYERS / 6 + 3;
+              this.skill.str = game.PLAYERS / 6 + 3;
+              this.skill.spd = game.PLAYERS / 10 + 2;
             }
             if (this.label === "Ascendant") {
-              this.resist = game.players / 4 + 1;
-              this.damage = game.players;
-              //this.skill.rld = (game.players/5) - 1.75; remember when he turned into a machine gun with 4 players
-              this.skill.dam = game.players / 10 + 3;
-              this.skill.pen = game.players / 6 + 3;
-              this.skill.str = game.players / 6 + 3;
-              this.skill.spd = game.players / 10 + 3;
+              this.resist = game.PLAYERS / 4 + 1;
+              this.damage = game.PLAYERS;
+              //this.skill.rld = (game.PLAYERS/5) - 1.75; remember when he turned into a machine gun with 4 players
+              this.skill.dam = game.PLAYERS / 10 + 3;
+              this.skill.pen = game.PLAYERS / 6 + 3;
+              this.skill.str = game.PLAYERS / 6 + 3;
+              this.skill.spd = game.PLAYERS / 10 + 3;
             }
           }
           if (
             this.health.amount <= this.health.max * 0.75 &&
-            game.wave === 0 &&
+            game.WAVE === 0 &&
             this.haltActions !== true
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             let twi = new Entity(room.type("bad1"));
             twi.define(Class.twilight);
             twi.noRestore = true;
@@ -9673,7 +8828,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.define(Class.ranarPower1);
               o.team = -100;
-              o.maxChildren = Math.ceil(game.players * 1.5);
+              o.maxChildren = Math.ceil(game.PLAYERS * 1.5);
               o.SIZE = this.SIZE;
               o.color = 1;
               o.tp = true;
@@ -9684,7 +8839,7 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.5 &&
-            game.wave === 1 &&
+            game.WAVE === 1 &&
             !this.haltActions
           ) {
             this.goBack = true;
@@ -9693,12 +8848,12 @@ this.collisionArray = [];
               "Ranar: You shouldn't have fought back, now I am going to have to inflict some pain!"
             );
 
-            game.wave += 1;
+            game.WAVE += 1;
             this.haltActions = true;
           }
-          if (this.goBack && game.wave === 2) {
+          if (this.goBack && game.WAVE === 2) {
             this.goBack = false;
-            game.wave += 1;
+            game.WAVE += 1;
             let loc = room.type("spw0");
             this.runAway = true;
             this.refreshBodyAttributes();
@@ -9713,7 +8868,7 @@ this.collisionArray = [];
                   "Twilight: Look out, Ranar is summoning minions!"
                 );
               }, 4000);
-              for (let i = 0; i < game.players * 4 + 4; i++) {
+              for (let i = 0; i < game.PLAYERS * 4 + 4; i++) {
                 let o = new Entity(room.randomType("nest"));
 
                 o.rarity = Math.random() * 300;
@@ -9789,17 +8944,17 @@ this.collisionArray = [];
               game.enemyCount -= 1;
             }, 12000);
           }
-          if (game.enemyCount <= 0 && game.wave === 3) {
+          if (game.enemyCount <= 0 && game.WAVE === 3) {
             this.haltActions = false;
             this.runAway = false;
-            game.wave += 1;
+            game.WAVE += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.25 &&
-            game.wave === 4 &&
+            game.WAVE === 4 &&
             !this.haltActions
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 3;
             this.haltActions = true;
             sockets.broadcast(
@@ -9824,7 +8979,7 @@ this.collisionArray = [];
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
-              o.skill.dam = 1 + game.players * 2.5;
+              o.skill.dam = 1 + game.PLAYERS * 2.5;
               o.tp = true;
             }, 15000);
             setTimeout(() => {
@@ -9832,10 +8987,10 @@ this.collisionArray = [];
             }, 25000);
           }
 
-          if (this.goBack && game.wave === 6) {
+          if (this.goBack && game.WAVE === 6) {
             this.goBack = false;
             game.enemyCount = 1;
-            game.wave += 1;
+            game.WAVE += 1;
             this.refreshBodyAttributes();
             this.collisionArray = [];
             /*  makeTiling();
@@ -9855,9 +9010,9 @@ this.collisionArray = [];
               );
               game.unlockClasses = true;
             }, 12000);
-            game.BOTS = game.players * 3;
+            game.BOTS = game.PLAYERS * 3;
             setTimeout(() => {
-              for (let i = 0; i < Math.round(game.players / 2); i++) {
+              for (let i = 0; i < Math.round(game.PLAYERS / 2); i++) {
                 let o = new Entity(room.randomType("nest"));
                 o.define(
                   Class[
@@ -9889,18 +9044,18 @@ this.collisionArray = [];
               game.BOTS = 0;
             }, 22000);
           }
-          if (game.enemyCount < 1 && game.wave === 7) {
+          if (game.enemyCount < 1 && game.WAVE === 7) {
             this.haltActions = false;
             this.runAway = false;
             game.BOTS = 0;
-            game.wave += 1;
+            game.WAVE += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.75 &&
-            game.wave === 8 &&
+            game.WAVE === 8 &&
             !this.haltActions
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 33;
             this.haltActions = true;
             sockets.broadcast(
@@ -9912,13 +9067,13 @@ this.collisionArray = [];
               );
             }, 6000);
             setTimeout(() => {
-              for (let i = 0; i < game.players; i++) {
+              for (let i = 0; i < game.PLAYERS; i++) {
                 let o = new Entity(room.randomType("spw0"));
                 o.master = this;
                 o.stayTeam = false;
                 o.color = 33;
-                o.skill.str = 2 + game.players * 2;
-                o.skill.spd = 0.5 + game.players / 2;
+                o.skill.str = 2 + game.PLAYERS * 2;
+                o.skill.spd = 0.5 + game.PLAYERS / 2;
                 o.define(Class.ranarPower4);
                 o.team = -100;
                 o.SIZE = this.SIZE;
@@ -9933,21 +9088,21 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.5 &&
-            game.wave === 9 &&
+            game.WAVE === 9 &&
             !this.haltActions
           ) {
             this.goBack = true;
             this.runAway = true;
-            game.wave += 1;
+            game.WAVE += 1;
           }
-          if (this.goBack && game.wave === 10) {
+          if (this.goBack && game.WAVE === 10) {
             this.goBack = false;
             game.enemyCount = 1;
-            game.wave += 1;
+            game.WAVE += 1;
             this.refreshBodyAttributes();
             this.collisionArray = [];
             this.runAway = true;
-            if (game.players >= 5)
+            if (game.PLAYERS >= 5)
               sockets.broadcast(
                 "Ranar: I see you have a proper gang, thats cool, I have too :D."
               );
@@ -9959,7 +9114,7 @@ this.collisionArray = [];
               );
             }, 6000);
             setTimeout(() => {
-              for (let i = 0; i < Math.ceil(game.players * 1.25); i++) {
+              for (let i = 0; i < Math.ceil(game.PLAYERS * 1.25); i++) {
                 let o = new Entity(room.randomType("nest"));
                 switch (i) {
                   case 0:
@@ -10017,17 +9172,17 @@ this.collisionArray = [];
             }, 10000);
           }
 
-          if (game.enemyCount < 1 && game.wave === 11) {
+          if (game.enemyCount < 1 && game.WAVE === 11) {
             this.haltActions = false;
             this.runAway = false;
-            game.wave += 1;
+            game.WAVE += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.25 &&
-            game.wave === 12 &&
+            game.WAVE === 12 &&
             !this.haltActions
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 12;
             this.haltActions = true;
             sockets.broadcast(
@@ -10044,7 +9199,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.color = 12;
               o.define(Class.ranarPower5);
-              o.RANGE += game.players * 150;
+              o.RANGE += game.PLAYERS * 150;
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
@@ -10056,10 +9211,10 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.1 &&
-            game.wave === 13 &&
+            game.WAVE === 13 &&
             !this.haltActions
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 32;
             this.haltActions = true;
             sockets.broadcast(
@@ -10069,7 +9224,7 @@ this.collisionArray = [];
               sockets.broadcast("Twilight: What the F---?!");
             }, 6000);
             game.stopFoodSpawn = true;
-            game.BOTS = game.players * 2;
+            game.BOTS = game.PLAYERS * 2;
             setTimeout(() => {
               for (let i = 0; i < 6; i++) {
                 let o = new Entity(room.randomType("spw0"));
@@ -10082,7 +9237,7 @@ this.collisionArray = [];
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
-                    o.skill.dam = 1 + game.players / 2;
+                    o.skill.dam = 1 + game.PLAYERS / 2;
                     o.tp = true;
                     break;
                   case 2:
@@ -10092,14 +9247,14 @@ this.collisionArray = [];
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
-                    o.maxChildren = Math.ceil(1 + game.players * 1.5);
+                    o.maxChildren = Math.ceil(1 + game.PLAYERS * 1.5);
                     o.fov = 50000;
                     o.tp = true;
                     break;
                   case 3:
                     o.color = 33;
-                    o.skill.str = 2 + game.players * 1.5;
-                    o.skill.spd = 0.5 + game.players / 3;
+                    o.skill.str = 2 + game.PLAYERS * 1.5;
+                    o.skill.spd = 0.5 + game.PLAYERS / 3;
                     o.define(Class.ranarPower4);
                     o.team = -100;
                     o.SIZE = this.SIZE;
@@ -10109,7 +9264,7 @@ this.collisionArray = [];
                   case 4:
                     o.color = 12;
                     o.define(Class.ranarPower5);
-                    o.RANGE += game.players * 100;
+                    o.RANGE += game.PLAYERS * 100;
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
@@ -10118,7 +9273,7 @@ this.collisionArray = [];
                   default:
                     o.define(Class.ranarPower0);
                     o.team = -100;
-                    o.maxChildren = Math.ceil(game.players / 4);
+                    o.maxChildren = Math.ceil(game.PLAYERS / 4);
                     o.SIZE = this.SIZE;
                     o.color = 1;
                     o.tp = true;
@@ -10130,7 +9285,7 @@ this.collisionArray = [];
               game.stopFoodSpawn = false;
             }, 9000);
             setTimeout(() => {
-              for (let i = 0; i < Math.ceil(game.players * 1.25); i++) {
+              for (let i = 0; i < Math.ceil(game.PLAYERS * 1.25); i++) {
                 let o = new Entity(room.randomType("nest"));
                 switch (i) {
                   case 12:
@@ -10187,9 +9342,9 @@ this.collisionArray = [];
               this.haltActions = false;
             }, 10000);
           }
-          if (game.wave === 15 && !game.stop1 && !room.closed) {
+          if (game.WAVE === 15 && !game.stop1 && !room.closed) {
             game.BOTS = 0;
-            if (game.ranarLoseCondition >= game.players * 5) {
+            if (game.ranarLoseCondition >= game.PLAYERS * 5) {
               setTimeout(() => {
                 sockets.broadcast(
                   "Twilight: Wow, good job, I guess you guys did not need me..."
@@ -10273,19 +9428,19 @@ this.collisionArray = [];
               closeArena();
             }, 68000);
             setTimeout(() => {
-              game.wave += 1;
+              game.WAVE += 1;
               sockets.broadcast("Twilight: Go through the portal, NOW!");
             }, 72000);
             game.stop1 = true;
           }
 
-          if (game.wave === 16) {
+          if (game.WAVE === 16) {
             let o = new Entity(room.randomType("bad1"));
             o.define(Class.voidportal);
             o.godMode = true;
             o.team = -1;
             o.color = 10;
-            game.wave += 1;
+            game.WAVE += 1;
             sockets.broadcast(
               "Congratulations, you have defeated the controller of Ranar's Prophecy! We are free! Your team has won the game!"
             );
@@ -10298,14 +9453,14 @@ this.collisionArray = [];
         }
       }
     }
-    /*  if (game.eventProgress !== true || game.wave >= 13) {
+    /*  if (game.eventProgress !== true || game.WAVE >= 13) {
         if (this.isWall || this.isGate) {
           this.destroy();
       }
       }*/
-    if (this.specialEffect === "denied" && game.wave > 0) {
+    if (this.specialEffect === "denied" && game.WAVE > 0) {
       this.name = "Player Lives Remaining: " + game.ranarLoseCondition;
-      if (game.wave > 0 && this.skill.score < 5000000) {
+      if (game.WAVE > 0 && this.skill.score < 5000000) {
         this.skill.score = Infinity;
       }
     }
@@ -10314,9 +9469,9 @@ this.collisionArray = [];
     }
     if (game.MODE === "theDivided") {
       if (game.eventProgress) {
-        if (game.wave === 0) {
+        if (game.WAVE === 0) {
         }
-        if (this.type === "squareWall" && game.wave >= 13) {
+        if (this.type === "squareWall" && game.WAVE >= 13) {
           this.destroy();
         }
         if (this.eliteBoss) {
@@ -10341,20 +9496,20 @@ this.collisionArray = [];
           }
           if (this.color !== 19) {
             if (this.label === "Arrasian Lord") {
-              this.resist = game.players / 3 + 1;
-              this.damage = game.players + 5;
-              this.skill.dam = game.players / 3 + 4;
-              this.skill.pen = game.players / 4 + 3;
-              this.skill.str = game.players / 3 + 3;
-              this.skill.spd = game.players / 5 + 2;
+              this.resist = game.PLAYERS / 3 + 1;
+              this.damage = game.PLAYERS + 5;
+              this.skill.dam = game.PLAYERS / 3 + 4;
+              this.skill.pen = game.PLAYERS / 4 + 3;
+              this.skill.str = game.PLAYERS / 3 + 3;
+              this.skill.spd = game.PLAYERS / 5 + 2;
             }
           }
           if (
             this.health.amount <= this.health.max / 1.5 &&
-            game.wave === 0 &&
+            game.WAVE === 0 &&
             this.haltActions === false
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             sockets.broadcast("Valrayvn: I WILL HAVE YOU SEDUCED!");
             setTimeout(() => {
               sockets.broadcast(
@@ -10381,7 +9536,7 @@ this.collisionArray = [];
               o.stayTeam = false;
               o.define(Class.valrayvnPower0);
               o.team = -100;
-              o.maxChildren = Math.ceil(game.players * 1.5);
+              o.maxChildren = Math.ceil(game.PLAYERS * 1.5);
               o.SIZE = this.SIZE;
               o.color = 1;
               o.tp = true;
@@ -10392,19 +9547,19 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max / 2 &&
-            game.wave === 1 &&
+            game.WAVE === 1 &&
             !this.haltActions
           ) {
             this.goBack = true;
             this.runAway = true;
             sockets.broadcast("Valrayvn: DIE YOU TRAITORS!!!");
 
-            game.wave += 1;
+            game.WAVE += 1;
             this.haltActions = true;
           }
-          if (this.goBack && game.wave === 2) {
+          if (this.goBack && game.WAVE === 2) {
             this.goBack = false;
-            game.wave += 1;
+            game.WAVE += 1;
             let loc = room.type("spw4");
             this.runAway = true;
             this.refreshBodyAttributes();
@@ -10416,7 +9571,7 @@ this.collisionArray = [];
                   "Cubed: We may or may not have pissed Val off too badly Tryi."
                 );
               }, 4000);
-              for (let i = 0; i < game.players * 5 + 5; i++) {
+              for (let i = 0; i < game.PLAYERS * 5 + 5; i++) {
                 let o = new Entity(room.randomType("bos4"));
 
                 o.rarity = Math.random() * 300;
@@ -10467,17 +9622,17 @@ this.collisionArray = [];
               }, 30000);
             }, 12000);
           }
-          if (game.enemyCount <= 0 && game.wave === 3) {
+          if (game.enemyCount <= 0 && game.WAVE === 3) {
             this.haltActions = false;
             this.runAway = false;
-            game.wave += 1;
+            game.WAVE += 1;
           }
           if (
             this.health.amount <= this.health.max / 4 &&
-            game.wave === 4 &&
+            game.WAVE === 4 &&
             !this.haltActions
           ) {
-            game.wave += 1;
+            game.WAVE += 1;
             this.color = 3;
             this.haltActions = true;
             sockets.broadcast(
@@ -10499,14 +9654,14 @@ this.collisionArray = [];
               o.team = -100;
               o.SIZE = this.SIZE;
               o.invuln = false;
-              o.skill.dam = 1 + game.players * 2.5;
+              o.skill.dam = 1 + game.PLAYERS * 2.5;
               o.tp = true;
             }, 15000);
             setTimeout(() => {
               this.haltActions = false;
             }, 25000);
           }
-          if (game.wave === 6 && !game.stop1 && !room.closed) {
+          if (game.WAVE === 6 && !game.stop1 && !room.closed) {
             game.BOTS = 0;
             setTimeout(() => {
               sockets.broadcast(
@@ -10549,7 +9704,7 @@ this.collisionArray = [];
               closeArena();
             }, 68000);
             setTimeout(() => {
-              game.wave += 1;
+              game.WAVE += 1;
               sockets.broadcast(
                 "Tryi: Go through the portal, we cant fight this!"
               );
@@ -10557,13 +9712,13 @@ this.collisionArray = [];
             game.stop1 = true;
           }
 
-          if (game.wave === 16) {
+          if (game.WAVE === 16) {
             let o = new Entity(room.randomType("bad1"));
             o.define(Class.voidportal);
             o.godMode = true;
             o.team = -1;
             o.color = 10;
-            game.wave += 1;
+            game.WAVE += 1;
             sockets.broadcast(
               "Congratulations, you have defeated Valrayvn...for now. We are free! Your team has won the game!"
             );
@@ -10575,7 +9730,7 @@ this.collisionArray = [];
           this.y = this.master.y;
         }
       }
-      if (game.eventProgress !== true || game.wave >= 13) {
+      if (game.eventProgress !== true || game.WAVE >= 13) {
         if (this.isWall || this.isGate) {
           this.destroy();
         }
@@ -10609,13 +9764,13 @@ this.collisionArray = [];
       this.type === "tank" &&
       !this.invuln &&
       game.dontSpam &&
-      this.yay !== game.wave
+      this.yay !== game.WAVE
     ) {
       this.sendMessage(
         "Congrats for surviving the previous wave! You have been rewarded with score!"
       );
-      this.skill.score += (game.wave + game.preparedCounter) * 3500;
-      this.yay = game.wave;
+      this.skill.score += (game.WAVE + game.preparedCounter) * 3500;
+      this.yay = game.WAVE;
       setTimeout(() => {
         game.dontSpam = false;
       }, 100);
@@ -10968,8 +10123,8 @@ this.collisionArray = [];
           if (isNaN(this.x) && isNaN(this.y)) return;
           let loc = room.randomType("none");
           this.invuln = true;
-          this.x = logame.x;
-          this.y = logame.y;
+          this.x = loc.x;
+          this.y = loc.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
@@ -11301,8 +10456,8 @@ this.collisionArray = [];
           if (room["spw" + i]) {
             room["spw" + i].forEach((loc) => {
               placeBosses(loc, i, {
-                x: Math.floor(logame.x / gridWidth),
-                y: Math.floor(logame.y / gridHeight),
+                x: Math.floor(loc.x / gridWidth),
+                y: Math.floor(loc.y / gridHeight),
               });
             });
           }
@@ -11362,7 +10517,7 @@ this.collisionArray = [];
           //this.win = false;
         }
       }
-      if (this.foodLevel > 4 && game.MODE === "theDenied" && game.wave > 0) {
+      if (this.foodLevel > 4 && game.MODE === "theDenied" && game.WAVE > 0) {
         let lifeUp = this.foodLevel - 4;
         let plur;
         if (lifeUp === 1) {
@@ -11380,7 +10535,7 @@ this.collisionArray = [];
         );
       }
       if (
-        //game.wave === 4 &&
+        //game.WAVE === 4 &&
         game.MODE === "theInfestation" &&
         this.label === "Anti-Virus"
       ) {
@@ -11401,7 +10556,7 @@ console.log('Lore mode sequence advanced.');*/
       if (
         this.isPlayer &&
         game.MODE === "theDenied" &&
-        game.wave > 0 &&
+        game.WAVE > 0 &&
         !this.godMode
       ) {
         game.ranarLoseCondition -= 1;
@@ -11416,7 +10571,7 @@ console.log('Lore mode sequence advanced.');*/
             "Twilight: If the global life count reaches zero, we lose, don't die!"
           );
         }
-        if (game.ranarLoseCondition < 1 && !room.closed && game.wave < 15) {
+        if (game.ranarLoseCondition < 1 && !room.closed && game.WAVE < 15) {
           sockets.broadcast("Twilight: NOOO!!!");
           setTimeout(() => {
             sockets.broadcast(
@@ -11717,7 +10872,7 @@ console.log('Lore mode sequence advanced.');*/
         game.cxPowerDrain += 1;
       }
       if (game.MODE === "theDenied" && !this.godMode) {
-        if (game.wave >= 6 && this.isTwilight) {
+        if (game.WAVE >= 6 && this.isTwilight) {
           this.invuln = true;
           this.trulyDead = false;
           this.health.amount = 1;
@@ -11800,7 +10955,7 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (this.isRanar && game.MODE === "theDenied") {
         if (this.label === "Ascendant") {
-          game.wave = 15;
+          game.WAVE = 15;
           this.trulyDead = false;
           this.runAway = true;
           this.x = room.type("spw0").x;
@@ -11827,7 +10982,7 @@ console.log('Lore mode sequence advanced.');*/
             "Ranar: You have forced me to try! Prepare to be erased!"
           );
 
-          game.wave = 6;
+          game.WAVE = 6;
           this.haltActions = true;
         }
       }
@@ -11844,7 +10999,7 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (this.eliteBoss && game.MODE === "theDivided") {
         if (this.label === "Arrasian Lord") {
-          game.wave = 6;
+          game.WAVE = 6;
           this.trulyDead = true;
           this.runAway = true;
           this.x = room.type("bos0").x;
@@ -11855,7 +11010,7 @@ console.log('Lore mode sequence advanced.');*/
           sockets.broadcast("Valrayvn: ...");
           sockets.broadcast("Valrayvn has been defeated!");
         }
-        game.wave = 6;
+        game.WAVE = 6;
         this.haltActions = true;
       }
 
@@ -11946,13 +11101,13 @@ console.log('Lore mode sequence advanced.');*/
     let o;
 
     if (gridWidth > gridHeight) {
-      let start = logame.x - gridWidth / 2 + gridHeight / 2;
-      let end = logame.x + gridWidth / 2 - gridHeight / 2;
+      let start = loc.x - gridWidth / 2 + gridHeight / 2;
+      let end = loc.x + gridWidth / 2 - gridHeight / 2;
       let x = start;
       for (;;) {
         o = new Entity({
           x: Math.min(x, end),
-          y: logame.y,
+          y: loc.y,
         });
         o.define(a);
         o.SIZE = gridHeight / 2.25;
@@ -11962,12 +11117,12 @@ console.log('Lore mode sequence advanced.');*/
         x += gridHeight;
       }
     } else if (gridWidth < gridHeight) {
-      let start = logame.y + gridWidth / 2 - gridHeight / 2;
-      let end = logame.y - gridWidth / 2 + gridHeight / 2;
+      let start = loc.y + gridWidth / 2 - gridHeight / 2;
+      let end = loc.y - gridWidth / 2 + gridHeight / 2;
       let y = start;
       for (;;) {
         o = new Entity({
-          x: logame.x,
+          x: loc.x,
           y: Math.min(y, end),
         });
         o.define(a);
@@ -11996,8 +11151,8 @@ console.log('Lore mode sequence advanced.');*/
 
     o.refreshBodyAttributes();
     o.grid = {
-            x: Math.floor(logame.x / gridWidth),
-            y: Math.floor(logame.y / gridHeight),
+            x: Math.floor(loc.x / gridWidth),
+            y: Math.floor(loc.y / gridHeight),
           }
     o.VELOCITY.x = 0;
     o.VELOCITY.y = 0;
@@ -12082,14 +11237,14 @@ console.log('Lore mode sequence advanced.');*/
           if (game.bossAmount <= 0) {
             setTimeout(() => {
               if (game.bossAmount <= 0) {
-                game.preparedCounter = game.wave * 5 + 50;
-                game.wave += 1;
+                game.preparedCounter = game.WAVE * 5 + 50;
+                game.WAVE += 1;
                 game.continueWave = true;
                 game.dontSpam = true;
                 game.bossAmount = 1;
-                currentState.bossWaves = game.wave + 1;
+                currentState.bossWaves = game.WAVE + 1;
                 //     util.log(currentState.bossWaves);
-                sockets.broadcast("Wave " + game.wave + " has started!");
+                sockets.broadcast("Wave " + game.WAVE + " has started!");
               }
             }, 5432);
           }
@@ -13132,13 +12287,13 @@ instance.runTrigger("kill", this);
         let gridHeight = room.height / room.ygrid;
         let a = Class.fortwall;
         if (gridWidth > gridHeight) {
-          let start = logame.x - gridWidth / 2 + gridHeight / 2;
-          let end = logame.x + gridWidth / 2 - gridHeight / 2;
+          let start = loc.x - gridWidth / 2 + gridHeight / 2;
+          let end = loc.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: logame.y,
+              y: loc.y,
             });
             o.define(a);
             o.SIZE = gridHeight / 2;
@@ -13152,12 +12307,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = logame.y + gridWidth / 2 - gridHeight / 2;
-          let end = logame.y - gridWidth / 2 + gridHeight / 2;
+          let start = loc.y + gridWidth / 2 - gridHeight / 2;
+          let end = loc.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: logame.x,
+              x: loc.x,
               y: Math.min(y, end),
             });
             o.define(a);
@@ -13186,13 +12341,13 @@ instance.runTrigger("kill", this);
         let gridHeight = room.height / room.ygrid;
         let a = Class.fortgate;
         if (gridWidth > gridHeight) {
-          let start = logame.x - gridWidth / 2 + gridHeight / 2;
-          let end = logame.x + gridWidth / 2 - gridHeight / 2;
+          let start = loc.x - gridWidth / 2 + gridHeight / 2;
+          let end = loc.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: logame.y,
+              y: loc.y,
             });
             o.define(a);
             o.SIZE = gridHeight / 2;
@@ -13206,12 +12361,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = logame.y + gridWidth / 2 - gridHeight / 2;
-          let end = logame.y - gridWidth / 2 + gridHeight / 2;
+          let start = loc.y + gridWidth / 2 - gridHeight / 2;
+          let end = loc.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: logame.x,
+              x: loc.x,
               y: Math.min(y, end),
             });
             o.define(a);
@@ -13239,13 +12394,13 @@ instance.runTrigger("kill", this);
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
         if (gridWidth > gridHeight) {
-          let start = logame.x - gridWidth / 2 + gridHeight / 2;
-          let end = logame.x + gridWidth / 2 - gridHeight / 2;
+          let start = loc.x - gridWidth / 2 + gridHeight / 2;
+          let end = loc.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: logame.y,
+              y: loc.y,
             });
             o.define(Class.wall);
             o.SIZE = gridHeight / 2;
@@ -13260,12 +12415,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = logame.y + gridWidth / 2 - gridHeight / 2;
-          let end = logame.y - gridWidth / 2 + gridHeight / 2;
+          let start = loc.y + gridWidth / 2 - gridHeight / 2;
+          let end = loc.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: logame.x,
+              x: loc.x,
               y: Math.min(y, end),
             });
             o.define(Class.wall);
@@ -13296,13 +12451,13 @@ instance.runTrigger("kill", this);
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
         if (gridWidth > gridHeight) {
-          let start = logame.x - gridWidth / 2 + gridHeight / 2;
-          let end = logame.x + gridWidth / 2 - gridHeight / 2;
+          let start = loc.x - gridWidth / 2 + gridHeight / 2;
+          let end = loc.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: logame.y,
+              y: loc.y,
             });
             o.define(Class.wall);
             o.SIZE = (gridHeight / 2) * 2;
@@ -13317,12 +12472,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = logame.y + gridWidth / 2 - gridHeight / 2;
-          let end = logame.y - gridWidth / 2 + gridHeight / 2;
+          let start = loc.y + gridWidth / 2 - gridHeight / 2;
+          let end = loc.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: logame.x,
+              x: loc.x,
               y: Math.min(y, end),
             });
             o.define(Class.wall);
@@ -13353,13 +12508,13 @@ instance.runTrigger("kill", this);
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
         if (gridWidth > gridHeight) {
-          let start = logame.x - gridWidth / 2 + gridHeight / 2;
-          let end = logame.x + gridWidth / 2 - gridHeight / 2;
+          let start = loc.x - gridWidth / 2 + gridHeight / 2;
+          let end = loc.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: logame.y,
+              y: loc.y,
             });
             o.define(Class.wall);
             o.SIZE = gridHeight / 2 / 2;
@@ -13374,12 +12529,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = logame.y + gridWidth / 2 - gridHeight / 2;
-          let end = logame.y - gridWidth / 2 + gridHeight / 2;
+          let start = loc.y + gridWidth / 2 - gridHeight / 2;
+          let end = loc.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: logame.x,
+              x: loc.x,
               y: Math.min(y, end),
             });
             o.define(Class.wall);
@@ -13967,7 +13122,7 @@ class View {
             this.socket.talk("F", ...player.records(), 100000000000);
           }
         } else if (player.body.bannable) {
-          game.bans.push(player.body.ip);
+          game.BANS.push(player.body.ip);
           this.socket.kick("Go. Away. Fatman.");
         }
         // Remove the body
@@ -14157,7 +13312,7 @@ class View {
       };
     };
 
-    if (this.lastUpdate - this.lastVisibleUpdate > game.visibleListInterval) {
+    if (this.lastUpdate - this.lastVisibleUpdate > game.VISIBLE_LIST_INTERVAL) {
       this.nearEntity.clear();
       entities.forEach((e) => {
         if (e.valid() && this.isInView(e) && e.bond == null) {
@@ -14226,7 +13381,7 @@ const sockets = (() => {
         switch (thing) {
           case "mute":
             if (IP === dude.ip) {
-              game.mutes.push(dude.ip);
+              game.MUTES.push(dude.ip);
               util.log(dude.name + " was muted temporarily!");
             }
             break;
@@ -14243,7 +13398,7 @@ const sockets = (() => {
             break;
           case "ban":
             if (IP === dude.ip) {
-              game.bans.push(dude.ip);
+              game.BANS.push(dude.ip);
               util.log(dude.name + " was banned temporarily!");
             }
             break;
@@ -14489,7 +13644,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                 let enterMessage =
                   call +
                   " has joined the game! Players: " +
-                  game.players +
+                  game.PLAYERS +
                   ".";
 
                 sockets.broadcast(enterMessage);
@@ -15098,7 +14253,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                   ) {
                     let dude = player.body.name;
                     if (player.body.name === "") dude = "An unnamed player";
-                    if (game.MODE === "siege" && game.wave === 50) {
+                    if (game.MODE === "siege" && game.WAVE === 50) {
                       if (
                         /*
                         player.body.label === "Arena Guard" ||
@@ -15666,8 +14821,8 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                 }
             }
             if (game.MODE === "theInfestation") {
-              logame.x = temp.anubLocX;
-              logame.y = temp.anubLocY;
+              loc.x = temp.anubLocX;
+              loc.y = temp.anubLocY;
             }
             let body;
             // Create and bind a body for the player host
@@ -15944,11 +15099,11 @@ player.color = easy;
                 server +
                 `/chat' to use it and its commands!`
             );
-            if (game.type === "lore") {
+            if (game.TYPE === "lore") {
               body.sendMessage(
                 "This server for is lore modes, for normal modes, please go to ranars-arena.glitch.me"
               );
-            } else if (game.type === "normal") {
+            } else if (game.TYPE === "normal") {
               body.sendMessage(
                 "This server for is normal modes, for lore modes, please go to ranars-prophecy.glitch.me"
               );
@@ -16022,8 +15177,8 @@ player.color = easy;
                 body.sendMessage(
                   "The Game mode is Siege. Survive the waves and protect the Sanctuaries!"
                 );
-                if (game.wave > 0) {
-                  body.sendMessage("The current wave: " + game.wave + ".");
+                if (game.WAVE > 0) {
+                  body.sendMessage("The current wave: " + game.WAVE + ".");
                 }
                 break;
               case "ffa":
@@ -16051,7 +15206,7 @@ player.color = easy;
                 body.sendMessage(
                   "This Game mode is known as The Denied! Work together and Defeat the final boss of Ranar's Prophecy!"
                 );
-                if (game.wave > 0) {
+                if (game.WAVE > 0) {
                   body.sendMessage(
                     "Twilight: My energy is low, I cannot keep bringing you back if you die, everyone has " +
                       game.ranarLoseCondition +
@@ -16479,7 +15634,7 @@ player.color = easy;
               // Update which entities are nearby
               if (
                 camera.lastUpdate - lastVisibleUpdate >
-                game.visibleListInterval
+                game.VISIBLE_LIST_INTERVAL
               ) {
                 // Update our timer
                 lastVisibleUpdate = camera.lastUpdate;
@@ -16945,18 +16100,18 @@ player.color = easy;
 
         socket.ip = ips[0];
         clients.push(socket);
-        if (game.bans.includes(socket.ip)) {
+        if (game.BANS.includes(socket.ip)) {
           socket.kick("This ip is banned: " + socket.ip);
           // socket.sendMessage("You have been banned!");
         }
         util.log("[INFO] A New socket opened with ip: " + socket.ip);
 
-        game.players = clients.length;
+        game.PLAYERS = clients.length;
 
-        //game.players = 1e10;
+        //game.PLAYERS = 1e10;
         setTimeout(() => {
           if (game.canProgress !== true) {
-            game.wave = 0;
+            game.WAVE = 0;
             game.canProgress = true;
             sockets.changeroom();
           }
@@ -18291,7 +17446,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           simplecollide(instance, other);
         }
       }
-      if (game.MODE === "theDenied" && game.wave >= 15) {
+      if (game.MODE === "theDenied" && game.WAVE >= 15) {
         if (
           instance.isPlayer &&
           other.label === "Void Portal" &&
@@ -18776,7 +17931,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (other.isGate || other.isWall) {
             other.health.amount = 0.011;
             other.dont = false;
-            if (game.type === "lore") other.kill();
+            if (game.TYPE === "lore") other.kill();
           }
         }
         if (
@@ -18786,7 +17941,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (instance.isGate || instance.isWall) {
             instance.health.amount = 0.011;
             instance.dont = false;
-            if (game.type === "lore") instance.kill();
+            if (game.TYPE === "lore") instance.kill();
           }
         }
       }
@@ -19984,7 +19139,7 @@ var maintainloop = (() => {
           (0.5 * census.thrasher) /
             room.maxFood /
             room.nestFoodAmount /
-            (game.players * 1.5 + 2.5)
+            (game.PLAYERS * 1.5 + 2.5)
       )
     ) {
       let spot,
@@ -20035,7 +19190,7 @@ var maintainloop = (() => {
           (3.5 * census.thrasher) /
             room.maxFood /
             room.nestFoodAmount /
-            (game.players * 1.5 + 2.5)
+            (game.PLAYERS * 1.5 + 2.5)
       )
     ) {
       let spot,
@@ -20086,7 +19241,7 @@ var maintainloop = (() => {
           (3.5 * census.thrasher) /
             room.maxFood /
             room.nestFoodAmount /
-            (game.players * 7.5 + 4.5)
+            (game.PLAYERS * 7.5 + 4.5)
       )
     ) {
       let spot,
@@ -20297,7 +19452,7 @@ var maintainloop = (() => {
           return e;
         });
       let ruh;
-      if (game.REDUCE_BOTS_PER_PLAYER) ruh = game.players;
+      if (game.REDUCE_BOTS_PER_PLAYER) ruh = game.PLAYERS;
       else ruh = 0;
       // Bots
       if (bots.length < game.BOTS - ruh && game.bots === true) {
@@ -21524,7 +20679,7 @@ const server = http.createServer((req, res) => {
     timeString = `${hours} ${hourLabel} and ${minutes} ${minuteLabel}`,
     title = "Unknown",
     extra = "Unknown";
-  switch (game.type) {
+  switch (game.TYPE) {
     case "lore":
       title = "Ranar's Prophecy";
       extra = "The Lore Server";
@@ -21623,7 +20778,7 @@ const server = http.createServer((req, res) => {
           chosenMode +
           `.<br>
     <b>Players:</b> ` +
-          game.players +
+          game.PLAYERS +
           `.<br>
 <b>Estimated Time Before Server Refreshes:</b> ${timeString}.<br><br>
 You must have the chat site and the game site open at the same time for your chats to be sent.
@@ -22112,7 +21267,7 @@ You must have the chat site and the game site open at the same time for your cha
     <h2>Possible Game Modes</h2>
     <h2>(Chosen randomly on server starts and restarts):</h2>
     <ul>` +
-          game.list.join(`<br><br>`) +
+          game.LIST.join(`<br><br>`) +
           /*<li>FFA Maze</li>
       <li>Open 4TDM</li>
       <li>Open 4TDM Growth</li>
@@ -22284,21 +21439,21 @@ You must have the chat site and the game site open at the same time for your cha
                         let playerList = "<ul>" + list.join("") + "</ul>"; // Join elements without separator
                         message =
                           "There are " +
-                          game.players +
+                          game.PLAYERS +
                           " players online:\n" +
                           playerList;
                       } else if (command.includes("mode list")) {
                         message =
                           `Here is the list of modes, type as they are for voting, if you are allowed to: <br><br>` +
-                          game.list.join(`<br><br>`);
+                          game.LIST.join(`<br><br>`);
                       } else if (command.includes("vote")) {
-                        if (game.type === "normal") {
+                        if (game.TYPE === "normal") {
                           let vote = command.slice(command.indexOf("e") + 2);
                           if (!game.votes.includes(socket.ip)) {
                             let re = 1;
                             if (socket.trueDev) re = 100;
                             for (let i = 0; i < re; i++) {
-                              if (game.type.includes(vote)) {
+                              if (game.TYPE.includes(vote)) {
                                 currentState.modeVotes.push(vote);
                                 game.votes.push(vote);
                                 message =
@@ -22620,7 +21775,7 @@ You must have the chat site and the game site open at the same time for your cha
                         } else if (command.includes("set wave")) {
                           let parts = command.split(" ");
                           let wave = parts[2]; // This should be "polygons", "players", etgame.
-                          game.wave = wave * 1;
+                          game.WAVE = wave * 1;
                           currentState.bossWaves = wave * 1;
                         } else if (command.includes("obliterate")) {
                           let parts = command.split(" ");
@@ -22947,7 +22102,7 @@ You must have the chat site and the game site open at the same time for your cha
                           "You do not have permission to use this command!";
                       game.recentMessage1 = "";
                     } else {
-                      if (game.mutes.includes(socket.ip)) {
+                      if (game.MUTES.includes(socket.ip)) {
                         message = "You have been muted, message was not sent!";
                         game.recentMessage1 = "";
                       } else {
