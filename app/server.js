@@ -670,23 +670,23 @@ function spawnGridStrip({
     });
 
   if (gridWidth > gridHeight) {
-    let start = loc.x - gridWidth / 2 + gridHeight / 2;
-    let end   = loc.x + gridWidth / 2 - gridHeight / 2;
+    let start = logame.x - gridWidth / 2 + gridHeight / 2;
+    let end   = logame.x + gridWidth / 2 - gridHeight / 2;
 
     for (let x = start; x <= end; x += gridHeight) {
-      spawn(Math.min(x, end), loc.y, gridHeight / sizeScale);
+      spawn(Math.min(x, end), logame.y, gridHeight / sizeScale);
     }
 
   } else if (gridWidth < gridHeight) {
-    let start = loc.y + gridWidth / 2 - gridHeight / 2;
-    let end   = loc.y - gridWidth / 2 + gridHeight / 2;
+    let start = logame.y + gridWidth / 2 - gridHeight / 2;
+    let end   = logame.y - gridWidth / 2 + gridHeight / 2;
 
     for (let y = start; y <= end; y += gridWidth) {
-      spawn(loc.x, Math.min(y, end), gridWidth / sizeScale);
+      spawn(logame.x, Math.min(y, end), gridWidth / sizeScale);
     }
 
   } else {
-    spawn(loc.x, loc.y, gridWidth / sizeScale);
+    spawn(logame.x, logame.y, gridWidth / sizeScale);
   }
 }
 
@@ -723,7 +723,7 @@ function makeDominators() {
   });
 }
 function makeBaseProtectors() {
-  if (!c.BASE_DRONES) return;
+  if (!game.BASE_DRONES) return;
 
   forRoomKey("bap", 9, (loc, i) => {
     spawnEntity({
@@ -793,8 +793,8 @@ function makeFortWalls() {
       team: -100,
       color: 16,
       grid: {
-        x: Math.floor(loc.x / gridWidth),
-        y: Math.floor(loc.y / gridHeight)
+        x: Math.floor(logame.x / gridWidth),
+        y: Math.floor(logame.y / gridHeight)
       },
       extra: o => {
         o.isWall = true;
@@ -817,8 +817,8 @@ function makeTeamedWalls() {
       team: -i,
       color: [10, 18, 7, 19][i - 1],
       grid: {
-        x: Math.floor(loc.x / gridWidth),
-        y: Math.floor(loc.y / gridHeight)
+        x: Math.floor(logame.x / gridWidth),
+        y: Math.floor(logame.y / gridHeight)
       },
       extra: o => {
         o.isWall = true;
@@ -855,8 +855,8 @@ function makeTiling() {
       team: -100,
       color: 3,
       grid: {
-        x: Math.floor(loc.x / gridWidth),
-        y: Math.floor(loc.y / gridHeight)
+        x: Math.floor(logame.x / gridWidth),
+        y: Math.floor(logame.y / gridHeight)
       }
     });
   });
@@ -875,8 +875,8 @@ function makeTiling() {
         team: -100,
         color,
         grid: {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight)
+          x: Math.floor(logame.x / gridWidth),
+          y: Math.floor(logame.y / gridHeight)
         }
       });
     });
@@ -886,8 +886,8 @@ function closeArena() {
   if (!room.closed) {
     setTimeout(() => {
       sockets.broadcast("Arena closed. No players can join!");
-      c.visibleListInterval = 0;
-      c.RESPAWN_TIMER = Infinity;
+      game.visibleListInterval = 0;
+      game.RESPAWN_TIMER = Infinity;
       room.closed = true;
       setTimeout(() => {
         entities.forEach((e) => {
@@ -945,7 +945,7 @@ function closeArena() {
           o.refreshBodyAttributes();
           o.invuln = false;
           o.defy = true;
-          c.killCheaters = true;
+          game.killCheaters = true;
           o.impervious = true;
           o.alwaysExists = true;
         }
@@ -965,15 +965,15 @@ function closeArena() {
         o.refreshBodyAttributes();
         o.invuln = false;
         o.defy = true;
-        c.killCheaters = true;
+        game.killCheaters = true;
       }/*/
-        c.BOTS = 0;
-        c.SPAWN_SENTINEL = false;
-        c.SPAWN_CRASHER = false;
-        c.SPAWN_SENTINEL = false;
-        c.SPAWN_VOIDLORD_ENEMIES = false;
-        c.SPAWN_NEUTRAL_BOSSES = false;
-        c.SPAWN_FALLEN_BOSSES = false;
+        game.BOTS = 0;
+        game.SPAWN_SENTINEL = false;
+        game.SPAWN_CRASHER = false;
+        game.SPAWN_SENTINEL = false;
+        game.SPAWN_VOIDLORD_ENEMIES = false;
+        game.SPAWN_NEUTRAL_BOSSES = false;
+        game.SPAWN_FALLEN_BOSSES = false;
         game.SPAWN_FOOD = false;
         game.MODE = "none";
         if (game.players < 1) {
@@ -992,21 +992,21 @@ function closeArena() {
   }
 }
 function roomShrinkage() {
-  if (!c.delay) {
+  if (!game.delay) {
     room.width -= 2;
     room.height -= 2;
     sockets.changeroom();
-    c.delay = true;
+    game.delay = true;
     setTimeout(() => {
-      c.delay = false;
+      game.delay = false;
     }, 1);
   }
 }
 
 function siegeCountdown() {
   setInterval(() => {
-    if (c.initiateCountdown) {
-      switch (c.countdown) {
+    if (game.initiateCountdown) {
+      switch (game.countdown) {
         case 60000:
           sockets.broadcast(
             "Your team will lose in 60 seconds! No players can respawn until a sanctuary is repaired!"
@@ -1043,7 +1043,7 @@ function siegeCountdown() {
           currentState.modeVotes = [];
           closeArena();
       }
-      c.countdown -= 1000;
+      game.countdown -= 1000;
     }
   }, 1000);
 }
@@ -1415,7 +1415,7 @@ class io_nearestDifferentMaster extends IO {
     let out = getEntitiesFromRange(m, range)
       .map((e) => {
         // Only look at those within our view, and our parent's view, not dead, not our kind, not a bullet/trap/block etc
-        if (!c.globalAIDisable && !this.body.master.AIDisable) {
+        if (!game.globalAIDisable && !this.body.master.AIDisable) {
           if (e.health.amount > 0 && e.team !== -101 && e.type !== "deity") {
             if (!e.invuln && !this.body.excludedTargets.includes(e.type)) {
               switch (this.body.aiTarget) {
@@ -1689,7 +1689,7 @@ class io_nearestDifferentMaster extends IO {
     // Filter entities in range and process their details
     let out = getEntitiesFromRange(m, range)
       .map((e) => {
-        if (!c.globalAIDisable && !this.body.master.AIDisable) {
+        if (!game.globalAIDisable && !this.body.master.AIDisable) {
           if (e.health.amount > 0 && e.team !== -101 && e.type !== "deity") {
             if (!e.invuln && !this.body.excludedTargets.includes(e.type)) {
               switch (this.body.aiTarget) {
@@ -2713,16 +2713,16 @@ class Skill {
     this.raw = inital;
     this.caps = [];
     this.setCaps([
-      c.MAX_SKILL,
-      c.MAX_SKILL,
-      c.MAX_SKILL,
-      c.MAX_SKILL,
-      c.MAX_SKILL,
-      c.MAX_SKILL,
-      c.MAX_SKILL,
-      c.MAX_SKILL,
-      c.MAX_SKILL,
-      c.MAX_SKILL,
+      game.MAX_SKILL,
+      game.MAX_SKILL,
+      game.MAX_SKILL,
+      game.MAX_SKILL,
+      game.MAX_SKILL,
+      game.MAX_SKILL,
+      game.MAX_SKILL,
+      game.MAX_SKILL,
+      game.MAX_SKILL,
+      game.MAX_SKILL,
     ]);
     this.name = [
       "Reload",
@@ -2770,12 +2770,12 @@ class Skill {
         return Math.log(4 * x + 1) / Math.log(5);
       }
       let a = [];
-      for (let i = 0; i < c.MAX_SKILL * 2; i++) {
-        a.push(make(i / c.MAX_SKILL));
+      for (let i = 0; i < game.MAX_SKILL * 2; i++) {
+        a.push(make(i / game.MAX_SKILL));
       }
       // The actual lookup function
       return (x) => {
-        return a[x * c.MAX_SKILL];
+        return a[x * game.MAX_SKILL];
       };
     })();
     function apply(f, x) {
@@ -2791,7 +2791,7 @@ class Skill {
     for (let i = 0; i < 5; i++) {
       for (let j = 0; j < 2; j += 1) {
         attrib[i + 5 * j] = curve(
-          (this.raw[i + 5 * j] + this.bleed(i, j)) / c.MAX_SKILL
+          (this.raw[i + 5 * j] + this.bleed(i, j)) / game.MAX_SKILL
         );
       }
     }
@@ -2807,12 +2807,12 @@ class Skill {
     this.ghost = attrib[skcnv.pen];
     if (!this.isProjectile) {
       this.shi =
-        c.GLASS_HEALTH_FACTOR *
-        apply(3 / c.GLASS_HEALTH_FACTOR - 1, attrib[skcnv.shi]);
+        game.GLASS_HEALTH_FACTOR *
+        apply(3 / game.GLASS_HEALTH_FACTOR - 1, attrib[skcnv.shi]);
       this.atk = apply(1, attrib[skcnv.atk]);
       this.hlt =
-        c.GLASS_HEALTH_FACTOR *
-        apply(2 / c.GLASS_HEALTH_FACTOR - 1, attrib[skcnv.hlt]);
+        game.GLASS_HEALTH_FACTOR *
+        apply(2 / game.GLASS_HEALTH_FACTOR - 1, attrib[skcnv.hlt]);
     } else if (this.isProjectile) {
       this.shi = 1.75 * apply(3 / 1.75 - 1, attrib[skcnv.shi]);
       this.atk = apply(1, attrib[skcnv.atk]);
@@ -2857,20 +2857,20 @@ class Skill {
   maintain() {
     if (this.score >= this.levelScore) {
       this.level += 1;
-      if (this.level <= c.SKILL_CAP) {
+      if (this.level <= game.SKILL_CAP) {
         this.points += this.levelPoints;
         this.growthCap += 1;
       }
       if (
         this.level == 0 ||
-        this.level == c.TIER_1 ||
-        this.level == c.TIER_2 ||
-        this.level == c.TIER_3 ||
-        this.level == c.TIER_4 ||
-        this.level == c.TIER_5 ||
-        this.level == c.TIER_6 ||
-        this.level == c.TIER_7 ||
-        this.level == c.TIER_8
+        this.level == game.TIER_1 ||
+        this.level == game.TIER_2 ||
+        this.level == game.TIER_3 ||
+        this.level == game.TIER_4 ||
+        this.level == game.TIER_5 ||
+        this.level == game.TIER_6 ||
+        this.level == game.TIER_7 ||
+        this.level == game.TIER_8
       ) {
         this.canUpgrade = true;
       }
@@ -2901,8 +2901,8 @@ class Skill {
   }
 
   cap(skill, real = false) {
-    if (!real && this.level < c.SKILL_SOFT_CAP) {
-      return Math.round(this.caps[skcnv[skill]] * c.SOFT_MAX_SKILL);
+    if (!real && this.level < game.SKILL_SOFT_CAP) {
+      return Math.round(this.caps[skcnv[skill]] * game.SOFT_MAX_SKILL);
     }
     return this.caps[skcnv[skill]];
   }
@@ -2911,10 +2911,10 @@ class Skill {
     let a = ((i + 2) % 5) + 5 * j,
       b = ((i + (j === 1 ? 1 : 4)) % 5) + 5 * j;
     let value = 0;
-    let denom = Math.max(c.MAX_SKILL, this.caps[i + 5 * j]);
+    let denom = Math.max(game.MAX_SKILL, this.caps[i + 5 * j]);
     value +=
-      (1 - Math.pow(this.raw[a] / denom - 1, 2)) * this.raw[a] * c.SKILL_LEAK;
-    value -= Math.pow(this.raw[b] / denom, 2) * this.raw[b] * c.SKILL_LEAK;
+      (1 - Math.pow(this.raw[a] / denom - 1, 2)) * this.raw[a] * game.SKILL_LEAK;
+    value -= Math.pow(this.raw[b] / denom, 2) * this.raw[b] * game.SKILL_LEAK;
 
     return value;
   }
@@ -2956,7 +2956,7 @@ class Skill {
 const lazyRealSizes = (() => {
   let o = [1, 1, 1];
   for (var i = 3; i < 16; i++) {
-    // We say that the real size of a 0-gon, 1-gon, 2-gon is one, then push the real sizes of triangles, squares, etc...
+    // We say that the real size of a 0-gon, 1-gon, 2-gon is one, then push the real sizes of triangles, squares, etgame...
     o.push(Math.sqrt(((2 * Math.PI) / i) * (1 / Math.sin((2 * Math.PI) / i))));
   }
   return o;
@@ -3257,13 +3257,13 @@ class Gun {
     let s = new Vector(
       (this.negRecoil ? -1 : 1) *
         this.settings.speed *
-        c.runSpeed *
+        game.runSpeed *
         sk.spd *
         (1 + ss) *
         Math.cos(this.angle + this.body.facing + sd),
       (this.negRecoil ? -1 : 1) *
         this.settings.speed *
-        c.runSpeed *
+        game.runSpeed *
         sk.spd *
         (1 + ss) *
         Math.sin(this.angle + this.body.facing + sd)
@@ -3812,8 +3812,8 @@ class Entity {
   }
   set velocity(vec) {
     if (!this.VELOCITY) this.VELOCITY = new Velocity(this.key.i, 0, 0);
-    this.VELOCITY.x = vec.x;
-    this.VELOCITY.y = vec.y;
+    this.VELOCITY.x = vegame.x;
+    this.VELOCITY.y = vegame.y;
   }
 
   get accel() {
@@ -3821,8 +3821,8 @@ class Entity {
   }
   set accel(vec) {
     if (!this.ACCEL) this.ACCEL = new Acceleration(this.key.i, 0, 0);
-    this.ACCEL.x = vec.x;
-    this.ACCEL.y = vec.y;
+    this.ACCEL.x = vegame.x;
+    this.ACCEL.y = vegame.y;
   }
 
   get stepRemaining() {
@@ -4138,7 +4138,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 1,
-            level: c.TIER_1,
+            level: game.TIER_1,
             index: e.index,
           });
         });
@@ -4148,7 +4148,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 2,
-            level: c.TIER_2,
+            level: game.TIER_2,
             index: e.index,
           });
         });
@@ -4158,7 +4158,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 3,
-            level: c.TIER_3,
+            level: game.TIER_3,
             index: e.index,
           });
         });
@@ -4168,7 +4168,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 4,
-            level: c.TIER_4,
+            level: game.TIER_4,
             index: e.index,
           });
         });
@@ -4178,7 +4178,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 5,
-            level: c.TIER_5,
+            level: game.TIER_5,
             index: e.index,
           });
         });
@@ -4188,7 +4188,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 6,
-            level: c.TIER_6,
+            level: game.TIER_6,
             index: e.index,
           });
         });
@@ -4198,7 +4198,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 7,
-            level: c.TIER_7,
+            level: game.TIER_7,
             index: e.index,
           });
         });
@@ -4208,7 +4208,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 8,
-            level: c.TIER_8,
+            level: game.TIER_8,
             index: e.index,
           });
         });
@@ -4218,7 +4218,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 9,
-            level: c.TIER_9,
+            level: game.TIER_9,
             index: e.index,
           });
         });
@@ -4228,7 +4228,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 10,
-            level: c.TIER_10,
+            level: game.TIER_10,
             index: e.index,
           });
         });
@@ -4238,7 +4238,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 11,
-            level: c.TIER_11,
+            level: game.TIER_11,
             index: e.index,
           });
         });
@@ -4248,7 +4248,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 12,
-            level: c.TIER_12,
+            level: game.TIER_12,
             index: e.index,
           });
         });
@@ -4258,7 +4258,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 13,
-            level: c.TIER_13,
+            level: game.TIER_13,
             index: e.index,
           });
         });
@@ -4268,7 +4268,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 14,
-            level: c.TIER_14,
+            level: game.TIER_14,
             index: e.index,
           });
         });
@@ -4278,7 +4278,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 15,
-            level: c.TIER_15,
+            level: game.TIER_15,
             index: e.index,
           });
         });
@@ -4288,7 +4288,7 @@ class Entity {
           this.upgrades.push({
             class: e,
             tier: 15,
-            level: c.TIER_GOD,
+            level: game.TIER_GOD,
             index: e.index,
           });
         });
@@ -4310,7 +4310,7 @@ class Entity {
           this.skill.reset();
         }
         while (
-          this.skill.level < c.SKILL_CHEAT_CAP &&
+          this.skill.level < game.SKILL_CHEAT_CAP &&
           this.skill.level < set.LEVEL
         ) {
           this.skill.score = this.skill.levelScore;
@@ -4427,7 +4427,7 @@ class Entity {
       if (this.name === "") dude = "An unnamed player";
       this.runTrigger("spawn");
       if (this.specialEffect === "Legend") {
-        if (c.game.type === "lore") return;
+        if (game.game.type === "lore") return;
         switch (this.label) {
           case "Arena Guard":
             this.sendMessage(
@@ -4566,10 +4566,10 @@ class Entity {
   refreshBodyAttributes() {
     let speedReduce = Math.pow(this.size / (this.coreSize || this.SIZE), 1);
 
-    this.acceleration = (c.runSpeed * this.ACCELERATION) / speedReduce;
+    this.acceleration = (game.runSpeed * this.ACCELERATION) / speedReduce;
     if (this.settings.reloadToAcceleration) this.acceleration *= this.skill.acl;
 
-    this.topSpeed = (c.runSpeed * this.SPEED * this.skill.mob) / speedReduce;
+    this.topSpeed = (game.runSpeed * this.SPEED * this.skill.mob) / speedReduce;
     if (this.settings.reloadToAcceleration)
       this.topSpeed /= Math.sqrt(this.skill.acl);
 
@@ -5311,21 +5311,21 @@ class Entity {
     let loc = { x: this.x, y: this.y };
     if (!this.settings.canGoOutsideRoom) {
       this.accel.x -=
-        ((Math.min(this.x + this.realSize + 50, 0) * c.ROOM_BOUND_FORCE) /
+        ((Math.min(this.x + this.realSize + 50, 0) * game.ROOM_BOUND_FORCE) /
           roomSpeed) *
         2;
       this.accel.x -=
         ((Math.max(this.x - this.realSize - room.width - 50, 0) *
-          c.ROOM_BOUND_FORCE) /
+          game.ROOM_BOUND_FORCE) /
           roomSpeed) *
         2;
       this.accel.y -=
-        ((Math.min(this.y + this.realSize + 50, 0) * c.ROOM_BOUND_FORCE) /
+        ((Math.min(this.y + this.realSize + 50, 0) * game.ROOM_BOUND_FORCE) /
           roomSpeed) *
         2;
       this.accel.y -=
         ((Math.max(this.y - this.realSize - room.height - 50, 0) *
-          c.ROOM_BOUND_FORCE) /
+          game.ROOM_BOUND_FORCE) /
           roomSpeed) *
         2;
     }
@@ -5349,11 +5349,11 @@ class Entity {
             o.accel.x +=
               Math.cos(util.getDirection(center, o)) *
               Math.abs(Le - Di) *
-              (c.ROOM_BOUND_FORCE / roomSpeed);
+              (game.ROOM_BOUND_FORCE / roomSpeed);
             o.accel.y +=
               Math.sin(util.getDirection(center, o)) *
               Math.abs(Le - Di) *
-              (c.ROOM_BOUND_FORCE / roomSpeed);
+              (game.ROOM_BOUND_FORCE / roomSpeed);
           }
           return -1;
         }
@@ -5365,7 +5365,7 @@ class Entity {
                   ((((Math.floor(QedgeNums[0] / 2) + 1) * room.width) /
                     room.xgrid -
                     o.x) *
-                    c.ROOM_BOUND_FORCE) /
+                    game.ROOM_BOUND_FORCE) /
                   roomSpeed;
               }
               break;
@@ -5375,7 +5375,7 @@ class Entity {
                   ((((Math.floor(QedgeNums[1] / 2) + 1) * room.height) /
                     room.ygrid -
                     o.y) *
-                    c.ROOM_BOUND_FORCE) /
+                    game.ROOM_BOUND_FORCE) /
                   roomSpeed;
               }
               break;
@@ -5384,7 +5384,7 @@ class Entity {
                 o.accel.x +=
                   (((Math.floor(QedgeNums[0] / 2) * room.width) / room.xgrid -
                     o.x) *
-                    c.ROOM_BOUND_FORCE) /
+                    game.ROOM_BOUND_FORCE) /
                   roomSpeed;
               }
               break;
@@ -5393,7 +5393,7 @@ class Entity {
                 o.accel.y +=
                   (((Math.floor(QedgeNums[1] / 2) * room.height) / room.ygrid -
                     o.y) *
-                    c.ROOM_BOUND_FORCE) /
+                    game.ROOM_BOUND_FORCE) /
                   roomSpeed;
               }
               break;
@@ -5507,7 +5507,7 @@ class Entity {
       this.chill = true;
       setTimeout(() => (this.chill = false), 5000);
     }
-    if (c.extinction) {
+    if (game.extinction) {
       this.godMode = false;
       this.kill();
     }
@@ -5519,13 +5519,13 @@ class Entity {
     }
     if (game.MODE === "theExpanse") {
       if (
-        c.bossStage >= 3 &&
-        c.SPAWN_VOIDLORD_ENEMIES &&
+        game.bossStage >= 3 &&
+        game.SPAWN_VOIDLORD_ENEMIES &&
         this.type === "thrasher"
       ) {
         this.kill();
         setTimeout(() => {
-          c.SPAWN_VOIDLORD_ENEMIES = false;
+          game.SPAWN_VOIDLORD_ENEMIES = false;
         }, 1000);
       }
       if (this.label === "Dark Fate") {
@@ -5542,13 +5542,13 @@ class Entity {
         this.skill.str = game.players / 6 + 3;
         this.skill.spd = game.players / 10 + 2;
         if (
-          !room.isIn("bos" + c.bossStage, this) &&
-          !room.isIn("zne" + c.bossStage, this)
+          !room.isIn("bos" + game.bossStage, this) &&
+          !room.isIn("zne" + game.bossStage, this)
         ) {
-          let loc = room.type("bos" + c.bossStage);
+          let loc = room.type("bos" + game.bossStage);
           this.invuln = true;
-          this.x = loc.x;
-          this.y = loc.y;
+          this.x = logame.x;
+          this.y = logame.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
@@ -5561,13 +5561,13 @@ class Entity {
         this.skill.str = game.players / 2.5 + 2.5;
         this.skill.spd = game.players / 10 + 2;
         if (
-          !room.isIn("bos" + c.bossStage, this) &&
-          !room.isIn("zne" + c.bossStage, this)
+          !room.isIn("bos" + game.bossStage, this) &&
+          !room.isIn("zne" + game.bossStage, this)
         ) {
-          let loc = room.type("bos" + c.bossStage);
+          let loc = room.type("bos" + game.bossStage);
           this.invuln = true;
-          this.x = loc.x;
-          this.y = loc.y;
+          this.x = logame.x;
+          this.y = logame.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
@@ -5580,13 +5580,13 @@ class Entity {
         this.skill.str = game.players / 2.5 + 3;
         this.skill.spd = game.players / 10 + 2;
         if (
-          !room.isIn("bos" + c.bossStage, this) &&
-          !room.isIn("zne" + c.bossStage, this)
+          !room.isIn("bos" + game.bossStage, this) &&
+          !room.isIn("zne" + game.bossStage, this)
         ) {
-          let loc = room.type("bos" + c.bossStage);
+          let loc = room.type("bos" + game.bossStage);
           this.invuln = true;
-          this.x = loc.x;
-          this.y = loc.y;
+          this.x = logame.x;
+          this.y = logame.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
@@ -5651,7 +5651,7 @@ class Entity {
       this.color = 3;
     }
     if (
-      c.unlockClasses &&
+      game.unlockClasses &&
       this.isPlayer &&
       !this.trueDev &&
       this.label !== "Spectator"
@@ -5715,8 +5715,8 @@ class Entity {
         ) {
           let loc = room.type(this.area);
           this.invuln = true;
-          this.x = loc.x;
-          this.y = loc.y;
+          this.x = logame.x;
+          this.y = logame.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
@@ -5726,20 +5726,20 @@ class Entity {
         this.kill();
     }
     if (game.MODE === "siege") {
-      if (!c.waveCount) {
-        c.bossAmount = 0;
+      if (!game.waveCount) {
+        game.bossAmount = 0;
         entities.forEach((entity) => {
           if (entity.siegeProgress && entity.team === -100 && !entity.isDead())
-            c.bossAmount += 1;
+            game.bossAmount += 1;
         });
-        //console.log(c.bossAmount);
+        //console.log(game.bossAmount);
         let o = new Entity(room.type("spw0"));
         o.siegeProgress = true;
         o.kill();
-        c.waveCount = true;
+        game.waveCount = true;
         setTimeout(() => {
-          c.waveCount = false;
-          c.waveLoop += 1;
+          game.waveCount = false;
+          game.waveLoop += 1;
         }, 5000);
       }
       let census = [0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -5750,18 +5750,18 @@ class Entity {
           census[-o.team]++;
         }
       });
-      if (census[0] >= c.DOMINATOR_COUNT) {
-        if (!c.initiateCountdown) {
-          c.initiateCountdown = true;
+      if (census[0] >= game.DOMINATOR_COUNT) {
+        if (!game.initiateCountdown) {
+          game.initiateCountdown = true;
           siegeCountdown();
-          c.RESPAWN_TIMER = Infinity;
+          game.RESPAWN_TIMER = Infinity;
 
           //util.log("GRUH");
         }
       } else {
-        c.RESPAWN_TIMER = 5;
-        c.countdown = 60000;
-        c.initiateCountdown = false;
+        game.RESPAWN_TIMER = 5;
+        game.countdown = 60000;
+        game.initiateCountdown = false;
         game.bots = true;
       }
 
@@ -5834,7 +5834,7 @@ class Entity {
         if (this.stage === undefined) this.stage = 0;
         if (this.label === "Disciple") {
           if (this.health.amount <= this.health.max / 1.5 && this.stage === 0) {
-            for (let i = 0; i < c.ranarDialog; i++) {
+            for (let i = 0; i < game.ranarDialog; i++) {
               let o = new Entity(room.randomType("spw0"));
               o.master = this;
               o.invuln = false;
@@ -5849,7 +5849,7 @@ class Entity {
               this.color = 0;
             }
             if (this.health.amount <= this.health.max / 4 && this.stage === 1) {
-              for (let i = 0; i < c.ranarDialog; i++) {
+              for (let i = 0; i < game.ranarDialog; i++) {
                 let o = new Entity(room.randomType("spw0"));
                 o.master = this;
                 o.stayTeam = false;
@@ -5868,7 +5868,7 @@ class Entity {
         }
         if (this.label === "Ascendant") {
           if (this.health.amount <= this.health.max / 1.5 && this.stage === 0) {
-            for (let i = 0; i < c.ranarDialog; i++) {
+            for (let i = 0; i < game.ranarDialog; i++) {
               let o = new Entity(room.randomType("spw0"));
               o.master = this;
               o.stayTeam = false;
@@ -5885,7 +5885,7 @@ class Entity {
             }
           }
           if (this.health.amount <= this.health.max / 4 && this.stage === 1) {
-            for (let i = 0; i < c.ranarDialog; i++) {
+            for (let i = 0; i < game.ranarDialog; i++) {
               let o = new Entity(room.randomType("spw0"));
               o.master = this;
               o.stayTeam = false;
@@ -5937,37 +5937,37 @@ class Entity {
         this.skill.points += 10;
         this.gifted = true;
       }
-      if (c.canProgress && c.ranarDialog === undefined) {
-        c.bossAmount = 1;
+      if (game.canProgress && game.ranarDialog === undefined) {
+        game.bossAmount = 1;
         sockets.broadcast("Wave " + game.wave + " has started!");
-        c.continueWave = true;
-        c.ranarDialog = Math.round(Math.random() * 3);
+        game.continueWave = true;
+        game.ranarDialog = Math.round(Math.random() * 3);
       }
 
-      if (c.continueWave && game.wave > 0 && !c.pingBack) {
-        c.bossCounter = c.preparedCounter;
-        c.pingBack = true;
-        c.continueWave = false;
+      if (game.continueWave && game.wave > 0 && !game.pingBack) {
+        game.bossCounter = game.preparedCounter;
+        game.pingBack = true;
+        game.continueWave = false;
       }
       //    let countUp = 0;
-      //  c.bossCounter = 1;
-      if (c.pingBack) {
-        if (game.wave % 10 === 0 && game.wave !== 0 && !c.initiateEpicWave) {
-          c.initiateEpicWave = true;
-          c.bonus += 3;
-          c.disciple = true;
-          c.waveType = "epic";
+      //  game.bossCounter = 1;
+      if (game.pingBack) {
+        if (game.wave % 10 === 0 && game.wave !== 0 && !game.initiateEpicWave) {
+          game.initiateEpicWave = true;
+          game.bonus += 3;
+          game.disciple = true;
+          game.waveType = "epic";
           if (game.wave >= 50) {
-            c.waveType = "final";
+            game.waveType = "final";
           }
-          if (game.wave <= 20 || game.wave >= 50) c.bossCounter = 0;
-          switch (c.waveType) {
+          if (game.wave <= 20 || game.wave >= 50) game.bossCounter = 0;
+          switch (game.waveType) {
             case "epic":
-              c.waveRarity = Math.ceil(Math.random() * 6);
+              game.waveRarity = Math.ceil(Math.random() * 6);
               sockets.broadcast(
                 "Wave " + game.wave + " has started, this is a dangerous wave!"
               );
-              switch (c.waveRarity) {
+              switch (game.waveRarity) {
                 case 1:
                   if (game.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
@@ -5979,7 +5979,7 @@ class Entity {
                       o.addController(new io_guard1(o));
                     }, 7500);
                     sockets.broadcast("CX: No more games, its time you die!");
-                    c.uniqueBossList.push("cx");
+                    game.uniqueBossList.push("cx");
                   }
                   break;
                 case 2:
@@ -6025,7 +6025,7 @@ class Entity {
                         sockets.broadcast(
                           "Ranar: OK SINCE YOU CAN'T 1V1 ME, I'LL JUST SUMMON TEAM MATES OF MY OWN!"
                         );
-                        c.uniqueBossList.push(
+                        game.uniqueBossList.push(
                           "ranar",
                           "excaliber",
                           "chaser",
@@ -6072,7 +6072,7 @@ class Entity {
                         sockets.broadcast(
                           "Ranar: OK SINCE YOU CAN'T 1V1 ME, I'LL JUST SUMMON TEAM MATES OF MY OWN!"
                         );
-                        c.uniqueBossList.push(
+                        game.uniqueBossList.push(
                           "ranar",
                           "alex",
                           "pop64",
@@ -6140,7 +6140,7 @@ class Entity {
                     sockets.broadcast(
                       "Reality seems to tear itself open, entities are emerging from it!"
                     );
-                    c.uniqueBossList.push("sardonyx");
+                    game.uniqueBossList.push("sardonyx");
                   }
                   break;
                 case 4:
@@ -6156,7 +6156,7 @@ class Entity {
                     sockets.broadcast(
                       "Undead hoards seem to gather...what the hell?"
                     );
-                    c.uniqueBossList.push("anubis");
+                    game.uniqueBossList.push("anubis");
                   }
                   break;
                 case 5:
@@ -6206,7 +6206,7 @@ class Entity {
                     sockets.broadcast(
                       "Ranar: The time has come to purify you scum in the name of Valrayvn!"
                     );
-                    c.uniqueBossList.push("ranar");
+                    game.uniqueBossList.push("ranar");
                   }
                   break;
                 case 6:
@@ -6237,7 +6237,7 @@ class Entity {
                     sockets.broadcast(
                       "The Council has arrived to test you...and decide your fate!"
                     );
-                    c.uniqueBossList.push(
+                    game.uniqueBossList.push(
                       "highlordDominique",
                       "highlordKairo",
                       "highlordAkavir",
@@ -6251,8 +6251,8 @@ class Entity {
               sockets.broadcast(
                 "Wave " + game.wave + " has started, survival is...unlikely..."
               );
-              c.waveRarity = Math.ceil(Math.random() * 8);
-              switch (c.waveRarity) {
+              game.waveRarity = Math.ceil(Math.random() * 8);
+              switch (game.waveRarity) {
                 case 1:
                   if (game.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
@@ -6304,7 +6304,7 @@ class Entity {
                     sockets.broadcast(
                       "CX: THE DEATHLESS SHALL REIGN SUPREME, AND YOU...YOU SHALL FALL...YOU ALL SHALL FALL!"
                     );
-                    c.uniqueBossList.push("cx", "anubis");
+                    game.uniqueBossList.push("cx", "anubis");
                   }
                   break;
                 case 2:
@@ -6378,7 +6378,7 @@ class Entity {
                     sockets.broadcast(
                       "Ranar: Ok, I am officially done, you clearly aren't kidding around...I will stop joking, die."
                     );
-                    c.uniqueBossList.push(
+                    game.uniqueBossList.push(
                       "ranar",
                       "stark",
                       "bret",
@@ -6446,7 +6446,7 @@ class Entity {
                     sockets.broadcast(
                       "Sardonyx: It is time! THE VOID SHALL CONSUME ALL!"
                     );
-                    c.uniqueBossList.push("sardonyx");
+                    game.uniqueBossList.push("sardonyx");
                   }
                   break;
                 case 4:
@@ -6504,7 +6504,7 @@ class Entity {
                     sockets.broadcast(
                       "Anubis: The lost shall be no more, come...join us and be found..."
                     );
-                    c.uniqueBossList.push("anubis");
+                    game.uniqueBossList.push("anubis");
                   }
                   break;
                 case 6:
@@ -6548,7 +6548,7 @@ class Entity {
                     sockets.broadcast(
                       "Highlord Akavir: I think I speak for all of us when I say...YOU DONE SCREWED UP!"
                     );
-                    c.uniqueBossList.push(
+                    game.uniqueBossList.push(
                       "highlordDominique",
                       "highlordAkavir",
                       "highlordKairo",
@@ -6621,7 +6621,7 @@ class Entity {
                     sockets.broadcast(
                       "Valrayvn: UGH, GREAT, NOW I HAVE TO FIGHT IN PERSON, YOU GUYS SUCK!"
                     );
-                    c.uniqueBossList.push(
+                    game.uniqueBossList.push(
                       "legionaryCrasher",
                       "kronos",
                       "valrayvn"
@@ -6679,7 +6679,7 @@ class Entity {
                     sockets.broadcast(
                       "Kronos: Arise under my rule, and crush these inferior roadblocks.."
                     );
-                    c.uniqueBossList.push(
+                    game.uniqueBossList.push(
                       "kronos",
                       "paladin",
                       "freyja",
@@ -6698,7 +6698,7 @@ class Entity {
               break;
           } //just let* me cook
         } //wdym unsystactic break
-        if (c.bossCounter > 0) {
+        if (game.bossCounter > 0) {
           let o = new Entity(room.randomType("spw0"));
           // o.bossTier = ran.choose(bt);
           o.rarity = Math.random() * 10000;
@@ -6759,7 +6759,7 @@ class Entity {
           if (o.rarity <= 275) {
             o.bossTier = "ranar";
           }
-          let bc = c.bossCounter;
+          let bc = game.bossCounter;
 
           if (
             (o.bossTier === "weakEnemy2" && bc < 2) ||
@@ -6771,116 +6771,116 @@ class Entity {
             (o.bossTier === "tierTwoBoss" && bc < 30) ||
             (o.bossTier === "tierThreeBoss" && bc < 45) ||
             (o.bossTier === "stark" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "bret" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "klayton" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "pop64" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "annoyingDog" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "alex" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "oxiniVrochi" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "duodeci" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "kristaps" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "icecream" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "possessor" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "excaliber" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "xxtrianguli" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "chaser" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "johnathon" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "powernoob" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "selene" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "ezekiel" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "gersemi" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "eris" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "ares" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "theia" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "zaphkiel" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "freyja" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "nyx" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "paladin" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "anicetus" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "ranar" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "disconnecter" && bc < 60) ||
             (o.bossTier === "kronos" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "tryi" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "cubed" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "baltyla" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "pendekot" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "stfellas" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
             (o.bossTier === "legionaryCrasher" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier)))
+              (bc < 100 || !game.uniqueBossList.includes(o.bossTier)))
           ) {
             o.bossTier = "weakEnemy1";
           }
           if (o.bossTier === "weakEnemy1") {
             o.define(Class[ran.choose(wE1)]);
-            c.bossCounter -= 1;
+            game.bossCounter -= 1;
           }
           if (o.bossTier === "weakEnemy2") {
             o.define(Class[ran.choose(wE2)]);
-            c.bossCounter -= 2;
+            game.bossCounter -= 2;
           }
           if (o.bossTier === "weakEnemy3") {
             o.define(Class[ran.choose(wE3)]);
-            c.bossCounter -= 3;
+            game.bossCounter -= 3;
           }
           if (o.bossTier === "normalEnemy1") {
             o.define(Class[ran.choose(nE1)]);
-            c.bossCounter -= 5;
+            game.bossCounter -= 5;
           }
           if (o.bossTier === "normalEnemy2") {
             o.define(Class[ran.choose(nE2)]);
-            c.bossCounter -= 7;
+            game.bossCounter -= 7;
           }
           if (o.bossTier === "tierOneBoss") {
             o.define(Class[ran.choose(t1B)]);
-            c.bossCounter -= 15;
+            game.bossCounter -= 15;
           }
           if (o.bossTier === "tierTwoBoss") {
             o.define(Class[ran.choose(t2B)]);
-            c.bossCounter -= 30;
+            game.bossCounter -= 30;
           }
           if (o.bossTier === "tierThreeBoss") {
             o.define(Class[ran.choose(t3B)]);
-            c.bossCounter -= 45;
+            game.bossCounter -= 45;
           }
           if (o.bossTier === "ranar") {
             o.define(Class.ranarDiscipleForm);
-            c.bossCounter -= 60;
-            c.uniqueBossList.push(o.bossTier);
-            switch (c.ranarDialog) {
+            game.bossCounter -= 60;
+            game.uniqueBossList.push(o.bossTier);
+            switch (game.ranarDialog) {
               case 0:
                 sockets.broadcast(
                   "Ranar: I have arrived, GET READY TO FEEL MY WRATH, SCUM!"
@@ -6921,13 +6921,13 @@ class Entity {
               default:
                 sockets.broadcast("Ranar: >:(");
             }
-            c.ranarDialog += 1;
-            currentState.ranarDialog = c.ranarDialog;
+            game.ranarDialog += 1;
+            currentState.ranarDialog = game.ranarDialog;
             if (o.rarity < 50 && bc >= 100) {
               o.define(Class.ranarAscendantForm);
               o.isRanar = true;
-              c.bossCounter -= 100;
-              c.uniqueBossList.push(o.bossTier);
+              game.bossCounter -= 100;
+              game.uniqueBossList.push(o.bossTier);
               sockets.broadcast(
                 //gg
                 "Ranar: Come children, and I shall show you supreme power!"
@@ -6936,15 +6936,15 @@ class Entity {
           }
           if (o.bossTier === "disconnecter") {
             o.define(Class.arenaslayer);
-            c.bossCounter -= 60;
+            game.bossCounter -= 60;
             sockets.broadcast(
               "...a feared being from the domain of diep has come..."
             );
           }
           if (o.bossTier === "kronos") {
             o.define(Class.kronos);
-            c.bossCounter -= 100;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 100;
+            game.uniqueBossList.push(o.bossTier);
             sockets.broadcast(
               //gg
               "Time itself starts to warp as an ancient God appears..."
@@ -6952,135 +6952,135 @@ class Entity {
           }
           if (o.bossTier === "legionaryCrasher") {
             o.define(Class.legionaryCrasher);
-            c.bossCounter -= 100;
-            c.uniqueBossList.push(o.bossTier); //but
+            game.bossCounter -= 100;
+            game.uniqueBossList.push(o.bossTier); //but
             sockets.broadcast(
               "The crashers were only the disciples of what you have awakened...what have you done?"
             ); //fair enough
           }
           if (o.bossTier === "anicetus") {
             o.define(Class.bishop);
-            c.bossCounter -= 60;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 60;
+            game.uniqueBossList.push(o.bossTier);
             sockets.broadcast(
               "Anicetus: Those who oppose the great Valrayvn shall be returned dust!"
             );
           }
           if (o.bossTier === "ares") {
             o.define(Class.ares);
-            c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 45;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "ezekiel") {
             o.define(Class.ezekiel);
-            c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 45;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "selene") {
             o.define(Class.selene);
-            c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 45;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "gersemi") {
             o.define(Class.gersemi);
-            c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 45;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "eris") {
             o.define(Class.eris);
-            c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 45;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "ares") {
             o.define(Class.ares);
-            c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 45;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "paladin") {
             o.define(Class.paladin);
-            c.bossCounter -= 60;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 60;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "stark") {
             o.define(Class.swarmDisciple);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "bret") {
             o.define(Class.annihilatorDisciple);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "klayton") {
             o.define(Class.mortarDisciple);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "kristaps") {
             o.define(Class.kristaps);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "duodeci") {
             o.define(Class.duodeci);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "annoyingDog") {
             o.define(Class.annoyingDog);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "icecream") {
             o.define(Class.icecream);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
 
           if (o.bossTier === "xxtrianguli") {
             o.define(Class.xxtrianguli);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "alex") {
             o.define(Class.alexTheDemonical);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "possessor") {
             o.define(Class.possessor);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "oxiniVrochi") {
             o.define(Class.rainOfAcid);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "chaser") {
             o.define(Class.chaser);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "excaliber") {
             o.define(Class.excaliber);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "powernoob") {
             o.define(Class.powernoob);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "johnathon") {
             o.define(Class.johnathon);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.bossTier === "pop64") {
             o.define(Class.pop64);
-            c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            game.bossCounter -= 20;
+            game.uniqueBossList.push(o.bossTier);
           }
           if (o.type === "thrasher") {
             if (o.rarity <= 20) {
@@ -7146,21 +7146,21 @@ class Entity {
           }, 7500);
         }
 
-        if (c.bossCounter <= 0) {
-          c.bossAmount = 0;
+        if (game.bossCounter <= 0) {
+          game.bossAmount = 0;
           entities.forEach((entity) => {
             if (
               entity.siegeProgress &&
               entity.team === -100 &&
               !entity.isDead()
             )
-              c.bossAmount += 1;
+              game.bossAmount += 1;
           });
-          // console.log(c.bossAmount);
-          c.initiateEpicWave = false;
-          c.pingBack = false;
+          // console.log(game.bossAmount);
+          game.initiateEpicWave = false;
+          game.pingBack = false;
 
-          c.uniqueBossList = [];
+          game.uniqueBossList = [];
         }
       }
     }
@@ -7190,18 +7190,18 @@ class Entity {
         this.sendMessage("You: (Let us see what this tank can do!)");
       }
 
-      if (game.MODE === "theDenied" && c.eventProgress) {
+      if (game.MODE === "theDenied" && game.eventProgress) {
         if (room.isIn("spw0", this)) {
           let loc = room.randomType("norm");
-          if (c.wave < 12) {
-            this.x = loc.x;
-            this.y = loc.y;
+          if (game.wave < 12) {
+            this.x = logame.x;
+            this.y = logame.y;
           }
         }
       }
     }
     if (
-      c.POLY_ATTACK === true &&
+      game.POLY_ATTACK === true &&
       this.type === "food" &&
       this.label !== this.doit
     ) {
@@ -7245,10 +7245,10 @@ class Entity {
       this.doit = this.label;
     }
 
-    if (c.DIE === true && this.body !== null) {
+    if (game.DIE === true && this.body !== null) {
       this.kill();
       setTimeout(() => {
-        c.DIE = false;
+        game.DIE = false;
       }, 480);
     }
     /*if (this.master.isCreep && !(this.master.zombied || this.master.plagued)) {
@@ -7334,8 +7334,8 @@ class Entity {
     ) {
       let loc = { x: this.x, y: this.y };
       if (this.spawnLoc && this.spawnLoc !== loc) {
-        this.x = this.spawnLoc.x;
-        this.y = this.spawnLoc.y;
+        this.x = this.spawnLogame.x;
+        this.y = this.spawnLogame.y;
       }
     }
     if (
@@ -7343,16 +7343,16 @@ class Entity {
       this.isPlayer &&
       game.MODE === "theRestless"
     ) {
-      c.eventProgress = true;
-      c.sardonyxEventStopper = true;
+      game.eventProgress = true;
+      game.sardonyxEventStopper = true;
     }
     if (game.MODE === "theAwakening") {
-      if (c.bruv !== c.bossStage) {
-        c.bruv = c.bossStage;
-        //util.log(c.bruv);
+      if (game.bruv !== game.bossStage) {
+        game.bruv = game.bossStage;
+        //util.log(game.bruv);
       }
-      if (c.canProgress && c.bossStage === 0) {
-        c.bossStage += 1;
+      if (game.canProgress && game.bossStage === 0) {
+        game.bossStage += 1;
         sockets.broadcast("Valrayvn: Did everyone make it through?");
         setTimeout(() => {
           sockets.broadcast(
@@ -7360,7 +7360,7 @@ class Entity {
           );
         }, 5000);
       }
-      if (c.bossStage === 1) {
+      if (game.bossStage === 1) {
         makeEventBosses();
         setTimeout(() => {
           sockets.broadcast(
@@ -7377,13 +7377,13 @@ class Entity {
             "Valrayvn: It should be strong enough to penetrate the gate."
           );
         }, 25000);
-        c.bossStage += 1;
+        game.bossStage += 1;
       }
-      if (c.bossStage === 2) {
+      if (game.bossStage === 2) {
         makeEventBosses();
-        c.bossStage += 1;
+        game.bossStage += 1;
       }
-      if (c.bossStage === 6) {
+      if (game.bossStage === 6) {
         setTimeout(() => {
           sockets.broadcast(
             "Valrayvn: Ugh! Another gate and more automatons! I don't think a modified repair man will do."
@@ -7396,14 +7396,14 @@ class Entity {
           );
         }, 10000);
         makeEventBosses();
-        c.bossStage += 1;
+        game.bossStage += 1;
       }
-      if (c.bossStage === 9) {
+      if (game.bossStage === 9) {
         makeEventBosses();
-        c.bossStage += 1;
+        game.bossStage += 1;
       }
-      if (c.bossStage === 12) {
-        c.bossStage += 1;
+      if (game.bossStage === 12) {
+        game.bossStage += 1;
         setTimeout(() => {
           sockets.broadcast(
             "Valrayvn: This one looks like an egg...I wonder..."
@@ -7518,37 +7518,37 @@ class Entity {
         this.isRacer = false;
       }
       if (
-        !c.beginRace &&
+        !game.beginRace &&
         this.type === "tank" &&
         !room.isIn("bas1", this) &&
         !room.isIn("bstS", this) &&
         !room.isIn("bstR", this)
       ) {
         loc = room.type("bas1");
-        this.x = loc.x;
-        this.y = loc.y;
+        this.x = logame.x;
+        this.y = logame.y;
       }
       if (
-        this.counter !== c.win &&
+        this.counter !== game.win &&
         this.team === -100 &&
         (this.isEnemy || this.isBoss)
       ) {
-        this.counter = c.win;
+        this.counter = game.win;
         this.REGEN = 0;
         this.health.amount -= this.health.max / 5.25;
         this.shield.amount /= 2;
       }
 
-      if (c.initiateHELL) {
+      if (game.initiateHELL) {
         sockets.broadcast(
           "Twilight: Um, I am sensing alot of powerful forces coming!"
         );
-        c.PLAYER_SPAWN_LOCATION = "random";
-        c.BOT_SPAWN_LOCATION = "random";
-        c.CONSIDER_PLAYER_TEAM_LOCATION = false;
-        c.CONSIDER_BOT_TEAM_LOCATION = false;
-        c.DEADLY_BORDERS = false;
-        c.visibleListInterval = 750;
+        game.PLAYER_SPAWN_LOCATION = "random";
+        game.BOT_SPAWN_LOCATION = "random";
+        game.CONSIDER_PLAYER_TEAM_LOCATION = false;
+        game.CONSIDER_BOT_TEAM_LOCATION = false;
+        game.DEADLY_BORDERS = false;
+        game.visibleListInterval = 750;
         setTimeout(() => {
           sockets.broadcast(
             "The arena shakes...many powerful forces are emerging, your defenses have activated."
@@ -7665,8 +7665,8 @@ class Entity {
             "Twilight: Ok I can, but they need to be manually activated, and they aren't exactly buttons, so you, the racers, need to blow them up!"
           );
           makeShrine();
-          c.win = 0;
-          c.finish = 0;
+          game.win = 0;
+          game.finish = 0;
         }, 80000);
         setTimeout(() => {
           sockets.broadcast(
@@ -7707,28 +7707,28 @@ class Entity {
         setTimeout(() => {
           sockets.broadcast("Highlord Dominique: RETREAAAAAAT!"); //im not able to afford child support, so no i wont smash em shrines
         }, 130000);
-        c.initiateHELL = false;
+        game.initiateHELL = false;
       } //
       if (
         this.type === "tile" &&
         room.isIn("bstS", this) &&
         this.color === 16 &&
-        c.beginRace
+        game.beginRace
       ) {
         this.kill();
       }
       if (this.type !== "tile" && !this.isProjectile && !this.ignoreCollision) {
         if (
-          (room.isIn("bstS", this) && !c.beginRace) ||
+          (room.isIn("bstS", this) && !game.beginRace) ||
           room.isIn("bstL", this)
         ) {
           this.accel.x -= 10;
         }
-        if (room.isIn("bstS", this) && c.beginRace) {
+        if (room.isIn("bstS", this) && game.beginRace) {
           this.accel.x += 30;
         }
         if (
-          (room.isIn("bas1", this) && c.beginRace) ||
+          (room.isIn("bas1", this) && game.beginRace) ||
           room.isIn("bstR", this)
         ) {
           this.accel.x += 10;
@@ -7752,17 +7752,17 @@ class Entity {
         if (room.isIn("bdrR", this)) {
           this.accel.x += 30;
         }
-        if ((this.isWall && !c.beginRace) || (this.win && !c.beginRace)) {
+        if ((this.isWall && !game.beginRace) || (this.win && !game.beginRace)) {
           this.destroy();
         }
         if (this.isBot || this.isPlayer) {
           if (
-            room.isIn(c.finishLine, this) &&
-            c.beginRace &&
+            room.isIn(game.finishLine, this) &&
+            game.beginRace &&
             !this.once &&
             !this.invuln &&
             this.label !== "Spectator" &&
-            !c.STOP
+            !game.STOP
           ) {
             this.once = true;
             this.laps += 1;
@@ -7788,11 +7788,11 @@ class Entity {
                 vruh +
                 " lap and earned score! If you get 750k score, you win!"
             );
-            //if (c.whar < this.skill.score) {
+            //if (game.whar < this.skill.score) {
             let dude = this.name;
             if (this.name === "") dude = "An unnamed player";
-            if (this.skill.score >= 30000 && c.whar === 0) {
-              c.whar += 1;
+            if (this.skill.score >= 30000 && game.whar === 0) {
+              game.whar += 1;
               sockets.broadcast(
                 "Ranar: " + dude + " is in the lead! Keep going Racers!"
               );
@@ -7827,8 +7827,8 @@ class Entity {
                   "Twilight: I do not know, I am checking defenses now!"
                 );
               }, 20000);
-            } else if (this.skill.score >= 60000 && c.whar === 1) {
-              c.whar += 1;
+            } else if (this.skill.score >= 60000 && game.whar === 1) {
+              game.whar += 1;
               sockets.broadcast(
                 "Ranar: " + dude + " is in the lead! What a good race!"
               );
@@ -7851,8 +7851,8 @@ class Entity {
                   "Twilight: No! It is supposed to be a static race, not chaotic!"
                 );
               }, 20000);
-            } else if (this.skill.score >= 105000 && c.whar === 2) {
-              c.whar += 1;
+            } else if (this.skill.score >= 105000 && game.whar === 2) {
+              game.whar += 1;
               sockets.broadcast(
                 "Ranar: " + dude + " is in the lead! This is nice!"
               );
@@ -7888,8 +7888,8 @@ class Entity {
                   "Ranar: But most of the racers seem to be surviving just fine, don't worry about it."
                 );
               }, 25000);
-            } else if (this.skill.score >= 165000 && c.whar === 3) {
-              c.whar += 1;
+            } else if (this.skill.score >= 165000 && game.whar === 3) {
+              game.whar += 1;
               sockets.broadcast(
                 "Ranar: " + dude + " is in the lead! What an epic race!"
               );
@@ -7923,21 +7923,21 @@ class Entity {
               this.once = false;
             }, 5000);
           }
-          if (this.skill.score >= 750000 && !c.STOP && c.whar >= 4) {
-            c.STOP = true;
+          if (this.skill.score >= 750000 && !game.STOP && game.whar >= 4) {
+            game.STOP = true;
             let dude = this.name;
             if (this.name === "") dude = "An unnamed player";
 
             sockets.broadcast(
               "Ranar: Against all odds, " + dude + " has won the race!"
             );
-            c.initiateHELL = true; //INITIATE HELL???
+            game.initiateHELL = true; //INITIATE HELL???
             //closeArena();
           }
         }
       }
-      if (!c.raceCountdown && c.canProgress) {
-        c.raceCountdown = true;
+      if (!game.raceCountdown && game.canProgress) {
+        game.raceCountdown = true;
         sockets.broadcast(
           "Ranar: Welcome to the race guys, we will start here soon!"
         );
@@ -7970,30 +7970,30 @@ class Entity {
           }, 10000);
           setTimeout(() => {
             sockets.broadcast("Twilight: GET SET!");
-            c.getSet = true;
+            game.getSet = true;
           }, 12000);
           setTimeout(() => {
             sockets.broadcast("Twilight & Ranar: GOOOOO!");
-            c.goooo = true;
-            c.beginRace = true;
+            game.goooo = true;
+            game.beginRace = true;
             racingTiles();
             setTimeout(() => {
-              c.finishLine = "bas1";
-              c.laps = 0;
+              game.finishLine = "bas1";
+              game.laps = 0;
             }, 5000);
           }, 15000);
         }, 30000);
       }
 
       if (room.isIn("gggo", this) && this.type === "tile") {
-        if (c.getSet) {
+        if (game.getSet) {
           this.color = 3;
         }
-        if (c.goooo) {
+        if (game.goooo) {
           this.color = 34;
           setTimeout(() => {
-            c.getSet = false;
-            c.goooo = false;
+            game.getSet = false;
+            game.goooo = false;
             this.destroy();
           }, 10000);
         }
@@ -8057,10 +8057,10 @@ class Entity {
           // this.isBoss = true;
         }
       }
-      if (c.bossStage === 0 && room["dom2"].length > 0) {
-        c.bossStage += 1;
-        c.CONSIDER_PLAYER_TEAM_LOCATION = false;
-        c.PLAYER_SPAWN_LOCATION = "bos0";
+      if (game.bossStage === 0 && room["dom2"].length > 0) {
+        game.bossStage += 1;
+        game.CONSIDER_PLAYER_TEAM_LOCATION = false;
+        game.PLAYER_SPAWN_LOCATION = "bos0";
         sockets.broadcast(
           "Pendekot: Threat detected, all nearby T1-T2 troops advance to the area."
         );
@@ -8078,9 +8078,9 @@ class Entity {
           census[-o.team]++;
         }
       });
-      if (c.bossStage === 1 && census[2] > 1) {
-        c.bossStage += 1;
-        c.PLAYER_SPAWN_LOCATION = "bos1";
+      if (game.bossStage === 1 && census[2] > 1) {
+        game.bossStage += 1;
+        game.PLAYER_SPAWN_LOCATION = "bos1";
         sockets.broadcast("Pendekot: This is strange.");
         setTimeout(() => {
           sockets.broadcast("Pendekot: All of your vitals are out of line.");
@@ -8088,7 +8088,7 @@ class Entity {
             sockets.broadcast("Pendekot: Yet your still alive.");
             setTimeout(() => {
               sockets.broadcast("Pendekot: Let me see.");
-              c.SPAWN_VOIDLORD_ENEMIES = true;
+              game.SPAWN_VOIDLORD_ENEMIES = true;
               setTimeout(() => {
                 sockets.broadcast(
                   "Pendekot: No...this cant...I need to retest, this cant be right"
@@ -8111,9 +8111,9 @@ class Entity {
           }, 5000);
         }, 5000);
       }
-      if (c.bossStage === 2 && census[2] > 5) {
-        c.bossStage += 1;
-        c.PLAYER_SPAWN_LOCATION = "bos2";
+      if (game.bossStage === 2 && census[2] > 5) {
+        game.bossStage += 1;
+        game.PLAYER_SPAWN_LOCATION = "bos2";
         sockets.broadcast(
           "Pendekot: A mutated strain of the fallen virus. A more durable and aggressive version. This must have been done by CX."
         );
@@ -8147,9 +8147,9 @@ class Entity {
           o.ignoreCollision = false;
         }
       }
-      if (c.bossStage === 3 && census[2] >= 8) {
-        c.bossStage += 1;
-        c.PLAYER_SPAWN_LOCATION = "dom0";
+      if (game.bossStage === 3 && census[2] >= 8) {
+        game.bossStage += 1;
+        game.PLAYER_SPAWN_LOCATION = "dom0";
         sockets.broadcast(
           "Pendekot: I have no other choice. If i must die protecting my work..."
         );
@@ -8214,12 +8214,12 @@ class Entity {
       if (
         this.label === "Void Portal" &&
         this.team === -100 &&
-        c.bossStage === 4 &&
+        game.bossStage === 4 &&
         this.color !== 13
       ) {
         this.color = 13;
       }
-      if (c.enableHell) {
+      if (game.enableHell) {
         this.x = room.type("prf0").x;
         this.y = room.type("prf0").y;
         this.isGate = false;
@@ -8230,7 +8230,7 @@ class Entity {
         this.kill();
 
         setTimeout(() => {
-          c.enableHell = false;
+          game.enableHell = false;
         }, 3500);
       }
     }
@@ -8369,9 +8369,9 @@ class Entity {
       }
       if (
         this.label === "Anti-Virus" &&
-        this.DAMAGE !== game.players + 10 - c.cxPowerDrain
+        this.DAMAGE !== game.players + 10 - game.cxPowerDrain
       ) {
-        this.DAMAGE = game.players + 10 - c.cxPowerDrain;
+        this.DAMAGE = game.players + 10 - game.cxPowerDrain;
       }
       let census = [0, 0, 0, 0, 0, 0, 0, 0, 0];
       room.dominators.forEach((o) => {
@@ -8381,13 +8381,13 @@ class Entity {
           census[-o.team]++;
         }
       });
-      if (c.bossStage === 0 && census[2] > 0) {
+      if (game.bossStage === 0 && census[2] > 0) {
         sockets.broadcast(
           "Anubis: Come bretheren, the time has come to be lost no more!"
         );
-        c.bossStage += 1;
-        c.CONSIDER_PLAYER_TEAM_LOCATION = false;
-        c.PLAYER_SPAWN_LOCATION = "bos0";
+        game.bossStage += 1;
+        game.CONSIDER_PLAYER_TEAM_LOCATION = false;
+        game.PLAYER_SPAWN_LOCATION = "bos0";
         sockets.broadcast(
           "Valrayvn: Hmmm, an outpost is down. I am sending troops to investigate it."
         );
@@ -8411,9 +8411,9 @@ class Entity {
           o.team = -100;
         }
       }
-      if (c.bossStage === 1 && census[2] > 1) {
-        c.bossStage += 1;
-        c.PLAYER_SPAWN_LOCATION = "bos1";
+      if (game.bossStage === 1 && census[2] > 1) {
+        game.bossStage += 1;
+        game.PLAYER_SPAWN_LOCATION = "bos1";
         sockets.broadcast("CX: The investigation crew isn't responding.");
         setTimeout(() => {
           sockets.broadcast(
@@ -8463,11 +8463,11 @@ class Entity {
           }, 5000);
         }, 5000);
       }
-      if (c.bossStage === 2 && census[2] > 5) {
+      if (game.bossStage === 2 && census[2] > 5) {
         sockets.broadcast("Anubis: We shall finally have a world just for us!");
 
-        c.bossStage += 1;
-        c.PLAYER_SPAWN_LOCATION = "bos2";
+        game.bossStage += 1;
+        game.PLAYER_SPAWN_LOCATION = "bos2";
         setTimeout(() => {
           sockets.broadcast(
             "CX: Valrayvn, Arras will not survive if this continues."
@@ -8479,8 +8479,8 @@ class Entity {
           );
           setTimeout(() => {
             sockets.broadcast("CX: Hm.....");
-            c.SANCTUARIES = true;
-            c.SIEGE = true;
+            game.SANCTUARIES = true;
+            game.SIEGE = true;
           }, 5000);
         }, 1000);
         for (let i = 0; i < game.players * 3; i++) {
@@ -8505,8 +8505,8 @@ class Entity {
           o.ignoreCollision = false;
         }
       }
-      if (c.bossStage === 3 && census[2] >= 8) {
-        c.unlockClasses = true;
+      if (game.bossStage === 3 && census[2] >= 8) {
+        game.unlockClasses = true;
         entities.forEach((boss) => {
           if (boss.tier === 1) {
             boss.x = temp.anubLocX;
@@ -8519,8 +8519,8 @@ class Entity {
         });
         sockets.broadcast("Anubis: PATHETIC FOOLS, WE CANNOT BE DEFEATED!");
 
-        c.bossStage += 1;
-        c.PLAYER_SPAWN_LOCATION = "dom0";
+        game.bossStage += 1;
+        game.PLAYER_SPAWN_LOCATION = "dom0";
         setTimeout(() => {
           sockets.broadcast("CX: I have no choice, goodbye Valrayvn.");
           setTimeout(() => {
@@ -8560,12 +8560,12 @@ class Entity {
       if (
         this.label === "Void Portal" &&
         this.team === -100 &&
-        c.bossStage === 4 &&
+        game.bossStage === 4 &&
         this.color !== 13
       ) {
         this.color = 13;
       }
-      if (c.enableHell) {
+      if (game.enableHell) {
         this.x = room.type("vpr0").x;
         this.y = room.type("vpr0").y;
         this.isGate = false;
@@ -8578,7 +8578,7 @@ class Entity {
         this.kill();
 
         setTimeout(() => {
-          c.enableHell = false;
+          game.enableHell = false;
         }, 3500);
       }
     }
@@ -8632,19 +8632,19 @@ class Entity {
         this.skill.spd = game.players / 10 + 2;
       }
       if (
-        c.fuckYouAnomalies &&
+        game.fuckYouAnomalies &&
         (this.type === "thrasher" || this.type === "voidlordBoss")
       ) {
         this.kill();
       }
-      if (c.bossStage === 0) {
-        if (!c.oneTimeMessage) {
+      if (game.bossStage === 0) {
+        if (!game.oneTimeMessage) {
           setTimeout(() => {
-            c.bossStage += 1;
+            game.bossStage += 1;
             sockets.broadcast("Sardonyx: (And so it begins...)");
           }, 5000);
         }
-        c.oneTimeMessage = true;
+        game.oneTimeMessage = true;
 
         if (this.label === "Void Portal") {
           this.kill();
@@ -8658,8 +8658,8 @@ class Entity {
           census[-o.team]++;
         }
       });
-      if (census[4] >= 1 && c.bossStage === 1) {
-        c.bossStage += 1;
+      if (census[4] >= 1 && game.bossStage === 1) {
+        game.bossStage += 1;
         sockets.broadcast(
           "Highlord Dominique: Guys, the void creatures returned and they are wrecking our ship!"
         );
@@ -8672,8 +8672,8 @@ class Entity {
         makeRepairMen();
       }
 
-      if (census[4] >= 2 && c.bossStage === 2) {
-        c.bossStage += 1;
+      if (census[4] >= 2 && game.bossStage === 2) {
+        game.bossStage += 1;
         sockets.broadcast("Highlord Dominique: Akavir, help!");
         setTimeout(() => {
           sockets.broadcast(
@@ -8683,9 +8683,9 @@ class Entity {
         }, 5000);
         makeRepairMen();
       }
-      if (census[4] >= 3 && c.bossStage === 3) {
-        c.bossStage += 1;
-        c.BOTS += 2;
+      if (census[4] >= 3 && game.bossStage === 3) {
+        game.bossStage += 1;
+        game.BOTS += 2;
         sockets.broadcast(
           "Highlord Dominique: Great, I'm the last line of defense..."
         );
@@ -8697,21 +8697,21 @@ class Entity {
         }, 5000);
         makeRepairMen();
       }
-      if (census[4] >= 4 && c.bossStage === 4) {
-        c.bossStage += 1;
+      if (census[4] >= 4 && game.bossStage === 4) {
+        game.bossStage += 1;
         sockets.broadcast(
           "Sardonyx: I HAVE RETURNED! Thanks to your foolishness of opposing me, we have become a powerful force!"
         );
         let o = new Entity(room.type("bos0"));
         o.define(Class.sardonyx);
         o.team = -4;
-        c.SPAWN_VOIDLORD_ENEMIES = true;
-        c.killWalls = true;
+        game.SPAWN_VOIDLORD_ENEMIES = true;
+        game.killWalls = true;
         setTimeout(() => {
           sockets.broadcast(
             "Highlord Albatar: You sound like a lame comic book villan, I suppose it's time for me to put you in the dirt!"
           );
-          c.killWalls = true;
+          game.killWalls = true;
           makeEventBosses();
         }, 5000);
         let gridWidth = room.width / room.xgrid;
@@ -8738,8 +8738,8 @@ class Entity {
           if (room["vpr" + i]) {
             room["vpr" + i].forEach((loc) => {
               placePortals(loc, i, {
-                x: Math.floor(loc.x / gridWidth),
-                y: Math.floor(loc.y / gridHeight),
+                x: Math.floor(logame.x / gridWidth),
+                y: Math.floor(logame.y / gridHeight),
               });
             });
           }
@@ -8760,7 +8760,7 @@ class Entity {
     }
     if (
       this.label === "Dominator" &&
-      c.SANCTUARIES === true &&
+      game.SANCTUARIES === true &&
       this.team !== -100
     ) {
       this.define(
@@ -8776,8 +8776,8 @@ this.collisionArray = [];
   this.destroy();
   }
     if (
-      (c.killWalls === true && this.type === "squareWall") ||
-      (c.killWalls === true &&
+      (game.killWalls === true && this.type === "squareWall") ||
+      (game.killWalls === true &&
         game.MODE === "theControlled" &&
         (this.isMazeWall || this.isGate || this.isWall))
     ) {
@@ -8786,10 +8786,10 @@ this.collisionArray = [];
         this.destroy();
       }
       setTimeout(() => {
-        c.killWalls = false;
+        game.killWalls = false;
       }, 1);
     }
-    if (c.DEADLY_BORDERS && !this.impervious) {
+    if (game.DEADLY_BORDERS && !this.impervious) {
       let loc = { x: this.x, y: this.y };
 
       if (
@@ -8803,9 +8803,9 @@ this.collisionArray = [];
       }
     }
 
-    if (this.specialEffect === "denied" && c.wave > 0) {
-      this.name = "Player Lives Remaining: " + c.ranarLoseCondition;
-      if (c.wave > 0 && this.skill.score < 5000000) {
+    if (this.specialEffect === "denied" && game.wave > 0) {
+      this.name = "Player Lives Remaining: " + game.ranarLoseCondition;
+      if (game.wave > 0 && this.skill.score < 5000000) {
         this.settings.leaderboardable = true;
       }
     }
@@ -8819,35 +8819,35 @@ this.collisionArray = [];
     }
     if (room.width < 100) room.width = 100;
     if (room.height < 100) room.height = 100;
-    if (game.MODE === "execution" && c.doItNow) {
+    if (game.MODE === "execution" && game.doItNow) {
       roomShrinkage();
       if (room.width <= 100 || room.height <= 100) {
-        c.doItNow = false;
+        game.doItNow = false;
         closeArena();
       }
       if (game.STARTING_CLASS === "basic") {
         game.STARTING_CLASS = "spectator";
-        c.BOTS = 0;
+        game.BOTS = 0;
       }
-      if (!c.shift) {
-        c.thing = 0;
+      if (!game.shift) {
+        game.thing = 0;
         entities.forEach((entity) => {
           if (entity.isPlayer || entity.isBot) {
             if (entity.type === "tank" && !entity.isDead()) {
-              c.thing += 1;
+              game.thing += 1;
             } /*else {
           entity.kill();
            entity.destroy();
            }*/
           }
         });
-        util.log(c.thing);
-        c.shift = true;
+        util.log(game.thing);
+        game.shift = true;
         setTimeout(() => {
-          c.shift = false;
+          game.shift = false;
         }, 2000);
       }
-      if (c.thing === 1) {
+      if (game.thing === 1) {
         entities.forEach((entity) => {
           if (entity.isPlayer || entity.isBot) {
             if (entity.type === "tank" && !entity.isDead()) {
@@ -8860,41 +8860,41 @@ this.collisionArray = [];
           }
         });
         closeArena();
-        c.doItNow = false;
-      } else if (c.thing <= 0) {
+        game.doItNow = false;
+      } else if (game.thing <= 0) {
         sockets.broadcast("No one has survived!");
         closeArena();
-        c.doItNow = false;
+        game.doItNow = false;
       }
 
-      /* if (c.goNow) {
+      /* if (game.goNow) {
         entities.forEach((e) => {
           if (e.isPlayer || e.isBot) {
-            if (e.label !== "Spectator" && c.doItNow && e.health.amount > 0) {
+            if (e.label !== "Spectator" && game.doItNow && e.health.amount > 0) {
               sockets.broadcast(e.name + " has survived and won the game!");
 
               closeArena();
-              c.doItNow = false;
+              game.doItNow = false;
             }
           }
         });
       }*/
     }
     if (game.MODE === "theRestless") {
-      if (!c.eventProgress && this.team === -3 && this.type === "squareWall") {
+      if (!game.eventProgress && this.team === -3 && this.type === "squareWall") {
         this.kill();
       }
-      if (c.eventProgress) {
-        //c.killWalls = true;
+      if (game.eventProgress) {
+        //game.killWalls = true;
 
-        if (c.wave === 0) {
-          c.ranarLoseCondition = game.players * 5;
+        if (game.wave === 0) {
+          game.ranarLoseCondition = game.players * 5;
         }
         if (this.isWall && this.team === -1) {
           this.kill();
         }
 
-        /*   if (this.type === "squareWall" && c.wave >= 13) {
+        /*   if (this.type === "squareWall" && game.wave >= 13) {
           this.destroy();
         }
         if (this.isWall && !room.isIn("frt0", this)) {
@@ -8948,10 +8948,10 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.75 &&
-            c.wave === 0 &&
+            game.wave === 0 &&
             this.haltActions !== true
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 9;
             this.haltActions = true;
             sockets.broadcast("Sardonyx: Become one with the void!");
@@ -8983,7 +8983,7 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.5 &&
-            c.wave === 1 &&
+            game.wave === 1 &&
             !this.haltActions
           ) {
             this.goBack = true;
@@ -8992,17 +8992,17 @@ this.collisionArray = [];
               "Ranar: You shouldn't have fought back, now I am going to have to inflict some pain!"
             );
 
-            c.wave += 1;
+            game.wave += 1;
             this.haltActions = true;
           }
-          if (this.goBack && c.wave === 2) {
+          if (this.goBack && game.wave === 2) {
             this.goBack = false;
-            c.wave += 1;
+            game.wave += 1;
             let loc = room.type("bos0");
             this.runAway = true;
             this.refreshBodyAttributes();
             this.collisionArray = [];
-            c.enemyCount = 1;
+            game.enemyCount = 1;
             sockets.broadcast(
               "Ranar: Sad that Valrayvn is so busy, she would have enjoyed this!"
             );
@@ -9083,22 +9083,22 @@ this.collisionArray = [];
                 o.FOV *= 2;
                 o.addController(new io_guard1(o));
                 o.refreshBodyAttributes();
-                c.enemyCount += 1;
+                game.enemyCount += 1;
               }
-              c.enemyCount -= 1;
+              game.enemyCount -= 1;
             }, 12000);
           }
-          if (c.enemyCount <= 0 && c.wave === 3) {
+          if (game.enemyCount <= 0 && game.wave === 3) {
             this.haltActions = false;
             this.runAway = false;
-            c.wave += 1;
+            game.wave += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.25 &&
-            c.wave === 4 &&
+            game.wave === 4 &&
             !this.haltActions
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 3;
             this.haltActions = true;
             sockets.broadcast(
@@ -9131,14 +9131,14 @@ this.collisionArray = [];
             }, 25000);
           }
 
-          if (this.goBack && c.wave === 6) {
+          if (this.goBack && game.wave === 6) {
             this.goBack = false;
-            c.enemyCount = 1;
-            c.wave += 1;
+            game.enemyCount = 1;
+            game.wave += 1;
             this.refreshBodyAttributes();
             this.collisionArray = [];
             /*  makeTiling();
-            c.DEADLY_BORDERS = true;*/
+            game.DEADLY_BORDERS = true;*/
             this.runAway = true;
             sockets.broadcast(
               "Twilight: Oh hell, Ranar transformed! Okay give me a moment, I'll help!"
@@ -9152,10 +9152,10 @@ this.collisionArray = [];
               sockets.broadcast(
                 "Twilight: Okay, choose your class and kick his barrel!"
               );
-              c.unlockClasses = true;
+              game.unlockClasses = true;
               game.STARTING_CLASS = "highlordLegendaryClasses";
             }, 12000);
-            c.BOTS = game.players * 3;
+            game.BOTS = game.players * 3;
             setTimeout(() => {
               for (let i = 0; i < Math.round(game.players / 2); i++) {
                 let o = new Entity(room.randomType("port"));
@@ -9183,24 +9183,24 @@ this.collisionArray = [];
                 o.FOV = 50000;
                 o.addController(new io_guard1(o));
                 o.refreshBodyAttributes();
-                c.enemyCount += 1;
+                game.enemyCount += 1;
               }
-              c.enemyCount -= 1;
-              c.BOTS = 0;
+              game.enemyCount -= 1;
+              game.BOTS = 0;
             }, 22000);
           }
-          if (c.enemyCount < 1 && c.wave === 7) {
+          if (game.enemyCount < 1 && game.wave === 7) {
             this.haltActions = false;
             this.runAway = false;
-            c.BOTS = 0;
-            c.wave += 1;
+            game.BOTS = 0;
+            game.wave += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.75 &&
-            c.wave === 8 &&
+            game.wave === 8 &&
             !this.haltActions
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 33;
             this.haltActions = true;
             sockets.broadcast(
@@ -9225,7 +9225,7 @@ this.collisionArray = [];
                 o.invuln = false;
                 o.tp = true;
               }
-              c.SPAWN_SENTINEL = true;
+              game.SPAWN_SENTINEL = true;
             }, 9000);
             setTimeout(() => {
               this.haltActions = false;
@@ -9233,17 +9233,17 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.5 &&
-            c.wave === 9 &&
+            game.wave === 9 &&
             !this.haltActions
           ) {
             this.goBack = true;
             this.runAway = true;
-            c.wave += 1;
+            game.wave += 1;
           }
-          if (this.goBack && c.wave === 10) {
+          if (this.goBack && game.wave === 10) {
             this.goBack = false;
-            c.enemyCount = 1;
-            c.wave += 1;
+            game.enemyCount = 1;
+            game.wave += 1;
             this.refreshBodyAttributes();
             this.collisionArray = [];
             this.runAway = true;
@@ -9309,24 +9309,24 @@ this.collisionArray = [];
                 o.FOV = 50000;
                 o.addController(new io_guard1(o));
                 o.refreshBodyAttributes();
-                c.enemyCount += 1;
+                game.enemyCount += 1;
                 o.REGEN = 0;
               }
-              c.enemyCount -= 1;
+              game.enemyCount -= 1;
             }, 10000);
           }
 
-          if (c.enemyCount < 1 && c.wave === 11) {
+          if (game.enemyCount < 1 && game.wave === 11) {
             this.haltActions = false;
             this.runAway = false;
-            c.wave += 1;
+            game.wave += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.25 &&
-            c.wave === 12 &&
+            game.wave === 12 &&
             !this.haltActions
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 12;
             this.haltActions = true;
             sockets.broadcast(
@@ -9355,24 +9355,24 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.1 &&
-            c.wave === 13 &&
+            game.wave === 13 &&
             !this.haltActions
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 32;
             this.haltActions = true;
             sockets.broadcast("???: We are endless.");
             setTimeout(() => {
               sockets.broadcast("Kairo: Stand your ground, he's powering up!");
             }, 6000);
-            c.stopFoodSpawn = true;
-            c.BOTS = game.players * 2;
+            game.stopFoodSpawn = true;
+            game.BOTS = game.players * 2;
             setTimeout(() => {
               for (let i = 0; i < 6; i++) {
                 let o = new Entity(room.randomType("bos0"));
                 o.master = this;
                 o.stayTeam = false;
-                switch (c.shift) {
+                switch (game.shift) {
                   case 1:
                     o.color = 3;
                     o.define(Class.sardonyxPower2);
@@ -9385,7 +9385,7 @@ this.collisionArray = [];
                   case 2:
                     o.color = 13;
                     o.define(Class.sardonyxPower1);
-                    c.SPAWN_CRASHERS = true;
+                    game.SPAWN_CRASHERS = true;
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
@@ -9410,20 +9410,20 @@ this.collisionArray = [];
                     o.SIZE = this.SIZE;
                     o.color = 1;
                     o.tp = true;
-                    c.shift = 0;
+                    game.shift = 0;
                 }
 
-                c.shift += 1;
+                game.shift += 1;
               }
-              c.stopFoodSpawn = false;
+              game.stopFoodSpawn = false;
             }, 9000);
             setTimeout(() => {
               this.haltActions = false;
             }, 10000);
           }
-          if (c.wave === 15 && !c.stop1 && !room.closed) {
-            c.BOTS = 0;
-            if (c.sardonyxLoseCondition >= game.players * 5) {
+          if (game.wave === 15 && !game.stop1 && !room.closed) {
+            game.BOTS = 0;
+            if (game.sardonyxLoseCondition >= game.players * 5) {
               setTimeout(() => {
                 sockets.broadcast("Albatar: Dammit!");
               }, 2000);
@@ -9470,16 +9470,16 @@ this.collisionArray = [];
                 "Akavir: Soldier, head to a dominator so we can transport you back to base."
               );
             }, 38000);
-            c.stop1 = true;
+            game.stop1 = true;
           }
 
-          if (c.wave === 16) {
+          if (game.wave === 16) {
             let o = new Entity(room.randomType("dom3"));
             o.define(Class.voidportal);
             o.godMode = true;
             o.team = -1;
             o.color = 10;
-            c.wave += 1;
+            game.wave += 1;
             sockets.broadcast(
               "Akavir: We lost Coldus...mission failed, head back to base."
             );
@@ -9511,32 +9511,32 @@ this.collisionArray = [];
         }
       }
       if (
-        !c.eventProgress &&
+        !game.eventProgress &&
         this.team === -100 &&
         this.type === "squareWall"
       ) {
         this.kill();
       }
-      if (c.eventProgress) {
-        //c.killWalls = true;
+      if (game.eventProgress) {
+        //game.killWalls = true;
         if (
           (this.type === "neutralBoss" || this.isEnemy) &&
           !this.isRanar &&
-          c.wave > 1
+          game.wave > 1
         ) {
           if (room.isIn("wal0", this) || room.isIn("spw0", this)) {
             this.x = room.random().x;
             this.y = room.random().y;
           }
         }
-        if (c.wave === 0) {
-          c.ranarLoseCondition = game.players * 5;
+        if (game.wave === 0) {
+          game.ranarLoseCondition = game.players * 5;
         }
         if (this.isWall && this.team === -1) {
           this.kill();
         }
 
-        /*   if (this.type === "squareWall" && c.wave >= 13) {
+        /*   if (this.type === "squareWall" && game.wave >= 13) {
           this.destroy();
         }
         if (this.isWall && !room.isIn("frt0", this)) {
@@ -9544,7 +9544,7 @@ this.collisionArray = [];
         }*/
         if (this.isTwilight) {
           if (
-            c.wave >= 6 &&
+            game.wave >= 6 &&
             this.health.amount === this.health.max &&
             this.REGEN > -1
           ) {
@@ -9553,7 +9553,7 @@ this.collisionArray = [];
             this.intangibility = false;
             this.REGEN = -1;
           }
-          if (c.wave < 6) {
+          if (game.wave < 6) {
             this.invuln = true;
           }
         }
@@ -9622,10 +9622,10 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.75 &&
-            c.wave === 0 &&
+            game.wave === 0 &&
             this.haltActions !== true
           ) {
-            c.wave += 1;
+            game.wave += 1;
             let twi = new Entity(room.type("bad1"));
             twi.define(Class.twilight);
             twi.noRestore = true;
@@ -9684,7 +9684,7 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.5 &&
-            c.wave === 1 &&
+            game.wave === 1 &&
             !this.haltActions
           ) {
             this.goBack = true;
@@ -9693,17 +9693,17 @@ this.collisionArray = [];
               "Ranar: You shouldn't have fought back, now I am going to have to inflict some pain!"
             );
 
-            c.wave += 1;
+            game.wave += 1;
             this.haltActions = true;
           }
-          if (this.goBack && c.wave === 2) {
+          if (this.goBack && game.wave === 2) {
             this.goBack = false;
-            c.wave += 1;
+            game.wave += 1;
             let loc = room.type("spw0");
             this.runAway = true;
             this.refreshBodyAttributes();
             this.collisionArray = [];
-            c.enemyCount = 1;
+            game.enemyCount = 1;
             sockets.broadcast(
               "Ranar: Sad that Valrayvn is so busy, she would have enjoyed this!"
             );
@@ -9784,22 +9784,22 @@ this.collisionArray = [];
                 o.FOV *= 2;
                 o.addController(new io_guard1(o));
                 o.refreshBodyAttributes();
-                c.enemyCount += 1;
+                game.enemyCount += 1;
               }
-              c.enemyCount -= 1;
+              game.enemyCount -= 1;
             }, 12000);
           }
-          if (c.enemyCount <= 0 && c.wave === 3) {
+          if (game.enemyCount <= 0 && game.wave === 3) {
             this.haltActions = false;
             this.runAway = false;
-            c.wave += 1;
+            game.wave += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.25 &&
-            c.wave === 4 &&
+            game.wave === 4 &&
             !this.haltActions
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 3;
             this.haltActions = true;
             sockets.broadcast(
@@ -9832,14 +9832,14 @@ this.collisionArray = [];
             }, 25000);
           }
 
-          if (this.goBack && c.wave === 6) {
+          if (this.goBack && game.wave === 6) {
             this.goBack = false;
-            c.enemyCount = 1;
-            c.wave += 1;
+            game.enemyCount = 1;
+            game.wave += 1;
             this.refreshBodyAttributes();
             this.collisionArray = [];
             /*  makeTiling();
-            c.DEADLY_BORDERS = true;*/
+            game.DEADLY_BORDERS = true;*/
             this.runAway = true;
             sockets.broadcast(
               "Twilight: Oh hell, Ranar transformed! Okay give me a moment, I'll help!"
@@ -9853,9 +9853,9 @@ this.collisionArray = [];
               sockets.broadcast(
                 "Twilight: Okay, choose your class and kick his barrel!"
               );
-              c.unlockClasses = true;
+              game.unlockClasses = true;
             }, 12000);
-            c.BOTS = game.players * 3;
+            game.BOTS = game.players * 3;
             setTimeout(() => {
               for (let i = 0; i < Math.round(game.players / 2); i++) {
                 let o = new Entity(room.randomType("nest"));
@@ -9883,24 +9883,24 @@ this.collisionArray = [];
                 o.FOV = 50000;
                 o.addController(new io_guard1(o));
                 o.refreshBodyAttributes();
-                c.enemyCount += 1;
+                game.enemyCount += 1;
               }
-              c.enemyCount -= 1;
-              c.BOTS = 0;
+              game.enemyCount -= 1;
+              game.BOTS = 0;
             }, 22000);
           }
-          if (c.enemyCount < 1 && c.wave === 7) {
+          if (game.enemyCount < 1 && game.wave === 7) {
             this.haltActions = false;
             this.runAway = false;
-            c.BOTS = 0;
-            c.wave += 1;
+            game.BOTS = 0;
+            game.wave += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.75 &&
-            c.wave === 8 &&
+            game.wave === 8 &&
             !this.haltActions
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 33;
             this.haltActions = true;
             sockets.broadcast(
@@ -9925,7 +9925,7 @@ this.collisionArray = [];
                 o.invuln = false;
                 o.tp = true;
               }
-              c.SPAWN_SENTINEL = true;
+              game.SPAWN_SENTINEL = true;
             }, 9000);
             setTimeout(() => {
               this.haltActions = false;
@@ -9933,17 +9933,17 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.5 &&
-            c.wave === 9 &&
+            game.wave === 9 &&
             !this.haltActions
           ) {
             this.goBack = true;
             this.runAway = true;
-            c.wave += 1;
+            game.wave += 1;
           }
-          if (this.goBack && c.wave === 10) {
+          if (this.goBack && game.wave === 10) {
             this.goBack = false;
-            c.enemyCount = 1;
-            c.wave += 1;
+            game.enemyCount = 1;
+            game.wave += 1;
             this.refreshBodyAttributes();
             this.collisionArray = [];
             this.runAway = true;
@@ -10010,24 +10010,24 @@ this.collisionArray = [];
                 o.FOV = 50000;
                 o.addController(new io_guard1(o));
                 o.refreshBodyAttributes();
-                c.enemyCount += 1;
+                game.enemyCount += 1;
                 o.REGEN = 0;
               }
-              c.enemyCount -= 1;
+              game.enemyCount -= 1;
             }, 10000);
           }
 
-          if (c.enemyCount < 1 && c.wave === 11) {
+          if (game.enemyCount < 1 && game.wave === 11) {
             this.haltActions = false;
             this.runAway = false;
-            c.wave += 1;
+            game.wave += 1;
           }
           if (
             this.health.amount <= this.health.max * 0.25 &&
-            c.wave === 12 &&
+            game.wave === 12 &&
             !this.haltActions
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 12;
             this.haltActions = true;
             sockets.broadcast(
@@ -10056,10 +10056,10 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max * 0.1 &&
-            c.wave === 13 &&
+            game.wave === 13 &&
             !this.haltActions
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 32;
             this.haltActions = true;
             sockets.broadcast(
@@ -10068,14 +10068,14 @@ this.collisionArray = [];
             setTimeout(() => {
               sockets.broadcast("Twilight: What the F---?!");
             }, 6000);
-            c.stopFoodSpawn = true;
-            c.BOTS = game.players * 2;
+            game.stopFoodSpawn = true;
+            game.BOTS = game.players * 2;
             setTimeout(() => {
               for (let i = 0; i < 6; i++) {
                 let o = new Entity(room.randomType("spw0"));
                 o.master = this;
                 o.stayTeam = false;
-                switch (c.shift) {
+                switch (game.shift) {
                   case 1:
                     o.color = 3;
                     o.define(Class.ranarPower2);
@@ -10088,7 +10088,7 @@ this.collisionArray = [];
                   case 2:
                     o.color = 13;
                     o.define(Class.ranarPower1);
-                    c.SPAWN_CRASHERS = true;
+                    game.SPAWN_CRASHERS = true;
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
@@ -10122,12 +10122,12 @@ this.collisionArray = [];
                     o.SIZE = this.SIZE;
                     o.color = 1;
                     o.tp = true;
-                    c.shift = 0;
+                    game.shift = 0;
                 }
 
-                c.shift += 1;
+                game.shift += 1;
               }
-              c.stopFoodSpawn = false;
+              game.stopFoodSpawn = false;
             }, 9000);
             setTimeout(() => {
               for (let i = 0; i < Math.ceil(game.players * 1.25); i++) {
@@ -10187,9 +10187,9 @@ this.collisionArray = [];
               this.haltActions = false;
             }, 10000);
           }
-          if (c.wave === 15 && !c.stop1 && !room.closed) {
-            c.BOTS = 0;
-            if (c.ranarLoseCondition >= game.players * 5) {
+          if (game.wave === 15 && !game.stop1 && !room.closed) {
+            game.BOTS = 0;
+            if (game.ranarLoseCondition >= game.players * 5) {
               setTimeout(() => {
                 sockets.broadcast(
                   "Twilight: Wow, good job, I guess you guys did not need me..."
@@ -10273,19 +10273,19 @@ this.collisionArray = [];
               closeArena();
             }, 68000);
             setTimeout(() => {
-              c.wave += 1;
+              game.wave += 1;
               sockets.broadcast("Twilight: Go through the portal, NOW!");
             }, 72000);
-            c.stop1 = true;
+            game.stop1 = true;
           }
 
-          if (c.wave === 16) {
+          if (game.wave === 16) {
             let o = new Entity(room.randomType("bad1"));
             o.define(Class.voidportal);
             o.godMode = true;
             o.team = -1;
             o.color = 10;
-            c.wave += 1;
+            game.wave += 1;
             sockets.broadcast(
               "Congratulations, you have defeated the controller of Ranar's Prophecy! We are free! Your team has won the game!"
             );
@@ -10298,14 +10298,14 @@ this.collisionArray = [];
         }
       }
     }
-    /*  if (c.eventProgress !== true || c.wave >= 13) {
+    /*  if (game.eventProgress !== true || game.wave >= 13) {
         if (this.isWall || this.isGate) {
           this.destroy();
       }
       }*/
-    if (this.specialEffect === "denied" && c.wave > 0) {
-      this.name = "Player Lives Remaining: " + c.ranarLoseCondition;
-      if (c.wave > 0 && this.skill.score < 5000000) {
+    if (this.specialEffect === "denied" && game.wave > 0) {
+      this.name = "Player Lives Remaining: " + game.ranarLoseCondition;
+      if (game.wave > 0 && this.skill.score < 5000000) {
         this.skill.score = Infinity;
       }
     }
@@ -10313,10 +10313,10 @@ this.collisionArray = [];
       this.kill();
     }
     if (game.MODE === "theDivided") {
-      if (c.eventProgress) {
-        if (c.wave === 0) {
+      if (game.eventProgress) {
+        if (game.wave === 0) {
         }
-        if (this.type === "squareWall" && c.wave >= 13) {
+        if (this.type === "squareWall" && game.wave >= 13) {
           this.destroy();
         }
         if (this.eliteBoss) {
@@ -10351,10 +10351,10 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max / 1.5 &&
-            c.wave === 0 &&
+            game.wave === 0 &&
             this.haltActions === false
           ) {
-            c.wave += 1;
+            game.wave += 1;
             sockets.broadcast("Valrayvn: I WILL HAVE YOU SEDUCED!");
             setTimeout(() => {
               sockets.broadcast(
@@ -10392,24 +10392,24 @@ this.collisionArray = [];
           }
           if (
             this.health.amount <= this.health.max / 2 &&
-            c.wave === 1 &&
+            game.wave === 1 &&
             !this.haltActions
           ) {
             this.goBack = true;
             this.runAway = true;
             sockets.broadcast("Valrayvn: DIE YOU TRAITORS!!!");
 
-            c.wave += 1;
+            game.wave += 1;
             this.haltActions = true;
           }
-          if (this.goBack && c.wave === 2) {
+          if (this.goBack && game.wave === 2) {
             this.goBack = false;
-            c.wave += 1;
+            game.wave += 1;
             let loc = room.type("spw4");
             this.runAway = true;
             this.refreshBodyAttributes();
             this.collisionArray = [];
-            c.enemyCount = 1;
+            game.enemyCount = 1;
             setTimeout(() => {
               setTimeout(() => {
                 sockets.broadcast(
@@ -10459,25 +10459,25 @@ this.collisionArray = [];
                 o.FOV *= 2;
                 o.addController(new io_guard1(o));
                 o.refreshBodyAttributes();
-                c.enemyCount += 1;
+                game.enemyCount += 1;
               }
-              c.enemyCount -= 1;
+              game.enemyCount -= 1;
               setTimeout(() => {
-                c.enemyCount = 0;
+                game.enemyCount = 0;
               }, 30000);
             }, 12000);
           }
-          if (c.enemyCount <= 0 && c.wave === 3) {
+          if (game.enemyCount <= 0 && game.wave === 3) {
             this.haltActions = false;
             this.runAway = false;
-            c.wave += 1;
+            game.wave += 1;
           }
           if (
             this.health.amount <= this.health.max / 4 &&
-            c.wave === 4 &&
+            game.wave === 4 &&
             !this.haltActions
           ) {
-            c.wave += 1;
+            game.wave += 1;
             this.color = 3;
             this.haltActions = true;
             sockets.broadcast(
@@ -10506,8 +10506,8 @@ this.collisionArray = [];
               this.haltActions = false;
             }, 25000);
           }
-          if (c.wave === 6 && !c.stop1 && !room.closed) {
-            c.BOTS = 0;
+          if (game.wave === 6 && !game.stop1 && !room.closed) {
+            game.BOTS = 0;
             setTimeout(() => {
               sockets.broadcast(
                 "Valrayvn: I had enough of this, UNLEASH THE ENTIRE ALLIANCE ARMADA!"
@@ -10549,21 +10549,21 @@ this.collisionArray = [];
               closeArena();
             }, 68000);
             setTimeout(() => {
-              c.wave += 1;
+              game.wave += 1;
               sockets.broadcast(
                 "Tryi: Go through the portal, we cant fight this!"
               );
             }, 72000);
-            c.stop1 = true;
+            game.stop1 = true;
           }
 
-          if (c.wave === 16) {
+          if (game.wave === 16) {
             let o = new Entity(room.randomType("bad1"));
             o.define(Class.voidportal);
             o.godMode = true;
             o.team = -1;
             o.color = 10;
-            c.wave += 1;
+            game.wave += 1;
             sockets.broadcast(
               "Congratulations, you have defeated Valrayvn...for now. We are free! Your team has won the game!"
             );
@@ -10575,7 +10575,7 @@ this.collisionArray = [];
           this.y = this.master.y;
         }
       }
-      if (c.eventProgress !== true || c.wave >= 13) {
+      if (game.eventProgress !== true || game.wave >= 13) {
         if (this.isWall || this.isGate) {
           this.destroy();
         }
@@ -10584,13 +10584,13 @@ this.collisionArray = [];
     if (this.foodLevel >= 5 && this.done !== true) {
       this.done = true;
 
-      c.hexagonCount += 1;
+      game.hexagonCount += 1;
 
       if (
-        (c.hexagonCount >= 5 &&
+        (game.hexagonCount >= 5 &&
           this.passiveEffect !== "uniqueFood" &&
           !game.SHINY_GLORY) ||
-        (c.hexagonCount >= 5 && game.SHINY_GLORY)
+        (game.hexagonCount >= 5 && game.SHINY_GLORY)
       ) {
         this.invuln = false;
         this.define(Class.hexagon);
@@ -10608,25 +10608,25 @@ this.collisionArray = [];
     if (
       this.type === "tank" &&
       !this.invuln &&
-      c.dontSpam &&
+      game.dontSpam &&
       this.yay !== game.wave
     ) {
       this.sendMessage(
         "Congrats for surviving the previous wave! You have been rewarded with score!"
       );
-      this.skill.score += (game.wave + c.preparedCounter) * 3500;
+      this.skill.score += (game.wave + game.preparedCounter) * 3500;
       this.yay = game.wave;
       setTimeout(() => {
-        c.dontSpam = false;
+        game.dontSpam = false;
       }, 100);
     }
-    if (c.globalScoreGive === true && this.targetable) {
+    if (game.globalScoreGive === true && this.targetable) {
       this.skill.score += 20000;
       setTimeout(() => {
-        c.globalScoreGive = false;
+        game.globalScoreGive = false;
       }, 100);
     }
-    if (c.globalTestbed === true && this.isDeveloper && !this.trueDev) {
+    if (game.globalTestbed === true && this.isDeveloper && !this.trueDev) {
       this.upgrades = [];
       this.define(Class[game.STARTING_CLASS]);
       this.maxChildren = 0;
@@ -10645,48 +10645,48 @@ this.collisionArray = [];
       this.ignoreCollision = false;
       this.sendMessage("You have lost testbed!");
       setTimeout(() => {
-        c.globalTestbed = false;
+        game.globalTestbed = false;
       }, 100);
     }
-    if (c.globalHeal == true && this.type !== "grid") {
+    if (game.globalHeal == true && this.type !== "grid") {
       this.health.amount = this.health.max;
       this.shield.amount = this.shield.max;
       setTimeout(() => {
-        c.globalHeal = false;
+        game.globalHeal = false;
       }, 100);
     }
-    if (c.globalKill === true && this.type !== "grid") {
+    if (game.globalKill === true && this.type !== "grid") {
       this.kill();
       setTimeout(() => {
-        c.globalKill = false;
+        game.globalKill = false;
       }, 100);
     }
-    if (c.globalTeleport === true && this.type !== "grid") {
+    if (game.globalTeleport === true && this.type !== "grid") {
       this.invuln = true;
-      this.x = c.playerPort.x;
-      this.y = c.playerPort.y;
+      this.x = game.playerPort.x;
+      this.y = game.playerPort.y;
       setTimeout(() => {
-        c.globalTeleport = false;
+        game.globalTeleport = false;
       }, 100);
     }
-    if (c.globalDestroy === true && this.type !== "grid") {
+    if (game.globalDestroy === true && this.type !== "grid") {
       this.died = true;
       this.destroy();
       setTimeout(() => {
-        c.globalDestroy = false;
+        game.globalDestroy = false;
       }, 100);
     }
-    if (c.globalExecuteTeam === true && this.targetable) {
-      this.team = c.globalTeam;
-      this.color = c.globalColor;
+    if (game.globalExecuteTeam === true && this.targetable) {
+      this.team = game.globalTeam;
+      this.color = game.globalColor;
       setTimeout(() => {
-        c.globalExecuteTeam = false;
+        game.globalExecuteTeam = false;
       }, 100);
     }
-    if (c.globalScoreTake === true && this.targetable) {
+    if (game.globalScoreTake === true && this.targetable) {
       this.skill.score -= 20000;
       setTimeout(() => {
-        c.globalScoreTake = false;
+        game.globalScoreTake = false;
       }, 100);
     }
     if (this.skill.score >= 5000000 && game.MODE === "siege" && !this.dayum) {
@@ -10835,7 +10835,7 @@ this.collisionArray = [];
     ) {
       this.health.amount = this.health.max;
     }
-    if (c.stopFoodSpawn && this.type === "food") {
+    if (game.stopFoodSpawn && this.type === "food") {
       this.SIZE = 0.1;
       this.alpha = 0;
       this.kill();
@@ -10898,7 +10898,7 @@ this.collisionArray = [];
       }
     }
 
-    if (c.eventProgress2 && game.MODE === "theExpanse" && this.type === "base") {
+    if (game.eventProgress2 && game.MODE === "theExpanse" && this.type === "base") {
       this.kill();
     }
     if (this.zombied && this.color !== this.master.color) {
@@ -10952,10 +10952,10 @@ this.collisionArray = [];
       }, 15000);
     }
     let limit = (room.width + room.height) / 2 / 10;
-    if (this.SIZE > limit && !c.extinction) {
+    if (this.SIZE > limit && !game.extinction) {
       this.SIZE = limit;
     }
-    if (c.ENCLOSED_ARENA && !this.ignoreCollision && !this.phase) {
+    if (game.ENCLOSED_ARENA && !this.ignoreCollision && !this.phase) {
       if (!room.isInRoom(this)) {
         if (
           (this.isBot ||
@@ -10968,8 +10968,8 @@ this.collisionArray = [];
           if (isNaN(this.x) && isNaN(this.y)) return;
           let loc = room.randomType("none");
           this.invuln = true;
-          this.x = loc.x;
-          this.y = loc.y;
+          this.x = logame.x;
+          this.y = logame.y;
           setTimeout(() => {
             this.invuln = false;
           }, 5000);
@@ -11129,11 +11129,11 @@ this.collisionArray = [];
         this.deathThroes = "none";
       }
       if (game.MODE === "execution" && game.STARTING_CLASS === "spectator") {
-        c.playerz = 0;
-        c.botCount = 0;
+        game.playerz = 0;
+        game.botCount = 0;
         entities.forEach((instance) => {
-          if (this.isPlayer && this.type === "tank") c.playerz += 1;
-          if (this.isBot && this.type === "tank") c.botCount += 1;
+          if (this.isPlayer && this.type === "tank") game.playerz += 1;
+          if (this.isBot && this.type === "tank") game.botCount += 1;
         });
       }
       if (game.MODE === "BossArena" && this.label === "Void Portal") {
@@ -11301,14 +11301,14 @@ this.collisionArray = [];
           if (room["spw" + i]) {
             room["spw" + i].forEach((loc) => {
               placeBosses(loc, i, {
-                x: Math.floor(loc.x / gridWidth),
-                y: Math.floor(loc.y / gridHeight),
+                x: Math.floor(logame.x / gridWidth),
+                y: Math.floor(logame.y / gridHeight),
               });
             });
           }
         }
       }
-      if (game.MODE === "theInfestation" && this.isAnubis && !c.vruh) {
+      if (game.MODE === "theInfestation" && this.isAnubis && !game.vruh) {
         sockets.broadcast(
           "Anubis: I am sorry...it must be destiny...that we can never be found..."
         );
@@ -11324,9 +11324,9 @@ this.collisionArray = [];
       }
 
       if (game.MODE === "execution") {
-        //    if (this.isPlayer || this.isBot) c.thing--;
-        if (c.thing <= 1) {
-          c.goNow = true;
+        //    if (this.isPlayer || this.isBot) game.thing--;
+        if (game.thing <= 1) {
+          game.goNow = true;
         }
       }
       if (game.MODE === "theDistance") {
@@ -11357,12 +11357,12 @@ this.collisionArray = [];
           sockets.broadcast(
             "The shrine glows and starts draining energy of neutral forces before disintegrating... "
           );
-          c.win += 1;
+          game.win += 1;
           //this.trulyDead = false;
           //this.win = false;
         }
       }
-      if (this.foodLevel > 4 && game.MODE === "theDenied" && c.wave > 0) {
+      if (this.foodLevel > 4 && game.MODE === "theDenied" && game.wave > 0) {
         let lifeUp = this.foodLevel - 4;
         let plur;
         if (lifeUp === 1) {
@@ -11370,7 +11370,7 @@ this.collisionArray = [];
         } else {
           plur = "lives";
         }
-        c.ranarLoseCondition += lifeUp;
+        game.ranarLoseCondition += lifeUp;
         sockets.broadcast(
           "Your team has destroyed a high tier polygon and gained " +
             lifeUp +
@@ -11394,29 +11394,29 @@ this.collisionArray = [];
   serverState.advanceLoreSequence();
 console.log('Lore mode sequence advanced.');*/
         setTimeout(() => {
-          c.enableHell = true;
+          game.enableHell = true;
           closeArena();
         }, 5000);
       }
       if (
         this.isPlayer &&
         game.MODE === "theDenied" &&
-        c.wave > 0 &&
+        game.wave > 0 &&
         !this.godMode
       ) {
-        c.ranarLoseCondition -= 1;
-        if (!c.denied1) {
+        game.ranarLoseCondition -= 1;
+        if (!game.denied1) {
           sockets.broadcast(
             "Twilight: You guys have shared lives, if one dies, you all lose a life."
           );
-          c.denied1 = true;
+          game.denied1 = true;
         }
-        if (c.ranarLoseCondition === 5) {
+        if (game.ranarLoseCondition === 5) {
           sockets.broadcast(
             "Twilight: If the global life count reaches zero, we lose, don't die!"
           );
         }
-        if (c.ranarLoseCondition < 1 && !room.closed && c.wave < 15) {
+        if (game.ranarLoseCondition < 1 && !room.closed && game.wave < 15) {
           sockets.broadcast("Twilight: NOOO!!!");
           setTimeout(() => {
             sockets.broadcast(
@@ -11431,8 +11431,8 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (game.MODE === "theAwakening") {
         if (this.bossProgress) {
-          c.bossStage += 1;
-          switch (c.bossStage) {
+          game.bossStage += 1;
+          switch (game.bossStage) {
             case 4:
               sockets.broadcast(
                 "Valrayvn: Hurry up! You still have one more to kill!"
@@ -11443,7 +11443,7 @@ console.log('Lore mode sequence advanced.');*/
                 "Valrayvn: Finally, now let us see what lurks farther in."
               );
               makeRepairMen();
-              c.bossStage += 1;
+              game.bossStage += 1;
               break;
             case 11:
               let o = new Entity(room.type("bos9"));
@@ -11459,7 +11459,7 @@ console.log('Lore mode sequence advanced.');*/
               sockets.broadcast(
                 "Valrayvn: How long does it take to kill a measly outsider?"
               );
-              c.SPAWN_SPECIAL_ENEMIES = false;
+              game.SPAWN_SPECIAL_ENEMIES = false;
               entities.forEach((e) => {
                 if (e.type === "Aspect") e.kill();
               });
@@ -11489,7 +11489,7 @@ console.log('Lore mode sequence advanced.');*/
                 sockets.broadcast(
                   "Valrayvn: Hmmm...why don't we try releasing one?"
                 );
-                c.bossStage += 1;
+                game.bossStage += 1;
                 game.npcWanderLoc1 = ["hmmm"];
                 o.facingType = "smoothWithMotion";
                 o.controllers = [new io_guard1(o)];
@@ -11505,12 +11505,12 @@ console.log('Lore mode sequence advanced.');*/
         }
       }
       if (game.MODE === "theExpanse") {
-        if (this.bossProgress && c.bossStage <= 2) {
-          c.bossStage += 1;
+        if (this.bossProgress && game.bossStage <= 2) {
+          game.bossStage += 1;
           makeEventBosses();
           makeRepairMen();
-          //util.log("GRUH "+c.bossStage);
-        } else if (c.bossStage > 2 && this.bossProgress) {
+          //util.log("GRUH "+game.bossStage);
+        } else if (game.bossStage > 2 && this.bossProgress) {
           //Broadcasting for testing.
           setTimeout(() => {
             console.log("Current lore mode index:", currentState.loreModeIndex);
@@ -11533,8 +11533,8 @@ console.log('Lore mode sequence advanced.');*/
           closeArena();
         }
 
-        if (this.label === "Void Portal" && c.bossStage <= 3) {
-          let o = new Entity(room.type("bos" + c.bossStage));
+        if (this.label === "Void Portal" && game.bossStage <= 3) {
+          let o = new Entity(room.type("bos" + game.bossStage));
           o.bossProgress = true;
           o.team = -4;
           o.impervious = true;
@@ -11590,8 +11590,8 @@ console.log('Lore mode sequence advanced.');*/
         }
       }
       if (game.MODE === "theControlled") {
-        if (c.bossProgress >= 4) {
-          c.bossProgress = 0;
+        if (game.bossProgress >= 4) {
+          game.bossProgress = 0;
           console.log("Current lore mode index:", currentState.loreModeIndex);
           serverState.advanceLoreSequence();
           console.log("Lore mode sequence advanced.");
@@ -11628,7 +11628,7 @@ console.log('Lore mode sequence advanced.');*/
                       sockets.broadcast(
                         "The ship starts to shake as Void entities start disappearing."
                       );
-                      c.fuckYouAnomalies = true;
+                      game.fuckYouAnomalies = true;
                       closeArena();
                       setTimeout(() => {
                         sockets.broadcast(
@@ -11643,7 +11643,7 @@ console.log('Lore mode sequence advanced.');*/
           }, 5000);
         }
         if (this.bossProgress) {
-          c.bossProgress += 1;
+          game.bossProgress += 1;
           sockets.broadcast(
             this.name +
               "'s Machine was destroyed, but he managed to escape death."
@@ -11651,11 +11651,11 @@ console.log('Lore mode sequence advanced.');*/
         }
         if (
           this.label === "Void Portal" &&
-          c.bossStage <= 9 &&
+          game.bossStage <= 9 &&
           this.team === -3
         ) {
           //util.log("TRIGGERED");
-          let o = new Entity(room.type("bos" + c.bossStage));
+          let o = new Entity(room.type("bos" + game.bossStage));
           o.bossProgress = true;
           o.team = -3;
           o.impervious = true;
@@ -11714,10 +11714,10 @@ console.log('Lore mode sequence advanced.');*/
         }
       }
       if (this.specialEffect === "cxShrine" && game.MODE === "theInfestation") {
-        c.cxPowerDrain += 1;
+        game.cxPowerDrain += 1;
       }
       if (game.MODE === "theDenied" && !this.godMode) {
-        if (c.wave >= 6 && this.isTwilight) {
+        if (game.wave >= 6 && this.isTwilight) {
           this.invuln = true;
           this.trulyDead = false;
           this.health.amount = 1;
@@ -11791,7 +11791,7 @@ console.log('Lore mode sequence advanced.');*/
         (this.enemy && game.MODE === "theDenied") ||
         (this.isBot && game.MODE === "theDenied")
       ) {
-        c.enemyCount -= 1;
+        game.enemyCount -= 1;
       }
       if (this.isPlayer && !this.godMode) {
         let dude = this.name;
@@ -11800,7 +11800,7 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (this.isRanar && game.MODE === "theDenied") {
         if (this.label === "Ascendant") {
-          c.wave = 15;
+          game.wave = 15;
           this.trulyDead = false;
           this.runAway = true;
           this.x = room.type("spw0").x;
@@ -11827,7 +11827,7 @@ console.log('Lore mode sequence advanced.');*/
             "Ranar: You have forced me to try! Prepare to be erased!"
           );
 
-          c.wave = 6;
+          game.wave = 6;
           this.haltActions = true;
         }
       }
@@ -11835,7 +11835,7 @@ console.log('Lore mode sequence advanced.');*/
         (this.enemy && game.MODE === "theRestless") ||
         (this.isBot && game.MODE === "theRestless")
       ) {
-        c.enemyCount -= 1;
+        game.enemyCount -= 1;
       }
       if (this.isPlayer && !this.godMode) {
         let dude = this.name;
@@ -11844,7 +11844,7 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (this.eliteBoss && game.MODE === "theDivided") {
         if (this.label === "Arrasian Lord") {
-          c.wave = 6;
+          game.wave = 6;
           this.trulyDead = true;
           this.runAway = true;
           this.x = room.type("bos0").x;
@@ -11855,7 +11855,7 @@ console.log('Lore mode sequence advanced.');*/
           sockets.broadcast("Valrayvn: ...");
           sockets.broadcast("Valrayvn has been defeated!");
         }
-        c.wave = 6;
+        game.wave = 6;
         this.haltActions = true;
       }
 
@@ -11865,7 +11865,7 @@ console.log('Lore mode sequence advanced.');*/
         this.trulyDead = false;
       }
       if (this.label === "Shrine" && game.MODE === "theDenied") {
-        c.eventProgress = true;
+        game.eventProgress = true;
         // Assuming this loop is correctly controlled elsewhere in your code
         makeFortGates();
         makeTeamedWalls();
@@ -11934,7 +11934,7 @@ console.log('Lore mode sequence advanced.');*/
         o.team = -100;
       }
       if (this.label === "Shrine" && game.MODE === "theDivided") {
-        c.eventProgress = true;
+        game.eventProgress = true;
         // Assuming this loop is correctly controlled elsewhere in your code
         /*  for (let i = 0; i < 9; i++) {
     if (room["gte" + i]) {
@@ -11946,13 +11946,13 @@ console.log('Lore mode sequence advanced.');*/
     let o;
 
     if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
+      let start = logame.x - gridWidth / 2 + gridHeight / 2;
+      let end = logame.x + gridWidth / 2 - gridHeight / 2;
       let x = start;
       for (;;) {
         o = new Entity({
           x: Math.min(x, end),
-          y: loc.y,
+          y: logame.y,
         });
         o.define(a);
         o.SIZE = gridHeight / 2.25;
@@ -11962,12 +11962,12 @@ console.log('Lore mode sequence advanced.');*/
         x += gridHeight;
       }
     } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
+      let start = logame.y + gridWidth / 2 - gridHeight / 2;
+      let end = logame.y - gridWidth / 2 + gridHeight / 2;
       let y = start;
       for (;;) {
         o = new Entity({
-          x: loc.x,
+          x: logame.x,
           y: Math.min(y, end),
         });
         o.define(a);
@@ -11996,8 +11996,8 @@ console.log('Lore mode sequence advanced.');*/
 
     o.refreshBodyAttributes();
     o.grid = {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
+            x: Math.floor(logame.x / gridWidth),
+            y: Math.floor(logame.y / gridHeight),
           }
     o.VELOCITY.x = 0;
     o.VELOCITY.y = 0;
@@ -12071,22 +12071,22 @@ console.log('Lore mode sequence advanced.');*/
         o.team = -100;
       }
       if (game.MODE === "siege" && !this.isProjectile && this.team === -100) {
-        c.bossAmount = 0;
+        game.bossAmount = 0;
         entities.forEach((entity) => {
           if (entity.siegeProgress && entity.team === -100 && !entity.isDead())
-            c.bossAmount += 1;
+            game.bossAmount += 1;
         });
-        c.bossAmount -= 1;
-        //console.log(c.bossAmount);
+        game.bossAmount -= 1;
+        //console.log(game.bossAmount);
         if (this.siegeProgress) {
-          if (c.bossAmount <= 0) {
+          if (game.bossAmount <= 0) {
             setTimeout(() => {
-              if (c.bossAmount <= 0) {
-                c.preparedCounter = game.wave * 5 + 50;
+              if (game.bossAmount <= 0) {
+                game.preparedCounter = game.wave * 5 + 50;
                 game.wave += 1;
-                c.continueWave = true;
-                c.dontSpam = true;
-                c.bossAmount = 1;
+                game.continueWave = true;
+                game.dontSpam = true;
+                game.bossAmount = 1;
                 currentState.bossWaves = game.wave + 1;
                 //     util.log(currentState.bossWaves);
                 sockets.broadcast("Wave " + game.wave + " has started!");
@@ -12095,7 +12095,7 @@ console.log('Lore mode sequence advanced.');*/
           }
         }
       }
-      if (c.PLAGUE || this.infected) {
+      if (game.PLAGUE || this.infected) {
         if (!this.plagued && !this.godMode) {
           if (this.type === "tank") {
             this.trulyDead = false;
@@ -12117,7 +12117,7 @@ console.log('Lore mode sequence advanced.');*/
             this.spd /= 2;
             this.aiTarget = "general";
             this.health.amount = this.health.max;
-            if (c.PLAGUE) {
+            if (game.PLAGUE) {
               this.team = -2;
               this.color = 41;
             }
@@ -12193,7 +12193,7 @@ console.log('Lore mode sequence advanced.');*/
                   "The Fallen have won the game, but the portal colapsed!"
                 );
                 setTimeout(() => {
-                  c.enableHell = true;
+                  game.enableHell = true;
                   closeArena();
                 }, 5000);
               }
@@ -12273,16 +12273,16 @@ console.log('Lore mode sequence advanced.');*/
           default:
         }
         let goal = "GOALS: ";
-        if (c.TEAMS.includes(1)) {
+        if (game.TEAMS.includes(1)) {
           goal += util.getTeam(-1) + "|" + game.points.guardians + ", ";
         }
-        if (c.TEAMS.includes(2)) {
+        if (game.TEAMS.includes(2)) {
           goal += util.getTeam(-2) + "|" + game.points.fallen + ", ";
         }
-        if (c.TEAMS.includes(3)) {
+        if (game.TEAMS.includes(3)) {
           goal += util.getTeam(-3) + "|" + game.points.highlords + ", ";
         }
-        if (c.TEAMS.includes(4)) {
+        if (game.TEAMS.includes(4)) {
           goal += util.getTeam(-4) + "|" + game.points.voidlords + ", ";
         }
         goal += "You need " + game.pointsToWin + " goals to win!";
@@ -12641,7 +12641,7 @@ instance.runTrigger("kill", this);
                 this.isEnemy
               ) {
                 if (this.label === "Anti-Virus") {
-                  c.vruh = true;
+                  game.vruh = true;
                   sockets.broadcast(
                     "CX has been defeated...and revived to lead the fallen!"
                   );
@@ -12649,7 +12649,7 @@ instance.runTrigger("kill", this);
                     "The Fallen have won the ga- what the? OH NO, THE PORTAL WAS A TRAP!"
                   );
                   setTimeout(() => {
-                    c.enableHell = true;
+                    game.enableHell = true;
                     closeArena();
                     console.log(
                       "Current lore mode index:",
@@ -12981,7 +12981,7 @@ instance.runTrigger("kill", this);
         if (killer) {
           killers.forEach((instance) => {
             if (game.MODE === "JJ's RF" || game.MODE === "test") return;
-            if (this.team === -100 || c.INSTANT_CAPTURE) {
+            if (this.team === -100 || game.INSTANT_CAPTURE) {
               if (killer.team) {
                 this.team = killer.team;
               } else this.team = -100;
@@ -13045,29 +13045,29 @@ instance.runTrigger("kill", this);
             census[-o.team]++;
           }
         });
-        if (c.DOMINATION) {
+        if (game.DOMINATION) {
           //💀 tilted skull (fake)
-          if (c.SIEGE) {
+          if (game.SIEGE) {
             for (let i = 0; i < 9; i++) {
-              if (i && census[0] >= c.DOMINATOR_COUNT) {
+              if (i && census[0] >= game.DOMINATOR_COUNT) {
                 if (game.MODE !== "siege") {
                   sockets.broadcast(
                     util.getTeam(this.team) + " have lost the game!"
                   );
 
-                  c.DOMINATOR_COUNT = 999999;
+                  game.DOMINATOR_COUNT = 999999;
                   closeArena();
                 }
               }
             }
           } else {
             for (let i = 0; i < 9; i++) {
-              if (i && census[i] === c.DOMINATOR_COUNT) {
+              if (i && census[i] === game.DOMINATOR_COUNT) {
                 sockets.broadcast(
                   util.getTeam(this.team) + " have won the game!"
                 );
 
-                c.DOMINATOR_COUNT = 999999;
+                game.DOMINATOR_COUNT = 999999;
                 closeArena();
               }
             }
@@ -13132,13 +13132,13 @@ instance.runTrigger("kill", this);
         let gridHeight = room.height / room.ygrid;
         let a = Class.fortwall;
         if (gridWidth > gridHeight) {
-          let start = loc.x - gridWidth / 2 + gridHeight / 2;
-          let end = loc.x + gridWidth / 2 - gridHeight / 2;
+          let start = logame.x - gridWidth / 2 + gridHeight / 2;
+          let end = logame.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: loc.y,
+              y: logame.y,
             });
             o.define(a);
             o.SIZE = gridHeight / 2;
@@ -13152,12 +13152,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = loc.y + gridWidth / 2 - gridHeight / 2;
-          let end = loc.y - gridWidth / 2 + gridHeight / 2;
+          let start = logame.y + gridWidth / 2 - gridHeight / 2;
+          let end = logame.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: loc.x,
+              x: logame.x,
               y: Math.min(y, end),
             });
             o.define(a);
@@ -13186,13 +13186,13 @@ instance.runTrigger("kill", this);
         let gridHeight = room.height / room.ygrid;
         let a = Class.fortgate;
         if (gridWidth > gridHeight) {
-          let start = loc.x - gridWidth / 2 + gridHeight / 2;
-          let end = loc.x + gridWidth / 2 - gridHeight / 2;
+          let start = logame.x - gridWidth / 2 + gridHeight / 2;
+          let end = logame.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: loc.y,
+              y: logame.y,
             });
             o.define(a);
             o.SIZE = gridHeight / 2;
@@ -13206,12 +13206,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = loc.y + gridWidth / 2 - gridHeight / 2;
-          let end = loc.y - gridWidth / 2 + gridHeight / 2;
+          let start = logame.y + gridWidth / 2 - gridHeight / 2;
+          let end = logame.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: loc.x,
+              x: logame.x,
               y: Math.min(y, end),
             });
             o.define(a);
@@ -13239,13 +13239,13 @@ instance.runTrigger("kill", this);
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
         if (gridWidth > gridHeight) {
-          let start = loc.x - gridWidth / 2 + gridHeight / 2;
-          let end = loc.x + gridWidth / 2 - gridHeight / 2;
+          let start = logame.x - gridWidth / 2 + gridHeight / 2;
+          let end = logame.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: loc.y,
+              y: logame.y,
             });
             o.define(Class.wall);
             o.SIZE = gridHeight / 2;
@@ -13260,12 +13260,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = loc.y + gridWidth / 2 - gridHeight / 2;
-          let end = loc.y - gridWidth / 2 + gridHeight / 2;
+          let start = logame.y + gridWidth / 2 - gridHeight / 2;
+          let end = logame.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: loc.x,
+              x: logame.x,
               y: Math.min(y, end),
             });
             o.define(Class.wall);
@@ -13296,13 +13296,13 @@ instance.runTrigger("kill", this);
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
         if (gridWidth > gridHeight) {
-          let start = loc.x - gridWidth / 2 + gridHeight / 2;
-          let end = loc.x + gridWidth / 2 - gridHeight / 2;
+          let start = logame.x - gridWidth / 2 + gridHeight / 2;
+          let end = logame.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: loc.y,
+              y: logame.y,
             });
             o.define(Class.wall);
             o.SIZE = (gridHeight / 2) * 2;
@@ -13317,12 +13317,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = loc.y + gridWidth / 2 - gridHeight / 2;
-          let end = loc.y - gridWidth / 2 + gridHeight / 2;
+          let start = logame.y + gridWidth / 2 - gridHeight / 2;
+          let end = logame.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: loc.x,
+              x: logame.x,
               y: Math.min(y, end),
             });
             o.define(Class.wall);
@@ -13353,13 +13353,13 @@ instance.runTrigger("kill", this);
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
         if (gridWidth > gridHeight) {
-          let start = loc.x - gridWidth / 2 + gridHeight / 2;
-          let end = loc.x + gridWidth / 2 - gridHeight / 2;
+          let start = logame.x - gridWidth / 2 + gridHeight / 2;
+          let end = logame.x + gridWidth / 2 - gridHeight / 2;
           let x = start;
           for (;;) {
             let o = new Entity({
               x: Math.min(x, end),
-              y: loc.y,
+              y: logame.y,
             });
             o.define(Class.wall);
             o.SIZE = gridHeight / 2 / 2;
@@ -13374,12 +13374,12 @@ instance.runTrigger("kill", this);
             x += gridHeight;
           }
         } else if (gridWidth < gridHeight) {
-          let start = loc.y + gridWidth / 2 - gridHeight / 2;
-          let end = loc.y - gridWidth / 2 + gridHeight / 2;
+          let start = logame.y + gridWidth / 2 - gridHeight / 2;
+          let end = logame.y - gridWidth / 2 + gridHeight / 2;
           let y = start;
           for (;;) {
             let o = new Entity({
-              x: loc.x,
+              x: logame.x,
               y: Math.min(y, end),
             });
             o.define(Class.wall);
@@ -13792,8 +13792,8 @@ var http = require("http"),
         { x: rounder(point2.x), y: rounder(point2.y) },
         { x: rounder(point3.x), y: rounder(point3.y) },
       ];
-      let centerOfCircle = { x: c.x, y: c.y };
-      let radiusOfCircle = c.radius;
+      let centerOfCircle = { x: game.x, y: game.y };
+      let radiusOfCircle = game.radius;
       // 5) Check to see if we enclosed everything
       function checkingFunction() {
         for (var i = endpoints.length; i > 0; i--) {
@@ -13943,7 +13943,7 @@ class View {
       if (player.body.isDead() || player.body.died) {
         this.socket.status.deceased = true;
         this.socket.savedScore = player.body.skill.score / 2;
-        if (c.PLAGUE === true) {
+        if (game.PLAGUE === true) {
           /*/ player.body.team = -2;
           player.body.health.max *= 2;
           player.body.spd / 3;
@@ -13951,14 +13951,14 @@ class View {
           player.body.color = 41;/*/
           player.body.addController(new io_mapTargetToGoal(player.body));
           player.body.addController(new io_nearestDifferentMaster(player.body));
-          //c.zombieLimit += 1;
+          //game.zombieLimit += 1;
           //player.body.trulyDead = false;
         }
 
         // Let the client know it died
         if (
           //!room.closed ||
-          (game.MODE === "siege" && !c.initiateCountdown) ||
+          (game.MODE === "siege" && !game.initiateCountdown) ||
           !player.body.bannable
         ) {
           if (player.body.trueDev) {
@@ -14009,16 +14009,16 @@ class View {
     this.excludedEntityID = [];
 
     // Queue up some for the front util.log if neededs
-    if (this.socket.status.receiving < c.networkFrontlog) {
+    if (this.socket.status.receiving < game.networkFrontlog) {
       this.socket.update(
         Math.max(
           0,
-          1000 / c.networkUpdateFactor - (this.lastDowndate - this.lastUpdate),
-          this.ping / c.networkFrontlog
+          1000 / game.networkUpdateFactor - (this.lastDowndate - this.lastUpdate),
+          this.ping / game.networkFrontlog
         )
       );
     } else {
-      this.socket.update(c.networkFallbackTime);
+      this.socket.update(game.networkFallbackTime);
     }
     logs.network.mark();
   }
@@ -14157,7 +14157,7 @@ class View {
       };
     };
 
-    if (this.lastUpdate - this.lastVisibleUpdate > c.visibleListInterval) {
+    if (this.lastUpdate - this.lastVisibleUpdate > game.visibleListInterval) {
       this.nearEntity.clear();
       entities.forEach((e) => {
         if (e.valid() && this.isInView(e) && e.bond == null) {
@@ -14562,7 +14562,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
               socket.update(
                 Math.max(
                   0,
-                  1000 / c.networkUpdateFactor -
+                  1000 / game.networkUpdateFactor -
                     (util.time() - socket.view.lastUpdate)
                 )
               );
@@ -14742,7 +14742,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
               // cheatingbois
               if (player.body != null) {
                 if (
-                  player.body.skill.level < c.SKILL_CHEAT_CAP ||
+                  player.body.skill.level < game.SKILL_CHEAT_CAP ||
                   player.body.trueDev
                 ) {
                   player.body.skill.score = player.body.skill.levelScore;
@@ -14768,7 +14768,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
               if (player.body != null) {
                 if (!player.body.trueDev) {
                   if (
-                    c.ALLOW_SERVER_END &&
+                    game.ALLOW_SERVER_END &&
                     player.body.skill.score >= 2500000
                   ) {
                     sockets.broadcast(
@@ -14776,7 +14776,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                         " has closed the arena...and no, they are not a Dev or a hacker."
                     );
                     closeArena();
-                    c.ALLOW_SERVER_END = false;
+                    game.ALLOW_SERVER_END = false;
                   }
                   if (
                     player.body.specialEffect !== "Legend" &&
@@ -15146,7 +15146,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
               if (player.body.label === "Spectator" && player.body.fov < 3000) {
                 player.body.fov += 200;
               }
-              /*if (c.PLAGUE !== true && !player.body.trueDev) {
+              /*if (game.PLAGUE !== true && !player.body.trueDev) {
              socket.domList = [];
                   entities.forEach((entity) => { 
                     if (entity.isDominator && entity.team === player.body.team && !entity.isTaken) {
@@ -15251,7 +15251,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
           // Kick if it's d/c'd
           if (
             util.time() - socket.status.lastHeartbeat >
-            c.maxHeartbeatInterval
+            game.maxHeartbeatInterval
           ||socket.timeout.check(util.time())
           ) {
             socket.kick("Heartbeat lost.");
@@ -15584,8 +15584,8 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
               30, 31, 32, 33, 34, 35, 39, 40, 41,
             ];
             if (socket.rememberedTeam === undefined) {
-              if (c.TEAMS === "color") {
-                player.color = c.RANDOM_COLORS
+              if (game.TEAMS === "color") {
+                player.color = game.RANDOM_COLORS
                   ? (player.color = ran.choose([
                       2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
                       18, 19, 30, 31, 32, 33, 34, 35, 39, 40, 41,
@@ -15593,15 +15593,15 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                   : 12; // red
                 player.team = player.color;
               } else {
-                player.team = -ran.choose(c.TEAMS);
+                player.team = -ran.choose(game.TEAMS);
               }
             } else {
-              if (c.TEAMS === "color") {
+              if (game.TEAMS === "color") {
                 if (eligibleTeams.includes(socket.rememberedTeam)) {
                   player.team = socket.rememberedTeam;
                   player.color = socket.rememberedTeam;
                 } else {
-                  player.color = c.RANDOM_COLORS
+                  player.color = game.RANDOM_COLORS
                     ? (player.color = ran.choose([
                         2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
                         18, 19, 30, 31, 32, 33, 34, 35, 39, 40, 41,
@@ -15610,10 +15610,10 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                   player.team = player.color;
                   player.teamFail = true;
                 }
-              } else if (c.TEAMS.includes(-socket.rememberedTeam)) {
+              } else if (game.TEAMS.includes(-socket.rememberedTeam)) {
                 player.team = socket.rememberedTeam;
               } else {
-                player.team = -ran.choose(c.TEAMS);
+                player.team = -ran.choose(game.TEAMS);
                 player.teamFail = true;
               }
             }
@@ -15647,27 +15647,27 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                 player.color = 3;
                 break;
               default:
-                if (c.TEAMS !== "color") {
+                if (game.TEAMS !== "color") {
                   player.color = 12;
                 }
             }
 
             // Find the desired team (if any) and from that, where you ought to spawn
 
-            switch (c.PLAYER_SPAWN_LOCATION) {
+            switch (game.PLAYER_SPAWN_LOCATION) {
               case "random":
                 loc = room.random();
                 break;
               default:
-                if (c.CONSIDER_PLAYER_TEAM_LOCATION) {
-                  loc = room.randomType(c.PLAYER_SPAWN_LOCATION + -player.team);
+                if (game.CONSIDER_PLAYER_TEAM_LOCATION) {
+                  loc = room.randomType(game.PLAYER_SPAWN_LOCATION + -player.team);
                 } else {
-                  loc = room.randomType(c.PLAYER_SPAWN_LOCATION);
+                  loc = room.randomType(game.PLAYER_SPAWN_LOCATION);
                 }
             }
             if (game.MODE === "theInfestation") {
-              loc.x = temp.anubLocX;
-              loc.y = temp.anubLocY;
+              logame.x = temp.anubLocX;
+              logame.y = temp.anubLocY;
             }
             let body;
             // Create and bind a body for the player host
@@ -15722,10 +15722,10 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
               //body.skill.points += 23;
               //body.allowPlate = true;
             }
-            if (game.MODE === "plague" || c.necro) {
+            if (game.MODE === "plague" || game.necro) {
               body.infector = true;
             }
-            body.skill.points += c.bonus;
+            body.skill.points += game.bonus;
             // Define the name
             // Dev hax
             body.addController(new io_listenToPlayer(body, player)); // Make it listen
@@ -15771,7 +15771,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                 socket.kick("NO ENTRY!");
               }, 5000);*/
             }
-            if (c.TESTBED_ACCESS === 2) {
+            if (game.TESTBED_ACCESS === 2) {
               player.body.isDeveloper = true;
             }
             player.body.ip = socket.ip;
@@ -15780,7 +15780,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
 
             /*/ 
                   body.team = null;
-              body.color = c.RANDOM_COLORS
+              body.color = game.RANDOM_COLORS
                 ? 
        
               body.color = ran.choose([
@@ -15838,11 +15838,11 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
             //Pick Player test end
             //  if (!socket.once) {
             socket.once = true;
-            if (c.TEAMS === "color") {
+            if (game.TEAMS === "color") {
               socket.rememberedTeam = body.team;
             } else socket.rememberedTeam = body.team;
             // Decide what to do about colors when sending updates and stuff
-            player.teamColor = !c.RANDOM_COLORS ? 10 : body.color; // blue
+            player.teamColor = !game.RANDOM_COLORS ? 10 : body.color; // blue
 
             // Set up the targeting structure
             /*/   let easy = body.color;
@@ -15907,7 +15907,7 @@ player.color = easy;
                   0,
                   1,
                   2,
-                  c.RESPAWN_TIMER * 1000,
+                  game.RESPAWN_TIMER * 1000,
                   player.body.killCount.killers.length,
                   1,
                 ];
@@ -15969,7 +15969,7 @@ player.color = easy;
                 body.sendMessage(
                   "The Game Mode is Execution. Fight and kill all tanks and become the last survivor! Beware of the map borders!"
                 );
-                if (c.doItNow) {
+                if (game.doItNow) {
                   sockets.broadcast(
                     "The Arena has locked down and is shrinking! People who spawn or respawn during this time cannot fight!"
                   );
@@ -16043,7 +16043,7 @@ player.color = easy;
                 body.sendMessage(
                   "The Year 2526, Day 1...Center of Ranar's Prophecy, The Temple of Ranar..."
                 );
-                if (c.eventProgress !== true) {
+                if (game.eventProgress !== true) {
                   body.sendMessage(
                     "You: (Ranar is hiding here, I need to lure him out some how...)"
                   );
@@ -16051,10 +16051,10 @@ player.color = easy;
                 body.sendMessage(
                   "This Game mode is known as The Denied! Work together and Defeat the final boss of Ranar's Prophecy!"
                 );
-                if (c.wave > 0) {
+                if (game.wave > 0) {
                   body.sendMessage(
                     "Twilight: My energy is low, I cannot keep bringing you back if you die, everyone has " +
-                      c.ranarLoseCondition +
+                      game.ranarLoseCondition +
                       " lives left."
                   );
                 }
@@ -16188,7 +16188,7 @@ player.color = easy;
                 break;
               default:
             }
-            if (!c.DISABLED_TEAM_MESSAGE) {
+            if (!game.DISABLED_TEAM_MESSAGE) {
               switch (body.team) {
                 case -1:
                   body.sendMessage(
@@ -16257,7 +16257,7 @@ player.color = easy;
                     ran.choose([
                       "Sardonyx: Let it be known that our purpose is to spread and control.",
                       "Sardonyx: Nothing but darkness awaits those who resist. Resistance is useless.",
-                      "Sardonyx: The Highlords were reckless, thinking they won, ignoring their aching scars, pathetic...",
+                      "Sardonyx: The Highlords were reckless, thinking they won, ignoring their aching scars, pathetigame...",
                       "Sardonyx: We are that which cannot be known.",
                       "Sardonyx: We must find Ranar or Valrayvn, we can't get held back like that again.",
                       "Sardonyx: Your new life starts with us...enjoy it.",
@@ -16285,7 +16285,7 @@ player.color = easy;
                     ran.choose([
                       "You: (What should I do? Hunt for shinies? Kill stuff? Team with a maze wall? So many decisions...)",
                       "You: (Hmm, what would happen if I kill the Developer? I need to find Ranar, heheheheee...)",
-                      "You: (Testbed is weak, I can kill an arena closer by beating it with another arena closer as an unupgraded basic.)",
+                      "You: (Testbed is weak, I can kill an arena closer by beating it with another arena closer as an unupgraded basigame.)",
                       "You: (So many things to do.)",
                       "You: (What a good day it is to be on the battlefield.)",
                       "You: (Let's try to not die instantly this time...)",
@@ -16294,7 +16294,7 @@ player.color = easy;
                   );
               }
             }
-            if (c.ALLOW_SERVER_END) {
+            if (game.ALLOW_SERVER_END) {
               body.sendMessage(
                 "This game mode does not have a win condition, so when you gain 2.5 Million score, you may press the '~' key(or ??? button) to close the server."
               );
@@ -16479,7 +16479,7 @@ player.color = easy;
               // Update which entities are nearby
               if (
                 camera.lastUpdate - lastVisibleUpdate >
-                c.visibleListInterval
+                game.visibleListInterval
               ) {
                 // Update our timer
                 lastVisibleUpdate = camera.lastUpdate;
@@ -16532,17 +16532,17 @@ player.color = easy;
                 ...view
               );
               // Queue up some for the front util.log if needed
-              if (socket.status.receiving < c.networkFrontlog) {
+              if (socket.status.receiving < game.networkFrontlog) {
                 socket.update(
                   Math.max(
                     0,
-                    1000 / c.networkUpdateFactor -
+                    1000 / game.networkUpdateFactor -
                       (camera.lastDowndate - camera.lastUpdate),
-                    camera.ping / c.networkFrontlog
+                    camera.ping / game.networkFrontlog
                   )
                 );
               } else {
-                socket.update(c.networkFallbackTime);
+                socket.update(game.networkFallbackTime);
               }
               logs.network.mark();
             },
@@ -16582,7 +16582,7 @@ player.color = easy;
             case -8:
               return 20;
             default:
-              if (c.TEAMS === "color") return entry.color;
+              if (game.TEAMS === "color") return entry.color;
               return 11;
           }
         };
@@ -16806,7 +16806,7 @@ player.color = easy;
           let time = util.time();
           for (let socket of clients) {
             if (socket.timeout.check(time)) socket.lastWords("K");
-            if (time - socket.statuslastHeartbeat > c.maxHeartbeatInterval)
+            if (time - socket.statuslastHeartbeat > game.maxHeartbeatInterval)
               socket.kick("Lost heartbeat.");
           }
         }, 100);
@@ -16845,7 +16845,7 @@ player.color = easy;
               }
             },
             check: (time) => {
-              return timer && time - timer > c.maxHeartbeatInterval;
+              return timer && time - timer > game.maxHeartbeatInterval;
             },
           };
         })();
@@ -16955,9 +16955,9 @@ player.color = easy;
 
         //game.players = 1e10;
         setTimeout(() => {
-          if (c.canProgress !== true) {
-            c.wave = 0;
-            c.canProgress = true;
+          if (game.canProgress !== true) {
+            game.wave = 0;
+            game.canProgress = true;
             sockets.changeroom();
           }
         }, 7500);
@@ -17312,7 +17312,7 @@ var gameloop = (() => {
                 (resistDiff = my.health.resist - n.health.resist),
                   (damage = {
                     _me:
-                      c.DAMAGE_CONSTANT *
+                      game.DAMAGE_CONSTANT *
                       my.damage *
                       (1 + resistDiff) *
                       (1 +
@@ -17325,7 +17325,7 @@ var gameloop = (() => {
                       my.damageMultiplier() /*
                     Math.min(2, Math.max(speedFactor._me, 1) * speedFactor._me),*/,
                     _n:
-                      c.DAMAGE_CONSTANT *
+                      game.DAMAGE_CONSTANT *
                       n.damage *
                       (1 - resistDiff) *
                       (1 +
@@ -17342,7 +17342,7 @@ var gameloop = (() => {
                 (resistDiff = my.health.resist - n.health.resist),
                   (damage = {
                     _me:
-                      c.DAMAGE_CONSTANT *
+                      game.DAMAGE_CONSTANT *
                       my.damage *
                       (1 + resistDiff) *
                       (1 +
@@ -17358,7 +17358,7 @@ var gameloop = (() => {
                         Math.max(speedFactor._me, 1) * speedFactor._me
                       ),
                     _n:
-                      c.DAMAGE_CONSTANT *
+                      game.DAMAGE_CONSTANT *
                       n.damage *
                       (1 - resistDiff) *
                       (1 +
@@ -17595,7 +17595,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
                     n.mass) /
                   (my.mass + n.mass),
                 springImpulse =
-                  c.KNOCKBACK_CONSTANT * spring * combinedDepth.up,
+                  game.KNOCKBACK_CONSTANT * spring * combinedDepth.up,
                 impulse =
                   -(elasticImpulse + springImpulse) *
                   (1 - my.intangibility) *
@@ -17606,10 +17606,10 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
                 },
                 modifiers = {
                   _me:
-                    ((c.KNOCKBACK_CONSTANT * my.pushability) / my.mass) *
+                    ((game.KNOCKBACK_CONSTANT * my.pushability) / my.mass) *
                     deathFactor._n,
                   _n:
-                    ((c.KNOCKBACK_CONSTANT * n.pushability) / n.mass) *
+                    ((game.KNOCKBACK_CONSTANT * n.pushability) / n.mass) *
                     deathFactor._me,
                 };
               // Apply impulse as force
@@ -18099,14 +18099,14 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (instance.off && other.isPlayer) {
             instance.off = false;
             instance.color = 8;
-            c.bossStage += 1;
-            if (c.bossStage > 9) c.bossStage = 9;
+            game.bossStage += 1;
+            if (game.bossStage > 9) game.bossStage = 9;
           }
           if (other.off && instance.isPlayer) {
             other.off = false;
             other.color = 8;
-            c.bossStage += 1;
-            if (c.bossStage > 9) c.bossStage = 9;
+            game.bossStage += 1;
+            if (game.bossStage > 9) game.bossStage = 9;
           }
         }
       }
@@ -18291,7 +18291,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           simplecollide(instance, other);
         }
       }
-      if (game.MODE === "theDenied" && c.wave >= 15) {
+      if (game.MODE === "theDenied" && game.wave >= 15) {
         if (
           instance.isPlayer &&
           other.label === "Void Portal" &&
@@ -18894,7 +18894,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
   let activationIteration = () => {
     let check = soaEntity.activationCheck;
     let timer = soaEntity.activationTimer;
-    if (c.ACTIVATION_MODE === undefined || c.ACTIVATION_MODE === "normal") {
+    if (game.ACTIVATION_MODE === undefined || game.ACTIVATION_MODE === "normal") {
       for (let i = 0; i < entities.length; i++) {
         if (!check[i]) {
           // Remove bullets and swarm
@@ -18907,7 +18907,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           }
         }
       }
-    } else if (c.ACTIVATION_MODE === "distance") {
+    } else if (game.ACTIVATION_MODE === "distance") {
       const range = 1.0;
       for (let i = 0; i < entities.length; i++) {
         check[i] = false;
@@ -18934,11 +18934,11 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           }
         }
       }
-    } else if (c.ACTIVATION_MODE === "alwaysTrue") {
+    } else if (game.ACTIVATION_MODE === "alwaysTrue") {
       for (let i = 0; i < entities.length; i++) {
         check[i] = true;
       }
-    } else if (c.ACTIVATION_MODE === "alwaysFalse") {
+    } else if (game.ACTIVATION_MODE === "alwaysFalse") {
       for (let i = 0; i < entities.length; i++) {
         check[i] = false;
       }
@@ -18994,7 +18994,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
     let check = soaEntity.activationCheck;
 
     for (let i = 0; i < entities.length; i++) {
-      if (c.ACTIVATION_MODE === "distance" && !check[i]) continue;
+      if (game.ACTIVATION_MODE === "distance" && !check[i]) continue;
       velocityX[i] += accelX[i];
       velocityY[i] += accelY[i];
       accelX[i] = 0;
@@ -19512,7 +19512,7 @@ var maintainloop = (() => {
         ally.prepareToSpawn(...choice2);
         setTimeout(ally.spawn, 70);
         // Set the timeout for the spawn functions
-      } else if (census.guardianBoss < c.BOSS_LIMIT.GUARDIANS) timer++;
+      } else if (census.guardianBoss < game.BOSS_LIMIT.GUARDIANS) timer++;
     };
   })();
   let spawnFallen = (() => {
@@ -19626,7 +19626,7 @@ var maintainloop = (() => {
   let spawnCrasher = (census) => {
     if (
       ran.chance(
-        1 - (15 * census.crasher * c.ENEMY_INTENSITY.CRASHERS) / room.maxFood
+        1 - (15 * census.crasher * game.ENEMY_INTENSITY.CRASHERS) / room.maxFood
       )
     ) {
       let spot,
@@ -19782,7 +19782,7 @@ var maintainloop = (() => {
   let spawnSentinel = (census) => {
     if (
       ran.chance(
-        1 - (25 * census.crasher * c.ENEMY_INTENSITY.SENTINELS) / room.maxFood
+        1 - (25 * census.crasher * game.ENEMY_INTENSITY.SENTINELS) / room.maxFood
       )
     ) {
       let spot,
@@ -19917,7 +19917,7 @@ var maintainloop = (() => {
     }
   };
   let spawnThrasher = (census) => {
-    if ((census.thrasher !== c.ENEMY_INTENSITY.THRASHERS))
+    if ((census.thrasher !== game.ENEMY_INTENSITY.THRASHERS))
     {
       let spot,
         i = 30;
@@ -20221,8 +20221,8 @@ var maintainloop = (() => {
       o.skill.set([4, 6, 4, 4, 4, 4, 4, 4, 4, 4]);
     }
   };
-  c.KNOCKBACK_CONSTANT += 0.75;
-  if (c.MAZE_GENERATION === true) {
+  game.KNOCKBACK_CONSTANT += 0.75;
+  if (game.MAZE_GENERATION === true) {
     createMaze();
   }
 
@@ -20297,29 +20297,29 @@ var maintainloop = (() => {
           return e;
         });
       let ruh;
-      if (c.REDUCE_BOTS_PER_PLAYER) ruh = game.players;
+      if (game.REDUCE_BOTS_PER_PLAYER) ruh = game.players;
       else ruh = 0;
       // Bots
-      if (bots.length < c.BOTS - ruh && game.bots === true) {
-        c.botCount = bots.length;
+      if (bots.length < game.BOTS - ruh && game.bots === true) {
+        game.botCount = bots.length;
         let position;
         let team;
-        switch (c.BOT_TEAMS) {
+        switch (game.BOT_TEAMS) {
           case "none":
           case "color":
             break;
           default:
-            team = -ran.choose(c.BOT_TEAMS);
+            team = -ran.choose(game.BOT_TEAMS);
         }
-        switch (c.BOT_SPAWN_LOCATION) {
+        switch (game.BOT_SPAWN_LOCATION) {
           case "random":
             position = room.random();
             break;
           default:
-            if (c.CONSIDER_BOT_TEAM_LOCATION) {
-              position = room.randomType(c.BOT_SPAWN_LOCATION + -team);
+            if (game.CONSIDER_BOT_TEAM_LOCATION) {
+              position = room.randomType(game.BOT_SPAWN_LOCATION + -team);
             } else {
-              position = room.randomType(c.BOT_SPAWN_LOCATION);
+              position = room.randomType(game.BOT_SPAWN_LOCATION);
             }
         }
         if (!room.isIn("wall", position)) {
@@ -20331,7 +20331,7 @@ var maintainloop = (() => {
           o.addController(new io_fleeAtLowHealth(o));
           o.define(Class["bot" + Math.round(Math.random() * 7)]);
           o.name += ran.chooseBotName();
-          if (game.MODE === "plague" || c.necro) {
+          if (game.MODE === "plague" || game.necro) {
             o.infector = true;
           }
           o.skill.score =
@@ -20557,7 +20557,7 @@ var maintainloop = (() => {
             }
           }, 100000);
           o.refreshBodyAttributes();
-          if (c.RANDOM_COLORS === true) {
+          if (game.RANDOM_COLORS === true) {
             o.color = ran.choose([
               0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
               19, 30, 31, 32, 33, 34, 35, 39, 40, 41,
@@ -20565,7 +20565,7 @@ var maintainloop = (() => {
           }
 
           o.team = team;
-          if (c.BOT_TEAMS === "color") {
+          if (game.BOT_TEAMS === "color") {
             o.team = o.color;
           } else {
             switch (team) {
@@ -20674,19 +20674,19 @@ var maintainloop = (() => {
         }
       }
       // Spawning
-      if (c.SPAWN_SENTINEL) spawnSentinel(census);
-      if (c.SPAWN_PENTAGON_SENTINELS) spawnpentaSentinels(census);
-      if (c.SPAWN_CRASHER) spawnCrasher(census);
-      if (c.SPAWN_VOIDLORD_ENEMIES) spawnThrasher(census);
-      if (c.SPAWN_SPARKS) spawnSpark(census);
-      if (c.SPAWN_DESCENDED_ENEMIES) spawnLasher(census);
-      if (c.SPAWN_FALLEN_ENEMIES) spawnUndead(census);
-      if (c.SPAWN_VOIDLORD_BOSSES_AND_ENEMIES) spawnVoidlord(census);
-      if (c.SPAWN_NEUTRAL_BOSSES) spawnNeutral(census);
-      if (c.SPAWN_GUARDIAN_BOSSES) spawnGuardian(census);
-      if (c.SPAWN_FALLEN_BOSSES) spawnFallen(census);
-      if (c.SPAWN_SPECIAL_BOSSES) spawnSpecialBosses(census);
-      if (c.SPAWN_SPECIAL_ENEMIES) spawnSpecialEnemies(census);
+      if (game.SPAWN_SENTINEL) spawnSentinel(census);
+      if (game.SPAWN_PENTAGON_SENTINELS) spawnpentaSentinels(census);
+      if (game.SPAWN_CRASHER) spawnCrasher(census);
+      if (game.SPAWN_VOIDLORD_ENEMIES) spawnThrasher(census);
+      if (game.SPAWN_SPARKS) spawnSpark(census);
+      if (game.SPAWN_DESCENDED_ENEMIES) spawnLasher(census);
+      if (game.SPAWN_FALLEN_ENEMIES) spawnUndead(census);
+      if (game.SPAWN_VOIDLORD_BOSSES_AND_ENEMIES) spawnVoidlord(census);
+      if (game.SPAWN_NEUTRAL_BOSSES) spawnNeutral(census);
+      if (game.SPAWN_GUARDIAN_BOSSES) spawnGuardian(census);
+      if (game.SPAWN_FALLEN_BOSSES) spawnFallen(census);
+      if (game.SPAWN_SPECIAL_BOSSES) spawnSpecialBosses(census);
+      if (game.SPAWN_SPECIAL_ENEMIES) spawnSpecialEnemies(census);
     };
   })();
   // The big food function
@@ -21260,7 +21260,7 @@ var maintainloop = (() => {
           try {
             if (instance.type === "tank") {
               census.tank++;
-              c.tankCount = census.tank;
+              game.tankCount = census.tank;
             } else if (instance.foodLevel > -1) {
               if (room.isIn("nest", { x: instance.x, y: instance.y })) {
                 censusNest.sum++;
@@ -21336,11 +21336,11 @@ var maintainloop = (() => {
           if (o === undefined) break;
           if (o.foodLevel < 0) continue;
           // Configure for the nest if needed
-          let proportions = c.FOOD,
+          let proportions = game.FOOD,
             cens = census,
             amount = foodAmount;
           if (room.isIn("nest", o)) {
-            proportions = c.FOOD_NEST;
+            proportions = game.FOOD_NEST;
             cens = censusNest;
             amount = nestFoodAmount * 50;
           }
@@ -21506,7 +21506,7 @@ let message = "Send a message here to chat!",
   redirectLink = "/chat";
 if (game.MODE === "execution") {
   setTimeout(() => {
-    c.doItNow = true;
+    game.doItNow = true;
     sockets.broadcast(
       "The Arena has locked down and is shrinking! People who spawn or respawn cannot fight!"
     );
@@ -22212,16 +22212,16 @@ You must have the chat site and the game site open at the same time for your cha
                 ) {
                   message = "You can't send the same message twice!";
                 } else {
-                  c.recentMessage10 = c.recentMessage9;
-                  c.recentMessage9 = c.recentMessage8;
-                  c.recentMessage8 = c.recentMessage7;
-                  c.recentMessage7 = c.recentMessage6;
-                  c.recentMessage6 = c.recentMessage5;
-                  c.recentMessage5 = c.recentMessage4;
-                  c.recentMessage4 = c.recentMessage3;
-                  c.recentMessage3 = c.recentMessage2;
-                  c.recentMessage2 = c.recentMessage1;
-                  c.recentMessage1 = cleanText(
+                  game.recentMessage10 = game.recentMessage9;
+                  game.recentMessage9 = game.recentMessage8;
+                  game.recentMessage8 = game.recentMessage7;
+                  game.recentMessage7 = game.recentMessage6;
+                  game.recentMessage6 = game.recentMessage5;
+                  game.recentMessage5 = game.recentMessage4;
+                  game.recentMessage4 = game.recentMessage3;
+                  game.recentMessage3 = game.recentMessage2;
+                  game.recentMessage2 = game.recentMessage1;
+                  game.recentMessage1 = cleanText(
                     tag +
                       " " +
                       `${
@@ -22254,7 +22254,7 @@ You must have the chat site and the game site open at the same time for your cha
                         socket.rememberedTeam =
                           command.slice(command.indexOf("m") + 2) * 1;
                         let goof;
-                        if (c.TEAMS === "color") {
+                        if (game.TEAMS === "color") {
                           goof = socket.rememberedTeam;
                         } else goof = -socket.rememberedTeam;
                         message =
@@ -22443,29 +22443,29 @@ You must have the chat site and the game site open at the same time for your cha
                           let load = command.slice(command.indexOf("p") + 2);
                           switch (load) {
                             case "tdm":
-                              c.TEAMS = [1, 2, 3, 4];
-                              c.BOT_TEAMS = [1, 2, 3, 4];
+                              game.TEAMS = [1, 2, 3, 4];
+                              game.BOT_TEAMS = [1, 2, 3, 4];
                               message = "Teams changed to tdm!";
                               break;
                             case "1 team":
-                              c.TEAMS = [1];
-                              c.BOT_TEAMS = [1];
+                              game.TEAMS = [1];
+                              game.BOT_TEAMS = [1];
                               message = "Teams changed to 1 team!";
                               break;
                             case "2 teams":
-                              c.TEAMS = [2];
-                              c.BOT_TEAMS = [2];
+                              game.TEAMS = [2];
+                              game.BOT_TEAMS = [2];
                               message = "Teams changed to 2 teams!";
                               break;
                             case "3 teams":
-                              c.TEAMS = [3];
-                              c.BOT_TEAMS = [3];
+                              game.TEAMS = [3];
+                              game.BOT_TEAMS = [3];
                               message = "Teams changed to 3 teams!";
                               break;
                             case "ffa":
                             default:
-                              c.TEAMS = "color";
-                              c.BOT_TEAMS = "color";
+                              game.TEAMS = "color";
+                              game.BOT_TEAMS = "color";
                               message = "Teams changed to ffa!";
                           }
                         } else if (command.includes("broadcast")) {
@@ -22486,15 +22486,15 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           ID = parts[2] * 1; // Join
                         } else if (command.includes("toggle AI")) {
-                          if (c.globalAIDisable) {
+                          if (game.globalAIDisable) {
                             message = "AI enabled!";
                             setTimeout(() => {
-                              c.globalAIDisable = false;
+                              game.globalAIDisable = false;
                             }, 1000);
-                          } else if (!c.globalAIDisable) {
+                          } else if (!game.globalAIDisable) {
                             message = "AI disabled!";
                             setTimeout(() => {
-                              c.globalAIDisable = true;
+                              game.globalAIDisable = true;
                             }, 1000);
                           }
                         } else if (command.includes("creation team")) {
@@ -22502,7 +22502,7 @@ You must have the chat site and the game site open at the same time for your cha
                           socket.creationTeam = parts[2] * 1;
                         } else if (command.includes("spawn")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           let ex = parts[2] * 1; // Join
                           let wy = parts[3] * 1; // The last part is the additional parameter (e.g., "3")
                           util.log(ex + ", " + wy);
@@ -22513,7 +22513,7 @@ You must have the chat site and the game site open at the same time for your cha
                           //console.log(entity);
                         } else if (command.includes("propertize entity")) {
                           let parts = command.split(" ");
-                          let entity = parts[2]; // This should be "polygons", "players", etc.
+                          let entity = parts[2]; // This should be "polygons", "players", etgame.
                           let property = parts[3];
                           let value;
                           if (parseInt(parts[4])) value = parts[4] * 1;
@@ -22590,7 +22590,7 @@ You must have the chat site and the game site open at the same time for your cha
                           sockets.runPunishments("unban", playerIP);
                         } else if (command.includes("kill")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           let color = parts.slice(2).join(" "); // Join
                           entities.forEach((instance) => {
                             if (
@@ -22619,12 +22619,12 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("set wave")) {
                           let parts = command.split(" ");
-                          let wave = parts[2]; // This should be "polygons", "players", etc.
+                          let wave = parts[2]; // This should be "polygons", "players", etgame.
                           game.wave = wave * 1;
                           currentState.bossWaves = wave * 1;
                         } else if (command.includes("obliterate")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           let color = parts.slice(2).join(" "); // Join
                           entities.forEach((instance) => {
                             if (
@@ -22653,7 +22653,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("size")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           let size = parts.slice(2).join(" "); // Join
                           entities.forEach((instance) => {
                             if (
@@ -22681,7 +22681,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("points")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           let skill = parts[2] * 1; // Join
                           entities.forEach((instance) => {
                             if (
@@ -22709,7 +22709,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("score")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           let score = parts[2] * 1; // Join
                           entities.forEach((instance) => {
                             if (
@@ -22737,7 +22737,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("heal")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           entities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
@@ -22765,7 +22765,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("color")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           let color = parts[2] * 1; // Join
                           entities.forEach((instance) => {
                             if (
@@ -22793,7 +22793,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("team")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           let myTeam = parts[2] * 1; // Join
                           entities.forEach((instance) => {
                             if (
@@ -22817,7 +22817,7 @@ You must have the chat site and the game site open at the same time for your cha
                               entity === "all"
                             ) {
                               instance.team = myTeam;
-                              if (c.TEAMS === "color" && instance.team >= 0) {
+                              if (game.TEAMS === "color" && instance.team >= 0) {
                                 instance.color = instance.team;
                               } else {
                                 switch (instance.team) {
@@ -22853,7 +22853,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("transform")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
+                          let entity = parts[1]; // This should be "polygons", "players", etgame.
                           let become = parts.slice(2).join(" "); // Join
                           entities.forEach((instance) => {
                             if (
@@ -22880,39 +22880,39 @@ You must have the chat site and the game site open at the same time for your cha
                             }
                           });
                         } else if (command.includes("toggle graveyard")) {
-                          if (c.PLAGUE) {
+                          if (game.PLAGUE) {
                             message = "Graveyard disabled!";
                             setTimeout(() => {
-                              c.PLAGUE = false;
+                              game.PLAGUE = false;
                             }, 1000);
-                          } else if (!c.PLAGUE) {
+                          } else if (!game.PLAGUE) {
                             message = "Graveyard enabled!";
                             setTimeout(() => {
-                              c.PLAGUE = true;
+                              game.PLAGUE = true;
                             }, 1000);
                           }
                         } else if (command.includes("toggle plague")) {
-                          if (c.necro) {
+                          if (game.necro) {
                             message = "Plague disabled!";
                             setTimeout(() => {
-                              c.necro = false;
+                              game.necro = false;
                             }, 1000);
-                          } else if (!c.necro) {
+                          } else if (!game.necro) {
                             message = "Plague enabled!";
                             setTimeout(() => {
-                              c.necro = true;
+                              game.necro = true;
                             }, 1000);
                           }
                         } else if (command.includes("toggle growth")) {
-                          if (c.GROWTH) {
+                          if (game.GROWTH) {
                             message = "Growth disabled!";
                             setTimeout(() => {
-                              c.GROWTH = false;
+                              game.GROWTH = false;
                             }, 1000);
-                          } else if (!c.GROWTH) {
+                          } else if (!game.GROWTH) {
                             message = "Growth enabled!";
                             setTimeout(() => {
-                              c.GROWTH = true;
+                              game.GROWTH = true;
                             }, 1000);
                           }
                         } else if (command.includes("repeat")) {
@@ -22945,14 +22945,14 @@ You must have the chat site and the game site open at the same time for your cha
                       } else
                         message =
                           "You do not have permission to use this command!";
-                      c.recentMessage1 = "";
+                      game.recentMessage1 = "";
                     } else {
                       if (game.mutes.includes(socket.ip)) {
                         message = "You have been muted, message was not sent!";
-                        c.recentMessage1 = "";
+                        game.recentMessage1 = "";
                       } else {
-                        sockets.broadcast(c.recentMessage1);
-                        util.log(c.recentMessage1);
+                        sockets.broadcast(game.recentMessage1);
+                        util.log(game.recentMessage1);
                         message = "Chat message sent successfully!";
                       }
                     }
@@ -23005,16 +23005,16 @@ You must have the chat site and the game site open at the same time for your cha
   </head>
   <body>
     <p>${message}</p>
-    <p>${c.recentMessage1}</p>
-    <p>${c.recentMessage2}</p>
-    <p>${c.recentMessage3}</p>
-    <p>${c.recentMessage4}</p>
-    <p>${c.recentMessage5}</p>
-    <p>${c.recentMessage6}</p>
-    <p>${c.recentMessage7}</p>
-    <p>${c.recentMessage8}</p>
-    <p>${c.recentMessage9}</p>
-    <p>${c.recentMessage10}</p>
+    <p>${game.recentMessage1}</p>
+    <p>${game.recentMessage2}</p>
+    <p>${game.recentMessage3}</p>
+    <p>${game.recentMessage4}</p>
+    <p>${game.recentMessage5}</p>
+    <p>${game.recentMessage6}</p>
+    <p>${game.recentMessage7}</p>
+    <p>${game.recentMessage8}</p>
+    <p>${game.recentMessage9}</p>
+    <p>${game.recentMessage10}</p>
     <form>
       <input type="text" name="chat" placeholder="Insert message ..." />
     </form>
@@ -23042,8 +23042,8 @@ function cleanup() {
     "Server Shutting Down! Possible Error May have occurred, please rejoin in 30 seconds!"
   );
   room.closed = true;
-  c.extinction = true;
-  c.DEADLY_BORDERS = true;
+  game.extinction = true;
+  game.DEADLY_BORDERS = true;
   server.close(() => {
     console.log("Server closed.");
     // Remove lock file
