@@ -2117,7 +2117,7 @@ class Skill {
 const lazyRealSizes = (() => {
   let o = [1, 1, 1];
   for (var i = 3; i < 16; i++) {
-    // We say that the real size of a 0-gon, 1-gon, 2-gon is one, then push the real sizes of triangles, squares, etgame...
+    // We say that the real size of a 0-gon, 1-gon, 2-gon is one, then push the real sizes of triangles, squares, etc...
     o.push(Math.sqrt(((2 * Math.PI) / i) * (1 / Math.sin((2 * Math.PI) / i))));
   }
   return o;
@@ -11557,16 +11557,16 @@ class View {
     this.excludedEntityID = [];
 
     // Queue up some for the front util.log if neededs
-    if (this.socket.status.receiving < game.networkFrontlog) {
+    if (this.socket.status.receiving < game.NETWORK_FRONT_LOG) {
       this.socket.update(
         Math.max(
           0,
-          1000 / game.networkUpdateFactor - (this.lastDowndate - this.lastUpdate),
-          this.ping / game.networkFrontlog
+          1000 / game.NETWORK_UPDATE_FACTOR - (this.lastDowndate - this.lastUpdate),
+          this.ping / game.NETWORK_FRONT_LOG
         )
       );
     } else {
-      this.socket.update(game.networkFallbackTime);
+      this.socket.update(game.NETWORK_FALLBACK_TIME);
     }
     logs.network.mark();
   }
@@ -11857,7 +11857,7 @@ const sockets = (() => {
           }
           let updated = players.length - 1;
           // Disconnect everything
-          if (game.sockets.includes(socket.ip)) {
+          if (game.SOCKETS.includes(socket.ip)) {
             let call = socket.name;
             if (socket.name === "") {
               call = "An unnamed player";
@@ -11867,7 +11867,7 @@ const sockets = (() => {
 
             sockets.broadcast(exitMessage);
             util.log(exitMessage);
-game.sockets = game.sockets.filter(ip => ip !== socket.ip);
+game.SOCKETS = game.SOCKETS.filter(ip => ip !== socket.ip);
           }
           // util.log("[INFO] User " + player.body.name + " disconnected!");
           util.remove(players, index);
@@ -12028,7 +12028,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
               if (!socket.name) {
                 socket.name = name;
               }
-              if (!game.sockets.includes(socket.ip) && !socket.no) {
+              if (!game.SOCKETS.includes(socket.ip) && !socket.no) {
                 let call = socket.name;
                 if (socket.name === "") {
                   call = "An unnamed player";
@@ -12042,7 +12042,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                 sockets.broadcast(enterMessage);
                 util.log(enterMessage);
                 socket.no = true;
-                game.sockets.push(socket.ip);
+                game.SOCKETS.push(socket.ip);
               }
               
               socket.commandLoopCount = 1;
@@ -12109,7 +12109,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
               socket.update(
                 Math.max(
                   0,
-                  1000 / game.networkUpdateFactor -
+                  1000 / game.NETWORK_UPDATE_FACTOR -
                     (util.time() - socket.view.lastUpdate)
                 )
               );
@@ -12797,7 +12797,7 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
           // Kick if it's d/c'd
           if (
             util.time() - socket.status.lastHeartbeat >
-            game.maxHeartbeatInterval
+            game.MAX_HEARTBEAT_INTERVAL
           ||socket.timeout.check(util.time())
           ) {
             socket.kick("Heartbeat lost.");
@@ -14078,17 +14078,17 @@ player.color = easy;
                 ...view
               );
               // Queue up some for the front util.log if needed
-              if (socket.status.receiving < game.networkFrontlog) {
+              if (socket.status.receiving < game.NETWORK_FRONT_LOG) {
                 socket.update(
                   Math.max(
                     0,
-                    1000 / game.networkUpdateFactor -
+                    1000 / game.NETWORK_UPDATE_FACTOR -
                       (camera.lastDowndate - camera.lastUpdate),
-                    camera.ping / game.networkFrontlog
+                    camera.ping / game.NETWORK_FRONT_LOG
                   )
                 );
               } else {
-                socket.update(game.networkFallbackTime);
+                socket.update(game.NETWORK_FALLBACK_TIME);
               }
               logs.network.mark();
             },
@@ -14352,7 +14352,7 @@ player.color = easy;
           let time = util.time();
           for (let socket of clients) {
             if (socket.timeout.check(time)) socket.lastWords("K");
-            if (time - socket.statuslastHeartbeat > game.maxHeartbeatInterval)
+            if (time - socket.statuslastHeartbeat > game.MAX_HEARTBEAT_INTERVAL)
               socket.kick("Lost heartbeat.");
           }
         }, 100);
@@ -14391,7 +14391,7 @@ player.color = easy;
               }
             },
             check: (time) => {
-              return timer && time - timer > game.maxHeartbeatInterval;
+              return timer && time - timer > game.MAX_HEARTBEAT_INTERVAL;
             },
           };
         })();
@@ -19047,7 +19047,7 @@ if (game.MODE === "execution") {
 const server = http.createServer((req, res) => {
   // Receiving the data:
   let { pathname, query } = url.parse(req.url, true),
-    totalSeconds = (7200000 - game.time) / 1000,
+    totalSeconds = (7200000 - game.TIME) / 1000,
     hours = Math.floor(totalSeconds / 3600),
     minutes = Math.floor((totalSeconds % 3600) / 60),
     hourLabel = hours === 1 ? "hour" : "hours",
@@ -19721,11 +19721,11 @@ You must have the chat site and the game site open at the same time for your cha
           message = " You must first connect to the game!";
         } else {
           if (
-            Date.now() - socket.lastMessage.time < game.messageDelay &&
+            Date.now() - socket.lastMessage.time < game.MESSAGE_DELAY &&
             !socket.isDeveloper
           ) {
             message = `You must wait ${Math.floor(
-              game.messageDelay / 1000
+              game.MESSAGE_DELAY / 1000
             )} seconds before sending another message!`;
           } else {
             let chat = decodeHTML(query.chat);
@@ -19825,13 +19825,13 @@ You must have the chat site and the game site open at the same time for your cha
                       } else if (command.includes("vote")) {
                         if (serverType === "normal") {
                           let vote = command.slice(command.indexOf("e") + 2);
-                          if (!game.votes.includes(socket.ip)) {
+                          if (!game.VOTES.includes(socket.ip)) {
                             let re = 1;
                             if (socket.trueDev) re = 100;
                             for (let i = 0; i < re; i++) {
                               if (serverType.includes(vote)) {
                                 currentState.modeVotes.push(vote);
-                                game.votes.push(vote);
+                                game.VOTES.push(vote);
                                 message =
                                   "You have successfully voted on " +
                                   vote +
@@ -20033,7 +20033,7 @@ You must have the chat site and the game site open at the same time for your cha
                           socket.creationTeam = parts[2] * 1;
                         } else if (command.includes("spawn")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           let ex = parts[2] * 1; // Join
                           let wy = parts[3] * 1; // The last part is the additional parameter (e.g., "3")
                           util.log(ex + ", " + wy);
@@ -20044,7 +20044,7 @@ You must have the chat site and the game site open at the same time for your cha
                           //console.log(entity);
                         } else if (command.includes("propertize entity")) {
                           let parts = command.split(" ");
-                          let entity = parts[2]; // This should be "polygons", "players", etgame.
+                          let entity = parts[2]; // This should be "polygons", "players", etc.
                           let property = parts[3];
                           let value;
                           if (parseInt(parts[4])) value = parts[4] * 1;
@@ -20121,7 +20121,7 @@ You must have the chat site and the game site open at the same time for your cha
                           sockets.runPunishments("unban", playerIP);
                         } else if (command.includes("kill")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts.slice(2).join(" "); // Join
                           entities.forEach((instance) => {
                             if (
@@ -20150,12 +20150,12 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("set wave")) {
                           let parts = command.split(" ");
-                          let wave = parts[2]; // This should be "polygons", "players", etgame.
+                          let wave = parts[2]; // This should be "polygons", "players", etc.
                           game.WAVE = wave * 1;
                           currentState.bossWaves = wave * 1;
                         } else if (command.includes("obliterate")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts.slice(2).join(" "); // Join
                           entities.forEach((instance) => {
                             if (
@@ -20184,7 +20184,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("size")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           let size = parts.slice(2).join(" "); // Join
                           entities.forEach((instance) => {
                             if (
@@ -20212,7 +20212,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("points")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           let skill = parts[2] * 1; // Join
                           entities.forEach((instance) => {
                             if (
@@ -20240,7 +20240,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("score")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           let score = parts[2] * 1; // Join
                           entities.forEach((instance) => {
                             if (
@@ -20268,7 +20268,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("heal")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           entities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
@@ -20296,7 +20296,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("color")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts[2] * 1; // Join
                           entities.forEach((instance) => {
                             if (
@@ -20324,7 +20324,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("team")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           let myTeam = parts[2] * 1; // Join
                           entities.forEach((instance) => {
                             if (
@@ -20384,7 +20384,7 @@ You must have the chat site and the game site open at the same time for your cha
                           });
                         } else if (command.includes("transform")) {
                           let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etgame.
+                          let entity = parts[1]; // This should be "polygons", "players", etc.
                           let become = parts.slice(2).join(" "); // Join
                           entities.forEach((instance) => {
                             if (
