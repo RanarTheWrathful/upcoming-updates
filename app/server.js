@@ -57,178 +57,6 @@ function pickTheBiggest(countMap) {
   return { selected, count: maxCount };
 }
 
-game = {
-  host: "0.0.0.0",
-  port: 3000,
-  server: `upcoming-update.glitch.me`,
-  list: ["Unknown"],
-  type: "testing", //change this to play preset modes look
-  votes: [],
-  bans: [], 
-  mutes: [],
-  sockets: [],
-  gate: false,
-  bots: true,
-  messageDelay: 5000,
-  wave: 0,
-  event: 0, //could also be a string if needed.
-  time: 0,
-  players: 0,
-  list: [],
- npcWanderLoc1: [],
- npcWanderLoc2: [],
-  points: {
-guardians: 0,
-fallen: 0,
-highlords: 0,
-voidlords: 0,
-neutralAlliance: 0,
-other: 0,
-  },
-  enemies: {
-    crashers: [
-  "eggCrasher",
-  "squareCrasher",
-  "triangleCrasher",
-  "pentagonCrasher",
-  "hexagonCrasher",
-      ],
- shinyCrashers: [
-  "swarmerProtector",
-  "cruiserProtector",
-  "beekeeperProtector",
-],
- sentries: [
-  "triangleSentry",
-  "trianglePounderSentry",
-  "triangleTrapperSentry",
-  "triangleSwarmSentry",
-],
-    guards: [
-  "auto3Guard",
-  "bansheeGuard",
-  "spawnerGuard",
-  /*/     "swarmeggsenti1b",
-        "swarmeggsenti2b",
-        "swarmeggsenti3b",/*/
-],
- protectors: [
-  "swarmerProtector",
-  "cruiserProtector",
-  "beekeeperProtector",
-],
- keepers: [
-  "commanderKeeper",
-  "directorKeeper",
-  "overKeeper",
-],
- sentinels: [
-  "skimmerSentinel",
-  "crossbowSentinel",
-  "minigunSentinel",
-],
-    thrashers: [
-  "thrasher",
-],
-    anomalies: [
-  "anomaly",
-  "glitch",
-  "aoc",
-  "beeMechab",
-  "machinegunMechab",
-  "trapMechab",
-  "trapMechabarab",
-  "swarmMechab",
-  "buildMechab",
-  "aokaol",
-  "AlfabuildMechab",
-],
-unawakened: [
-  "Unawakened1",
-  "Unawakened2",
-  "Unawakened3",
-],
-eggBosses: [
-  "sorcerer",
-  "oblivion",
-  "cultist",
-],
-squareBosses: [
-  "summoner",
-  "squaredpelleter",
-  "hellwark",
-],
-triangleBosses: [
-  "enchantress",
-  "elite_skimmer",
-  "defender",
-  "defector",
-  "witch",
-],
-pentagonBosses: [
-  "exorcistor",
-  "nestkeep",
-  "nestward",
-  "nestguard",
-],
-hexagonBosses: [
-  "mortarLordCenturion",
-  "hiveLordCenturion",
-],
-megaPolygonBosses: [
-  "Pawn",
-  "Rook",
-],
-arenaBosses: [
-  "arenaguard",
-  "damagedArenaCloser",
-],
-elites: [
-  "elite_machine",
-  "elite_destroyer",
-  "elite_gunner",
-  "elite_spawner",
-  "elite_battleship",
-  "elite_fortress",
-  "elite_spinner",
-  "elite_sprayer",
-  "elite_swarmer",
-],
-fallenBosses: [
-  "fallenhybrid",
-  "fallenanni",
-  "fallenflankguard",
-  "fallenfalcon",
-  "fallenautodouble",
-  "fallenoverlord",
-  "fallenbooster",
-  "fallentyrant",
-],
-corpseBosses: [
-  "enslaver",
-  "plaguedoc",
-],
-highlordTechBosses: [
-  "elite_warkspawner",
-  "contraption",
-  "exterminator",
-],
-voidSpawnBosses: [
-  "elder",
-  "nulltype",
-],
-voidCorruptedBosses: [
-  "amalgam",
-],
-aetherBosses: [
-  "lesserCaster",
-  "lesserCreed",
-  "lesserAetherAspect",
-  "lesserlightFinder",
-  "lesserConstant",
-],
-},
-};
 //util.log(Date());
 if (game.TYPE === "testing") chosenMode = "Siege";
 //change this to play a specific mode
@@ -995,13 +823,13 @@ function roomShrinkage() {
 
 function siegeCountdown() {
   setInterval(() => {
-    if (game.initiateCountdown) {
+    if (temp.initiateCountdown) {
       switch (temp.countdown) {
         case 60000:
           sockets.broadcast(
             "Your team will lose in 60 seconds! No players can respawn until a sanctuary is repaired!"
           );
-          game.bots = false;
+          game.BOTS_ENABLED = false;
           break;
         case 45000:
           sockets.broadcast("Your team will lose in 45 seconds!");
@@ -1037,6 +865,68 @@ function siegeCountdown() {
     }
   }, 1000);
 }
+function siegeWave() {
+ if (!temp.waveStarted && game.PLAYERS > 0) {
+ let teamScore = entities
+  .filter(e =>
+    e.team === -1 &&
+    !e.isDead() &&
+    !e.isProjectile
+  ).reduce((total, e) => total + (e.skill?.score || 0), 0);
+ counter = game.WAVES * (teamScore/10) + 100000,
+ enemyList = [],
+repeat = Math.round(Math.random() * 15),
+  epic,
+ categories = Object.keys(game.ENEMIES);
+
+for (let i = 0; i < repeat; i++) {
+  // Pick random category
+  let category = ran.choose(categories);
+  enemyList.push(category);
+}
+  while (counter > 0) {
+  let loc = room.randomType("spw0"),
+  enemy = ran.choose(enemyList),
+  o = new Entity(loc);
+   o.invuln = true;
+   if (game.WAVES < 50 && game.WAVES % 10 !== 0) {
+  o.define(Class[enemy]);
+if (o.skill.score > counter) {
+o.skill.score = 0;
+o.define(Class.thrasher);
+}
+  counter -= o.skill.score;
+   }
+   if (game.WAVES % 10 === 0 && !epic) {
+  if (game.WAVES < 50) counter = 0;
+    epic = true;
+   }
+    if (o.LABEL === "Unknown Entity") o.define(Class.thrasher);
+  if (counter <= 0) {
+   game.WAVES += 1;
+   let extra = "";
+   if (epic) extra = " This is a dangerous wave!";
+   sockets.broadcast("Wave " + game.WAVES + " has started!" + extra);
+   /*entities.forEach((e) => {
+    if (e.team === -100) e.invuln = false;
+   });*/
+   temp.waveStarted = true;
+  }
+  }
+ } else {
+  temp.bossAmount = entities.filter(e =>
+    !e.isProjectile && !e.isDominator &&
+    e.team === -100 &&
+    !e.isDead()
+  ).length;
+  if (temp.bossAmount < 1) {
+   temp.waveStarted = false;
+   sockets.broadcast("The next wave starts in 10 seconds!");
+ }
+ }
+}
+setInterval(siegeWave, 10000);
+
 
 function createMaze() {
   for (let i = 0; i < Math.ceil((game.WIDTH + game.HEIGHT / 2) / 50); i++) {
@@ -1679,7 +1569,7 @@ class io_guard1 extends IO {
         break;
 
       case "theAwakening":
-        this.roomType = ran.choose(game.npcWanderLoc1);
+        this.roomType = ran.choose(game.NPC_WANDER_LOC_1);
         break;
 
       case "siege":
@@ -2452,13 +2342,13 @@ class Gun {
     let s = new Vector(
       (this.negRecoil ? -1 : 1) *
         this.settings.speed *
-        game.runSpeed *
+        game.RUN_SPEED *
         sk.spd *
         (1 + ss) *
         Math.cos(this.angle + this.body.facing + sd),
       (this.negRecoil ? -1 : 1) *
         this.settings.speed *
-        game.runSpeed *
+        game.RUN_SPEED *
         sk.spd *
         (1 + ss) *
         Math.sin(this.angle + this.body.facing + sd)
@@ -3007,8 +2897,8 @@ class Entity {
   }
   set velocity(vec) {
     if (!this.VELOCITY) this.VELOCITY = new Velocity(this.key.i, 0, 0);
-    this.VELOCITY.x = vegame.x;
-    this.VELOCITY.y = vegame.y;
+    this.VELOCITY.x = vec.x;
+    this.VELOCITY.y = vec.y;
   }
 
   get accel() {
@@ -3016,8 +2906,8 @@ class Entity {
   }
   set accel(vec) {
     if (!this.ACCEL) this.ACCEL = new Acceleration(this.key.i, 0, 0);
-    this.ACCEL.x = vegame.x;
-    this.ACCEL.y = vegame.y;
+    this.ACCEL.x = vec.x;
+    this.ACCEL.y = vec.y;
   }
 
   get stepRemaining() {
@@ -3622,7 +3512,7 @@ class Entity {
       if (this.name === "") dude = "An unnamed player";
       this.runTrigger("spawn");
       if (this.specialEffect === "Legend") {
-        if (game.game.TYPE === "lore") return;
+        if (game.TYPE === "lore") return;
         switch (this.label) {
           case "Arena Guard":
             this.sendMessage(
@@ -3761,10 +3651,10 @@ class Entity {
   refreshBodyAttributes() {
     let speedReduce = Math.pow(this.size / (this.coreSize || this.SIZE), 1);
 
-    this.acceleration = (game.runSpeed * this.ACCELERATION) / speedReduce;
+    this.acceleration = (game.RUN_SPEED * this.ACCELERATION) / speedReduce;
     if (this.settings.reloadToAcceleration) this.acceleration *= this.skill.acl;
 
-    this.topSpeed = (game.runSpeed * this.SPEED * this.skill.mob) / speedReduce;
+    this.topSpeed = (game.RUN_SPEED * this.SPEED * this.skill.mob) / speedReduce;
     if (this.settings.reloadToAcceleration)
       this.topSpeed /= Math.sqrt(this.skill.acl);
 
@@ -4702,92 +4592,16 @@ class Entity {
       this.chill = true;
       setTimeout(() => (this.chill = false), 5000);
     }
-    if (game.extinction) {
+    if (temp.extinction) {
       this.godMode = false;
       this.kill();
     }
-    if (this.isWall) {
+  /*  if (this.isWall) {
       if (!this.stopStuff) {
         this.controllers.unshift(new io_nearestDifferentMaster(this));
         this.stopStuff = true;
       }
-    }
-    if (game.MODE === "theExpanse") {
-      if (
-        game.bossStage >= 3 &&
-        game.SPAWN_VOIDLORD_ENEMIES &&
-        this.type === "thrasher"
-      ) {
-        this.kill();
-        setTimeout(() => {
-          game.SPAWN_VOIDLORD_ENEMIES = false;
-        }, 1000);
-      }
-      if (this.label === "Dark Fate") {
-        this.damage = 2 + game.PLAYERS;
-        this.skill.dam = game.PLAYERS / 7.5 + 2;
-        this.skill.pen = game.PLAYERS / 5 + 2.5;
-        this.skill.str = game.PLAYERS / 2.5 + 3;
-        this.skill.spd = game.PLAYERS / 10 + 2;
-      }
-      if (this.name === "Abdul") {
-        this.damage = 2 + game.PLAYERS / 2;
-        this.skill.dam = game.PLAYERS / 10 + 3;
-        this.skill.pen = game.PLAYERS / 6 + 3;
-        this.skill.str = game.PLAYERS / 6 + 3;
-        this.skill.spd = game.PLAYERS / 10 + 2;
-        if (
-          !room.isIn("bos" + game.bossStage, this) &&
-          !room.isIn("zne" + game.bossStage, this)
-        ) {
-          let loc = room.type("bos" + game.bossStage);
-          this.invuln = true;
-          this.x = loc.x;
-          this.y = loc.y;
-          setTimeout(() => {
-            this.invuln = false;
-          }, 5000);
-        }
-      }
-      if (this.name === "Golothess") {
-        this.damage = 2 + game.PLAYERS / 4;
-        this.skill.dam = game.PLAYERS / 5 + 2.5;
-        this.skill.pen = game.PLAYERS / 5 + 3;
-        this.skill.str = game.PLAYERS / 2.5 + 2.5;
-        this.skill.spd = game.PLAYERS / 10 + 2;
-        if (
-          !room.isIn("bos" + game.bossStage, this) &&
-          !room.isIn("zne" + game.bossStage, this)
-        ) {
-          let loc = room.type("bos" + game.bossStage);
-          this.invuln = true;
-          this.x = loc.x;
-          this.y = loc.y;
-          setTimeout(() => {
-            this.invuln = false;
-          }, 5000);
-        }
-      }
-      if (this.name === "Alhazred") {
-        this.damage = 2 + game.PLAYERS / 3;
-        this.skill.dam = game.PLAYERS / 7.5 + 2;
-        this.skill.pen = game.PLAYERS / 5 + 2.5;
-        this.skill.str = game.PLAYERS / 2.5 + 3;
-        this.skill.spd = game.PLAYERS / 10 + 2;
-        if (
-          !room.isIn("bos" + game.bossStage, this) &&
-          !room.isIn("zne" + game.bossStage, this)
-        ) {
-          let loc = room.type("bos" + game.bossStage);
-          this.invuln = true;
-          this.x = loc.x;
-          this.y = loc.y;
-          setTimeout(() => {
-            this.invuln = false;
-          }, 5000);
-        }
-      }
-    }
+    }*/
     if (this.type === "tank") {
       if (game.MODE === "kingOfHill" && room.isIn("dom" + -this.team, this)) {
         let king = Math.round(this.skill.level) / 10;
@@ -4841,1525 +4655,11 @@ class Entity {
     if (
       this.master.label === "Defender" &&
       !this.targetable &&
-      this.team === -100
+      this.team === -100 && this.color !== 3
     ) {
       this.color = 3;
     }
-    if (
-      game.unlockClasses &&
-      this.isPlayer &&
-      !this.trueDev &&
-      this.label !== "Spectator"
-    ) {
-      if (!this.noo) {
-        //  util.log("it works");
-        this.upgrades = [];
-        this.intangibility = false;
-        this.invisible = [100, 0];
-        this.alpha = 100;
-        this.specialEffect = "none";
-        this.skill.setCaps([9, 9, 9, 9, 9, 9, 9, 9, 9, 9]);
-
-        switch (game.MODE) {
-          case "siege":
-            this.define(Class.currentLegendaryClasses);
-            break;
-          case "theInfestation":
-            this.define(Class.infestationLegendaryClasses);
-            if (this.skill.score < 1000000) this.skill.score += 1000000;
-            break;
-          case "theDenied":
-            this.define(Class.deniedLegendaryClasses);
-           if (this.skill.score < 1000000) this.skill.score += 1000000;
-            break;
-        }
-        this.skill.points += 15;
-        this.ignoreCollision = false;
-        this.noo = true;
-      }
-    }
-    /*if (this.skill.points >= 80) {
-  
-    for (let i = 0; i < this.skill.cap.length; i++) {
-        this.skill.cap[i] *= 10;
-        if (this.skill.cap[i] > 15) {
-            this.skill.cap[i] = 15;
-          }
-      }
-  }*/
-    if (game.MODE === "theAwakening") {
-      if (
-        this.type === "tank" &&
-        this.ignoreCollision &&
-        this.skill.score < 1000000
-      )
-        this.ignoreCollision = false;
-      if (this.isBoss && this.team === -5) {
-        this.damage = game.PLAYERS + 5;
-        this.skill.dam = game.PLAYERS / 5 + 1;
-        this.skill.pen = game.PLAYERS / 5 + 1.5;
-        this.skill.str = game.PLAYERS / 5 + 1.5;
-        // this.skill.spd = game.PLAYERS / 10 + 2;
-        if (
-          !room.isIn("nest", this) &&
-          !room.isIn(this.area, this) &&
-          !room.isIn(this.zone, this) &&
-          !room.isIn("gard", this) &&
-          !room.isIn("roid", this) &&
-          !room.isIn("rock", this)
-        ) {
-          let loc = room.type(this.area);
-          this.invuln = true;
-          this.x = loc.x;
-          this.y = loc.y;
-          setTimeout(() => {
-            this.invuln = false;
-          }, 5000);
-        }
-      }
-      if (this.master.isBoss && this.team === -100 && this.master !== this)
-        this.kill();
-    }
-    if (game.MODE === "siege") {
-      if (!game.WAVECount) {
-        game.bossAmount = 0;
-        entities.forEach((entity) => {
-          if (entity.siegeProgress && entity.team === -100 && !entity.isDead())
-            game.bossAmount += 1;
-        });
-        //console.log(game.bossAmount);
-        let o = new Entity(room.type("spw0"));
-        o.siegeProgress = true;
-        o.kill();
-        game.WAVECount = true;
-        setTimeout(() => {
-          game.WAVECount = false;
-          game.WAVELoop += 1;
-        }, 5000);
-      }
-      let census = [0, 0, 0, 0, 0, 0, 0, 0, 0];
-      room.dominators.forEach((o) => {
-        if (o.team === -100) {
-          census[0]++;
-        } else {
-          census[-o.team]++;
-        }
-      });
-      if (census[0] >= game.DOMINATOR_COUNT) {
-        if (!game.initiateCountdown) {
-          game.initiateCountdown = true;
-          siegeCountdown();
-          game.RESPAWN_TIMER = Infinity;
-
-          //util.log("GRUH");
-        }
-      } else {
-        game.RESPAWN_TIMER = 5;
-        temp.countdown = 60000;
-        game.initiateCountdown = false;
-        game.bots = true;
-      }
-
-      if (this.eliteBoss) {
-        if (this.health.amount <= this.health.max / 1.5 && this.stage === 0) {
-          let o = new Entity(room.randomType("bos0"));
-          o.master = this;
-          o.invuln = false;
-          o.stayTeam = false;
-          o.define(Class.sardonyxPower0);
-          o.team = -100;
-          o.maxChildren = Math.ceil(game.PLAYERS * 1.5);
-          o.SIZE = this.SIZE;
-          o.color = 0;
-          o.tp = true;
-          this.stage += 1;
-          this.color = 0;
-        }
-        if (this.health.amount <= this.health.max / 2 && this.stage === 1) {
-          let o = new Entity(room.randomType("bos0"));
-          o.master = this;
-          o.stayTeam = false;
-          o.color = 3;
-          o.define(Class.sardonyxPower1);
-          o.team = -100;
-          o.SIZE = this.SIZE;
-          o.invuln = false;
-          o.skill.dam = 1 + game.PLAYERS * 2.5;
-          o.tp = true;
-          this.stage += 1;
-          this.color = 3;
-        }
-        if (this.health.amount <= this.health.max / 4 && this.stage === 2) {
-          let o = new Entity(room.randomType("bos0"));
-          o.master = this;
-          o.stayTeam = false;
-          o.color = 33;
-          o.skill.str = 2 + game.PLAYERS * 2;
-          o.skill.spd = 0.5 + game.PLAYERS / 2;
-          o.define(Class.sardonyxPower2);
-          o.team = -100;
-          o.SIZE = this.SIZE;
-          o.invuln = false;
-          o.tp = true;
-          this.stage += 1;
-          this.color = 33;
-        }
-        if (this.health.amount <= this.health.max / 5 && this.stage === 3) {
-          let o = new Entity(room.randomType("bos0"));
-          o.master = this;
-          o.stayTeam = false;
-          o.color = 12;
-          o.define(Class.sardonyxPower3);
-          o.RANGE += game.PLAYERS * 150;
-          o.team = -100;
-          o.SIZE = this.SIZE;
-          o.invuln = false;
-          o.tp = true;
-          o.maxChildren = 1;
-          this.stage += 1;
-          this.color = 12;
-        }
-      }
-
-      if (this.tp) {
-        this.x = this.master.x;
-        this.y = this.master.y;
-      }
-      if (this.isRanar) {
-        if (this.stage === undefined) this.stage = 0;
-        if (this.label === "Disciple") {
-          if (this.health.amount <= this.health.max / 1.5 && this.stage === 0) {
-            for (let i = 0; i < game.ranarDialog; i++) {
-              let o = new Entity(room.randomType("spw0"));
-              o.master = this;
-              o.invuln = false;
-              o.stayTeam = false;
-              o.define(Class.ranarPower1);
-              o.team = -100;
-              o.maxChildren = Math.ceil(game.PLAYERS * 1.5);
-              o.SIZE = this.SIZE;
-              o.color = 0;
-              o.tp = true;
-              this.stage += 1;
-              this.color = 0;
-            }
-            if (this.health.amount <= this.health.max / 4 && this.stage === 1) {
-              for (let i = 0; i < game.ranarDialog; i++) {
-                let o = new Entity(room.randomType("spw0"));
-                o.master = this;
-                o.stayTeam = false;
-                o.color = 3;
-                o.define(Class.ranarPower2);
-                o.team = -100;
-                o.SIZE = this.SIZE;
-                o.invuln = false;
-                o.skill.dam = 1 + game.PLAYERS * 2.5;
-                o.tp = true;
-                this.stage += 1;
-                this.color = 3;
-              }
-            }
-          }
-        }
-        if (this.label === "Ascendant") {
-          if (this.health.amount <= this.health.max / 1.5 && this.stage === 0) {
-            for (let i = 0; i < game.ranarDialog; i++) {
-              let o = new Entity(room.randomType("spw0"));
-              o.master = this;
-              o.stayTeam = false;
-              o.color = 33;
-              o.skill.str = 2 + game.PLAYERS * 2;
-              o.skill.spd = 0.5 + game.PLAYERS / 2;
-              o.define(Class.ranarPower4);
-              o.team = -100;
-              o.SIZE = this.SIZE;
-              o.invuln = false;
-              o.tp = true;
-              this.stage += 1;
-              this.color = 33;
-            }
-          }
-          if (this.health.amount <= this.health.max / 4 && this.stage === 1) {
-            for (let i = 0; i < game.ranarDialog; i++) {
-              let o = new Entity(room.randomType("spw0"));
-              o.master = this;
-              o.stayTeam = false;
-              o.color = 12;
-              o.define(Class.ranarPower5);
-              o.RANGE += game.PLAYERS * 150;
-              o.team = -100;
-              o.SIZE = this.SIZE;
-              o.invuln = false;
-              o.tp = true;
-              o.maxChildren = 1;
-              this.stage += 1;
-              this.color = 12;
-            }
-          }
-        }
-      }
-      if (this.tp) {
-        this.x = this.master.x;
-        this.y = this.master.y;
-      }
-      if (
-        this.skill.score >= 2500000 &&
-        !this.gifted &&
-        this.isPlayer &&
-        !this.trueDev &&
-        !this.invuln &&
-        this.label !== "Spectator"
-      ) {
-        if (this.specialEffect !== "Legend") {
-          this.sendMessage(
-            "You have gained access to the Legendary Class List!"
-          );
-          this.maxChildren = 0;
-          this.intangibility = false;
-          this.invisible = [100, 0];
-          this.alpha = 100;
-          this.upgrades = [];
-          this.define(Class.currentLegendaryClasses);
-          this.ignoreCollision = false;
-        } else {
-          this.sendMessage("Your power grows");
-          this.SIZE += 5;
-          this.skill.points += 5;
-          this.resist *= 5;
-          //this.heath.amount = this.health.max;
-          //this.shield.amount = this.shield.max;
-        }
-        this.skill.points += 10;
-        this.gifted = true;
-      }
-      if (game.canProgress && game.ranarDialog === undefined) {
-        game.bossAmount = 1;
-        sockets.broadcast("Wave " + game.WAVE + " has started!");
-        game.continueWave = true;
-        game.ranarDialog = Math.round(Math.random() * 3);
-      }
-
-      if (game.continueWave && game.WAVE > 0 && !game.pingBack) {
-        game.bossCounter = game.preparedCounter;
-        game.pingBack = true;
-        game.continueWave = false;
-      }
-      //    let countUp = 0;
-      //  game.bossCounter = 1;
-      if (game.pingBack) {
-        if (game.WAVE % 10 === 0 && game.WAVE !== 0 && !game.initiateEpicWave) {
-          game.initiateEpicWave = true;
-          game.bonus += 3;
-          game.disciple = true;
-          game.WAVEType = "epic";
-          if (game.WAVE >= 50) {
-            game.WAVEType = "final";
-          }
-          if (game.WAVE <= 20 || game.WAVE >= 50) game.bossCounter = 0;
-          switch (game.WAVEType) {
-            case "epic":
-              game.WAVERarity = Math.ceil(Math.random() * 6);
-              sockets.broadcast(
-                "Wave " + game.WAVE + " has started, this is a dangerous wave!"
-              );
-              switch (game.WAVERarity) {
-                case 1:
-                  if (game.MODE === "siege") {
-                    let o = new Entity(room.randomType("spw0"));
-                    o.define(Class.CX2);
-                    o.siegeProgress = true;
-                    o.impervious = true;
-                    o.team = -100;
-                    setTimeout(() => {
-                      o.addController(new io_guard1(o));
-                    }, 7500);
-                    sockets.broadcast("CX: No more games, its time you die!");
-                    game.uniqueBossList.push("cx");
-                  }
-                  break;
-                case 2:
-                  if (game.MODE === "siege") {
-                    let groupList = Math.ceil(Math.random() * 2);
-                    switch (groupList) {
-                      case 1:
-                        for (let i = 0; i < 8; i++) {
-                          let o = new Entity(room.randomType("spw0"));
-                          switch (i) {
-                            case 0:
-                              o.define(Class.excaliber);
-                              break;
-                            case 1:
-                              o.define(Class.possessor);
-                              break;
-                            case 2:
-                              o.define(Class.icecream);
-                              break;
-                            case 3:
-                              o.define(Class.rainOfAcid);
-                              break;
-                            case 4:
-                              o.define(Class.kristaps);
-                              break;
-                            case 5:
-                              o.define(Class.chaser);
-                              break;
-                            case 6:
-                              o.define(Class.annoyingDog);
-                              break;
-                            case 7:
-                              o.define(Class.ranarDiscipleForm);
-                              break;
-                          }
-                          o.siegeProgress = true;
-                          o.impervious = true;
-                          o.team = -100;
-                          setTimeout(() => {
-                            o.addController(new io_guard1(o));
-                          }, 7500);
-                        }
-                        sockets.broadcast(
-                          "Ranar: OK SINCE YOU CAN'T 1V1 ME, I'LL JUST SUMMON TEAM MATES OF MY OWN!"
-                        );
-                        game.uniqueBossList.push(
-                          "ranar",
-                          "excaliber",
-                          "chaser",
-                          "possessor",
-                          "icecream",
-                          "oxiniVrochi",
-                          "kristaps",
-                          "annoyingDog"
-                        );
-                        break;
-                      case 2:
-                        for (let i = 0; i < 7; i++) {
-                          let o = new Entity(room.randomType("spw0"));
-                          switch (i) {
-                            case 0:
-                              o.define(Class.ranarDiscipleForm);
-                              break;
-                            case 1:
-                              o.define(Class.alexTheDemonical);
-                              break;
-                            case 2:
-                              o.define(Class.pop64);
-                              break;
-                            case 3:
-                              o.define(Class.johnathon);
-                              break;
-                            case 4:
-                              o.define(Class.powernoob);
-                              break;
-                            case 5:
-                              o.define(Class.xxtrianguli);
-                              break;
-                            case 6:
-                              o.define(Class.duodeci);
-                              break;
-                          }
-                          o.siegeProgress = true;
-                          o.impervious = true;
-                          o.team = -100;
-                          setTimeout(() => {
-                            o.addController(new io_guard1(o));
-                          }, 7500);
-                        }
-                        sockets.broadcast(
-                          "Ranar: OK SINCE YOU CAN'T 1V1 ME, I'LL JUST SUMMON TEAM MATES OF MY OWN!"
-                        );
-                        game.uniqueBossList.push(
-                          "ranar",
-                          "alex",
-                          "pop64",
-                          "johnathon",
-                          "powernoob",
-                          "xxtrianguli",
-                          "duodeci"
-                        );
-                    }
-                  }
-
-                  break;
-                case 3:
-                  if (game.MODE === "siege") {
-                    for (let i = 0; i < 20; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.sardonyx);
-                          break;
-                        case 1:
-                          o.define(Class.nulltype);
-                          break;
-                        /*  case 2:
-                      o.define(Class.nulltype);
-                      break;*/
-                        case 3:
-                          o.define(Class.elder);
-                          break;
-                        case 4:
-                          o.define(Class.elder);
-                          break;
-                        case 5:
-                          o.define(Class.elder);
-                          break;
-                        case 6:
-                          o.define(Class.elder);
-                          break;
-                        /* case 7:
-                      o.define(Class.amalgam);
-                      break;*/
-                        case 8:
-                          o.define(Class.amalgam);
-                          break;
-                        default:
-                          o.define(
-                            Class[
-                              ran.choose([
-                                "thrasher",
-                                "anomaly",
-                                "glitch",
-                                "aoc",
-                                "aokaol",
-                              ])
-                            ]
-                          );
-                      }
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast(
-                      "Reality seems to tear itself open, entities are emerging from it!"
-                    );
-                    game.uniqueBossList.push("sardonyx");
-                  }
-                  break;
-                case 4:
-                  if (game.MODE === "siege") {
-                    let o = new Entity(room.randomType("spw0"));
-                    o.define(Class.zomblord2);
-                    o.siegeProgress = true;
-                    o.impervious = true;
-                    o.team = -100;
-                    setTimeout(() => {
-                      o.addController(new io_guard1(o));
-                    }, 7500);
-                    sockets.broadcast(
-                      "Undead hoards seem to gather...what the hell?"
-                    );
-                    game.uniqueBossList.push("anubis");
-                  }
-                  break;
-                case 5:
-                  if (game.MODE === "siege") {
-                    for (let i = 0; i < 20; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.ranarAscendantForm);
-                          o.color = 34;
-                          o.stage = 0;
-                          o.isRanar = true;
-                          break;
-                        case 1:
-                          o.define(Class.arenaguard);
-                          break;
-                        case 2:
-                          o.define(Class.arenaguard);
-                          break;
-                        case 3:
-                          o.define(Class.arenaguard);
-                          break;
-                        case 4:
-                          o.define(Class.arenaguard);
-                          break;
-                        default:
-                          o.define(
-                            Class[
-                              ran.choose([
-                                "auto3Guard",
-                                "bansheeGuard",
-                                "spawnerGuard",
-                                "swarmerProtector",
-                                "cruiserProtector",
-                                "beekeeperProtector",
-                              ])
-                            ]
-                          );
-                      }
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast(
-                      "Ranar: The time has come to purify you scum in the name of Valrayvn!"
-                    );
-                    game.uniqueBossList.push("ranar");
-                  }
-                  break;
-                case 6:
-                  if (game.MODE === "siege") {
-                    for (let i = 0; i < 4; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.highlordAidra);
-                          break;
-                        case 1:
-                          o.define(Class.highlordAkavir);
-                          break;
-                        case 2:
-                          o.define(Class.weakHighlordAlbatar);
-                          break;
-                        case 3:
-                          o.define(Class.highlordKairo);
-                          break;
-                      }
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast(
-                      "The Council has arrived to test you...and decide your fate!"
-                    );
-                    game.uniqueBossList.push(
-                      "highlordDominique",
-                      "highlordKairo",
-                      "highlordAkavir",
-                      "highlordAlbatar"
-                    );
-                  }
-                  break;
-              }
-              break;
-            case "final":
-              sockets.broadcast(
-                "Wave " + game.WAVE + " has started, survival is...unlikely..."
-              );
-              game.WAVERarity = Math.ceil(Math.random() * 8);
-              switch (game.WAVERarity) {
-                case 1:
-                  if (game.MODE === "siege") {
-                    let o = new Entity(room.randomType("spw0"));
-                    for (let i = 0; i < 11; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.CX2);
-                          break;
-                        case 1:
-                          o.define(Class.zomblord1);
-                          break;
-                        case 2:
-                          o.define(Class.fallenbooster);
-                          break;
-                        case 3:
-                          o.define(Class.fallenoverlord);
-                          break;
-                        case 4:
-                          o.define(Class.plaguedoc);
-                          break;
-                        case 5:
-                          o.define(Class.enslaver);
-                          break;
-                        case 6:
-                          o.define(Class.fallenanni);
-                          break;
-                        case 7:
-                          o.define(Class.fallenhybrid);
-                          break;
-                        case 8:
-                          o.define(Class.fallenfalcon);
-                          break;
-                        case 9:
-                          o.define(Class.fallenflankguard);
-                          break;
-                        case 10:
-                          o.define(Class.fallenautodouble);
-                          break;
-                      }
-
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast(
-                      "CX: THE DEATHLESS SHALL REIGN SUPREME, AND YOU...YOU SHALL FALL...YOU ALL SHALL FALL!"
-                    );
-                    game.uniqueBossList.push("cx", "anubis");
-                  }
-                  break;
-                case 2:
-                  if (game.MODE === "siege") {
-                    for (let i = 0; i < 17; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.excaliber);
-                          break;
-                        case 1:
-                          o.define(Class.possessor);
-                          break;
-                        case 2:
-                          o.define(Class.icecream);
-                          break;
-                        case 3:
-                          o.define(Class.rainOfAcid);
-                          break;
-                        case 4:
-                          o.define(Class.kristaps);
-                          break;
-                        case 5:
-                          o.define(Class.chaser);
-                          break;
-                        case 6:
-                          o.define(Class.annoyingDog);
-                          break;
-                        case 7:
-                          o.define(Class.alexTheDemonical);
-                          break;
-                        case 8:
-                          o.define(Class.pop64);
-                          break;
-                        case 9:
-                          o.define(Class.johnathon);
-                          break;
-                        case 10:
-                          o.define(Class.powernoob);
-                          break;
-                        case 11:
-                          o.define(Class.xxtrianguli);
-                          break;
-                        case 12:
-                          o.define(Class.duodeci);
-                          break;
-
-                        case 13:
-                          o.define(Class.ranarAscendantForm);
-                          o.color = 34;
-                          o.stage = 0;
-                          o.isRanar = true;
-                          break;
-                        case 14:
-                          o.define(Class.swarmDisciple);
-                          break;
-                        case 14:
-                          o.define(Class.annihilatorDisciple);
-                          break;
-                        case 15:
-                          o.define(Class.mortarDisciple);
-                          break;
-                      }
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast(
-                      "Ranar: Ok, I am officially done, you clearly aren't kidding around...I will stop joking, die."
-                    );
-                    game.uniqueBossList.push(
-                      "ranar",
-                      "stark",
-                      "bret",
-                      "klayton",
-                      "oxiniVrochi",
-                      "annoyingDog",
-                      "kristaps",
-                      "duodeci",
-                      "icecream",
-                      "possessor",
-                      "xxtrianguli",
-                      "chaser",
-                      "excaliber",
-                      "johnathon",
-                      "powernoob",
-                      "alex",
-                      "pop64"
-                    );
-                  }
-                  break;
-                case 3:
-                  if (game.MODE === "siege") {
-                    for (let i = 0; i < 50; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.sardonyx);
-                          break;
-                        case 2:
-                          o.define(Class.nulltype);
-                          break;
-                        case 4:
-                          o.define(Class.elder);
-                          break;
-                        case 6:
-                          o.define(Class.elder);
-                          break;
-                        case 7:
-                        case 8:
-                          o.define(Class.amalgam);
-                          break;
-                        case 10:
-                          o.define(Class.trimalgam);
-                          break;
-                        default:
-                          o.define(
-                            Class[
-                              ran.choose([
-                                "thrasher",
-                                "anomaly",
-                                "glitch",
-                                "aoc",
-                                "aokaol",
-                              ])
-                            ]
-                          );
-                      }
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast(
-                      "Sardonyx: It is time! THE VOID SHALL CONSUME ALL!"
-                    );
-                    game.uniqueBossList.push("sardonyx");
-                  }
-                  break;
-                case 4:
-                  if (game.MODE === "siege") {
-                    let o = new Entity(room.randomType("spw0"));
-                    for (let i = 0; i < 50; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.zomblord2);
-                          break;
-                        case 1:
-                          o.define(Class.fallenDouble);
-                          break;
-                        case 2:
-                          o.define(Class.fallendestroy);
-                          break;
-                        default:
-                          o.define(
-                            Class[
-                              ran.choose([
-                                "zombieBarricade",
-                                "zombieTrapper",
-                                "zombieEngineer",
-                                "zombieConstructor",
-                                "zombieBuilder",
-                                "zombiePounder",
-                                "zombieBoomer",
-                                "zombieHexaTrapper",
-                                "zombieSkimmer",
-                                "zombieAnnihilator",
-                                "zombieStreamliner",
-                                "zombieBigCheese",
-                                "zombieRifle",
-                                "zombieCruiser",
-                                "zombieOverlord",
-                                "zombieSwarmer",
-                                "zombieRocketeer",
-                                "zombieAnimator",
-                              ])
-                            ]
-                          );
-                          o.infector = true;
-                          o.team = -2;
-                          o.skill.set([4, 6, 4, 4, 4, 4, 4, 4, 4, 4]);
-                      }
-
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast(
-                      "Anubis: The lost shall be no more, come...join us and be found..."
-                    );
-                    game.uniqueBossList.push("anubis");
-                  }
-                  break;
-                case 6:
-                  if (game.MODE === "siege") {
-                    for (let i = 0; i < 10; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.highlordAidra);
-                          break;
-                        case 1:
-                          o.define(Class.highlordAkavir);
-                          break;
-                        case 2:
-                          o.define(Class.weakHighlordAlbatar);
-                          break;
-                        case 3:
-                          o.define(Class.highlordKairo);
-                          break;
-                        case 4:
-                        case 5:
-                          o.define(Class.elite_warkspawner);
-                          break;
-                        case 6:
-                        case 7:
-                          o.define(Class.contraption);
-                          break;
-                        case 8:
-                        case 9:
-                        default:
-                          o.define(Class.exterminator);
-                          break;
-                      }
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast(
-                      "Highlord Akavir: I think I speak for all of us when I say...YOU DONE SCREWED UP!"
-                    );
-                    game.uniqueBossList.push(
-                      "highlordDominique",
-                      "highlordAkavir",
-                      "highlordKairo",
-                      "highlordAlbatar"
-                    );
-                  }
-                  break;
-                case 7:
-                  if (game.MODE === "siege") {
-                    for (let i = 0; i < 15; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.valrayvn);
-                          break;
-                        case 1:
-                          o.define(Class.kronos);
-                          break;
-                        case 2:
-                        case 3:
-                        case 4:
-                          o.define(Class.damagedArenaCloser);
-                          break;
-                        case 6:
-                          o.define(Class.legionaryCrasher);
-                          break;
-                        case 7:
-                          o.define(Class.arenaslayer);
-                          break;
-                        case 4:
-                          o.define(Class.ranarDiscipleForm);
-                          break;
-                        default:
-                          o.define(
-                            Class[
-                              ran.choose([
-                                "sorcerer",
-                                "summoner",
-                                "enchantress",
-                                "elite_skimmer",
-                                "elite_machine",
-                                "elite_destroyer",
-                                "elite_gunner",
-                                "elite_spawner",
-                                "elite_battleship",
-                                "defender",
-                                "exorcistor",
-                                "nestkeep",
-                                "nestward",
-                                "mortarLordCenturion",
-                                "hiveLordCenturion",
-                                "arenaguard",
-                                "elite_fortress",
-                                "defector",
-                                "witch",
-                                "elite_spinner",
-                                "elite_sprayer",
-                                "elite_swarmer",
-                              ])
-                            ]
-                          );
-                      }
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast(
-                      "Valrayvn: UGH, GREAT, NOW I HAVE TO FIGHT IN PERSON, YOU GUYS SUCK!"
-                    );
-                    game.uniqueBossList.push(
-                      "legionaryCrasher",
-                      "kronos",
-                      "valrayvn"
-                    );
-                  }
-                  break;
-
-                case 8:
-                  if (game.MODE === "siege") {
-                    for (let i = 0; i < 11; i++) {
-                      let o = new Entity(room.randomType("spw0"));
-                      switch (i) {
-                        case 0:
-                          o.define(Class.kronos);
-                          break;
-                        case 1:
-                          o.define(Class.paladin);
-                          break;
-                        case 2:
-                          o.define(Class.zaphkiel);
-                          break;
-                        case 3:
-                          o.define(Class.freyja);
-                          break;
-                        case 4:
-                          o.define(Class.nyx);
-                          break;
-                        case 5:
-                          o.define(Class.theia);
-                          break;
-                        case 6:
-                          o.define(Class.ares);
-                          break;
-                        case 7:
-                          o.define(Class.gersemi);
-                          break;
-                        case 8:
-                          o.define(Class.ezekiel);
-                          break;
-                        case 9:
-                          o.define(Class.selene);
-                          break;
-                        case 10:
-                          o.define(Class.eris);
-                          break;
-                      }
-                      o.siegeProgress = true;
-                      o.impervious = true;
-                      o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
-                    }
-                    sockets.broadcast("Kronos: Terrestrials and Celestials...");
-                    sockets.broadcast(
-                      "Kronos: Arise under my rule, and crush these inferior roadblocks.."
-                    );
-                    game.uniqueBossList.push(
-                      "kronos",
-                      "paladin",
-                      "freyja",
-                      "zaphkiel",
-                      "nyx",
-                      "theia",
-                      "ares",
-                      "gersemi",
-                      "ezekiel",
-                      "eris",
-                      "selene"
-                    );
-                  }
-                  break;
-              }
-              break;
-          } //just let* me cook
-        } //wdym unsystactic break
-        if (game.bossCounter > 0) {
-          let o = new Entity(room.randomType("spw0"));
-          // o.bossTier = ran.choose(bt);
-          o.rarity = Math.random() * 10000;
-          if (o.rarity <= 10000 && o.rarity > 5000) {
-            o.bossTier = ran.choose(["weakEnemy1", "weakEnemy2", "weakEnemy3"]);
-          }
-          if (o.rarity <= 5000 && o.rarity > 3000) {
-            o.bossTier = ran.choose(["normalEnemy1", "normalEnemy2"]);
-          }
-          if (o.rarity <= 3000 && o.rarity > 2000) {
-            o.bossTier = "tierOneBoss";
-          }
-          if (o.rarity <= 2000 && o.rarity > 750) {
-            o.bossTier = "tierTwoBoss";
-          }
-          if (o.rarity <= 750 && o.rarity > 500) {
-            o.bossTier = "tierThreeBoss";
-          }
-          if (o.rarity <= 500 && o.rarity > 275) {
-            o.bossTier = ran.choose([
-              "stark",
-              "bret",
-              "klayton",
-              "oxiniVrochi",
-              "annoyingDog",
-              "kristaps",
-              "duodeci",
-              "icecream",
-              "possessor",
-              "xxtrianguli",
-              "chaser",
-              "excaliber",
-              "johnathon",
-              "powernoob",
-              "alex",
-              "pop64",
-              "selene",
-              "ezekiel",
-              "gersemi",
-              "ares",
-              "eris",
-              "disconnecter",
-              "anicetus",
-              "paladin",
-              "zaphkiel",
-              "theia",
-              "nyx",
-              "freyja",
-              "kronos",
-              "legionaryCrasher",
-              "tryi",
-              "cubed",
-              "baltyla",
-              "pendekot",
-              "stfellas",
-            ]);
-          }
-          if (o.rarity <= 275) {
-            o.bossTier = "ranar";
-          }
-          let bc = game.bossCounter;
-
-          if (
-            (o.bossTier === "weakEnemy2" && bc < 2) ||
-            (o.bossTier === "weakEnemy3" && bc < 3) ||
-            (o.bossTier === "normalEnemy1" && bc < 5) ||
-            (o.bossTier === "normalEnemy2" && bc < 7) ||
-            (o.bossTier === "strongEnemy1" && bc < 10) ||
-            (o.bossTier === "tierOneBoss" && bc < 15) ||
-            (o.bossTier === "tierTwoBoss" && bc < 30) ||
-            (o.bossTier === "tierThreeBoss" && bc < 45) ||
-            (o.bossTier === "stark" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "bret" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "klayton" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "pop64" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "annoyingDog" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "alex" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "oxiniVrochi" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "duodeci" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "kristaps" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "icecream" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "possessor" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "excaliber" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "xxtrianguli" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "chaser" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "johnathon" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "powernoob" &&
-              (bc < 20 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "selene" &&
-              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "ezekiel" &&
-              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "gersemi" &&
-              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "eris" &&
-              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "ares" &&
-              (bc < 45 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "theia" &&
-              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "zaphkiel" &&
-              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "freyja" &&
-              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "nyx" &&
-              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "paladin" &&
-              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "anicetus" &&
-              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "ranar" &&
-              (bc < 60 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "disconnecter" && bc < 60) ||
-            (o.bossTier === "kronos" &&
-              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "tryi" &&
-              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "cubed" &&
-              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "baltyla" &&
-              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "pendekot" &&
-              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "stfellas" &&
-              (bc < 100 || !game.uniqueBossList.includes(o.bossTier))) ||
-            (o.bossTier === "legionaryCrasher" &&
-              (bc < 100 || !game.uniqueBossList.includes(o.bossTier)))
-          ) {
-            o.bossTier = "weakEnemy1";
-          }
-          if (o.bossTier === "weakEnemy1") {
-            o.define(Class[ran.choose(wE1)]);
-            game.bossCounter -= 1;
-          }
-          if (o.bossTier === "weakEnemy2") {
-            o.define(Class[ran.choose(wE2)]);
-            game.bossCounter -= 2;
-          }
-          if (o.bossTier === "weakEnemy3") {
-            o.define(Class[ran.choose(wE3)]);
-            game.bossCounter -= 3;
-          }
-          if (o.bossTier === "normalEnemy1") {
-            o.define(Class[ran.choose(nE1)]);
-            game.bossCounter -= 5;
-          }
-          if (o.bossTier === "normalEnemy2") {
-            o.define(Class[ran.choose(nE2)]);
-            game.bossCounter -= 7;
-          }
-          if (o.bossTier === "tierOneBoss") {
-            o.define(Class[ran.choose(t1B)]);
-            game.bossCounter -= 15;
-          }
-          if (o.bossTier === "tierTwoBoss") {
-            o.define(Class[ran.choose(t2B)]);
-            game.bossCounter -= 30;
-          }
-          if (o.bossTier === "tierThreeBoss") {
-            o.define(Class[ran.choose(t3B)]);
-            game.bossCounter -= 45;
-          }
-          if (o.bossTier === "ranar") {
-            o.define(Class.ranarDiscipleForm);
-            game.bossCounter -= 60;
-            game.uniqueBossList.push(o.bossTier);
-            switch (game.ranarDialog) {
-              case 0:
-                sockets.broadcast(
-                  "Ranar: I have arrived, GET READY TO FEEL MY WRATH, SCUM!"
-                );
-                break;
-              case 1:
-                sockets.broadcast("Ranar: I am back, now I can actually try!");
-                break;
-              case 2:
-                sockets.broadcast(
-                  "Ranar: THATS IT, LET THE MERCILESS ONSLOUGHT BEGIN!"
-                );
-                break;
-              case 3:
-                sockets.broadcast("Ranar: God d@mn it!");
-                break;
-              case 4:
-                sockets.broadcast("Ranar: I hate you!");
-                break;
-              case 5:
-                sockets.broadcast(
-                  "Ranar: WHY DOES THIS SERVER KEEP SPAWNING ME!?"
-                );
-                break;
-              case 6:
-                sockets.broadcast("Ranar: WHAT HAVE I DONE TO DESERVE THIS?!");
-                break;
-              case 7:
-                sockets.broadcast(
-                  "Ranar: **** off you ****ing little ****. AND AS FOR THIS SERVER, IT CAN GO **** ITSELF AND EAT ****. DIE YOU ****ING ****HEADS!"
-                );
-                break;
-              case 8:
-                sockets.broadcast(
-                  "Ranar: I give up, kill me already if you can."
-                );
-                break;
-              default:
-                sockets.broadcast("Ranar: >:(");
-            }
-            game.ranarDialog += 1;
-            currentState.ranarDialog = game.ranarDialog;
-            if (o.rarity < 50 && bc >= 100) {
-              o.define(Class.ranarAscendantForm);
-              o.isRanar = true;
-              game.bossCounter -= 100;
-              game.uniqueBossList.push(o.bossTier);
-              sockets.broadcast(
-                //gg
-                "Ranar: Come children, and I shall show you supreme power!"
-              );
-            }
-          }
-          if (o.bossTier === "disconnecter") {
-            o.define(Class.arenaslayer);
-            game.bossCounter -= 60;
-            sockets.broadcast(
-              "...a feared being from the domain of diep has come..."
-            );
-          }
-          if (o.bossTier === "kronos") {
-            o.define(Class.kronos);
-            game.bossCounter -= 100;
-            game.uniqueBossList.push(o.bossTier);
-            sockets.broadcast(
-              //gg
-              "Time itself starts to warp as an ancient God appears..."
-            );
-          }
-          if (o.bossTier === "legionaryCrasher") {
-            o.define(Class.legionaryCrasher);
-            game.bossCounter -= 100;
-            game.uniqueBossList.push(o.bossTier); //but
-            sockets.broadcast(
-              "The crashers were only the disciples of what you have awakened...what have you done?"
-            ); //fair enough
-          }
-          if (o.bossTier === "anicetus") {
-            o.define(Class.bishop);
-            game.bossCounter -= 60;
-            game.uniqueBossList.push(o.bossTier);
-            sockets.broadcast(
-              "Anicetus: Those who oppose the great Valrayvn shall be returned dust!"
-            );
-          }
-          if (o.bossTier === "ares") {
-            o.define(Class.ares);
-            game.bossCounter -= 45;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "ezekiel") {
-            o.define(Class.ezekiel);
-            game.bossCounter -= 45;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "selene") {
-            o.define(Class.selene);
-            game.bossCounter -= 45;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "gersemi") {
-            o.define(Class.gersemi);
-            game.bossCounter -= 45;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "eris") {
-            o.define(Class.eris);
-            game.bossCounter -= 45;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "ares") {
-            o.define(Class.ares);
-            game.bossCounter -= 45;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "paladin") {
-            o.define(Class.paladin);
-            game.bossCounter -= 60;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "stark") {
-            o.define(Class.swarmDisciple);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "bret") {
-            o.define(Class.annihilatorDisciple);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "klayton") {
-            o.define(Class.mortarDisciple);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "kristaps") {
-            o.define(Class.kristaps);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "duodeci") {
-            o.define(Class.duodeci);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "annoyingDog") {
-            o.define(Class.annoyingDog);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "icecream") {
-            o.define(Class.icecream);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-
-          if (o.bossTier === "xxtrianguli") {
-            o.define(Class.xxtrianguli);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "alex") {
-            o.define(Class.alexTheDemonical);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "possessor") {
-            o.define(Class.possessor);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "oxiniVrochi") {
-            o.define(Class.rainOfAcid);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "chaser") {
-            o.define(Class.chaser);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "excaliber") {
-            o.define(Class.excaliber);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "powernoob") {
-            o.define(Class.powernoob);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "johnathon") {
-            o.define(Class.johnathon);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.bossTier === "pop64") {
-            o.define(Class.pop64);
-            game.bossCounter -= 20;
-            game.uniqueBossList.push(o.bossTier);
-          }
-          if (o.type === "thrasher") {
-            if (o.rarity <= 20) {
-              o.define(Class.abyssthrasher);
-            }
-          }
-          if (o.label === "Defender" || o.label === "Enchantress") {
-            if (o.rarity <= 20) {
-              o.define(Class.epilepticdefender);
-            }
-          }
-          if (o.label === "Summoner") {
-            if (o.rarity <= 20) {
-              o.define(Class.splitsummoner);
-            }
-          }
-          if (o.label === "Sorcerer") {
-            if (o.rarity <= 20) {
-              o.define(Class.raresorcerer);
-            }
-          }
-          if (o.label === "Elite Gunner") {
-            if (o.rarity <= 20) {
-              o.define(Class.elite_Shadowgunner);
-            }
-          }
-          if (o.label === "Nest Keeper" || o.label === "Nest Warden") {
-            if (o.rarity <= 20) {
-              o.define(Class.legnestkeep);
-            }
-          }
-          if (o.type === "crasher") {
-            switch (o.shape) {
-              case 3:
-                if (o.rarity <= 1000 && o.rarity > 500) {
-                  o.define(Class.shinyEggCrasher);
-                }
-                if (o.rarity <= 500 && o.rarity > 250) {
-                  o.define(
-                    Class[
-                      ran.choose(["shinySquareCrasher", "shinyTriangleSentry"])
-                    ]
-                  );
-                }
-
-                if (o.rarity <= 50 && o.rarity > 20) {
-                  o.define(Class.rainbowTriangleCrasher);
-                }
-                if (o.rarity <= 20) {
-                  o.define(Class.abyssalTetraCrasher);
-                  sockets.broadcast(
-                    "Vile Darkness Cloaks the arena, something terrifying has been summoned!"
-                  );
-                }
-            }
-          }
-          o.siegeProgress = true;
-          o.impervious = true;
-          o.showOnMap = true;
-          o.team = -100;
-          setTimeout(() => {
-            o.addController(new io_guard1(o));
-          }, 7500);
-        }
-
-        if (game.bossCounter <= 0) {
-          game.bossAmount = 0;
-          entities.forEach((entity) => {
-            if (
-              entity.siegeProgress &&
-              entity.team === -100 &&
-              !entity.isDead()
-            )
-              game.bossAmount += 1;
-          });
-          // console.log(game.bossAmount);
-          game.initiateEpicWave = false;
-          game.pingBack = false;
-
-          game.uniqueBossList = [];
-        }
-      }
-    }
-
+    
     if (this.isPlayer) {
       if (this.fov > (room.width + room.height) * 1.5) {
         this.fov = (room.width + room.height) * 1.5;
@@ -6542,12 +4842,12 @@ class Entity {
       game.sardonyxEventStopper = true;
     }
     if (game.MODE === "theAwakening") {
-      if (game.bruv !== game.bossStage) {
-        game.bruv = game.bossStage;
+      if (game.bruv !== game.EVENT) {
+        game.bruv = game.EVENT;
         //util.log(game.bruv);
       }
-      if (game.canProgress && game.bossStage === 0) {
-        game.bossStage += 1;
+      if (game.canProgress && game.EVENT === 0) {
+        game.EVENT += 1;
         sockets.broadcast("Valrayvn: Did everyone make it through?");
         setTimeout(() => {
           sockets.broadcast(
@@ -6555,7 +4855,7 @@ class Entity {
           );
         }, 5000);
       }
-      if (game.bossStage === 1) {
+      if (game.EVENT === 1) {
         makeEventBosses();
         setTimeout(() => {
           sockets.broadcast(
@@ -6572,13 +4872,13 @@ class Entity {
             "Valrayvn: It should be strong enough to penetrate the gate."
           );
         }, 25000);
-        game.bossStage += 1;
+        game.EVENT += 1;
       }
-      if (game.bossStage === 2) {
+      if (game.EVENT === 2) {
         makeEventBosses();
-        game.bossStage += 1;
+        game.EVENT += 1;
       }
-      if (game.bossStage === 6) {
+      if (game.EVENT === 6) {
         setTimeout(() => {
           sockets.broadcast(
             "Valrayvn: Ugh! Another gate and more automatons! I don't think a modified repair man will do."
@@ -6591,14 +4891,14 @@ class Entity {
           );
         }, 10000);
         makeEventBosses();
-        game.bossStage += 1;
+        game.EVENT += 1;
       }
-      if (game.bossStage === 9) {
+      if (game.EVENT === 9) {
         makeEventBosses();
-        game.bossStage += 1;
+        game.EVENT += 1;
       }
-      if (game.bossStage === 12) {
-        game.bossStage += 1;
+      if (game.EVENT === 12) {
+        game.EVENT += 1;
         setTimeout(() => {
           sockets.broadcast(
             "Valrayvn: This one looks like an egg...I wonder..."
@@ -7252,8 +5552,8 @@ class Entity {
           // this.isBoss = true;
         }
       }
-      if (game.bossStage === 0 && room["dom2"].length > 0) {
-        game.bossStage += 1;
+      if (game.EVENT === 0 && room["dom2"].length > 0) {
+        game.EVENT += 1;
         game.CONSIDER_PLAYER_TEAM_LOCATION = false;
         game.PLAYER_SPAWN_LOCATION = "bos0";
         sockets.broadcast(
@@ -7273,8 +5573,8 @@ class Entity {
           census[-o.team]++;
         }
       });
-      if (game.bossStage === 1 && census[2] > 1) {
-        game.bossStage += 1;
+      if (game.EVENT === 1 && census[2] > 1) {
+        game.EVENT += 1;
         game.PLAYER_SPAWN_LOCATION = "bos1";
         sockets.broadcast("Pendekot: This is strange.");
         setTimeout(() => {
@@ -7306,8 +5606,8 @@ class Entity {
           }, 5000);
         }, 5000);
       }
-      if (game.bossStage === 2 && census[2] > 5) {
-        game.bossStage += 1;
+      if (game.EVENT === 2 && census[2] > 5) {
+        game.EVENT += 1;
         game.PLAYER_SPAWN_LOCATION = "bos2";
         sockets.broadcast(
           "Pendekot: A mutated strain of the fallen virus. A more durable and aggressive version. This must have been done by CX."
@@ -7342,8 +5642,8 @@ class Entity {
           o.ignoreCollision = false;
         }
       }
-      if (game.bossStage === 3 && census[2] >= 8) {
-        game.bossStage += 1;
+      if (game.EVENT === 3 && census[2] >= 8) {
+        game.EVENT += 1;
         game.PLAYER_SPAWN_LOCATION = "dom0";
         sockets.broadcast(
           "Pendekot: I have no other choice. If i must die protecting my work..."
@@ -7409,7 +5709,7 @@ class Entity {
       if (
         this.label === "Void Portal" &&
         this.team === -100 &&
-        game.bossStage === 4 &&
+        game.EVENT === 4 &&
         this.color !== 13
       ) {
         this.color = 13;
@@ -7576,11 +5876,11 @@ class Entity {
           census[-o.team]++;
         }
       });
-      if (game.bossStage === 0 && census[2] > 0) {
+      if (game.EVENT === 0 && census[2] > 0) {
         sockets.broadcast(
           "Anubis: Come bretheren, the time has come to be lost no more!"
         );
-        game.bossStage += 1;
+        game.EVENT += 1;
         game.CONSIDER_PLAYER_TEAM_LOCATION = false;
         game.PLAYER_SPAWN_LOCATION = "bos0";
         sockets.broadcast(
@@ -7606,8 +5906,8 @@ class Entity {
           o.team = -100;
         }
       }
-      if (game.bossStage === 1 && census[2] > 1) {
-        game.bossStage += 1;
+      if (game.EVENT === 1 && census[2] > 1) {
+        game.EVENT += 1;
         game.PLAYER_SPAWN_LOCATION = "bos1";
         sockets.broadcast("CX: The investigation crew isn't responding.");
         setTimeout(() => {
@@ -7658,10 +5958,10 @@ class Entity {
           }, 5000);
         }, 5000);
       }
-      if (game.bossStage === 2 && census[2] > 5) {
+      if (game.EVENT === 2 && census[2] > 5) {
         sockets.broadcast("Anubis: We shall finally have a world just for us!");
 
-        game.bossStage += 1;
+        game.EVENT += 1;
         game.PLAYER_SPAWN_LOCATION = "bos2";
         setTimeout(() => {
           sockets.broadcast(
@@ -7700,7 +6000,7 @@ class Entity {
           o.ignoreCollision = false;
         }
       }
-      if (game.bossStage === 3 && census[2] >= 8) {
+      if (game.EVENT === 3 && census[2] >= 8) {
         game.unlockClasses = true;
         entities.forEach((boss) => {
           if (boss.tier === 1) {
@@ -7714,7 +6014,7 @@ class Entity {
         });
         sockets.broadcast("Anubis: PATHETIC FOOLS, WE CANNOT BE DEFEATED!");
 
-        game.bossStage += 1;
+        game.EVENT += 1;
         game.PLAYER_SPAWN_LOCATION = "dom0";
         setTimeout(() => {
           sockets.broadcast("CX: I have no choice, goodbye Valrayvn.");
@@ -7755,7 +6055,7 @@ class Entity {
       if (
         this.label === "Void Portal" &&
         this.team === -100 &&
-        game.bossStage === 4 &&
+        game.EVENT === 4 &&
         this.color !== 13
       ) {
         this.color = 13;
@@ -7832,10 +6132,10 @@ class Entity {
       ) {
         this.kill();
       }
-      if (game.bossStage === 0) {
+      if (game.EVENT === 0) {
         if (!game.oneTimeMessage) {
           setTimeout(() => {
-            game.bossStage += 1;
+            game.EVENT += 1;
             sockets.broadcast("Sardonyx: (And so it begins...)");
           }, 5000);
         }
@@ -7853,8 +6153,8 @@ class Entity {
           census[-o.team]++;
         }
       });
-      if (census[4] >= 1 && game.bossStage === 1) {
-        game.bossStage += 1;
+      if (census[4] >= 1 && game.EVENT === 1) {
+        game.EVENT += 1;
         sockets.broadcast(
           "Highlord Dominique: Guys, the void creatures returned and they are wrecking our ship!"
         );
@@ -7867,8 +6167,8 @@ class Entity {
         makeRepairMen();
       }
 
-      if (census[4] >= 2 && game.bossStage === 2) {
-        game.bossStage += 1;
+      if (census[4] >= 2 && game.EVENT === 2) {
+        game.EVENT += 1;
         sockets.broadcast("Highlord Dominique: Akavir, help!");
         setTimeout(() => {
           sockets.broadcast(
@@ -7878,8 +6178,8 @@ class Entity {
         }, 5000);
         makeRepairMen();
       }
-      if (census[4] >= 3 && game.bossStage === 3) {
-        game.bossStage += 1;
+      if (census[4] >= 3 && game.EVENT === 3) {
+        game.EVENT += 1;
         game.BOTS += 2;
         sockets.broadcast(
           "Highlord Dominique: Great, I'm the last line of defense..."
@@ -7892,8 +6192,8 @@ class Entity {
         }, 5000);
         makeRepairMen();
       }
-      if (census[4] >= 4 && game.bossStage === 4) {
-        game.bossStage += 1;
+      if (census[4] >= 4 && game.EVENT === 4) {
+        game.EVENT += 1;
         sockets.broadcast(
           "Sardonyx: I HAVE RETURNED! Thanks to your foolishness of opposing me, we have become a powerful force!"
         );
@@ -10147,7 +8447,7 @@ this.collisionArray = [];
       }, 15000);
     }
     let limit = (room.width + room.height) / 2 / 10;
-    if (this.SIZE > limit && !game.extinction) {
+    if (this.SIZE > limit && !temp.extinction) {
       this.SIZE = limit;
     }
     if (game.ENCLOSED_ARENA && !this.ignoreCollision && !this.phase) {
@@ -10626,8 +8926,8 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (game.MODE === "theAwakening") {
         if (this.bossProgress) {
-          game.bossStage += 1;
-          switch (game.bossStage) {
+          game.EVENT += 1;
+          switch (game.EVENT) {
             case 4:
               sockets.broadcast(
                 "Valrayvn: Hurry up! You still have one more to kill!"
@@ -10638,7 +8938,7 @@ console.log('Lore mode sequence advanced.');*/
                 "Valrayvn: Finally, now let us see what lurks farther in."
               );
               makeRepairMen();
-              game.bossStage += 1;
+              game.EVENT += 1;
               break;
             case 11:
               let o = new Entity(room.type("bos9"));
@@ -10684,8 +8984,8 @@ console.log('Lore mode sequence advanced.');*/
                 sockets.broadcast(
                   "Valrayvn: Hmmm...why don't we try releasing one?"
                 );
-                game.bossStage += 1;
-                game.npcWanderLoc1 = ["hmmm"];
+                game.EVENT += 1;
+                game.NPC_WANDER_LOC_1 = ["hmmm"];
                 o.facingType = "smoothWithMotion";
                 o.controllers = [new io_guard1(o)];
                 setTimeout(() => {
@@ -10700,12 +9000,12 @@ console.log('Lore mode sequence advanced.');*/
         }
       }
       if (game.MODE === "theExpanse") {
-        if (this.bossProgress && game.bossStage <= 2) {
-          game.bossStage += 1;
+        if (this.bossProgress && game.EVENT <= 2) {
+          game.EVENT += 1;
           makeEventBosses();
           makeRepairMen();
-          //util.log("GRUH "+game.bossStage);
-        } else if (game.bossStage > 2 && this.bossProgress) {
+          //util.log("GRUH "+game.EVENT);
+        } else if (game.EVENT > 2 && this.bossProgress) {
           //Broadcasting for testing.
           setTimeout(() => {
             console.log("Current lore mode index:", currentState.loreModeIndex);
@@ -10728,8 +9028,8 @@ console.log('Lore mode sequence advanced.');*/
           closeArena();
         }
 
-        if (this.label === "Void Portal" && game.bossStage <= 3) {
-          let o = new Entity(room.type("bos" + game.bossStage));
+        if (this.label === "Void Portal" && game.EVENT <= 3) {
+          let o = new Entity(room.type("bos" + game.EVENT));
           o.bossProgress = true;
           o.team = -4;
           o.impervious = true;
@@ -10846,11 +9146,11 @@ console.log('Lore mode sequence advanced.');*/
         }
         if (
           this.label === "Void Portal" &&
-          game.bossStage <= 9 &&
+          game.EVENT <= 9 &&
           this.team === -3
         ) {
           //util.log("TRIGGERED");
-          let o = new Entity(room.type("bos" + game.bossStage));
+          let o = new Entity(room.type("bos" + game.EVENT));
           o.bossProgress = true;
           o.team = -3;
           o.impervious = true;
@@ -12241,20 +10541,12 @@ instance.runTrigger("kill", this);
           }
         });
         if (game.DOMINATION) {
-          //💀 tilted skull (fake)
           if (game.SIEGE) {
-            for (let i = 0; i < 9; i++) {
-              if (i && census[0] >= game.DOMINATOR_COUNT) {
-                if (game.MODE !== "siege") {
-                  sockets.broadcast(
-                    util.getTeam(this.team) + " have lost the game!"
-                  );
-
-                  game.DOMINATOR_COUNT = 999999;
-                  closeArena();
-                }
-              }
-            }
+           let doms = entities.filter(e =>
+    e.isDominator &&
+    e.team === -100
+  ).length;
+           if (doms >= game.DOMINATOR_COUNT) closeArena();
           } else {
             for (let i = 0; i < 9; i++) {
               if (i && census[i] === game.DOMINATOR_COUNT) {
@@ -13153,7 +11445,7 @@ class View {
         // Let the client know it died
         if (
           //!room.closed ||
-          (game.MODE === "siege" && !game.initiateCountdown) ||
+          (game.MODE === "siege" && !temp.initiateCountdown) ||
           !player.body.bannable
         ) {
           if (player.body.trueDev) {
@@ -17294,14 +15586,14 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (instance.off && other.isPlayer) {
             instance.off = false;
             instance.color = 8;
-            game.bossStage += 1;
-            if (game.bossStage > 9) game.bossStage = 9;
+            game.EVENT += 1;
+            if (game.EVENT > 9) game.EVENT = 9;
           }
           if (other.off && instance.isPlayer) {
             other.off = false;
             other.color = 8;
-            game.bossStage += 1;
-            if (game.bossStage > 9) game.bossStage = 9;
+            game.EVENT += 1;
+            if (game.EVENT > 9) game.EVENT = 9;
           }
         }
       }
@@ -19495,7 +17787,7 @@ var maintainloop = (() => {
       if (game.REDUCE_BOTS_PER_PLAYER) ruh = game.PLAYERS;
       else ruh = 0;
       // Bots
-      if (bots.length < game.BOTS - ruh && game.bots === true) {
+      if (bots.length < game.BOTS - ruh && game.BOTS_ENABLED === true) {
         game.botCount = bots.length;
         let position;
         let team;
@@ -22237,7 +20529,7 @@ function cleanup() {
     "Server Shutting Down! Possible Error May have occurred, please rejoin in 30 seconds!"
   );
   room.closed = true;
-  game.extinction = true;
+  temp.extinction = true;
   game.DEADLY_BORDERS = true;
   server.close(() => {
     console.log("Server closed.");
