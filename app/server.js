@@ -865,6 +865,7 @@ function siegeCountdown() {
   }, 1000);
 }
 function siegeWave() {
+ console.log("Test 1!");
     // Array to track bosses that have already spawned
 let uniqueBossList = [];
   // Define bosses that are unique
@@ -875,7 +876,9 @@ let uniqueBossList = [];
     "excaliber","powernoob","johnathon","pop64","legionaryCrasher"
   ];
  if (game.PLAYERS > 0) {
+ console.log("Test 2!");
  if (!temp.waveStarted) {
+ console.log("Test 3!");
  let teamScore = entities
   .filter(e =>
     e.team === -1 &&
@@ -894,6 +897,7 @@ for (let i = 0; i < repeat; i++) {
   enemyList.push(category);
 }
   while (counter > 0) {
+ console.log("Test 4!");
   let loc = room.randomType("spw0"),
   enemy = ran.choose(enemyList),
   o = new Entity(loc);
@@ -996,6 +1000,7 @@ o.define(Class.thrasher);
   if (temp.bossAmount < 1) {
    temp.waveStarted = false;
    sockets.broadcast("The next wave starts in 10 seconds!");
+ console.log("Test 5!");
  }
   }
 }
