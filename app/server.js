@@ -929,6 +929,10 @@ function spawnEnemy(enemy) {
     o.rarity = Math.random() * 100000;
     o.define(Class[enemy]);
 
+  // Fallback for unknown entities
+  if (o.LABEL === "Unknown Entity") {
+    o.define(Class.thrasher);
+  }
     handleUniqueBoss(o, enemy);
     handleRareVariants(o);
 }
@@ -1002,7 +1006,7 @@ function handleRareVariants(o) {
 }
 function finishWaveStart() {
     game.WAVE++;
-    let extra = epic ? " This is a dangerous wave!" : "";
+    let extra = temp.epic ? " This is a dangerous wave!" : "";
     sockets.broadcast("Wave " + game.WAVE + " has started!" + extra);
 }
 if (game.MODE === "siege") {
