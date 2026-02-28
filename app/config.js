@@ -260,7 +260,7 @@ module.exports =
   "BOT_SPAWN_LOCATION": "norm",
   "BOT_TEAMS": [1,2,3,4],
   "REDUCE_BOTS_PER_PLAYER": 1,
-  "ACTIVATION_MODE": "normal"
+  "ACTIVATION_MODE": "normal",
 
   /* ================= GAME MODE SETTINGS ================= */
   
