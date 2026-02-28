@@ -957,6 +957,49 @@ function handleUniqueBoss(o, enemy) {
             break;
     }
 }
+function handleRareVariants(o) {
+  // Rare variations for normal enemies
+  if (o.rarity <= 20) {
+    switch (o.label) {
+      case "Defender":
+      case "Enchantress":
+        o.define(Class.epilepticdefender);
+        break;
+      case "Summoner":
+        o.define(Class.splitsummoner);
+        break;
+      case "Sorcerer":
+        o.define(Class.raresorcerer);
+        break;
+      case "Elite Gunner":
+        o.define(Class.elite_Shadowgunner);
+        break;
+      case "Nest Keeper":
+      case "Nest Warden":
+        o.define(Class.legnestkeep);
+        break;
+    }
+  }
+
+  // Rare/crasher-specific transformations
+  if (o.type === "crasher") {
+    if (o.rarity <= 1000 && o.rarity > 500) {
+      o.define(Class.shinyEggCrasher);
+    } else if (o.rarity <= 500 && o.rarity > 250) {
+      o.define(Class[ran.choose(["shinySquareCrasher", "shinyTriangleSentry"])]);
+    } else if (o.rarity <= 50 && o.rarity > 20) {
+      o.define(Class.rainbowTriangleCrasher);
+    } else if (o.rarity <= 20) {
+      o.define(Class.abyssalTetraCrasher);
+      sockets.broadcast("Vile Darkness Cloaks the arena, something terrifying has been summoned!");
+    }
+  }
+
+  // Fallback for unknown entities
+  if (o.LABEL === "Unknown Entity") {
+    o.define(Class.thrasher);
+  }
+}
 function finishWaveStart() {
     game.WAVE++;
     let extra = epic ? " This is a dangerous wave!" : "";
