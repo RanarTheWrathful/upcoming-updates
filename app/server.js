@@ -58,6 +58,39 @@ function pickTheBiggest(countMap) {
 }
 
 //util.log(Date());
+//serverState.resetLoreIndex();
+//serverState.advanceLoreSequence();
+
+let config = require("./config.js"),
+  gameMode = require("./Game Modes/" + chosenMode),
+  game = { ...config, ...gameMode },
+rareMode = Math.random() * 250;
+global.fps = 50;
+var roomSpeed = game.SPEED;
+if (rareMode < 1 && game.SPAWN_FOOD) {
+  game.SHINY_GLORY = true;
+}
+util.log(chosenMode);
+const currentDate = new Date(),
+currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
+if (currentMonth === 9) {
+  // October
+  if (game.TYPE === "normal" && chosenMode !== "Siege") {
+    game.SPAWN_REAPER = true;
+  }
+} else if (currentMonth === 11) {
+  // December
+  console.log("It's December! Do something special.");
+}
+
+// Set up room
+if (currentState.bossWaves <= 50) {
+  game.WAVE = currentState.bossWaves * 1;
+  // util.log(game.WAVE);
+} else {
+  game.WAVE = 0;
+}
+///Config file, nicholas
 if (game.TYPE === "testing") chosenMode = "Siege";
 //change this to play a specific mode
 else if (game.TYPE === "normal") {
@@ -117,40 +150,6 @@ else if (game.TYPE === "normal") {
     serverState.resetLoreIndex();
   }
 }
-//serverState.resetLoreIndex();
-//serverState.advanceLoreSequence();
-
-let config = require("./config.js"),
-  gameMode = require("./Game Modes/" + chosenMode),
-  c = { ...config, ...gameMode },
-rareMode = Math.random() * 250;
-global.fps = 50;
-var roomSpeed = game.SPEED;
-if (rareMode < 1 && game.SPAWN_FOOD) {
-  game.SHINY_GLORY = true;
-}
-util.log(chosenMode);
-const currentDate = new Date(),
-currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
-if (currentMonth === 9) {
-  // October
-  if (game.TYPE === "normal" && chosenMode !== "Siege") {
-    game.SPAWN_REAPER = true;
-  }
-} else if (currentMonth === 11) {
-  // December
-  console.log("It's December! Do something special.");
-}
-
-// Set up room
-if (currentState.bossWaves <= 50) {
-  game.WAVE = currentState.bossWaves * 1;
-  // util.log(game.WAVE);
-} else {
-  game.WAVE = 0;
-}
-///Config file, nicholas
-
 //important settings
 function removeMuted(socketIP) {
   console.log("Removing from muteList:", socketIP);
