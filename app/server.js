@@ -985,9 +985,9 @@ o.define(Class.thrasher);
   }
    
   spawnCount++;
+console.log("Spawned:", spawnCount);
   }
   
-console.log("Spawned:", spawnCount);
  } else {
   temp.bossAmount = entities.filter(e =>
     !e.isProjectile && !e.isDominator &&
