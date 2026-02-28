@@ -90103,7 +90103,7 @@ exports.dominator = {
     targetMode: "general", 
     react: false, 
     spinFire: false, 
-    idleSpinSpeed: 0.25, 
+    idleSpinSpeed: 0.05, 
     //viewRange: 100
     },
   FIXED_POSITION: true,
@@ -90338,6 +90338,9 @@ exports.dominator_single = {
 exports.dominator_trap = {
   PARENT: [exports.dominator],
   FACING_TYPE: "autospin",
+  AI: {
+    turnWhileIdle: false, 
+    },
   GUNS: [],
 };
 
