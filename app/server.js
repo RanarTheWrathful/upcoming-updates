@@ -865,7 +865,6 @@ function siegeCountdown() {
   }, 1000);
 }
 function siegeWave() {
- console.log("Test 1!");
     // Array to track bosses that have already spawned
 let uniqueBossList = [];
   // Define bosses that are unique
@@ -876,9 +875,7 @@ let uniqueBossList = [];
     "excaliber","powernoob","johnathon","pop64","legionaryCrasher"
   ];
  if (game.PLAYERS > 0) {
- console.log("Test 2!");
  if (!temp.waveStarted) {
- console.log("Test 3!");
  let teamScore = entities
   .filter(e =>
     e.team === -1 &&
@@ -897,44 +894,15 @@ for (let i = 0; i < repeat; i++) {
   enemyList.push(category);
 }
   while (counter > 0) {
- console.log("Test 4!");
   let loc = room.randomType("spw0"),
   enemy = ran.choose(enemyList),
   o = new Entity(loc);
    o.invuln = true;
    o.rarity = Math.random() * 100000
    if (game.WAVE % 10 === 0 && game.WAVE !== 0 && !epic) {
-  } else {
-    // Handle rare variations for normal bosses/enemies
-    if (o.rarity <= 20) {
-      switch (o.label) {
-        case "Defender":
-        case "Enchantress": o.define(Class.epilepticdefender); break;
-        case "Summoner": o.define(Class.splitsummoner); break;
-        case "Sorcerer": o.define(Class.raresorcerer); break;
-        case "Elite Gunner": o.define(Class.elite_Shadowgunner); break;
-        case "Nest Keeper":
-        case "Nest Warden": o.define(Class.legnestkeep); break;
-      }
-    }
-
-    if (o.type === "crasher") {
-      if (o.rarity <= 1000 && o.rarity > 500) o.define(Class.shinyEggCrasher);
-      else if (o.rarity <= 500 && o.rarity > 250)
-        o.define(Class[ran.choose(["shinySquareCrasher","shinyTriangleSentry"])]);
-      else if (o.rarity <= 50 && o.rarity > 20) o.define(Class.rainbowTriangleCrasher);
-      else if (o.rarity <= 20) {
-        o.define(Class.abyssalTetraCrasher);
-        sockets.broadcast("Vile Darkness Cloaks the arena, something terrifying has been summoned!");
-      }
-    }
-  }
-
-  // Safety fallback
-  if (o.LABEL === "Unknown Entity") o.define(Class.thrasher);
   if (game.WAVE < 50) counter = 0;
     epic = true;
-   if (game.WAVE < 50 && game.WAVE % 10 !== 0) {
+  } // Safety fallback
   o.define(Class[enemy]);
 if (o.skill.score > counter||uniqueBossList.includes(o.name)) {
 o.skill.score = 0;
@@ -978,7 +946,30 @@ o.define(Class.thrasher);
 
     // add more unique boss dialogues as needed
   }
-   }
+    // Handle rare variations for normal bosses/enemies
+    if (o.rarity <= 20) {
+      switch (o.label) {
+        case "Defender":
+        case "Enchantress": o.define(Class.epilepticdefender); break;
+        case "Summoner": o.define(Class.splitsummoner); break;
+        case "Sorcerer": o.define(Class.raresorcerer); break;
+        case "Elite Gunner": o.define(Class.elite_Shadowgunner); break;
+        case "Nest Keeper":
+        case "Nest Warden": o.define(Class.legnestkeep); break;
+      }
+    }
+
+    if (o.type === "crasher") {
+      if (o.rarity <= 1000 && o.rarity > 500) o.define(Class.shinyEggCrasher);
+      else if (o.rarity <= 500 && o.rarity > 250)
+        o.define(Class[ran.choose(["shinySquareCrasher","shinyTriangleSentry"])]);
+      else if (o.rarity <= 50 && o.rarity > 20) o.define(Class.rainbowTriangleCrasher);
+      else if (o.rarity <= 20) {
+        o.define(Class.abyssalTetraCrasher);
+        sockets.broadcast("Vile Darkness Cloaks the arena, something terrifying has been summoned!");
+      }
+    }
+  
     if (o.LABEL === "Unknown Entity") o.define(Class.thrasher);
   if (counter <= 0) {
    game.WAVE += 1;
