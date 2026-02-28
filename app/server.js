@@ -4917,7 +4917,7 @@ class Entity {
           this.master.impervious ||
           this.godMode) return;
         this.invuln = false;
-        this.damageRecieved = this.health.max / 10;
+       // this.damageRecieved = this.health.max / 10;
         if (this.isSoccerBall) {
           this.kill();
         }
@@ -4933,7 +4933,7 @@ class Entity {
           this.health.amount < this.health.max ||
           this.shield.amount < this.shield.max
         ) {
-          this.damageRecieved += -this.health.max / 100;
+         // this.damageRecieved += -this.health.max / 100;
         }
       }
     }
