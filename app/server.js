@@ -885,7 +885,7 @@ let uniqueBossList = [];
  counter = game.WAVES * (teamScore/10) + 100000,
  enemyList = [],
 repeat = Math.round(Math.random() * 15),
-  epic,
+  epic = false,
  categories = Object.keys(game.ENEMIES);
 
 for (let i = 0; i < repeat; i++) {
