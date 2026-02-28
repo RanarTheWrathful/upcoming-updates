@@ -864,146 +864,108 @@ function siegeCountdown() {
     }
   }, 1000);
 }
-function siegeWave() {
-    // Array to track bosses that have already spawned
-let uniqueBossList = [];
-  // Define bosses that are unique
-  const uniqueBosses = [
-    "ranarAscendantForm","ranarDiscipleForm","kronos","anicetus","ares","ezekiel","selene","gersemi","eris",
-    "paladin","stark","bret","klayton","kristaps","duodeci","annoyingDog",
-    "icecream","xxtrianguli","alex","possessor","oxiniVrochi","chaser",
-    "excaliber","powernoob","johnathon","pop64","legionaryCrasher"
-  ];
- if (game.PLAYERS > 0) {
- if (!temp.waveStarted) {
- let teamScore = entities
-  .filter(e =>
-    e.team === -1 &&
-    !e.isDead() &&
-    !e.isProjectile
-  ).reduce((total, e) => total + (e.skill?.score || 0), 0),
- counter = game.WAVE * (teamScore/10) + 100000,
- enemyList = [],
-repeat = Math.round(Math.random() * 15) + 1,
-  epic = false,
-  spawnCount = 0,
- categories = Object.keys(game.ENEMIES);
+function startSiegeWave() {
+    if (temp.waveStarted || game.PLAYERS <= 0) return;
 
-for (let i = 0; i < repeat; i++) {
-  // Pick random category
-  let category = ran.choose(categories);
-  enemyList.push(category);
+    let teamScore = entities
+        .filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
+        .reduce((total, e) => total + (e.skill?.score || 0), 0);
+
+    temp.spawnBudget = game.WAVE * (teamScore / 10) + 100000;
+
+    temp.spawnQueue = [];
+    temp.uniqueBossSet = new Set(); // survives entire wave
+    temp.epic = (game.WAVE % 10 === 0 && game.WAVE !== 0);
+
+    buildSpawnQueue();
+
+    temp.waveStarted = true;
+
+    console.log("Wave", game.WAVE, "Budget:", temp.spawnBudget);
 }
-  console.log("Budget:", counter);
-  while (counter > 0) {
-  let loc = room.randomType("spw0"),
-  enemy = ran.choose(enemyList),
-  o = new Entity(loc);
-   o.invuln = true;
-   o.rarity = Math.random() * 100000;
-   if (game.WAVE % 10 === 0 && game.WAVE !== 0 && !epic) {
-  if (game.WAVE < 50) counter = 0;
-    epic = true;
-  } // Safety fallback
-  o.define(Class[enemy]);
-if (o.skill.score > counter||uniqueBossList.includes(o.name)) {
-o.skill.score = 0;
-o.define(Class.thrasher);
+function buildSpawnQueue() {
+    const categories = Object.keys(game.ENEMIES);
+    const repeat = Math.floor(Math.random() * 15) + 1;
+
+    let enemyList = [];
+    for (let i = 0; i < repeat; i++) {
+        enemyList.push(ran.choose(categories));
+    }
+
+    while (temp.spawnBudget > 0) {
+        let enemy = ran.choose(enemyList);
+
+        // Temporary dummy to read cost only
+        let cost = Class[enemy]?.skill?.score || 100;
+
+        if (cost > temp.spawnBudget) break;
+
+        temp.spawnQueue.push(enemy);
+        temp.spawnBudget -= cost;
+    }
 }
-  counter -= o.skill.score;
-  if (uniqueBosses.includes(enemy)) uniqueBossList.push(o.name);
+function processSpawnQueue() {
+    if (!temp.spawnQueue || temp.spawnQueue.length === 0) return;
+
+    const BATCH_SIZE = 10; // tune this as needed
+
+    for (let i = 0; i < BATCH_SIZE; i++) {
+        if (!temp.spawnQueue.length) break;
+        if (entities.length > 2000) return; // HARD SAFETY CAP
+
+        let enemy = temp.spawnQueue.shift();
+        spawnEnemy(enemy);
+    }
+
+    if (temp.spawnQueue.length === 0) {
+        finishWaveStart();
+    }
+}
+function spawnEnemy(enemy) {
+    let loc = room.randomType("spw0");
+    let o = new Entity(loc);
+
+    o.invuln = true;
+    o.rarity = Math.random() * 100000;
+    o.define(Class[enemy]);
+
+    handleUniqueBoss(o, enemy);
+    handleRareVariants(o);
+}
+function handleUniqueBoss(o, enemy) {
+    const uniqueBosses = new Set([
+        "ranarAscendantForm","ranarDiscipleForm","kronos","anicetus",
+        "ares","ezekiel","selene","gersemi","eris","paladin"
+        // etc...
+    ]);
+
+    if (!uniqueBosses.has(enemy)) return;
+
+    if (temp.uniqueBossSet.has(enemy)) {
+        o.define(Class.thrasher);
+        return;
+    }
+
+    temp.uniqueBossSet.add(enemy);
+
     switch (enemy) {
-    case "ranarDiscipleForm":
-      const lines = [
-        "Ranar: I have arrived, GET READY TO FEEL MY WRATH, SCUM!",
-        "Ranar: I am back, now I can actually try!",
-        "Ranar: THATS IT, LET THE MERCILESS ONSLOUGHT BEGIN!",
-        "Ranar: God d@mn it!",
-        "Ranar: I hate you!",
-        "Ranar: WHY DOES THIS SERVER KEEP SPAWNING ME!?",
-        "Ranar: WHAT HAVE I DONE TO DESERVE THIS?!",
-        "Ranar: **** off you ****ing little ****. AND AS FOR THIS SERVER, IT CAN GO **** ITSELF AND EAT ****. DIE YOU ****ING ****HEADS!",
-        "Ranar: I give up, kill me already if you can."
-      ];
-      let idx = temp.ranarDialog || 0;
-      sockets.broadcast(lines[idx] || "Ranar: >:(");
-      temp.ranarDialog = (idx + 1) % lines.length;
-      break;
-
-    case "kronos":
-      sockets.broadcast("Time itself starts to warp as an ancient God appears...");
-      break;
-
-    case "anicetus":
-      sockets.broadcast("Anicetus: Those who oppose the great Valrayvn shall be returned dust!");
-      break;
-
-    case "disconnecter":
-      sockets.broadcast("...a feared being from the domain of diep has come...");
-      break;
-
-    case "legionaryCrasher":
-      sockets.broadcast("The crashers were only the disciples of what you have awakened...what have you done?");
-      break;
-
-    // add more unique boss dialogues as needed
-  }
-    // Handle rare variations for normal bosses/enemies
-    if (o.rarity <= 20) {
-      switch (o.label) {
-        case "Defender":
-        case "Enchantress": o.define(Class.epilepticdefender); break;
-        case "Summoner": o.define(Class.splitsummoner); break;
-        case "Sorcerer": o.define(Class.raresorcerer); break;
-        case "Elite Gunner": o.define(Class.elite_Shadowgunner); break;
-        case "Nest Keeper":
-        case "Nest Warden": o.define(Class.legnestkeep); break;
-      }
+        case "kronos":
+            sockets.broadcast("Time itself starts to warp as an ancient God appears...");
+            break;
+        case "anicetus":
+            sockets.broadcast("Anicetus: Those who oppose the great Valrayvn shall be returned dust!");
+            break;
     }
-
-    if (o.type === "crasher") {
-      if (o.rarity <= 1000 && o.rarity > 500) o.define(Class.shinyEggCrasher);
-      else if (o.rarity <= 500 && o.rarity > 250)
-        o.define(Class[ran.choose(["shinySquareCrasher","shinyTriangleSentry"])]);
-      else if (o.rarity <= 50 && o.rarity > 20) o.define(Class.rainbowTriangleCrasher);
-      else if (o.rarity <= 20) {
-        o.define(Class.abyssalTetraCrasher);
-        sockets.broadcast("Vile Darkness Cloaks the arena, something terrifying has been summoned!");
-      }
-    }
-  
-    if (o.LABEL === "Unknown Entity") o.define(Class.thrasher);
-  if (counter <= 0) {
-   game.WAVE += 1;
-   let extra = "";
-   if (epic) extra = " This is a dangerous wave!";
-   sockets.broadcast("Wave " + game.WAVE + " has started!" + extra);
-   /*entities.forEach((e) => {
-    if (e.team === -100) e.invuln = false;
-   });*/
-   temp.waveStarted = true;
-  }
-   
-  spawnCount++;
-console.log("Spawned:", spawnCount);
-  }
-  
- } else {
-  temp.bossAmount = entities.filter(e =>
-    !e.isProjectile && !e.isDominator &&
-    e.team === -100 &&
-    !e.isDead()
-  ).length;
-  if (temp.bossAmount < 1) {
-   temp.waveStarted = false;
-   sockets.broadcast("The next wave starts in 10 seconds!");
- console.log("Test 5!");
- }
-  }
 }
- 
+function finishWaveStart() {
+    game.WAVE++;
+    let extra = epic ? " This is a dangerous wave!" : "";
+    sockets.broadcast("Wave " + game.WAVE + " has started!" + extra);
 }
-if (game.MODE === "siege") setInterval(() => siegeWave(), 10000);
+if (game.MODE === "siege") {
+    setInterval(startSiegeWave, 10000);
+    setInterval(processSpawnQueue, 100);
+}
 
 
 function createMaze() {
