@@ -885,7 +885,7 @@ let uniqueBossList = [];
     !e.isDead() &&
     !e.isProjectile
   ).reduce((total, e) => total + (e.skill?.score || 0), 0),
- counter = game.wave * (teamScore/10) + 100000,
+ counter = game.WAVE * (teamScore/10) + 100000,
  enemyList = [],
 repeat = Math.round(Math.random() * 15),
   epic = false,
@@ -9706,7 +9706,7 @@ game.SOCKETS = game.SOCKETS.filter(ip => ip !== socket.ip);
             if (game.MODE === "plague" || game.necro) {
               body.infector = true;
             }
-            body.skill.points += game.bonus;
+            body.skill.points += game.BONUS_SKILL_POINTS;
             // Define the name
             // Dev hax
             body.addController(new io_listenToPlayer(body, player)); // Make it listen
