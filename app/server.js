@@ -18,7 +18,7 @@ serverState = require("./serverStateManager"),
  lockFilePath = "./serv.lock",
 decodeHTML = require("html-entities").decode,
   serverType = "testing",
- list,//testing, lore, or normal
+ list = [], //testing, lore, or normal
 // Create lock file
 currentState = serverState.getServerState();
 fs.writeFileSync(lockFilePath, process.pid.toString());
