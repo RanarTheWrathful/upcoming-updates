@@ -17807,25 +17807,11 @@ var maintainloop = (() => {
     makeBaseProtectors();
     if (game.MODE === "theDenied" || game.MODE === "theInfestation") makeShrine();
     //makeRepairMen();
-    makeEventBosses();
-    makeBall();
     if (game.SPAWN_REAPER) makeReaper();
     makeAntiTanks();
-    makeNiceAntiTanks();
     makeDominators();
-    makePortals();
-    makepentarifts();
-    makecubedrifts();
-    makeDummies();
-    makeTeamedWalls();
     if (chosenMode !== "The Denied") makeFortGates();
-    makepentFortWalls();
     makeFortWalls();
-    makeTrapFortWalls();
-    makeCrusherFortWalls();
-    makeAutoFortWalls();
-    makepentagonAutoFortWalls();
-    makepentagontrapperFortWalls();
     // Return the spawning function
     let bots = [];
     return () => {
