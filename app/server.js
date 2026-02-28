@@ -6360,7 +6360,7 @@ this.collisionArray = [];
     if (game.DEADLY_BORDERS && !this.impervious) {
       let loc = { x: this.x, y: this.y };
 
-      if (
+    /*  if (
         (this.team !== -101 && room.isIn("edge", loc)) ||
         (this.team !== -101 && !room.isInRoom(this))
       ) {
@@ -6368,7 +6368,7 @@ this.collisionArray = [];
           this.damageRecieved = this.health.max / 10;
           this.invuln = false;
         }
-      }
+      }*/
     }
 
     if (this.specialEffect === "denied" && game.WAVE > 0) {
