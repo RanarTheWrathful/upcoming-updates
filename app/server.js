@@ -17,11 +17,11 @@ fs = require("fs"), // Example of using serverStateManager module
 serverState = require("./serverStateManager"),
  lockFilePath = "./serv.lock",
 decodeHTML = require("html-entities").decode,
-  serverType = "testing",
- list = [], //testing, lore, or normal
- chosenMode = "",
-// Create lock file
 currentState = serverState.getServerState();
+  let serverType = "testing",
+ list = [], //testing, lore, or normal
+ chosenMode = "";
+// Create lock file
 fs.writeFileSync(lockFilePath, process.pid.toString());
 
 function countInstances(arr) {
