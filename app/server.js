@@ -4690,6 +4690,7 @@ class Entity {
       if (this.fov > (room.width + room.height) * 1.5) {
         this.fov = (room.width + room.height) * 1.5;
       }
+    }
     if (this.type === "food" && !this.stopAccel) {
       this.ACCELERATION = 0.015;
      this.stopAccel = true;
@@ -5046,7 +5047,7 @@ class Entity {
         }
       }
     }
-  }
+  
 
   contemplationOfMortality() {
     if (this.bond) {
