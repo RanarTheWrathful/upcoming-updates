@@ -925,7 +925,7 @@ o.define(Class.thrasher);
  }
  }
 }
-setInterval(siegeWave, 10000);
+if (game.MODE === "siege") setInterval(siegeWave(), 10000);
 
 
 function createMaze() {
