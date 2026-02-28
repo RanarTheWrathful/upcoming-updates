@@ -10542,7 +10542,6 @@ instance.runTrigger("kill", this);
           this.isTaken = false;
           this.died = true;
           this.controllers = [];
-          this.addController(new io_Dominator(this));
         }*/
         if (!isNaN(this.x) || !isNaN(this.y)) {
           var loc = { x: this.x, y: this.y };
@@ -11867,7 +11866,6 @@ const sockets = (() => {
               player.body.isTaken = false;
               player.body.died = true;
               player.body.controllers = [];
-              player.body.addController(new io_Dominator(player.body));
             }
           }
           let updated = players.length - 1;
@@ -12729,7 +12727,6 @@ game.sockets = game.sockets.filter(ip => ip !== socket.ip);
                   o.isTaken = false;
            
                   o.controllers = [];
-                  o.addController(new io_Dominator(player.body));
                   return;
                 } 
                else if (!player.body.isDominator) {
