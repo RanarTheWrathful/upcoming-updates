@@ -3075,9 +3075,6 @@ class Entity {
       if (set.HEAL_EFFECT != null) {
         this.healEffect = set.HEAL_EFFECT;
       }
-      if (set.REACT != null) {
-        this.react = set.REACT;
-      }
       if (set.REPAIR_EFFECT != null) {
         this.repairEffect = set.REPAIR_EFFECT;
       }
