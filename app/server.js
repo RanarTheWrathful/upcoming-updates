@@ -4812,7 +4812,7 @@ class Entity {
     if (game.DEADLY_BORDERS && !this.impervious) {
       let loc = { x: this.x, y: this.y };
 
-    /*  if (
+      if (
         (this.team !== -101 && room.isIn("edge", loc)) ||
         (this.team !== -101 && !room.isInRoom(this))
       ) {
@@ -4820,7 +4820,7 @@ class Entity {
           this.damageRecieved = this.health.max / 10;
           this.invuln = false;
         }
-      }*/
+      }
     }
     if (room.width < 100) room.width = 100;
     if (room.height < 100) room.height = 100;
@@ -4933,7 +4933,7 @@ class Entity {
           this.health.amount < this.health.max ||
           this.shield.amount < this.shield.max
         ) {
-         // this.damageRecieved += -this.health.max / 100;
+          this.damageRecieved += -this.health.max / 100;
         }
       }
     }
