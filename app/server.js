@@ -885,7 +885,7 @@ let uniqueBossList = [];
     !e.isDead() &&
     !e.isProjectile
   ).reduce((total, e) => total + (e.skill?.score || 0), 0),
- counter = game.WAVES * (teamScore/10) + 100000,
+ counter = game.wave * (teamScore/10) + 100000,
  enemyList = [],
 repeat = Math.round(Math.random() * 15),
   epic = false,
@@ -903,7 +903,7 @@ for (let i = 0; i < repeat; i++) {
   o = new Entity(loc);
    o.invuln = true;
    o.rarity = Math.random() * 100000
-   if (game.WAVES % 10 === 0 && !epic) {
+   if (game.wave % 10 === 0 && !epic) {
   } else {
     // Handle rare variations for normal bosses/enemies
     if (o.rarity <= 20) {
@@ -932,9 +932,9 @@ for (let i = 0; i < repeat; i++) {
 
   // Safety fallback
   if (o.LABEL === "Unknown Entity") o.define(Class.thrasher);
-  if (game.WAVES < 50) counter = 0;
+  if (game.wave < 50) counter = 0;
     epic = true;
-   if (game.WAVES < 50 && game.WAVES % 10 !== 0) {
+   if (game.wave < 50 && game.wave % 10 !== 0) {
   o.define(Class[enemy]);
 if (o.skill.score > counter||uniqueBossList.includes(o.name)) {
 o.skill.score = 0;
@@ -981,10 +981,10 @@ o.define(Class.thrasher);
    }
     if (o.LABEL === "Unknown Entity") o.define(Class.thrasher);
   if (counter <= 0) {
-   game.WAVES += 1;
+   game.wave += 1;
    let extra = "";
    if (epic) extra = " This is a dangerous wave!";
-   sockets.broadcast("Wave " + game.WAVES + " has started!" + extra);
+   sockets.broadcast("Wave " + game.wave + " has started!" + extra);
    /*entities.forEach((e) => {
     if (e.team === -100) e.invuln = false;
    });*/
