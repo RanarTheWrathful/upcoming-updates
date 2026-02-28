@@ -179,7 +179,7 @@ setInterval(() => {
 }, 60000);
 const room = {
   lastCycle: undefined,
-  cycleSpeed: 1000 / roomSpeed / 30,
+  cycleSpeed: 1000 / roomSpeed,
   width: game.WIDTH,
   height: game.HEIGHT,
   setup: game.ROOM_SETUP,
@@ -5047,8 +5047,8 @@ class Entity {
         }
       }
     }
-  
-
+    }
+  }
   contemplationOfMortality() {
     if (this.bond) {
       return 0;
@@ -10785,7 +10785,7 @@ player.color = easy;
             if (time - socket.statuslastHeartbeat > game.MAX_HEARTBEAT_INTERVAL)
               socket.kick("Lost heartbeat.");
           }
-        }, 100);
+        }, 1000);
 
         return {
           subscribe(socket) {
@@ -10839,7 +10839,7 @@ player.color = easy;
         // Set up loops
         socket.loops = (() => {
           let nextUpdateCall = null; // has to be started manually
-          let trafficMonitoring = setInterval(() => traffic(socket), 1500);
+          let trafficMonitoring = setInterval(() => traffic(socket), 2500);
           broadcast.subscribe(socket);
           // Return the loop methods
           return {
@@ -14204,7 +14204,7 @@ var maintainloop = (() => {
 
   if (game.MODE !== "siege") {
     setInterval(() => {
-      game.time += 1000;
+      game.TIMR += 1000;
     }, 1000);
     setTimeout(() => {
       closeArena();
@@ -17033,5 +17033,5 @@ let websockets = (() => {
 
 // Bring it to life
 setInterval(gameloop, room.cycleSpeed);
-setInterval(maintainloop, 200);
+setInterval(maintainloop, 250);
 setInterval(speedcheckloop, 1000);
