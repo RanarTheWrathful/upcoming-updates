@@ -4677,7 +4677,7 @@ class Entity {
         this.y = tp.y;
       }
     }
-
+    }
     if (
       this.master.label === "Defender" &&
       !this.targetable &&
@@ -5046,6 +5046,7 @@ class Entity {
           this.damage = this.DAMAGE;
         }
       }
+    }
     }
     
   contemplationOfMortality() {
