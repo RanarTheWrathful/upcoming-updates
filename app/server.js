@@ -928,7 +928,6 @@ for (let i = 0; i < repeat; i++) {
 
   // Safety fallback
   if (o.LABEL === "Unknown Entity") o.define(Class.thrasher);
-}
   if (game.WAVES < 50) counter = 0;
     epic = true;
    if (game.WAVES < 50 && game.WAVES % 10 !== 0) {
@@ -986,6 +985,7 @@ o.define(Class.thrasher);
     if (e.team === -100) e.invuln = false;
    });*/
    temp.waveStarted = true;
+  }
   }
  } else {
   temp.bossAmount = entities.filter(e =>
