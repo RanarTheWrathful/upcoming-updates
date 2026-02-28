@@ -65,6 +65,16 @@ module.exports =
   /* ================= ENEMIES ================= */
 
   "ENEMIES": {
+    "shapes": [
+      "egg",
+      "square"
+      "triangle",
+      "pentagon",
+      "hexagon",
+      "septagon",
+      "octagon",
+      "nonagon",
+      ],
     "crashers": [
       "eggCrasher",
       "squareCrasher",
@@ -72,11 +82,7 @@ module.exports =
       "pentagonCrasher",
       "hexagonCrasher"
     ],
-    "shinyCrashers": [
-      "swarmerProtector",
-      "cruiserProtector",
-      "beekeeperProtector"
-    ],
+    "shinyCrashers": [],
     "sentries": [
       "triangleSentry",
       "trianglePounderSentry",
