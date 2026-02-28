@@ -65,6 +65,7 @@ module.exports =
   "MIN_SPEED": 0.001,
   "GLASS_HEALTH_FACTOR": 3.6,
   "RESPAWN_TIMER": 5,
+  "BONUS_SKILL_POINTS": 0,
   "STARTING_CLASS": "basic",
 
   /* ================= SCORE TRACKING ================= */
