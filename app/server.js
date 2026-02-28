@@ -143,13 +143,11 @@ if (currentMonth === 9) {
 }
 
 // Set up room
-function siegeWaves() {
-}
 if (currentState.bossWaves <= 50) {
   game.WAVE = currentState.bossWaves * 1;
   // util.log(game.WAVE);
 } else {
-  game.WAVE = 1;
+  game.WAVE = 0;
 }
 ///Config file, nicholas
 
@@ -866,6 +864,15 @@ function siegeCountdown() {
   }, 1000);
 }
 function siegeWave() {
+    // Array to track bosses that have already spawned
+let uniqueBossList = [];
+  // Define bosses that are unique
+  const uniqueBosses = [
+    "ranarAscendantForm","ranarDiscipleForm","kronos","anicetus","ares","ezekiel","selene","gersemi","eris",
+    "paladin","stark","bret","klayton","kristaps","duodeci","annoyingDog",
+    "icecream","xxtrianguli","alex","possessor","oxiniVrochi","chaser",
+    "excaliber","powernoob","johnathon","pop64","legionaryCrasher"
+  ];
  if (game.PLAYERS > 0) {
  if (!temp.waveStarted) {
  let teamScore = entities
@@ -890,17 +897,85 @@ for (let i = 0; i < repeat; i++) {
   enemy = ran.choose(enemyList),
   o = new Entity(loc);
    o.invuln = true;
+   o.rarity = Math.random() * 100000
+   if (game.WAVES % 10 === 0 && !epic) {
+  } else {
+    // Handle rare variations for normal bosses/enemies
+    if (o.rarity <= 20) {
+      switch (o.label) {
+        case "Defender":
+        case "Enchantress": o.define(Class.epilepticdefender); break;
+        case "Summoner": o.define(Class.splitsummoner); break;
+        case "Sorcerer": o.define(Class.raresorcerer); break;
+        case "Elite Gunner": o.define(Class.elite_Shadowgunner); break;
+        case "Nest Keeper":
+        case "Nest Warden": o.define(Class.legnestkeep); break;
+      }
+    }
+
+    if (o.type === "crasher") {
+      if (o.rarity <= 1000 && o.rarity > 500) o.define(Class.shinyEggCrasher);
+      else if (o.rarity <= 500 && o.rarity > 250)
+        o.define(Class[ran.choose(["shinySquareCrasher","shinyTriangleSentry"])]);
+      else if (o.rarity <= 50 && o.rarity > 20) o.define(Class.rainbowTriangleCrasher);
+      else if (o.rarity <= 20) {
+        o.define(Class.abyssalTetraCrasher);
+        sockets.broadcast("Vile Darkness Cloaks the arena, something terrifying has been summoned!");
+      }
+    }
+  }
+
+  // Safety fallback
+  if (o.LABEL === "Unknown Entity") o.define(Class.thrasher);
+}
+}
+  if (game.WAVES < 50) counter = 0;
+    epic = true;
+   }
    if (game.WAVES < 50 && game.WAVES % 10 !== 0) {
   o.define(Class[enemy]);
-if (o.skill.score > counter) {
+if (o.skill.score > counter||uniqueBossList.includes(o.name)) {
 o.skill.score = 0;
 o.define(Class.thrasher);
 }
   counter -= o.skill.score;
-   }
-   if (game.WAVES % 10 === 0 && !epic) {
-  if (game.WAVES < 50) counter = 0;
-    epic = true;
+  if (uniqueBosses.includes(enemy)) uniqueBossList.push(o.name);
+    switch (enemy) {
+    case "ranarDiscipleForm":
+      const lines = [
+        "Ranar: I have arrived, GET READY TO FEEL MY WRATH, SCUM!",
+        "Ranar: I am back, now I can actually try!",
+        "Ranar: THATS IT, LET THE MERCILESS ONSLOUGHT BEGIN!",
+        "Ranar: God d@mn it!",
+        "Ranar: I hate you!",
+        "Ranar: WHY DOES THIS SERVER KEEP SPAWNING ME!?",
+        "Ranar: WHAT HAVE I DONE TO DESERVE THIS?!",
+        "Ranar: **** off you ****ing little ****. AND AS FOR THIS SERVER, IT CAN GO **** ITSELF AND EAT ****. DIE YOU ****ING ****HEADS!",
+        "Ranar: I give up, kill me already if you can."
+      ];
+      let idx = temp.ranarDialog || 0;
+      sockets.broadcast(lines[idx] || "Ranar: >:(");
+      temp.ranarDialog = (idx + 1) % lines.length;
+      break;
+
+    case "kronos":
+      sockets.broadcast("Time itself starts to warp as an ancient God appears...");
+      break;
+
+    case "anicetus":
+      sockets.broadcast("Anicetus: Those who oppose the great Valrayvn shall be returned dust!");
+      break;
+
+    case "disconnecter":
+      sockets.broadcast("...a feared being from the domain of diep has come...");
+      break;
+
+    case "legionaryCrasher":
+      sockets.broadcast("The crashers were only the disciples of what you have awakened...what have you done?");
+      break;
+
+    // add more unique boss dialogues as needed
+  }
    }
     if (o.LABEL === "Unknown Entity") o.define(Class.thrasher);
   if (counter <= 0) {
