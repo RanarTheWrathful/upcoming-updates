@@ -881,7 +881,7 @@ let uniqueBossList = [];
     e.team === -1 &&
     !e.isDead() &&
     !e.isProjectile
-  ).reduce((total, e) => total + (e.skill?.score || 0), 0);
+  ).reduce((total, e) => total + (e.skill?.score || 0), 0),
  counter = game.WAVES * (teamScore/10) + 100000,
  enemyList = [],
 repeat = Math.round(Math.random() * 15),
