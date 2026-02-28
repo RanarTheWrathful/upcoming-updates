@@ -8421,7 +8421,7 @@ this.collisionArray = [];
           this.kill();
         }
       }
-    
+  
     if (
       room.isIn("bas" + -this.team, loc) ||
       room.isIn("bap" + -this.team, loc) ||
@@ -9792,13 +9792,13 @@ console.log('Lore mode sequence advanced.');*/
         if (game.points.guardians >= game.pointsToWin) {
           sockets.broadcast(util.getTeam(-1) + " have won the game!");
           closeArena();
-        } else if ((game.points.fallen >= game.pointsToWin) {
+        } else if (game.points.fallen >= game.pointsToWin) {
           sockets.broadcast(util.getTeam(-2) + " have won the game!");
           closeArena();
-        } else if ((game.points.highlords >= game.pointsToWin) {
+        } else if (game.points.highlords >= game.pointsToWin) {
           sockets.broadcast(util.getTeam(-3) + " have won the game!");
           closeArena();
-        } else if ((game.points.voidlords >= game.pointsToWin) {
+        } else if (game.points.voidlords >= game.pointsToWin) {
           sockets.broadcast(util.getTeam(-4) + " have won the game!");
           closeArena();
         }
