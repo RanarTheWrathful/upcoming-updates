@@ -17804,7 +17804,6 @@ var maintainloop = (() => {
     if (game.MODE === "theAwakening") makeCasings();
     if (game.MODE === "theInfestation") makeAnubis();
     makeMazeWalls();
-    makepentagonWorkbench();
     makeBaseProtectors();
     if (game.MODE === "theDenied" || game.MODE === "theInfestation") makeShrine();
     //makeRepairMen();
