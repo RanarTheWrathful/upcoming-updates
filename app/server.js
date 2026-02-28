@@ -1363,6 +1363,7 @@ class io_nearestDifferentMaster extends IO {
     this.viewRange = ai.viewRange || body.fov || 1000;
     this.targetMode = ai.targetMode || "general"; 
     this.turnWhileIdle = ai.turnWhileIdle || false;
+    this.react = ai.react||false;
 
     // Dominator-style options
     this.idleSpinSpeed = ai.idleSpinSpeed || 0;
