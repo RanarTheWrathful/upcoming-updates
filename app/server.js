@@ -8421,7 +8421,7 @@ this.collisionArray = [];
           this.kill();
         }
       }
-    }
+    
     if (
       room.isIn("bas" + -this.team, loc) ||
       room.isIn("bap" + -this.team, loc) ||
