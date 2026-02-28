@@ -866,7 +866,8 @@ function siegeCountdown() {
   }, 1000);
 }
 function siegeWave() {
- if (!temp.waveStarted && game.PLAYERS > 0) {
+ if (game.PLAYERS > 0) {
+ if (!temp.waveStarted) {
  let teamScore = entities
   .filter(e =>
     e.team === -1 &&
@@ -924,8 +925,9 @@ o.define(Class.thrasher);
    sockets.broadcast("The next wave starts in 10 seconds!");
  }
  }
+ }
 }
-if (game.MODE === "siege") setInterval(siegeWave(), 10000);
+if (game.MODE === "siege") setInterval(() => siegeWave(), 10000);
 
 
 function createMaze() {
