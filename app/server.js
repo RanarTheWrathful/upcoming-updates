@@ -863,9 +863,26 @@ function siegeCountdown() {
       temp.countdown -= 1000;
     }
   }, 1000);
+}// ===============================
+// Utility
+// ===============================
+function getAliveNeutralCount() {
+    return entities.filter(e =>
+        e.team === -1 &&
+        !e.isDead() &&
+        !e.isProjectile
+    ).length;
 }
+
+// ===============================
+// Wave Starter
+// ===============================
 function startSiegeWave() {
-    if (temp.waveStarted || game.PLAYERS <= 0) return;
+    if (temp.waveStarted) return;
+    if (game.PLAYERS <= 0) return;
+
+    // Only start next wave if previous enemies are gone
+    if (getAliveNeutralCount() > 0) return;
 
     let teamScore = entities
         .filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
@@ -874,15 +891,20 @@ function startSiegeWave() {
     temp.spawnBudget = game.WAVE * (teamScore / 10) + 100000;
 
     temp.spawnQueue = [];
-    temp.uniqueBossSet = new Set(); // survives entire wave
+    temp.uniqueBossSet = new Set();
     temp.epic = (game.WAVE % 10 === 0 && game.WAVE !== 0);
 
     buildSpawnQueue();
 
     temp.waveStarted = true;
 
+    sockets.broadcast("Wave " + (game.WAVE + 1) + " is starting...");
     console.log("Wave", game.WAVE, "Budget:", temp.spawnBudget);
 }
+
+// ===============================
+// Build Spawn Queue (NO Entities)
+// ===============================
 function buildSpawnQueue() {
     const categories = Object.keys(game.ENEMIES);
     const repeat = Math.floor(Math.random() * 15) + 1;
@@ -895,7 +917,8 @@ function buildSpawnQueue() {
     while (temp.spawnBudget > 0) {
         let enemy = ran.choose(enemyList);
 
-        // Temporary dummy to read cost only
+        if (!Class[enemy]) continue;
+
         let cost = Class[enemy]?.skill?.score || 100;
 
         if (cost > temp.spawnBudget) break;
@@ -904,43 +927,68 @@ function buildSpawnQueue() {
         temp.spawnBudget -= cost;
     }
 }
-function processSpawnQueue() {
-    if (!temp.spawnQueue || temp.spawnQueue.length === 0) return;
 
-    const BATCH_SIZE = 10; // tune this as needed
+// ===============================
+// Spawn Processor (Batched)
+// ===============================
+function processSpawnQueue() {
+    if (!temp.waveStarted) return;
+
+    // If queue empty, check if enemies are gone
+    if (!temp.spawnQueue.length) {
+        if (getAliveNeutralCount() === 0) {
+            finishWave();
+        }
+        return;
+    }
+
+    const BATCH_SIZE = 10;
+    const ENTITY_CAP = 2500;
 
     for (let i = 0; i < BATCH_SIZE; i++) {
         if (!temp.spawnQueue.length) break;
-        if (entities.length > 2000) return; // HARD SAFETY CAP
+        if (entities.length > ENTITY_CAP) return;
 
         let enemy = temp.spawnQueue.shift();
         spawnEnemy(enemy);
     }
-
-    if (temp.spawnQueue.length === 0) {
-        finishWaveStart();
-    }
 }
+
+// ===============================
+// Spawn Single Enemy
+// ===============================
 function spawnEnemy(enemy) {
+    if (!Class[enemy]) return;
+
     let loc = room.randomType("spw0");
     let o = new Entity(loc);
 
+    o.team = -1;
     o.invuln = true;
     o.rarity = Math.random() * 100000;
+
     o.define(Class[enemy]);
 
-  // Fallback for unknown entities
-  if (o.LABEL === "Unknown Entity") {
-    o.define(Class.thrasher);
-  }
+    if (o.LABEL === "Unknown Entity") {
+        o.define(Class.thrasher);
+    }
+
     handleUniqueBoss(o, enemy);
     handleRareVariants(o);
+
+    // Remove invulnerability shortly after spawn
+    setTimeout(() => {
+        if (!o.isDead()) o.invuln = false;
+    }, 1000);
 }
+
+// ===============================
+// Unique Boss Handler
+// ===============================
 function handleUniqueBoss(o, enemy) {
     const uniqueBosses = new Set([
         "ranarAscendantForm","ranarDiscipleForm","kronos","anicetus",
         "ares","ezekiel","selene","gersemi","eris","paladin"
-        // etc...
     ]);
 
     if (!uniqueBosses.has(enemy)) return;
@@ -956,64 +1004,85 @@ function handleUniqueBoss(o, enemy) {
         case "kronos":
             sockets.broadcast("Time itself starts to warp as an ancient God appears...");
             break;
+
         case "anicetus":
             sockets.broadcast("Anicetus: Those who oppose the great Valrayvn shall be returned dust!");
             break;
+
+        case "ranarDiscipleForm":
+            sockets.broadcast("Ranar: I have arrived.");
+            break;
     }
 }
+
+// ===============================
+// Rare / Variant Handler
+// ===============================
 function handleRareVariants(o) {
-  // Rare variations for normal enemies
-  if (o.rarity <= 20) {
-    switch (o.label) {
-      case "Defender":
-      case "Enchantress":
-        o.define(Class.epilepticdefender);
-        break;
-      case "Summoner":
-        o.define(Class.splitsummoner);
-        break;
-      case "Sorcerer":
-        o.define(Class.raresorcerer);
-        break;
-      case "Elite Gunner":
-        o.define(Class.elite_Shadowgunner);
-        break;
-      case "Nest Keeper":
-      case "Nest Warden":
-        o.define(Class.legnestkeep);
-        break;
-    }
-  }
 
-  // Rare/crasher-specific transformations
-  if (o.type === "crasher") {
-    if (o.rarity <= 1000 && o.rarity > 500) {
-      o.define(Class.shinyEggCrasher);
-    } else if (o.rarity <= 500 && o.rarity > 250) {
-      o.define(Class[ran.choose(["shinySquareCrasher", "shinyTriangleSentry"])]);
-    } else if (o.rarity <= 50 && o.rarity > 20) {
-      o.define(Class.rainbowTriangleCrasher);
-    } else if (o.rarity <= 20) {
-      o.define(Class.abyssalTetraCrasher);
-      sockets.broadcast("Vile Darkness Cloaks the arena, something terrifying has been summoned!");
+    if (o.rarity <= 20) {
+        switch (o.label) {
+            case "Defender":
+            case "Enchantress":
+                o.define(Class.epilepticdefender);
+                break;
+            case "Summoner":
+                o.define(Class.splitsummoner);
+                break;
+            case "Sorcerer":
+                o.define(Class.raresorcerer);
+                break;
+            case "Elite Gunner":
+                o.define(Class.elite_Shadowgunner);
+                break;
+            case "Nest Keeper":
+            case "Nest Warden":
+                o.define(Class.legnestkeep);
+                break;
+        }
     }
-  }
 
-  // Fallback for unknown entities
-  if (o.LABEL === "Unknown Entity") {
-    o.define(Class.thrasher);
-  }
+    if (o.type === "crasher") {
+        if (o.rarity <= 1000 && o.rarity > 500) {
+            o.define(Class.shinyEggCrasher);
+        }
+        else if (o.rarity <= 500 && o.rarity > 250) {
+            o.define(Class[ran.choose(["shinySquareCrasher","shinyTriangleSentry"])]);
+        }
+        else if (o.rarity <= 50 && o.rarity > 20) {
+            o.define(Class.rainbowTriangleCrasher);
+        }
+        else if (o.rarity <= 20) {
+            o.define(Class.abyssalTetraCrasher);
+            sockets.broadcast("Vile Darkness Cloaks the arena, something terrifying has been summoned!");
+        }
+    }
+
+    if (o.LABEL === "Unknown Entity") {
+        o.define(Class.thrasher);
+    }
 }
-function finishWaveStart() {
+
+// ===============================
+// Finish Wave
+// ===============================
+function finishWave() {
     game.WAVE++;
+    temp.waveStarted = false;
+
     let extra = temp.epic ? " This is a dangerous wave!" : "";
-    sockets.broadcast("Wave " + game.WAVE + " has started!" + extra);
-}
-if (game.MODE === "siege") {
-    setInterval(startSiegeWave, 10000);
-    setInterval(processSpawnQueue, 100);
+    sockets.broadcast("Wave " + game.WAVE + " has been cleared!" + extra);
+
+    console.log("Wave cleared. Next wave ready.");
 }
 
+// ===============================
+// Interval Hooks
+// ===============================
+if (game.MODE === "siege") {
+    setInterval(startSiegeWave, 5000);      // Check for next wave
+    setInterval(processSpawnQueue, 100);    // Spawn batches
+}
 
 function createMaze() {
   for (let i = 0; i < Math.ceil((game.WIDTH + game.HEIGHT / 2) / 50); i++) {
