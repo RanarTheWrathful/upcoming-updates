@@ -179,7 +179,7 @@ setInterval(() => {
 }, 60000);
 const room = {
   lastCycle: undefined,
-  cycleSpeed: 1000 / roomSpeed,
+  cycleSpeed: 100 / roomSpeed,
   width: game.WIDTH,
   height: game.HEIGHT,
   setup: game.ROOM_SETUP,
