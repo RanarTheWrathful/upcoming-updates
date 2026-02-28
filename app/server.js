@@ -5047,8 +5047,7 @@ class Entity {
         }
       }
     }
-    }
-  }
+    
   contemplationOfMortality() {
     if (this.bond) {
       return 0;
