@@ -4906,7 +4906,7 @@ exports.rogueLiberatorQuinSniperTurret = {
 };
 exports.idleAutoTurret = {
   PARENT: [exports.autoTurret],
-  CONTROLLERS: ["Dominator"],
+  CONTROLLERS: ["nearestDifferentMaster"],
 };
 
 exports.squareAutoTurret = {
@@ -12156,7 +12156,7 @@ exports.experimenterStationedTurret = {
   DRAW_HEALTH: true,
   CLEAR_ON_MASTER_UPGRADE: true,
   GIVE_KILL_MESSAGE: false,
-  CONTROLLERS: ["Dominator"],
+  CONTROLLERS: ["nearestDifferentMaster"],
   TURRETS: [
     {
       /*  SIZE     X       Y     ANGLE    ARC */
@@ -12237,7 +12237,7 @@ exports.betaExperimenterStationedTurret = {
   DRAW_HEALTH: true,
   CLEAR_ON_MASTER_UPGRADE: true,
   GIVE_KILL_MESSAGE: false,
-  CONTROLLERS: ["Dominator"],
+  CONTROLLERS: ["nearestDifferentMaster"],
   TURRETS: [
     {
       /*  SIZE     X       Y     ANGLE    ARC */
@@ -80732,7 +80732,7 @@ exports.ranarShrine = {
   PARENT: [exports.damagedArenaCloser],
   // NAME: "Ranar",
   LABEL: "Shrine",
-  //CONTROLLERS: ["Dominator"],
+  //CONTROLLERS: ["nearestDifferentMaster"],
   AI_TARGET: "healAllies",
   SIZE: 22,
   VALUE: 100000,
@@ -80774,7 +80774,7 @@ exports.cxShrine = {
   PARENT: [exports.damagedArenaCloser],
   // NAME: "Ranar",
   LABEL: "Shrine",
-  CONTROLLERS: ["Dominator"],
+  CONTROLLERS: ["nearestDifferentMaster"],
   AI_TARGET: "healAllies",
   SPECIAL_EFFECT: "cxShrine",
   SIZE: 22,
@@ -89372,7 +89372,7 @@ exports.autowall1 = {
       POSITION: [10, 0, 0, 0, 360, 1],
       TYPE: [
         exports.autoSmasherTurret,
-        { INDEPENDENT: true, CONTROLLERS: ["Dominator"], HAS_NO_RECOIL: true },
+        { INDEPENDENT: true, CONTROLLERS: ["nearestDifferentMaster"], AI: {turnWhileIdle: true, idleSpinSpeed: 0.1}, HAS_NO_RECOIL: true },
       ],
     },
   ],
@@ -89445,7 +89445,7 @@ exports.pentagonautowall = {
       POSITION: [10, 0, 0, 0, 360, 1],
       TYPE: [
         exports.skimmerPentagonTurret,
-        { INDEPENDENT: true, CONTROLLERS: ["Dominator"], HAS_NO_RECOIL: true },
+        { INDEPENDENT: true, CONTROLLERS: ["nearestDifferentMaster"], HAS_NO_RECOIL: true },
       ],
     },
   ],
@@ -89986,7 +89986,7 @@ exports.voidportal = {
   DANGER: 9,
   FIXED_POSITION: true,
   DRAW_HEALTH: false,
-  CONTROLLERS: ["Dominator"],
+  CONTROLLERS: ["nearestDifferentMaster"],
   BODY: {
     HEALTH: 500,
     DAMAGE: 1,
@@ -90097,7 +90097,15 @@ exports.dominator = {
   GIVE_KILL_MESSAGE: true,
   RESET_UPGRADES: true,
   DANGER: 9,
-  CONTROLLERS: ["Dominator"],
+  CONTROLLERS: ["nearestDifferentMaster"],
+  AI: {
+    turnWhileIdle: true, 
+    targetMode: "general", 
+    react: false, 
+    spinFire: false, 
+    idleSpinSpeed: 0.25, 
+    //viewRange: 100
+    },
   FIXED_POSITION: true,
   BODY: {
     HEALTH: 500,
@@ -90133,7 +90141,7 @@ exports.teraShrine = {
   DRAW_HEALTH: false,
   RESET_UPGRADES: true,
   DANGER: 9,
-  CONTROLLERS: ["Dominator"],
+  CONTROLLERS: ["nearestDifferentMaster"],
   FIXED_POSITION: true,
   BODY: {
     HEALTH: 50000000000000000000000000000000000000000000000000000000000000000,
@@ -91016,7 +91024,7 @@ exports.anti_tank2 = {
   RESET_UPGRADES: true,
   DANGER: 10,
   DRAW_HEALTH: false,
-  CONTROLLERS: ["Dominator"],
+  CONTROLLERS: ["nearestDifferentMaster"],
   BODY: {
     FOV: 100,
     HEALTH: 10000,
