@@ -17,7 +17,8 @@ fs = require("fs"), // Example of using serverStateManager module
 serverState = require("./serverStateManager"),
  lockFilePath = "./serv.lock",
 decodeHTML = require("html-entities").decode,
-  
+  serverType = "testing",
+ list,//testing, lore, or normal
 // Create lock file
 currentState = serverState.getServerState();
 fs.writeFileSync(lockFilePath, process.pid.toString());
@@ -60,41 +61,10 @@ function pickTheBiggest(countMap) {
 //util.log(Date());
 //serverState.resetLoreIndex();
 //serverState.advanceLoreSequence();
-
-let config = require("./config.js"),
-  gameMode = require("./Game Modes/" + chosenMode),
-  game = { ...config, ...gameMode },
-rareMode = Math.random() * 250;
-global.fps = 50;
-var roomSpeed = game.SPEED;
-if (rareMode < 1 && game.SPAWN_FOOD) {
-  game.SHINY_GLORY = true;
-}
-util.log(chosenMode);
-const currentDate = new Date(),
-currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
-if (currentMonth === 9) {
-  // October
-  if (game.TYPE === "normal" && chosenMode !== "Siege") {
-    game.SPAWN_REAPER = true;
-  }
-} else if (currentMonth === 11) {
-  // December
-  console.log("It's December! Do something special.");
-}
-
-// Set up room
-if (currentState.bossWaves <= 50) {
-  game.WAVE = currentState.bossWaves * 1;
-  // util.log(game.WAVE);
-} else {
-  game.WAVE = 0;
-}
-///Config file, nicholas
-if (game.TYPE === "testing") chosenMode = "Siege";
+if (serverType === "testing") chosenMode = "Siege";
 //change this to play a specific mode
-else if (game.TYPE === "normal") {
-  game.LIST = [
+else if (serverType === "normal") {
+  list = [
     "Open Execution",
     "Maze Execution",
     "4TDM Growth",
@@ -117,7 +87,7 @@ else if (game.TYPE === "normal") {
     "Siege",
   ];
   if (currentState.modeVotes.length === 0) {
-    chosenMode = ran.choose(game.LIST);
+    chosenMode = ran.choose(list);
   } else {
     let votes = countInstances(currentState.modeVotes);
     let result = pickTheBiggest(votes);
@@ -133,8 +103,8 @@ else if (game.TYPE === "normal") {
       currentState.modeVotes = [];
     }
   }
-} else if (game.TYPE === "lore") {
-  game.LIST = [
+} else if (serverType === "lore") {
+ list = [
     "The Expanse",
     "The Infestation",
     "The Controlled",
@@ -142,14 +112,45 @@ else if (game.TYPE === "normal") {
     "The Awakening",
     "The Distance",
   ];
-  let listCount = game.LIST.length;
+  let listCount = list.length;
   if (listCount > currentState.loreModeIndex) {
-    chosenMode = game.LIST[currentState.loreModeIndex];
+    chosenMode = list[currentState.loreModeIndex];
   } else {
-    chosenMode = game.LIST[0];
+    chosenMode = list[0];
     serverState.resetLoreIndex();
   }
 }
+let config = require("./config.js"),
+  gameMode = require("./Game Modes/" + chosenMode),
+  game = { ...config, ...gameMode },
+rareMode = Math.random() * 250;
+global.fps = 50;
+var roomSpeed = game.SPEED;
+if (rareMode < 1 && game.SPAWN_FOOD) {
+  game.SHINY_GLORY = true;
+}
+util.log(chosenMode);
+const currentDate = new Date(),
+currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
+if (currentMonth === 9) {
+  // October
+  if (serverType === "normal" && chosenMode !== "Siege") {
+    game.SPAWN_REAPER = true;
+  }
+} else if (currentMonth === 11) {
+  // December
+  console.log("It's December! Do something special.");
+}
+
+// Set up room
+if (currentState.bossWaves <= 50) {
+  game.WAVE = currentState.bossWaves * 1;
+  // util.log(game.WAVE);
+} else {
+  game.WAVE = 0;
+}
+//Config file, nicholas
+
 //important settings
 function removeMuted(socketIP) {
   console.log("Removing from muteList:", socketIP);
@@ -3585,7 +3586,7 @@ class Entity {
       if (this.name === "") dude = "An unnamed player";
       this.runTrigger("spawn");
       if (this.specialEffect === "Legend") {
-        if (game.TYPE === "lore") return;
+        if (serverType === "lore") return;
         switch (this.label) {
           case "Arena Guard":
             this.sendMessage(
@@ -13504,11 +13505,11 @@ player.color = easy;
                 server +
                 `/chat' to use it and its commands!`
             );
-            if (game.TYPE === "lore") {
+            if (serverType === "lore") {
               body.sendMessage(
                 "This server for is lore modes, for normal modes, please go to ranars-arena.glitch.me"
               );
-            } else if (game.TYPE === "normal") {
+            } else if (serverType === "normal") {
               body.sendMessage(
                 "This server for is normal modes, for lore modes, please go to ranars-prophecy.glitch.me"
               );
@@ -16336,7 +16337,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (other.isGate || other.isWall) {
             other.health.amount = 0.011;
             other.dont = false;
-            if (game.TYPE === "lore") other.kill();
+            if (serverType === "lore") other.kill();
           }
         }
         if (
@@ -16346,7 +16347,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (instance.isGate || instance.isWall) {
             instance.health.amount = 0.011;
             instance.dont = false;
-            if (game.TYPE === "lore") instance.kill();
+            if (serverType === "lore") instance.kill();
           }
         }
       }
@@ -19084,7 +19085,7 @@ const server = http.createServer((req, res) => {
     timeString = `${hours} ${hourLabel} and ${minutes} ${minuteLabel}`,
     title = "Unknown",
     extra = "Unknown";
-  switch (game.TYPE) {
+  switch (serverType) {
     case "lore":
       title = "Ranar's Prophecy";
       extra = "The Lore Server";
@@ -19852,13 +19853,13 @@ You must have the chat site and the game site open at the same time for your cha
                           `Here is the list of modes, type as they are for voting, if you are allowed to: <br><br>` +
                           game.LIST.join(`<br><br>`);
                       } else if (command.includes("vote")) {
-                        if (game.TYPE === "normal") {
+                        if (serverType === "normal") {
                           let vote = command.slice(command.indexOf("e") + 2);
                           if (!game.votes.includes(socket.ip)) {
                             let re = 1;
                             if (socket.trueDev) re = 100;
                             for (let i = 0; i < re; i++) {
-                              if (game.TYPE.includes(vote)) {
+                              if (serverType.includes(vote)) {
                                 currentState.modeVotes.push(vote);
                                 game.votes.push(vote);
                                 message =
