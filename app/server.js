@@ -8507,18 +8507,7 @@ this.collisionArray = [];
         }
       }
     }
-    if (
-      this.label === "Target Dummy" &&
-      (this.x !== this.area.x || this.y !== this.area.y) &&
-      !this.timeStop
-    ) {
-      this.timeStop = true;
-      setTimeout(() => {
-        this.x = this.area.x;
-        this.y = this.area.y;
-        this.timeStop = false;
-      }, 15000);
-    }
+   
     let limit = (room.width + room.height) / 2 / 10;
     if (this.SIZE > limit && !temp.extinction) {
       this.SIZE = limit;
