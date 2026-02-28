@@ -931,7 +931,6 @@ for (let i = 0; i < repeat; i++) {
 }
   if (game.WAVES < 50) counter = 0;
     epic = true;
-   }
    if (game.WAVES < 50 && game.WAVES % 10 !== 0) {
   o.define(Class[enemy]);
 if (o.skill.score > counter||uniqueBossList.includes(o.name)) {
@@ -987,8 +986,6 @@ o.define(Class.thrasher);
     if (e.team === -100) e.invuln = false;
    });*/
    temp.waveStarted = true;
-  }
-  }
  } else {
   temp.bossAmount = entities.filter(e =>
     !e.isProjectile && !e.isDominator &&
@@ -999,8 +996,8 @@ o.define(Class.thrasher);
    temp.waveStarted = false;
    sockets.broadcast("The next wave starts in 10 seconds!");
  }
- }
- }
+  }
+}
 }
 if (game.MODE === "siege") setInterval(() => siegeWave(), 10000);
 
