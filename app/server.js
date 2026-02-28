@@ -11340,8 +11340,8 @@ var http = require("http"),
         { x: rounder(point2.x), y: rounder(point2.y) },
         { x: rounder(point3.x), y: rounder(point3.y) },
       ];
-      let centerOfCircle = { x: game.x, y: game.y };
-      let radiusOfCircle = game.radius;
+      let centerOfCircle = { x: c.x, y: c.y };
+      let radiusOfCircle = c.radius;
       // 5) Check to see if we enclosed everything
       function checkingFunction() {
         for (var i = endpoints.length; i > 0; i--) {
