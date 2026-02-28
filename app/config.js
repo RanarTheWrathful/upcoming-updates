@@ -67,7 +67,7 @@ module.exports =
   "ENEMIES": {
     "shapes": [
       "egg",
-      "square"
+      "square",
       "triangle",
       "pentagon",
       "hexagon",
