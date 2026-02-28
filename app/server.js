@@ -884,8 +884,9 @@ let uniqueBossList = [];
   ).reduce((total, e) => total + (e.skill?.score || 0), 0),
  counter = game.WAVE * (teamScore/10) + 100000,
  enemyList = [],
-repeat = Math.round(Math.random() * 15),
+repeat = Math.round(Math.random() * 15) + 1,
   epic = false,
+  spawnCount = 0,
  categories = Object.keys(game.ENEMIES);
 
 for (let i = 0; i < repeat; i++) {
@@ -893,12 +894,13 @@ for (let i = 0; i < repeat; i++) {
   let category = ran.choose(categories);
   enemyList.push(category);
 }
+  console.log("Budget:", counter);
   while (counter > 0) {
   let loc = room.randomType("spw0"),
   enemy = ran.choose(enemyList),
   o = new Entity(loc);
    o.invuln = true;
-   o.rarity = Math.random() * 100000
+   o.rarity = Math.random() * 100000;
    if (game.WAVE % 10 === 0 && game.WAVE !== 0 && !epic) {
   if (game.WAVE < 50) counter = 0;
     epic = true;
@@ -981,7 +983,11 @@ o.define(Class.thrasher);
    });*/
    temp.waveStarted = true;
   }
+   
+  spawnCount++;
   }
+  
+console.log("Spawned:", spawnCount);
  } else {
   temp.bossAmount = entities.filter(e =>
     !e.isProjectile && !e.isDominator &&
@@ -995,6 +1001,7 @@ o.define(Class.thrasher);
  }
   }
 }
+ 
 }
 if (game.MODE === "siege") setInterval(() => siegeWave(), 10000);
 
