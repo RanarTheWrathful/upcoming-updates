@@ -5639,7 +5639,7 @@ class Entity {
         }
       }
       let census = [0, 0, 0, 0, 0, 0, 0, 0, 0];
-      room.dominators.forEach((o) => {
+      room.dominators.forEach((o) => { 
         if (o.team === -100) {
           census[0]++;
         } else {
