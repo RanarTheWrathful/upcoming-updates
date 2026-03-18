@@ -933,7 +933,7 @@ function buildSpawnQueue() {
 // ===============================
 function processSpawnQueue() {
     if (!temp.waveStarted) return;
-
+console.log(getAliveNeutralCount());
     // If queue empty, check if enemies are gone
     if (!temp.spawnQueue.length) {
         if (getAliveNeutralCount() === 0) {
