@@ -919,12 +919,8 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
     let enemy = ran.choose(enemyList);
- 
-    let loc = room.randomType("spw0");
-    let o = new Entity(loc);
- o.define(Class[enemy]);
-    let cost = o.skill.score || 100;
- o.kill();
+
+    let cost = Class[enemy].VALUE || 100;
     // Skip enemies too expensive
     if (cost > temp.spawnBudget) continue;
     temp.spawnQueue.push(enemy);
@@ -938,8 +934,7 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
 // ===============================
 function processSpawnQueue() {
     if (!temp.waveStarted) return;
- 
- console.log("Set 7");
+
     // If queue empty, check if enemies are gone
     if (!temp.spawnQueue.length) {
         if (getAliveNeutralCount() === 0) {
@@ -947,7 +942,6 @@ function processSpawnQueue() {
         }
         return;
     }
- console.log("Set 8");
     const BATCH_SIZE = 10;
     const ENTITY_CAP = 2500;
 
@@ -972,13 +966,13 @@ function spawnEnemy(enemy) {
     o.rarity = Math.random() * 100000;
 
     o.define(Class[enemy]);
-if (o.label === "Unknown Entity") o.kill();
     handleUniqueBoss(o, enemy);
     handleRareVariants(o);
 
     // Remove invulnerability shortly after spawn
     setTimeout(() => {
       o.invuln = false;
+if (o.label === "Unknown Entity") o.kill();
     }, 1000);
 }
 
