@@ -905,13 +905,20 @@ if (getAliveNeutralCount() > 0) return;
 // Build Spawn Queue (NO Entities)
 // ===============================
 function buildSpawnQueue() {
-    const categories = Object.keys(game.ENEMIES);
-    const repeat = Math.floor(Math.random() * 15) + 1;
+const categories = Object.keys(game.ENEMIES);
+const repeat = Math.floor(Math.random() * 15) + 1;
 
-    let enemyList = [];
-    for (let i = 0; i < repeat; i++) {
-        enemyList.push(ran.choose(categories));
-    }
+let enemyList = [];
+
+for (let i = 0; i < repeat; i++) {
+    const category = ran.choose(categories);
+    const enemiesInCategory = game.ENEMIES[category];
+
+    if (!enemiesInCategory || enemiesInCategory.length === 0) continue;
+
+    const enemy = ran.choose(enemiesInCategory);
+    enemyList.push(enemy);
+}
 
    let attempts = 0;
 
@@ -919,8 +926,8 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
     let enemy = ran.choose(enemyList);
-console.log("enemy:", enemy);
-console.log("class:", Class[enemy]);
+//console.log("enemy:", enemy);
+//console.log("class:", Class[enemy]);
     let cost = Class[enemy].VALUE || 100;
     // Skip enemies too expensive
     if (cost > temp.spawnBudget) continue;
