@@ -919,12 +919,13 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
     let enemy = ran.choose(enemyList);
+ 
+console.log("Wan");
 if (!Class[enemy]) continue;
-    
+console.log("Toh");
+ 
     let cost = Class[enemy].skill.score || 100;
-
-console.log("enemy:", enemy, "valid:", !!Class[enemy], "cost:", cost);
-
+ 
     // Skip enemies too expensive
     if (cost > temp.spawnBudget) continue;
     temp.spawnQueue.push(enemy);
