@@ -919,11 +919,6 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
     let enemy = ran.choose(enemyList);
- 
-console.log("Wan");
-if (!Class[enemy]) continue;
-console.log("Toh");
- 
     let cost = Class[enemy].skill.score || 100;
  
     // Skip enemies too expensive
@@ -973,7 +968,7 @@ function spawnEnemy(enemy) {
     o.rarity = Math.random() * 100000;
 
     o.define(Class[enemy]);
-
+if (o.label === "Unknown Entity") o.kill();
     handleUniqueBoss(o, enemy);
     handleRareVariants(o);
 
