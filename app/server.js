@@ -891,17 +891,9 @@ function startSiegeWave() {
 console.log("Alive neutrals:", alive);
 
 if (alive > 0) {
-    console.log(
-        entities
-            .filter(e => e.team === -1)
-            .map(e => ({
-                label: e.label,
-                type: e.type,
-                dead: e.isDead?.(),
-                projectile: e.isProjectile
-            }))
-    );
-
+ let neut = [];
+ entities.forEach((neutral) => if (neutral.team === -100) neut.push(neutral);
+    console.log(neut.length);
     return;
 }
  
