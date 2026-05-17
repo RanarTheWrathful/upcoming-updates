@@ -938,7 +938,7 @@ function processSpawnQueue() {
     if (!temp.waveStarted) return;
  
  console.log("Set 7");
-console.log(getAliveNeutralCount());
+ console.log("queue length:", temp.spawnQueue.length);
     // If queue empty, check if enemies are gone
     if (!temp.spawnQueue.length) {
         if (getAliveNeutralCount() === 0) {
@@ -17116,5 +17116,3 @@ let websockets = (() => {
 setInterval(gameloop, room.cycleSpeed);
 setInterval(maintainloop, 250);
 setInterval(speedcheckloop, 1000);
-
-console.log(Class.basic);
