@@ -919,12 +919,17 @@ for (let i = 0; i < repeat; i++) {
     let enemy = ran.choose(enemiesInCategory);
     enemyList.push(enemy);
 }
-   let attempts = 0;
+  let attempts = 0;
+
 while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
+
+    let enemy = ran.choose(enemyList);
+
     let cost = Class[enemy].VALUE || 100;
-    // Skip enemies too expensive
+
     if (cost > temp.spawnBudget) continue;
+
     temp.spawnQueue.push(enemy);
     temp.spawnBudget -= cost;
 }
