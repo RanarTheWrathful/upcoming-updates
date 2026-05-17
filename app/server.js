@@ -888,7 +888,7 @@ if (getAliveNeutralCount() > 0) return;
     let teamScore = entities.filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
         .reduce((total, e) => total + (e.skill?.score || 0), 0);
 
-    temp.spawnBudget = game.WAVE * (teamScore / 10) + 100000;
+    temp.spawnBudget = (teamScore / 10) + (game.WAVE * 100000);
 
     temp.spawnQueue = [];
     temp.uniqueBossSet = new Set();
@@ -920,19 +920,29 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
     let enemy = ran.choose(enemyList);
-
-    if (!Class[enemy]) continue;
-
-    let cost = Class[enemy]?.skill?.score || 100;
+    let o = new Entity(room.randomType("spw0", o));
+ o.define(Class[enemy]);
+    if (o.label === "Unknown Entity") {
+      o.kill();
+     continue;
+    }
+    let cost = o.skill.score || 100;
 
     // Prevent zero or negative costs
-    if (cost <= 0) continue;
+    if (cost <= 0) { 
+     o.kill();
+     continue;
+    }
 
     // Skip enemies too expensive
-    if (cost > temp.spawnBudget) continue;
-
+    if (cost > temp.spawnBudget) {
+     o.kill();
+ continue;
+}
     temp.spawnQueue.push(enemy);
     temp.spawnBudget -= cost;
+     o.kill();
+}
 }
 }
 
@@ -969,27 +979,21 @@ console.log(getAliveNeutralCount());
 // Spawn Single Enemy
 // ===============================
 function spawnEnemy(enemy) {
-    if (!Class[enemy]) return;
-
     let loc = room.randomType("spw0");
     let o = new Entity(loc);
 
-    o.team = -1;
+    o.team = -100;
     o.invuln = true;
     o.rarity = Math.random() * 100000;
 
     o.define(Class[enemy]);
-
-    if (o.LABEL === "Unknown Entity") {
-        o.define(Class.thrasher);
-    }
 
     handleUniqueBoss(o, enemy);
     handleRareVariants(o);
 
     // Remove invulnerability shortly after spawn
     setTimeout(() => {
-        if (!o.isDead()) o.invuln = false;
+      o.invuln = false;
     }, 1000);
 }
 
