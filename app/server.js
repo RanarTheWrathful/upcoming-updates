@@ -863,7 +863,8 @@ function siegeCountdown() {
       temp.countdown -= 1000;
     }
   }, 1000);
-}// ===============================
+}
+// ===============================
 // Utility
 // ===============================
 function getAliveNeutralCount() {
@@ -888,8 +889,7 @@ function startSiegeWave() {
     if (getAliveNeutralCount() > 0) return;
  console.log("Set 4");
  
-    let teamScore = entities
-        filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
+    let teamScore = entities.filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
         .reduce((total, e) => total + (e.skill?.score || 0), 0);
 
     temp.spawnBudget = game.WAVE * (teamScore / 10) + 100000;
@@ -1030,7 +1030,7 @@ function handleUniqueBoss(o, enemy) {
 function handleRareVariants(o) {
 
     if (o.rarity <= 20) {
-        switch (o.label) {
+        switch (o.LABEL) {
             case "Defender":
             case "Enchantress":
                 o.define(Class.epilepticdefender);
@@ -1089,7 +1089,6 @@ function finishWave() {
 // Interval Hooks
 // ===============================
 if (game.MODE === "siege") {
- setInterval(getAliveNeutralCount(), 1000)
     setInterval(startSiegeWave, 5000);      // Check for next wave
     setInterval(processSpawnQueue, 100);    // Spawn batches
 }
