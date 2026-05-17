@@ -36,7 +36,6 @@ function countInstances(arr) {
   });
   return countMap; // Return the object containing counts
 }
-console.log(Class[basic])
 function pickTheBiggest(countMap) {
   // Determine the maximum count
   let maxCount = -1;
@@ -898,7 +897,7 @@ if (getAliveNeutralCount() > 0) return;
 
     temp.waveStarted = true;
 
-    sockets.broadcast("Wave " + (game.WAVE + 1) + " is starting...");
+    sockets.broadcast("Wave " + (game.WAVE) + " has started.");
     console.log("Wave", game.WAVE, "Budget:", temp.spawnBudget);
 }
 
@@ -17117,3 +17116,5 @@ let websockets = (() => {
 setInterval(gameloop, room.cycleSpeed);
 setInterval(maintainloop, 250);
 setInterval(speedcheckloop, 1000);
+
+console.log(Class[basic]);
