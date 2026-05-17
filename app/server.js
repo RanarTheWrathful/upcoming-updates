@@ -944,7 +944,7 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
      o.kill();
 }
 }
-}
+
 
 // ===============================
 // Spawn Processor (Batched)
