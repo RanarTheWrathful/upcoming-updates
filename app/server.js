@@ -892,7 +892,9 @@ console.log("Alive neutrals:", alive);
 
 if (alive > 0) {
  let neut = [];
- entities.forEach((neutral) => if (neutral.team === -100) neut.push(neutral));
+entities.forEach((neutral) => {
+    if (neutral.team === -100) neut.push(neutral);
+});
     console.log(neut.length);
     return;
 }
