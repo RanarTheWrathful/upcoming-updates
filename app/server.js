@@ -897,7 +897,7 @@ if (getAliveNeutralCount() > 0) return;
 
     temp.waveStarted = true;
 
-    sockets.broadcast("Wave " + (game.WAVE) + " has started.");
+    sockets.broadcast("Wave " + (game.WAVE + 1) + " has started.");
     console.log("Wave", game.WAVE, "Budget:", temp.spawnBudget);
 }
 
@@ -938,8 +938,15 @@ function processSpawnQueue() {
     if (!temp.waveStarted) return;
  
  console.log("Set 7");
- console.log("queue length:", temp.spawnQueue.length);
+console.log("enemy:", enemy, "valid:", !!Class[enemy], "cost:", cost);
 
+    // If queue empty, check if enemies are gone
+    if (!temp.spawnQueue.length) {
+        if (getAliveNeutralCount() === 0) {
+            finishWave();
+        }
+        return;
+    }
  console.log("Set 8");
     const BATCH_SIZE = 10;
     const ENTITY_CAP = 2500;
@@ -950,14 +957,6 @@ function processSpawnQueue() {
 
         let enemy = temp.spawnQueue.shift();
         spawnEnemy(enemy);
-    }
- 
-    // If queue empty, check if enemies are gone
-    if (temp.spawnQueue.length) {
-        if (getAliveNeutralCount() === 0) {
-            finishWave();
-        }
-        return;
     }
 }
 
