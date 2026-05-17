@@ -868,36 +868,22 @@ function siegeCountdown() {
 // Utility
 // ===============================
 function getAliveNeutralCount() {
-    return entities.filter(e =>
-        e.team === -1 &&
-        !e.isDead() &&
-        !e.isProjectile
-    ).length;
+ let neut = [];
+entities.forEach((neutral) => {
+    if (neutral.team === -100) neut.push(neutral);
+});
+ return neut.length;
 }
 
 // ===============================
 // Wave Starter
 // ===============================
 function startSiegeWave() {
- console.log("Set 1");
     if (temp.waveStarted) return;
- console.log("Set 2");
     if (game.PLAYERS <= 0) return;
- console.log("Set 3");
 
     // Only start next wave if previous enemies are gone
- let alive = getAliveNeutralCount();
-
-console.log("Alive neutrals:", alive);
-
-if (alive > 0) {
- let neut = [];
-entities.forEach((neutral) => {
-    if (neutral.team === -100) neut.push(neutral);
-});
-    console.log(neut.length);
-    return;
-}
+if (getAliveNeutralCount() > 0) return;
  
     let teamScore = entities.filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
         .reduce((total, e) => total + (e.skill?.score || 0), 0);
@@ -947,7 +933,6 @@ function buildSpawnQueue() {
 // Spawn Processor (Batched)
 // ===============================
 function processSpawnQueue() {
- console.log("Set 6");
     if (!temp.waveStarted) return;
  
  console.log("Set 7");
