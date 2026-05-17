@@ -5019,7 +5019,7 @@ class Entity {
         }
       }
     }
-   
+   this.settings.givesKillMessage = true;
     let limit = (room.width + room.height) / 2 / 10;
     if (this.SIZE > limit && !temp.extinction) {
       this.SIZE = limit;
