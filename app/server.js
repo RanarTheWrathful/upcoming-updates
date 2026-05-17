@@ -878,12 +878,16 @@ function getAliveNeutralCount() {
 // Wave Starter
 // ===============================
 function startSiegeWave() {
+ console.log("Set 1");
     if (temp.waveStarted) return;
+ console.log("Set 2");
     if (game.PLAYERS <= 0) return;
+ console.log("Set 3");
 
     // Only start next wave if previous enemies are gone
     if (getAliveNeutralCount() > 0) return;
-
+ console.log("Set 4");
+ 
     let teamScore = entities
         .filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
         .reduce((total, e) => total + (e.skill?.score || 0), 0);
