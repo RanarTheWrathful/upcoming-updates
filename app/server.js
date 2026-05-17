@@ -923,6 +923,8 @@ if (!Class[enemy]) continue;
     
     let cost = Class[enemy].skill.score || 100;
 
+console.log("enemy:", enemy, "valid:", !!Class[enemy], "cost:", cost);
+
     // Skip enemies too expensive
     if (cost > temp.spawnBudget) continue;
     temp.spawnQueue.push(enemy);
@@ -938,8 +940,6 @@ function processSpawnQueue() {
     if (!temp.waveStarted) return;
  
  console.log("Set 7");
-console.log("enemy:", enemy, "valid:", !!Class[enemy], "cost:", cost);
-
     // If queue empty, check if enemies are gone
     if (!temp.spawnQueue.length) {
         if (getAliveNeutralCount() === 0) {
