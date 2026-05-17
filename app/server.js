@@ -885,7 +885,8 @@ function startSiegeWave() {
     if (game.PLAYERS <= 0) return;
  console.log("Set 3");
 
-    // Only start next wave if previous enemies are gonelet alive = getAliveNeutralCount();
+    // Only start next wave if previous enemies are gone
+ let alive = getAliveNeutralCount();
 
 console.log("Alive neutrals:", alive);
 
