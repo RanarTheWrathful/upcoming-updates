@@ -17117,4 +17117,4 @@ setInterval(gameloop, room.cycleSpeed);
 setInterval(maintainloop, 250);
 setInterval(speedcheckloop, 1000);
 
-console.log(Class[basic]);
+console.log(Class.basic);
