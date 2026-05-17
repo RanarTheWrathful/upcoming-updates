@@ -36,7 +36,7 @@ function countInstances(arr) {
   });
   return countMap; // Return the object containing counts
 }
-
+console.log(Class[basic])
 function pickTheBiggest(countMap) {
   // Determine the maximum count
   let maxCount = -1;
@@ -920,28 +920,14 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
     let enemy = ran.choose(enemyList);
-    let o = new Entity(room.randomType("spw0"));
- o.define(Class[enemy]);
-    if (o.label === "Unknown Entity") {
-      o.kill();
-     continue;
-    }
-    let cost = o.skill.score || 100;
-
-    // Prevent zero or negative costs
-    if (cost <= 0) { 
-     o.kill();
-     continue;
-    }
+if (!Class[enemy]) continue;
+    
+    let cost = Class[enemy].skill.score || 100;
 
     // Skip enemies too expensive
-    if (cost > temp.spawnBudget) {
-     o.kill();
- continue;
-}
+    if (cost > temp.spawnBudget) continue;
     temp.spawnQueue.push(enemy);
     temp.spawnBudget -= cost;
-     o.kill();
 }
 }
 
