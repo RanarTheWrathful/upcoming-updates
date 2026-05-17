@@ -30974,6 +30974,45 @@ exports.cheese = {
     },
   ],
 };
+
+exports.moldycheese = {
+  PARENT: [exports.genericTank],
+  LABEL: "Moldy Cheese",
+  STAT_NAMES: statnames.drone,
+  DANGER: 7,
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.75,
+    SPEED: base.SPEED * 0.95,
+    FOV: base.FOV * 1.1,
+  },
+  MAX_CHILDREN: 1,
+  TURRETS: [
+    
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [13, 0, 0, 0, 360, 1],
+      TYPE: exports.blackCircle,
+    },
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [12, 0, 0, 0, 360, 1],
+      TYPE: exports.droneAuraSymbol,
+    },
+  ],
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [10.5, 18, 1.2, 5.5, 0, 0, 1],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.drone, g.cheese]),
+        TYPE: [exports.auraDrone, { DRAW_HEALTH: true }],
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+  ],
+};
 exports.overseer = makeMulti(
   {
     PARENT: [exports.genericTank],
@@ -97294,6 +97333,7 @@ exports.kristanks3.UPGRADES_TIER_1 = [
   exports.randombullshit,
   exports.universalHealer,
   exports.executioner,
+  exports.moldycheese,
   exports.kristanks4,
 ];
 exports.krisbosses1.UPGRADES_TIER_1 = [
