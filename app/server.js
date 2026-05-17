@@ -916,7 +916,7 @@ for (let i = 0; i < repeat; i++) {
 
     if (!enemiesInCategory || enemiesInCategory.length === 0) continue;
 
-    const enemy = ran.choose(enemiesInCategory);
+    let enemy = ran.choose(enemiesInCategory);
     enemyList.push(enemy);
 }
    let attempts = 0;
