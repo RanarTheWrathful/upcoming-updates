@@ -919,8 +919,12 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
     let enemy = ran.choose(enemyList);
-    let cost = Class[enemy].skill.score || 100;
  
+    let loc = room.randomType("spw0");
+    let o = new Entity(loc);
+ o.define(Class[enemy]);
+    let cost = o.skill.score || 100;
+ o.kill();
     // Skip enemies too expensive
     if (cost > temp.spawnBudget) continue;
     temp.spawnQueue.push(enemy);
