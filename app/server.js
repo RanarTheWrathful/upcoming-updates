@@ -918,6 +918,7 @@ function buildSpawnQueue() {
         enemyList.push(ran.choose(categories));
     }
 
+ console.log("Set 4");
     while (temp.spawnBudget > 0) {
         let enemy = ran.choose(enemyList);
 
@@ -936,7 +937,10 @@ function buildSpawnQueue() {
 // Spawn Processor (Batched)
 // ===============================
 function processSpawnQueue() {
+ console.log("Set 5");
     if (!temp.waveStarted) return;
+ 
+ console.log("Set 6");
 console.log(getAliveNeutralCount());
     // If queue empty, check if enemies are gone
     if (!temp.spawnQueue.length) {
@@ -946,6 +950,7 @@ console.log(getAliveNeutralCount());
         return;
     }
 
+ console.log("Set 7");
     const BATCH_SIZE = 10;
     const ENTITY_CAP = 2500;
 
