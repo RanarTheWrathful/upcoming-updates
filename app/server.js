@@ -914,19 +914,26 @@ function buildSpawnQueue() {
         enemyList.push(ran.choose(categories));
     }
 
- console.log("Set 5");
-    while (temp.spawnBudget > 0) {
-        let enemy = ran.choose(enemyList);
+   let attempts = 0;
 
-        if (!Class[enemy]) continue;
+while (temp.spawnBudget > 0 && attempts < 1000) {
+    attempts++;
 
-        let cost = Class[enemy]?.skill?.score || 100;
+    let enemy = ran.choose(enemyList);
 
-        if (cost > temp.spawnBudget) break;
+    if (!Class[enemy]) continue;
 
-        temp.spawnQueue.push(enemy);
-        temp.spawnBudget -= cost;
-    }
+    let cost = Class[enemy]?.skill?.score || 100;
+
+    // Prevent zero or negative costs
+    if (cost <= 0) continue;
+
+    // Skip enemies too expensive
+    if (cost > temp.spawnBudget) continue;
+
+    temp.spawnQueue.push(enemy);
+    temp.spawnBudget -= cost;
+}
 }
 
 // ===============================
@@ -945,7 +952,7 @@ console.log(getAliveNeutralCount());
         return;
     }
 
- console.log("Set 7");
+ console.log("Set 8");
     const BATCH_SIZE = 10;
     const ENTITY_CAP = 2500;
 
