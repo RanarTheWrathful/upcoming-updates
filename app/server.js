@@ -889,7 +889,7 @@ function startSiegeWave() {
  console.log("Set 4");
  
     let teamScore = entities
-        .filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
+        filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
         .reduce((total, e) => total + (e.skill?.score || 0), 0);
 
     temp.spawnBudget = game.WAVE * (teamScore / 10) + 100000;
@@ -918,7 +918,7 @@ function buildSpawnQueue() {
         enemyList.push(ran.choose(categories));
     }
 
- console.log("Set 4");
+ console.log("Set 5");
     while (temp.spawnBudget > 0) {
         let enemy = ran.choose(enemyList);
 
@@ -937,10 +937,10 @@ function buildSpawnQueue() {
 // Spawn Processor (Batched)
 // ===============================
 function processSpawnQueue() {
- console.log("Set 5");
+ console.log("Set 6");
     if (!temp.waveStarted) return;
  
- console.log("Set 6");
+ console.log("Set 7");
 console.log(getAliveNeutralCount());
     // If queue empty, check if enemies are gone
     if (!temp.spawnQueue.length) {
@@ -1089,6 +1089,7 @@ function finishWave() {
 // Interval Hooks
 // ===============================
 if (game.MODE === "siege") {
+ setInterval(getAliveNeutralCount(), 1000)
     setInterval(startSiegeWave, 5000);      // Check for next wave
     setInterval(processSpawnQueue, 100);    // Spawn batches
 }
