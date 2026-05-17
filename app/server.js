@@ -939,13 +939,6 @@ function processSpawnQueue() {
  
  console.log("Set 7");
  console.log("queue length:", temp.spawnQueue.length);
-    // If queue empty, check if enemies are gone
-    if (!temp.spawnQueue.length) {
-        if (getAliveNeutralCount() === 0) {
-            finishWave();
-        }
-        return;
-    }
 
  console.log("Set 8");
     const BATCH_SIZE = 10;
@@ -957,6 +950,14 @@ function processSpawnQueue() {
 
         let enemy = temp.spawnQueue.shift();
         spawnEnemy(enemy);
+    }
+ 
+    // If queue empty, check if enemies are gone
+    if (temp.spawnQueue.length) {
+        if (getAliveNeutralCount() === 0) {
+            finishWave();
+        }
+        return;
     }
 }
 
