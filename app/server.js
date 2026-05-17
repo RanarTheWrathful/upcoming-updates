@@ -920,7 +920,7 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
     let enemy = ran.choose(enemyList);
-    let o = new Entity(room.randomType("spw0", o));
+    let o = new Entity(room.randomType("spw0"));
  o.define(Class[enemy]);
     if (o.label === "Unknown Entity") {
       o.kill();
