@@ -23154,6 +23154,47 @@ exports.auraDrone = {
     },
   ],
 }
+exports.moldyCheeseDrone = {
+  PARENT: [exports.drone],
+  TURRETS: [
+    
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [12, 0, 0, 0, 360, 1],
+      TYPE: [
+        exports.damageAuraSpawner,
+        {
+          GUNS: [
+            {
+              POSITION: [0, 20, 1, 0, 0, 0, 0],
+              PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.atmosphere,
+                  g.minorDamage,
+                  g.size400,
+                  g.doubleSize,
+                ]),
+                TYPE: [exports.damageAura, { COLOR: 0 }],
+                MAX_CHILDREN: 1,
+                AUTOFIRE: true,
+              },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [13, 0, 0, 0, 360, 1],
+      TYPE: exports.blackCircle,
+    },
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [12, 0, 0, 0, 360, 1],
+      TYPE: exports.damageAuraSymbol,
+    },
+  ],
+}
 exports.truesmashatmo = {
   PARENT: [exports.genericTank],
   LABEL: "True Smashersphere",
@@ -31005,7 +31046,7 @@ exports.moldycheese = {
       POSITION: [10.5, 18, 1.2, 5.5, 0, 0, 1],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.drone, g.cheese]),
-        TYPE: [exports.auraDrone, { DRAW_HEALTH: true }],
+        TYPE: [exports.moldyCheeseDrone, { DRAW_HEALTH: true }],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
         STAT_CALCULATOR: gunCalcNames.drone,
