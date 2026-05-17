@@ -919,7 +919,8 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
     let enemy = ran.choose(enemyList);
-
+console.log("enemy:", enemy);
+console.log("class:", Class[enemy]);
     let cost = Class[enemy].VALUE || 100;
     // Skip enemies too expensive
     if (cost > temp.spawnBudget) continue;
