@@ -7580,6 +7580,7 @@ instance.runTrigger("kill", this);
     this.controllers = null;
 this.parent = null;
 this.children = null;
+   entities = entities.filter(e => e !== this);
   }
 
   isDead() {
@@ -17127,6 +17128,3 @@ let websockets = (() => {
 setInterval(gameloop, room.cycleSpeed);
 setInterval(maintainloop, 250);
 setInterval(speedcheckloop, 1000);
-entities.forEach((thing) => {
- if (thing.label === "Unknown Entity") this.kill;
-})
