@@ -7580,6 +7580,7 @@ instance.runTrigger("kill", this);
     this.controllers = null;
 this.parent = null;
 this.children = null;
+   util.remove(this);
   }
 
   isDead() {
