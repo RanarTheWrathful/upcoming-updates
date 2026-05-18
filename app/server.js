@@ -12967,7 +12967,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
           if (!timer[i]--) check[i] = true;
         } else {
           timer[i] = 15;
-          if (entities[i].valid()) {
+         if (entities[i] && entities[i].valid()) {
             check[i] = views.some((v) => v.isInView(entities[i]));
           }
         }
