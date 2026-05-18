@@ -887,7 +887,7 @@ if (getAliveNeutralCount() > 0) return;
     let teamScore = entities.filter(e => e.team === -1 && !e.isDead() && !e.isProjectile)
         .reduce((total, e) => total + (e.skill?.score || 0), 0);
 
-    temp.spawnBudget = (teamScore / 10) + (game.WAVE * 100000);
+    temp.spawnBudget = (teamScore / 10) + ((game.WAVE + 1) * 100000);
 
     temp.spawnQueue = [];
     temp.uniqueBossSet = new Set();
@@ -912,9 +912,10 @@ let categoryPool = [];
 for (let i = 0; i < repeat; i++) {
     categoryPool.push(ran.choose(categories));
 }
- let attempts = 0;
+let remainingBudget = temp.spawnBudget;
+let attempts = 0;
 
-while (temp.spawnBudget > 0 && attempts < 1000) {
+while (remainingBudget > 0 && attempts < 1000) {
     attempts++;
 
     let category = ran.choose(categoryPool);
@@ -924,14 +925,18 @@ while (temp.spawnBudget > 0 && attempts < 1000) {
 
     let enemy = ran.choose(enemiesInCategory);
 
-    if (!Class[enemy]) continue;
+    if (!Class[enemy]) enemy = "eggCrasher";;
 
-    let cost = Class[enemy]?.VALUE ?? 100;
+    let cost = Class[enemy].VALUE;
 
-    if (cost > temp.spawnBudget) continue;
+    if (cost > remainingBudget) {
+     enemy = "eggCrasher";
+     cost = Class.eggCrasher.VALUE;
+    }
 
     temp.spawnQueue.push(enemy);
-    temp.spawnBudget -= cost;
+
+    remainingBudget -= cost;
 }
 }
 
@@ -955,9 +960,14 @@ function processSpawnQueue() {
     for (let i = 0; i < BATCH_SIZE; i++) {
         if (!temp.spawnQueue.length) break;
         if (entities.length > ENTITY_CAP) return;
+     
+let enemy = temp.spawnQueue.shift();
 
-        let enemy = temp.spawnQueue.shift();
-        spawnEnemy(enemy);
+let cost = Class[enemy].VALUE;
+
+spawnEnemy(enemy);
+
+temp.spawnBudget -= cost;
     }
 }
 
@@ -5019,7 +5029,6 @@ class Entity {
         }
       }
     }
-   this.settings.givesKillMessage = true;
     let limit = (room.width + room.height) / 2 / 10;
     if (this.SIZE > limit && !temp.extinction) {
       this.SIZE = limit;
