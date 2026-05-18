@@ -10725,10 +10725,8 @@ player.color = easy;
         // Deltas
         let minimapAll = new Delta(5, () => {
           let all = [];
-          for (let my of entities) {
-            if (!my.valid() && !my.isDead()) {
-              continue;
-            }
+          for (let my of entities.filter(Boolean)) {
+    if (!my.valid && !my.isDead) continue;
             if (
               my.type === "fortGate" ||
               my.type === "grid" ||
@@ -10769,10 +10767,8 @@ player.color = easy;
           (team) =>
             new Delta(3, () => {
               let all = [];
-              for (let my of entities) {
-                if (!my.valid()) {
-                  continue;
-                }
+              for (let my of entities.filter(Boolean)) {
+    if (!my.valid) continue;
                 if (
                   my.type === "tank" &&
                   my.team === -team &&
@@ -10799,7 +10795,7 @@ player.color = easy;
         );
         let leaderboard = new Delta(5, () => {
           let list = [];
-          for (let instance of entities)
+          for (let instance of entities.filter(Boolean)) 
             if (
               instance.valid() &&
               instance.settings.leaderboardable &&
