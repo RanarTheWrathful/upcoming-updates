@@ -14983,7 +14983,7 @@ instance.runTrigger("kill", this);
     // Remove from minimap
     const minimap = new Map();
 // On add
-minimap.set(this.id, data);
+//minimap.set(this.id, data);
 // On destroy
 minimap.delete(this.id);
     
