@@ -910,23 +910,29 @@ const repeat = Math.floor(Math.random() * 15) + 1;
 
 let enemyList = [];
 
+const categories = Object.keys(game.ENEMIES);
+const repeat = Math.floor(Math.random() * 15) + 1;
+
+let categoryPool = [];
+
 for (let i = 0; i < repeat; i++) {
-    const category = ran.choose(categories);
-    const enemiesInCategory = game.ENEMIES[category];
-
-    if (!enemiesInCategory || enemiesInCategory.length === 0) continue;
-
-    let enemy = ran.choose(enemiesInCategory);
-    enemyList.push(enemy);
+    categoryPool.push(ran.choose(categories));
 }
-  let attempts = 0;
+ let attempts = 0;
 
 while (temp.spawnBudget > 0 && attempts < 1000) {
     attempts++;
 
-    let enemy = ran.choose(enemyList);
+    let category = ran.choose(categoryPool);
 
-    let cost = Class[enemy].VALUE || 100;
+    let enemiesInCategory = game.ENEMIES[category];
+    if (!enemiesInCategory?.length) continue;
+
+    let enemy = ran.choose(enemiesInCategory);
+
+    if (!Class[enemy]) continue;
+
+    let cost = Class[enemy]?.VALUE ?? 100;
 
     if (cost > temp.spawnBudget) continue;
 
