@@ -871,7 +871,7 @@ function getAliveNeutralCount() {
 entities.forEach((neutral) => {
     if (neutral.team === -100) neut.push(neutral);
 });
- console.log(neut.length);
+ console.log(neut);
  return neut.length;
 }
 
