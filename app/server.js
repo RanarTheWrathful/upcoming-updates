@@ -905,16 +905,10 @@ if (getAliveNeutralCount() > 0) return;
 // Build Spawn Queue (NO Entities)
 // ===============================
 function buildSpawnQueue() {
-const categories = Object.keys(game.ENEMIES);
-const repeat = Math.floor(Math.random() * 15) + 1;
-
 let enemyList = [];
-
-const categories = Object.keys(game.ENEMIES);
-const repeat = Math.floor(Math.random() * 15) + 1;
-
+let categories = Object.keys(game.ENEMIES);
+let repeat = Math.floor(Math.random() * 15) + 1;
 let categoryPool = [];
-
 for (let i = 0; i < repeat; i++) {
     categoryPool.push(ran.choose(categories));
 }
