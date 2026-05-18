@@ -1,0 +1,38 @@
+module.exports =
+{
+  "WIDTH": 4000,
+  "HEIGHT": 4000,
+  "MODE": "fort",
+   "ROOM_SETUP": [
+   ["wall", "wall", "wall", "wall", "wall", "wall", "norm", "norm", "wall", "norm", "rock", "norm", "norm", "norm", "norm", "wall", "wall", "wall", "wall"],
+   ["wall", "dom2", "norm", "gte2", "norm", "norm", "wall", "wall", "norm", "norm", "wall", "wall", "wall", "wall", "norm", "gte1", "norm", "dom1", "wall"],
+   ["wall", "norm", "norm", "frt2", "norm", "wall", "norm", "norm", "norm", "wall", "norm", "wall", "norm", "norm", "norm", "frt1", "norm", "norm", "wall"],
+   ["wall", "gte2", "frt2", "frt2", "norm", "norm", "wall", "norm", "wall", "norm", "rock", "norm", "wall", "norm", "norm", "frt1", "frt1", "gte1", "wall"],
+   ["wall", "norm", "norm", "norm", "norm", "roid", "norm", "norm", "norm", "wall", "norm", "norm", "norm", "wall", "norm", "norm","norm", "norm", "wall"],
+   ["wall", "norm", "wall", "wall", "wall", "norm", "norm", "wall", "wall", "wall", "roid", "wall", "norm", "norm", "norm", "wall","norm", "norm", "norm"],
+   ["wall", "norm", "wall", "norm", "wall", "wall", "nest", "nest", "wall", "nest", "nest", "wall", "wall", "norm", "wall", "norm","norm", "wall", "wall"],
+   ["roid", "norm", "norm", "norm", "roid", "norm", "wall", "nest", "nest", "nest", "wall", "wall", "nest", "wall", "norm", "wall","norm", "norm", "norm"],
+   ["rock", "wall", "norm", "wall", "wall", "norm", "nest", "nest", "wall", "nest", "nest", "wall", "nest", "wall", "norm", "norm","norm", "wall", "norm"],
+   ["norm", "wall", "wall", "norm", "roid", "norm", "wall", "wall", "nest", "dom0", "nest", "wall", "nest", "norm", "wall", "norm","wall", "norm", "roid"],
+   ["wall", "wall", "norm", "norm", "wall", "wall", "wall", "wall", "nest", "nest", "wall", "nest", "wall", "norm", "wall", "norm", "wall","norm", "norm"],
+   ["norm", "norm", "norm", "norm", "norm", "norm", "nest", "nest", "nest", "nest", "nest", "nest", "nest", "norm", "wall", "norm","norm", "wall", "wall"],
+   ["wall", "norm", "norm", "norm", "wall", "wall", "wall", "nest", "nest", "wall", "nest", "wall", "nest", "norm", "norm", "norm", "wall", "norm", "norm"],
+   ["wall", "norm", "wall", "norm", "wall", "norm", "nest", "wall", "wall", "wall", "nest", "wall", "wall", "wall", "norm", "norm","norm", "norm", "wall"],
+   ["norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "rock", "norm", "norm", "norm", "wall", "norm", "norm", "norm","norm", "norm", "wall"],
+   ["frt3", "gte3", "frt3", "frt3", "norm", "norm", "wall", "norm", "wall", "roid", "rock", "norm", "wall", "norm", "norm", "frt4","frt4", "gte4", "frt4"],
+   ["wall", "norm", "norm", "frt3", "norm", "norm", "norm", "wall", "wall", "rock", "norm", "wall", "norm", "norm", "norm", "frt4","norm", "norm", "wall"],
+   ["wall", "dom3", "norm", "gte3", "norm", "wall", "norm", "rock", "norm", "wall", "norm", "rock","rock", "norm", "norm", "gte4", "norm", "dom4", "wall"],
+   ["wall", "wall", "wall", "frt3", "norm", "wall", "norm", "roid", "norm", "rock", "norm", "norm", "norm", "wall", "norm", "frt4","wall", "wall", "wall"]
+  ],
+  
+  "BOTS": 10,
+  "PLAYER_SPAWN_LOCATION": "random",
+  "TEAMS": [1, 2, 3, 4],
+  "BOT_TEAMS": [1, 2, 3, 4],
+  "DOMINATION": true,
+  "DOMINATOR_COUNT": 4,
+  "SPAWN_FOOD": true,
+  "SPAWN_NEUTRAL_BOSSES": true, 
+  "SPAWN_CRASHER": true,
+  "SPAWN_SENTINEL": true,
+}

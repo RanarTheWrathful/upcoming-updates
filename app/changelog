@@ -1,0 +1,58 @@
+  @Ranar's Prophecy/Arena Updates,
+
+# Prophecy Version 0.0.9
+NEW UPDATE!
+  
+  -Added a new final wave, featuring each terrestrial and celestial combined with kronos.
+  
+  -Buffed the Terrestrials!
+  
+  
+  -Added additional healer tanks to the healer branch! (3 For each healer upgrade)
+  - Additionally, We added Repairer and Physician, which are smasher repairer and healer(respectively).
+  - because of this, we have made Repairsphere and Healersphere(along with their branches) be able to repair/heal by ramming, like their 'lesser' versions can.
+  - Added War Healer, which is a t4 branch off of Physician, its Physician with a Healer barrel.
+  - Added Repair Man, which is a t4 branch off of Repairer, its Repairer with a Mechanic barrel.
+  
+  -Gave enemies and a few bosses 'Least Deadly' AI, meaning that they will prioritize things like players over bosses and dominators.
+  
+  -Fixed the issue that caused Ranar's shrine to break as soon as the server started.
+  
+  -Reworked Septa-trapper due to it being underpowered soley because of the existance of hexa trapper
+  - Renamed it to Octo-Trapper
+  - Slightly buffed traps
+  - Added an extra trap layer
+  - Moved it from tri-trapper to hexa-trapper branches.
+  
+  -Buffed infestor due to it being very underpowered compared to the other underseer branches
+  
+  -Slightly reduced carrier's reload speed and increased drone acceleration.
+  
+  -Fixed hardshell spawner
+  
+  -Changes to Entomber and "sunchips"
+  - renamed entomber to undertrapper
+  - buffed sunchip health and speed
+  - slightly decreased reload of undertrapper
+  - made a branch for undertrapper, featuring the underseer branch together with a trapper (with minor changes) 
+  
+  -Adjusted the barrel angles of Fortress to make it more easily useable.
+  
+  -implemented a system that made the bots spawn less when more players are on, this should help with lag.
+  
+  -Reduced the amount of ally bosses allowed at any one time in siege.
+  
+  -Allowed Rogue Palisade and Rogue Armada to evolve after reaching 500k score.
+  
+  -Added many bosses to siege:
+  - Ruiner 
+  - Hellwark
+  - Conjurer
+  - Cultist Centurion
+  - The Descendants from the Denied
+  - The Alt. Disciples from the Distance
+  - The Celestials
+  - The Legionary Crasher 
+  - Kronos
+  
+  

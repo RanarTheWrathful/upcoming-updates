@@ -1,0 +1,32 @@
+Ranarokay:
+Shinies give 100 times more exp than base versions.
+HP is undetermined, just has to be higher than base, from there, different varients will have more hp based on this amount.
+
+.
+find . -type f -name "*.js" -exec sed -i 's/word1/word2/g' {} \;
+
+
+i can use this to easily replace things across all file types(in this example, it replaces it in all js files), word is replaced with word2 if this is typed into the terminal.
+the changes may not seem like they took place, but if you search for the word you replaced, you wont find it, so its simply a visual bug.
+You must reload the site AFTER EACH COMMAND, otherwise it won't SAVE!
+Running refresh command will allow you to see the changes.
+.
+find . -type f -name "*.js" -exec sed -i 's/word//g' {} \;
+
+basically deletes it, as it is replacing the word with nothing.
+
+In other words:
+1. Run the replace command(as shown above).
+2. Reload Site.
+3. Run refresh command.
+4. Repeat, as needed.
+
+---------------------------
+JJ:
+
+Turrets of turrets dont listen to stats, so make them preset
+---------------------------
+Kris is likely to tap:
+
+altfire dont work on turrents, dont waste 2h on it again.
+instead convert to a gun, then add altfire (simplest way in my opinion)

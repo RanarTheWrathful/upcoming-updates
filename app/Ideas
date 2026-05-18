@@ -1,0 +1,74 @@
+Ranar -
+Possibly rework commands to make them easier to use.
+All our long term to dos:
+1. Creating the Infestation part 2, 'the Plague'.|0%
+2. Creating 'the Defected' where Valrayvn loses 3 of his prized generals.|0%
+3. Create two modes for Cubed versus Valrayvn, both from the Neutral Alliance's Perspective and Cubed Legion's Perspective.|0%
+4. Create a mode for the corruption of Baltyla and its correspondong effects.|0%
+5. Create a mode for the guardians finding the abyssal rock.|0%  (J.J.: i'll make de  R O C)
+7. Creating crasher varients and sentry varients, for each polygon(hexagon or below) and making shiny varients of those.|75%
+8. Balance all legion tanks. (later(prob in a month or 7))
+11. Work on a lore mode, how Valrayvn got into the Aether.|0%
+12. Work on a lore mode, how Ranar(under Valrayvn's Control) was found and how the factions came together to fight him.|0%
+13. Work on a lore mode, Ranar's Origins.
+14. Work on a lore mode, how the Fallen escaped Diep.
+15. Work on a lore mode, The Origins of the Fallen.
+16. Take down some suggestions.
+1. Work on the plague map | 100% ✓
+   1. Work on a special "port" | 100% ✓
+   2. Work on Pendekot | 100% ✓
+   3. Work on petagon type bosses | 2/2 ✓
+   4. Work on the mode itself | 80% X
+
+2. Work on more tanks
+   1. Work on more pentagon tanks | 5% X
+   2. Work on more square tanks | 43% X
+   3. Work on more triangle tanks | 8% X
+   4. Work on more hexagon tanks | 0% X
+   5. Work on more egg tanks | 0% X 
+
+3. work on kris boss fight in dif server (Ranar: this will be added to the server) (J.J.: YEEEEAAA-) (Kris: can i has keep auto assulters?) (J.J.: no) | X
+   1. Finish the text | 83% X
+   2. Fix Kris Shrine HP | X
+
+4. Work on Void ranar map | X
+   1. Balance void ranar | -218937822345968790374259810856498576089632198754602234596879037425981085649857608963219875460972005971698720698431749223459687903742598108564985760896321987546097200597169872069843174983333358266423546833333582664235462234596879037425981085649857608963219875460972005971698720698431749833333582664235469720059716987206984317498333335826642354622345968790374259810856498576089632198754609720059716987206984317498333335826642354657487975634221% X
+   2. Make new powers for void ranar | 0% X
+   3. Make the official void ranar design | X
+   
+5. Work on the official definers design | 40% X
+   1. Stfellas | 100% ✓
+   2. Quadrin | 80% X
+   3. Tryi | 80% X
+   4. Pendekot | 100% ✓
+   5. Baltyla | 80% X
+   6. Work on the Quadral Crusades Map(s) | 0% X
+   1. Neutral Version | 0% X
+   2. Quadral Legion Version | 0% X
+7.Make an unholy ammount of guardians
+____________________________________________
+JJ -
+Make variations of doms for highlords (and the system for it)
+(I suggest making upgrades or something for them)
+____________________________________________
+Kris -
+add my healer branch extension once im done with it
+____________________________________________
+----------------------------------------------------------------------------
+
+General -
+
+                        
+
+for our stuff:
+//do c. make whatever unused word up, add a if condition with !c.whateverword and set it to true inside the function.
+    
+if (this.randomShit === "blah blah" && !c.whateverWord) {
+      this.sendMessage("I ARE PRO!!1!");
+      c.whateverWord = true;
+      }//or, if you want it to be based on entity and not a global thing:
+    if (c.ruh && !this.whateverWord) {
+      this.sendMessage("Reeeee");
+      this.whateverWord = true;
+      }
+

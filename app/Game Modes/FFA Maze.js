@@ -1,0 +1,33 @@
+module.exports =
+{
+  "WIDTH": 4000,
+  "HEIGHT": 4000,
+  "MODE": "ffa",
+  "RANDOM_COLORS": true,
+  "ALLOW_SERVER_END": true,
+"ROOM_SETUP": [
+["rock", "wall", "norm", "norm", "norm", "norm", "norm", "wall", "norm", "norm", "norm", "norm", "norm", "norm", "roid"],
+["wall", "norm", "norm", "norm", "wall", "norm", "rock", "norm", "roid", "wall", "norm", "wall", "wall", "norm", "norm"],
+["wall", "norm", "wall", "wall", "norm", "norm", "norm", "norm", "norm", "wall", "norm", "norm", "wall", "norm", "wall"],
+["wall", "norm", "norm", "wall", "norm", "norm", "wall", "norm", "wall", "norm", "roid", "wall", "norm", "norm", "norm"],
+["norm", "norm", "norm", "norm", "norm", "norm", "roid", "norm", "norm", "wall", "norm", "norm", "norm", "wall", "wall"],
+["norm", "wall", "norm", "wall", "norm", "nest", "nest", "nest", "nest", "nest", "norm", "roid", "wall", "norm", "wall"],
+["norm", "wall", "wall", "norm", "wall", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm", "norm", "roid"],
+["wall", "norm", "roid", "norm", "norm", "nest", "nest", "wall", "nest", "nest", "norm", "wall", "rock", "norm", "wall"],
+["rock", "roid", "norm", "wall", "norm", "nest", "nest", "nest", "nest", "nest", "roid", "wall", "wall", "wall", "wall"],
+["norm", "norm", "norm", "wall", "norm", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm", "roid", "roid"],
+["norm", "wall", "roid", "norm", "norm", "norm", "norm", "norm", "wall", "roid", "norm", "norm", "wall", "wall", "norm"],
+["wall", "wall", "wall", "norm", "norm", "wall", "wall", "norm", "wall", "norm", "norm", "roid", "norm", "wall", "norm"],
+["roid", "wall", "norm", "norm", "rock", "norm", "wall", "roid", "norm", "norm", "norm", "norm", "wall", "norm", "norm"],
+["norm", "norm", "wall", "norm", "norm", "norm", "norm", "wall", "norm", "norm", "norm", "wall", "norm", "norm", "roid"],
+["rock", "norm", "norm", "wall", "norm", "norm", "roid", "norm", "norm", "wall", "norm", "wall", "norm", "norm", "wall"]
+],
+  "FOOD_AMOUNT": 0.75,
+  "TEAMS": "color",
+  "BOTS": 10,
+  "BOT_TEAMS": "color",
+  "SPAWN_FOOD": true,
+  "SPAWN_NEUTRAL_BOSSES": true,
+  "SPAWN_CRASHER": true,
+  "SPAWN_SENTINEL": true,
+}
