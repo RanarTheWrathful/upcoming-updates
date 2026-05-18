@@ -7540,7 +7540,7 @@ instance.runTrigger("kill", this);
     if (i !== -1) entitiesToAvoid.splice(i, 1);
   }
   this.isProtected = false;
-    
+    this.kill();
     // Remove from minimap
     let i = minimap.findIndex((entry) => {
       return entry[0] === this.id;
@@ -7580,7 +7580,6 @@ instance.runTrigger("kill", this);
     this.controllers = null;
 this.parent = null;
 this.children = null;
-   this = {};
   }
 
   isDead() {
