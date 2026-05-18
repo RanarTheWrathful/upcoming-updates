@@ -699,7 +699,7 @@ function makeTiling() {
         gridHeight,
         protect: true,
         team: -100,
-        color,
+        color: color,
         grid: {
           x: Math.floor(loc.x / gridWidth),
           y: Math.floor(loc.y / gridHeight)
