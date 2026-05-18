@@ -13015,7 +13015,7 @@ if (n.type === "atmosphere"||(n.repairEffect||n.healEffect) && !n.isProjectile) 
     for (let i = 0; i < entities.length; i++) {
       if (check[i]) {
         let e = entities[i];
-        if (e.valid() && e.bond == null) {
+       if (e && e.valid() && e.bond == null) {
           activeEntities.push(e);
         }
       }
