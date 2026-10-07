@@ -1,6 +1,5 @@
 dependencies:
   box-intersect: 1.0.2
-  google-closure-library: 20180506.0.0
   ws: 6.1.4
 packages:
   /async-limiter/1.0.1:
@@ -22,10 +21,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Bz5jxMMC0wgp23Zm15ip1x8IhYRqJvF3nFC0UInJUDkN1z4uNPk9jTnfCUJXbOGiQ1JbXLQsiV41Fb+HXcj5BA==
-  /google-closure-library/20180506.0.0:
-    dev: false
-    resolution:
-      integrity: sha1-LS2pLCfBDcADE//4ClFYtVTKmQg=
   /typedarray-pool/1.2.0:
     dependencies:
       bit-twiddle: 1.0.2
@@ -44,5 +39,4 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   box-intersect: ^1.0.2
-  google-closure-library: 20180506.0.0
   ws: 6.1.x

@@ -9,7 +9,9 @@ exports.addArticle = function(string) {
 }; 
 
 exports.getDistance = function (p1, p2) {
-    return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    return Math.sqrt(dx * dx + dy * dy);
 };
 
 exports.getDirection = function (p1, p2) {
@@ -128,14 +130,15 @@ exports.deepClone = (obj, hash = new WeakMap()) => {
 };
 
 exports.averageArray = arr => {
-    if (!arr.length) return 0;    
-    var sum = arr.reduce((a, b) => { return a + b; });
+    if (!arr.length) return 0;
+    let sum = 0;
+    for (let i = 0; i < arr.length; i++) sum += arr[i];
     return sum / arr.length;
 };
 
 exports.sumArray = arr => {
-    if (!arr.length) return 0;    
-    var sum = arr.reduce((a, b) => { return a + b; });
+    let sum = 0;
+    for (let i = 0; i < arr.length; i++) sum += arr[i];
     return sum;
 };
 

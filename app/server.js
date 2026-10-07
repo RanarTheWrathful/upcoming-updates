@@ -1,11 +1,9 @@
 /*jslint node: true */
 /*jshint -W061 */
-/*global goog, Map, let */
+/*global Map, let */
 "use strict";
 //guh duh.
 // General require
-require("google-closure-library");
-goog.require("goog.structs.PriorityQueue");
 const boxIntersect = require("box-intersect");
 const net = require("net");
 const { cleanText } = require("./filter");
@@ -543,7 +541,7 @@ class Vector {
   }
 
   get length() {
-    return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+    return Math.sqrt(this.x * this.x + this.y * this.y);
   }
 
   get direction() {
@@ -576,7 +574,7 @@ class Velocity {
   }
 
   get length() {
-    return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+    return Math.sqrt(this.x * this.x + this.y * this.y);
   }
 
   get direction() {
@@ -605,7 +603,7 @@ class Acceleration {
   }
 
   get length() {
-    return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+    return Math.sqrt(this.x * this.x + this.y * this.y);
   }
 
   get direction() {
@@ -2538,60 +2536,59 @@ function createMaze() {
   }
 }
 function sortByDistance(array, location) {
+  const x = location.x;
+  const y = location.y;
   array.sort((a, b) => {
-    let ad = Math.pow(a.x - location.x, 2) + Math.pow(a.y - location.y, 2);
-    let bd = Math.pow(b.x - location.x, 2) + Math.pow(b.y - location.y, 2);
-    if (a < b) {
-      return -1;
-    } else if (b < a) {
-      return 1;
-    } else {
-      return 0;
-    }
+    const adx = a.x - x;
+    const ady = a.y - y;
+    const bdx = b.x - x;
+    const bdy = b.y - y;
+    return adx * adx + ady * ady - (bdx * bdx + bdy * bdy);
   });
 }
 
 function getEntitiesFromRange(location, range) {
-  let box = [
+  const box = [
     location.x - range,
     location.y - range,
     location.x + range,
     location.y + range,
   ];
-  return boxIntersect([box], activeAabb)
-    .map((v) => {
-      let e = activeEntities[v[1]];
-      if (e.valid()) {
-        return e;
-      }
-    })
-    .filter((e) => {
-      return e;
-    });
+  const hits = boxIntersect([box], activeAabb);
+  const result = new Array(hits.length);
+  let count = 0;
+  for (let i = 0; i < hits.length; i++) {
+    const e = activeEntities[hits[i][1]];
+    if (e.valid()) result[count++] = e;
+  }
+  result.length = count;
+  return result;
 }
 
 // Define IOs (AI)
 function nearest(
   array,
   location,
-  test = () => {
-    return true;
-  }
+  test = () => true
 ) {
-  let list = new goog.structs.PriorityQueue();
-  let d;
-  if (!array.length) {
-    return undefined;
-  }
-  array.forEach(function (instance) {
-    d =
-      Math.pow(instance.x - location.x, 2) +
-      Math.pow(instance.y - location.y, 2);
-    if (test(instance, d)) {
-      list.enqueue(d, instance);
+  if (!array.length) return undefined;
+
+  const x = location.x;
+  const y = location.y;
+  let nearestEntity;
+  let nearestDistance = Infinity;
+
+  for (let i = 0; i < array.length; i++) {
+    const instance = array[i];
+    const dx = instance.x - x;
+    const dy = instance.y - y;
+    const distance = dx * dx + dy * dy;
+    if (distance < nearestDistance && test(instance, distance)) {
+      nearestDistance = distance;
+      nearestEntity = instance;
     }
-  });
-  return list.dequeue();
+  }
+  return nearestEntity;
 }
 function timeOfImpact(p, v, s) {
   // Requires relative position and velocity to aiming point
@@ -3875,18 +3872,21 @@ class io_minion extends IO {
       let repel = (100 * sizeFactor * this.body.SPEED) / 2;
       let goal;
       let power = 1;
-      let target = new Vector(input.target.x, input.target.y);
+      const targetX = input.target.x;
+      const targetY = input.target.y;
+      const targetLength = Math.sqrt(targetX * targetX + targetY * targetY);
+      const targetDirection = Math.atan2(targetY, targetX);
       if (input.alt) {
         // Leash
-        if (target.length < leash) {
+        if (targetLength < leash) {
           goal = {
-            x: this.body.x + target.x,
-            y: this.body.y + target.y,
+            x: this.body.x + targetX,
+            y: this.body.y + targetY,
           };
 
           // Spiral repel
-        } else if (target.length < repel) {
-          let dir = -this.turnwise * target.direction + Math.PI / 5;
+        } else if (targetLength < repel) {
+          let dir = -this.turnwise * targetDirection + Math.PI / 5;
           goal = {
             x: this.body.x + Math.cos(dir),
             y: this.body.y + Math.sin(dir),
@@ -3894,18 +3894,18 @@ class io_minion extends IO {
           // Free repel
         } else {
           goal = {
-            x: this.body.x - target.x,
-            y: this.body.y - target.y,
+            x: this.body.x - targetX,
+            y: this.body.y - targetY,
           };
         }
       } else if (input.main) {
         // Orbit point
-        let dir = this.turnwise * target.direction + 0.01;
+        let dir = this.turnwise * targetDirection + 0.01;
         goal = {
-          x: this.body.x + target.x - orbit * Math.cos(dir),
-          y: this.body.y + target.y - orbit * Math.sin(dir),
+          x: this.body.x + targetX - orbit * Math.cos(dir),
+          y: this.body.y + targetY - orbit * Math.sin(dir),
         };
-        if (Math.abs(target.length - orbit) < this.body.size * 2) {
+        if (Math.abs(targetLength - orbit) < this.body.size * 2) {
           power = 0.7;
         }
       }
@@ -3924,9 +3924,10 @@ class io_wanderAroundMap extends IO {
   }
   think(input) {
     if (!this.body.invuln) {
+      const dx = this.body.x - this.spot.x;
+      const dy = this.body.y - this.spot.y;
       if (
-        new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y)
-          .length < 50 ||
+        dx * dx + dy * dy < 2500 ||
         this.targetLock != undefined
       ) {
         this.spot = room.random();
@@ -3945,9 +3946,10 @@ class io_pathFinder extends IO {
   think(input) {
     if (!this.body.invuln) {
       if (room["pth" + this.path]) {
+        const dx = this.body.x - this.spot.x;
+        const dy = this.body.y - this.spot.y;
         if (
-          new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y)
-            .length < 50 ||
+          dx * dx + dy * dy < 2500 ||
           this.targetLock != undefined
         ) {
           this.path += 1;
@@ -3992,9 +3994,10 @@ class io_guard1 extends IO {
   }
   think(input) {
     if (this.body) {
+      const dx = this.body.x - this.spot.x;
+      const dy = this.body.y - this.spot.y;
       if (
-        new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y)
-          .length < 50 ||
+        dx * dx + dy * dy < 2500 ||
         this.targetLock != undefined ||
         this.body.invuln
       ) {
@@ -15236,17 +15239,17 @@ var http = require("http"),
       let chooseFurthestAndRemove = function (furthestFrom) {
         let index = 0;
         if (furthestFrom != -1) {
-          let list = new goog.structs.PriorityQueue();
-          let d;
+          let bestDistance = -Infinity;
           for (let i = 0; i < endpoints.length; i++) {
-            let thisPoint = endpoints[i];
-            d =
-              Math.pow(thisPoint.x - furthestFrom.x, 2) +
-              Math.pow(thisPoint.y - furthestFrom.y, 2) +
-              1;
-            list.enqueue(1 / d, i);
+            const point = endpoints[i];
+            const dx = point.x - furthestFrom.x;
+            const dy = point.y - furthestFrom.y;
+            const distance = dx * dx + dy * dy;
+            if (distance > bestDistance) {
+              bestDistance = distance;
+              index = i;
+            }
           }
-          index = list.dequeue();
         }
         let output = endpoints[index];
         endpoints.splice(index, 1);
@@ -15256,23 +15259,24 @@ var http = require("http"),
       let point2 = chooseFurthestAndRemove(point1); // And the point furthest from that
       // And the point which maximizes the area of our triangle (a loose look at this one)
       let chooseBiggestTriangleAndRemove = function (point1, point2) {
-        let list = new goog.structs.PriorityQueue();
         let index = 0;
-        let a;
+        let bestScore = -Infinity;
         for (let i = 0; i < endpoints.length; i++) {
-          let thisPoint = endpoints[i];
-          a =
-            Math.pow(thisPoint.x - point1.x, 2) +
-            Math.pow(thisPoint.y - point1.y, 2) +
-            Math.pow(thisPoint.x - point2.x, 2) +
-            Math.pow(thisPoint.y - point2.y, 2);
+          const point = endpoints[i];
+          const dx1 = point.x - point1.x;
+          const dy1 = point.y - point1.y;
+          const dx2 = point.x - point2.x;
+          const dy2 = point.y - point2.y;
+          const score = dx1 * dx1 + dy1 * dy1 + dx2 * dx2 + dy2 * dy2;
           /* We need neither to calculate the last part of the triangle
            * (because it's always the same) nor divide by 2 to get the
            * actual area (because we're just comparing it)
            */
-          list.enqueue(1 / a, i);
+          if (score > bestScore) {
+            bestScore = score;
+            index = i;
+          }
         }
-        index = list.dequeue();
         let output = endpoints[index];
         endpoints.splice(index, 1);
         return output;
@@ -18478,8 +18482,11 @@ var gameloop = (() => {
   // Collision stuff
   let collide = (() => {
     function simplecollide(my, n) {
-      if (util.getDistance(my, n) < 2 + my.realSize + n.realSize) {
-        let diff = (1 + util.getDistance(my, n) / 2) * roomSpeed;
+      const dx = my.x - n.x;
+      const dy = my.y - n.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < 2 + my.realSize + n.realSize) {
+        let diff = (1 + distance / 2) * roomSpeed;
         let a = my.intangibility ? 1 : my.pushability,
           b = n.intangibility ? 1 : n.pushability,
           c = (0.05 * (my.x - n.x)) / diff,
@@ -18501,8 +18508,11 @@ var gameloop = (() => {
       }
     }
     function polycollide(my, n) {
-      if (util.getDistance(my, n) < 2 + my.realSize + n.realSize) {
-        let diff = (1 + util.getDistance(my, n)) * roomSpeed;
+      const dx = my.x - n.x;
+      const dy = my.y - n.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < 2 + my.realSize + n.realSize) {
+        let diff = (1 + distance) * roomSpeed;
         let a = my.intangibility ? 1 : my.pushability * 5,
           b = n.intangibility ? 1 : n.pushability * 5,
           c = (0.5 * (my.x - n.x)) / diff,
@@ -18514,8 +18524,11 @@ var gameloop = (() => {
       }
     }
     function reversecollide(my, n) {
-      if (util.getDistance(my, n) < 2 + my.realSize + n.realSize) {
-        let diff = (1 + util.getDistance(my, n) / 2) * roomSpeed;
+      const dx = my.x - n.x;
+      const dy = my.y - n.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < 2 + my.realSize + n.realSize) {
+        let diff = (1 + distance / 2) * roomSpeed;
         let a = my.intangibility ? 1 : my.pushability,
           b = n.intangibility ? 1 : n.pushability,
           c = (0.05 * (my.x - n.x)) / diff,
@@ -18527,9 +18540,13 @@ var gameloop = (() => {
       }
     }
     function firmcollide(my, n, buffer = 0) {
-      let item1 = { x: my.x + my.m_x, y: my.y + my.m_y };
-      let item2 = { x: n.x + n.m_x, y: n.y + n.m_y };
-      let dist = util.getDistance(item1, item2);
+      let item1x = my.x + my.m_x;
+      let item1y = my.y + my.m_y;
+      let item2x = n.x + n.m_x;
+      let item2y = n.y + n.m_y;
+      let dx = item1x - item2x;
+      let dy = item1y - item2y;
+      let dist = Math.sqrt(dx * dx + dy * dy);
       let s1 = Math.max(my.velocity.length, my.topSpeed);
       let s2 = Math.max(n.velocity.length, n.topSpeed);
       let strike1, strike2;
@@ -18539,40 +18556,50 @@ var gameloop = (() => {
             (my.realSize + n.realSize + buffer - dist)) /
           buffer /
           roomSpeed;
-        my.accel.x += (repel * (item1.x - item2.x)) / dist;
-        my.accel.y += (repel * (item1.y - item2.y)) / dist;
-        n.accel.x -= (repel * (item1.x - item2.x)) / dist;
-        n.accel.y -= (repel * (item1.y - item2.y)) / dist;
+        const safeDist = dist || 0.000001;
+        my.accel.x += (repel * dx) / safeDist;
+        my.accel.y += (repel * dy) / safeDist;
+        n.accel.x -= (repel * dx) / safeDist;
+        n.accel.y -= (repel * dy) / safeDist;
       }
       while (dist <= my.realSize + n.realSize && !(strike1 && strike2)) {
         strike1 = false;
         strike2 = false;
+        const safeDist = dist || 0.000001;
         if (my.velocity.length <= s1) {
-          my.velocity.x -= (0.05 * (item2.x - item1.x)) / dist / roomSpeed;
-          my.velocity.y -= (0.05 * (item2.y - item1.y)) / dist / roomSpeed;
+          my.velocity.x += (0.05 * (item1x - item2x)) / safeDist / roomSpeed;
+          my.velocity.y += (0.05 * (item1y - item2y)) / safeDist / roomSpeed;
         } else {
           strike1 = true;
         }
         if (n.velocity.length <= s2) {
-          n.velocity.x += (0.05 * (item2.x - item1.x)) / dist / roomSpeed;
-          n.velocity.y += (0.05 * (item2.y - item1.y)) / dist / roomSpeed;
+          n.velocity.x += (0.05 * (item2x - item1x)) / safeDist / roomSpeed;
+          n.velocity.y += (0.05 * (item2y - item1y)) / safeDist / roomSpeed;
         } else {
           strike2 = true;
         }
-        item1 = { x: my.x + my.m_x, y: my.y + my.m_y };
-        item2 = { x: n.x + n.m_x, y: n.y + n.m_y };
-        dist = util.getDistance(item1, item2);
+        item1x = my.x + my.m_x;
+        item1y = my.y + my.m_y;
+        item2x = n.x + n.m_x;
+        item2y = n.y + n.m_y;
+        dx = item1x - item2x;
+        dy = item1y - item2y;
+        dist = Math.sqrt(dx * dx + dy * dy);
       }
     }
     function reflectcollide(wall, bounce) {
-      let delt = new Vector(wall.x - bounce.x, wall.y - bounce.y);
-      let dist = delt.length;
-      let diff = wall.size + bounce.size - dist;
+      const dx = wall.x - bounce.x;
+      const dy = wall.y - bounce.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const diff = wall.size + bounce.size - dist;
       if (diff > 0) {
-        bounce.accel.x -= ((diff * delt.x) / dist) * bounce.pushability;
-        bounce.accel.y -= ((diff * delt.y) / dist) * bounce.pushability;
-        wall.accel.x += ((diff * delt.x) / dist) * wall.pushability;
-        wall.accel.y += ((diff * delt.y) / dist) * wall.pushability;
+        const safeDist = dist || 0.000001;
+        const pushX = (diff * dx) / safeDist;
+        const pushY = (diff * dy) / safeDist;
+        bounce.accel.x -= pushX * bounce.pushability;
+        bounce.accel.y -= pushY * bounce.pushability;
+        wall.accel.x += pushX * wall.pushability;
+        wall.accel.y += pushY * wall.pushability;
         return 1;
       }
       return 0;
@@ -20541,8 +20568,16 @@ var gameloop = (() => {
           if (!timer[i]--) check[i] = true;
         } else {
           timer[i] = 15;
-          if (entities[i].valid()) {
-            check[i] = views.some((v) => v.isInView(entities[i]));
+          const entity = entities[i];
+          if (entity.valid()) {
+            let inView = false;
+            for (let v = 0; v < views.length; v++) {
+              if (views[v].isInView(entity)) {
+                inView = true;
+                break;
+              }
+            }
+            check[i] = inView;
           }
         }
       }
@@ -20554,18 +20589,18 @@ var gameloop = (() => {
       if (views.length > 0) {
         let x = soaEntity.x;
         let y = soaEntity.y;
+        const viewCount = views.length;
         for (let i = 0; i < entities.length; i++) {
           let minDistance = 4;
-          views.forEach((view) => {
-            let distance = Math.max(
+          for (let v = 0; v < viewCount; v++) {
+            const view = views[v];
+            const distance = Math.max(
               Math.abs(view.x - x[i]),
               Math.abs(view.y - y[i])
             );
-            minDistance = Math.min(
-              minDistance,
-              distance / ((view.fov * range) / 2)
-            );
-          });
+            const normalized = distance / ((view.fov * range) / 2);
+            if (normalized < minDistance) minDistance = normalized;
+          }
           timer[i] += Math.max(0, Math.min(2 - minDistance, 1));
           if (timer[i] >= 1) {
             timer[i] -= 1;
@@ -20585,38 +20620,41 @@ var gameloop = (() => {
       throw new Error("Activation mode settings error!");
     }
 
-    activeEntities = [];
+    activeEntities.length = 0;
     for (let i = 0; i < entities.length; i++) {
       if (check[i]) {
-        let e = entities[i];
-        if (e.valid() && e.bond == null) {
-          activeEntities.push(e);
-        }
+        const e = entities[i];
+        if (e.valid() && e.bond == null) activeEntities.push(e);
       }
     }
   };
 
   let collisionIteration = () => {
-    let x1, y1, x2, y2;
-    activeAabb = activeEntities.map((e) => {
-      x1 = Math.min(e.x, e.x + e.velocity.x + e.accel.x) - e.realSize - 5;
-      y1 = Math.min(e.y, e.y + e.velocity.y + e.accel.y) - e.realSize - 5;
-      x2 = Math.max(e.x, e.x + e.velocity.x + e.accel.x) + e.realSize + 5;
-      y2 = Math.max(e.y, e.y + e.velocity.y + e.accel.y) + e.realSize + 5;
-      return [x1, y1, x2, y2];
-    });
+    if (activeAabb.length < activeEntities.length) {
+      while (activeAabb.length < activeEntities.length) activeAabb.push([0, 0, 0, 0]);
+    } else if (activeAabb.length > activeEntities.length) {
+      activeAabb.length = activeEntities.length;
+    }
+
+    for (let i = 0; i < activeEntities.length; i++) {
+      const e = activeEntities[i];
+      const x = e.x;
+      const y = e.y;
+      const vx = e.velocity.x + e.accel.x;
+      const vy = e.velocity.y + e.accel.y;
+      const size = e.realSize + 5;
+      const box = activeAabb[i];
+      box[0] = Math.min(x, x + vx) - size;
+      box[1] = Math.min(y, y + vy) - size;
+      box[2] = Math.max(x, x + vx) + size;
+      box[3] = Math.max(y, y + vy) + size;
+    }
+
     let e1, e2;
     boxIntersect(activeAabb, (i, j) => {
       e1 = activeEntities[i];
       e2 = activeEntities[j];
-      if (
-        e1.valid() &&
-        e1.bond == null &&
-        e1.activation.check() &&
-        e2.valid() &&
-        e2.bond == null &&
-        e2.activation.check()
-      ) {
+      if (e1.valid() && e1.bond == null && e2.valid() && e2.bond == null) {
         collide([e1, e2]);
       }
     });
@@ -20645,34 +20683,36 @@ var gameloop = (() => {
   };
 
   let liveIteration = () => {
-    entities.forEach((e) => {
-      if (e.valid()) {
-        // Consider death.
-        if (e.contemplationOfMortality()) {
-          e.destroy();
-        } else if (e.activation.check()) {
-          logs.entities.tally();
-          // Think about my actions.
-          logs.life.set();
-          e.life();
-          logs.life.mark();
-          // Apply friction.
-          e.friction();
-          e.confinementToTheseEarthlyShackles();
-        }
-        // Update collisions.
+    let scheduleCooldown = false;
+    for (let i = 0; i < entities.length; i++) {
+      const e = entities[i];
+      if (!e.valid()) continue;
 
-        e.collisionArray = [];
-        if (!c.cooldown) {
-          setTimeout(() => {
-            c.socketEnterList = [];
-            c.socketExitList = [];
-            c.cooldown = false;
-          }, 10000);
-          c.cooldown = true;
-        }
+      // Consider death.
+      if (e.contemplationOfMortality()) {
+        e.destroy();
+      } else if (e.activation.check()) {
+        logs.entities.tally();
+        logs.life.set();
+        e.life();
+        logs.life.mark();
+        e.friction();
+        e.confinementToTheseEarthlyShackles();
       }
-    });
+
+      // Update collisions.
+      e.collisionArray.length = 0;
+      if (!c.cooldown) scheduleCooldown = true;
+    }
+
+    if (scheduleCooldown && !c.cooldown) {
+      setTimeout(() => {
+        c.socketEnterList = [];
+        c.socketExitList = [];
+        c.cooldown = false;
+      }, 10000);
+      c.cooldown = true;
+    }
   };
 
   // Return the loop function
