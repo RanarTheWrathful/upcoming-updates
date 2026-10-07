@@ -3608,11 +3608,21 @@ class io_nearestDifferentMaster extends IO {
           damageRef.health.display() < this.oldHealth
         ) {
           this.oldHealth = damageRef.health.display();
-          if (this.validTargets.indexOf(damageRef.collisionArray[0]) === -1) {
-            this.targetLock =
-              damageRef.collisionArray[0].master.id === -1
-                ? damageRef.collisionArray[0].source
-                : damageRef.collisionArray[0].master;
+          // A collision recorded earlier in the tick may already have been
+          // destroyed and had its MASTER cleared. Find the first live entry
+          // with a live owner instead of blindly indexing element zero.
+          let damageSource = null;
+          for (let i = 0; i < damageRef.collisionArray.length; i++) {
+            const collider = damageRef.collisionArray[i];
+            if (!collider || !collider.valid() || !collider.master) continue;
+            const owner = collider.master;
+            if (!owner.valid()) continue;
+            damageSource = owner.id === -1 ? collider.source : owner;
+            if (damageSource && damageSource.valid()) break;
+            damageSource = null;
+          }
+          if (damageSource && this.validTargets.indexOf(damageSource) === -1) {
+            this.targetLock = damageSource;
           }
         }
     }
@@ -13891,21 +13901,30 @@ console.log('Lore mode sequence advanced.');*/
         );
         // Now for each of the things that kill me...
         this.collisionArray.forEach((instance) => {
+          // Collision arrays can still contain an entity that was destroyed
+          // earlier in the same tick. destroy() deliberately clears MASTER so
+          // the object can be garbage-collected, so never dereference a stale
+          // collision entry here.
+          if (!instance || !instance.valid()) return;
           if (instance.team == -101 || this.team == instance.team) return 0;
-          if (instance.master.settings.acceptsScore) {
+
+          const killerMaster = instance.master;
+          if (!killerMaster || !killerMaster.valid()) return;
+
+          if (killerMaster.settings.acceptsScore) {
             // If it's not food, give its master the score
 
             notJustFood = true;
             if (instance.damage !== 0)
               if (
-                instance.master.type === "tank" ||
-                instance.master.type === "deity" ||
-                instance.master.isEnemy ||
-                instance.master.isBoss
+                killerMaster.type === "tank" ||
+                killerMaster.type === "deity" ||
+                killerMaster.isEnemy ||
+                killerMaster.isBoss
               )
                 if (this.skill.score > 0)
                   Math.ceil(
-                    (instance.master.skill.score +=
+                    (killerMaster.skill.score +=
                       jackpot + (this.damageRecieved * 100 + 1))
                   );
           } else if (instance.settings.acceptsScore) {
@@ -13915,7 +13934,7 @@ console.log('Lore mode sequence advanced.');*/
                   jackpot + (this.damageRecieved * 100 + 1))
               );
           }
-          killers.push(instance.master); // And keep track of who killed me
+          killers.push(killerMaster); // And keep track of who killed me
 
           killTools.push(instance); // Keep track of what actually killed me
         });
@@ -13932,6 +13951,9 @@ console.log('Lore mode sequence advanced.');*/
           dothISendAText = this.settings.givesKillMessage;
         for (let i = 0; i < this.collisionArray.length; i++) {
           let instance = this.collisionArray[i];
+          // A collider may have died earlier in this tick. Do not resurrect
+          // or account for an entity that is no longer live.
+          if (!instance || !instance.valid()) continue;
           this.killCount.killers.push(instance.index);
           if (this.type === "tank") {
             if (killers.length > 1) instance.killCount.assists++;
