@@ -2474,10 +2474,18 @@ function roomShrinkage() {
   }
 }
 
+let siegeCountdownTimer = null;
+
 function siegeCountdown() {
-  setInterval(() => {
-    if (c.initiateCountdown) {
-      switch (c.countdown) {
+  if (siegeCountdownTimer !== null) return;
+
+  siegeCountdownTimer = setInterval(() => {
+    if (!c.initiateCountdown) {
+      clearInterval(siegeCountdownTimer);
+      siegeCountdownTimer = null;
+      return;
+    }
+    switch (c.countdown) {
         case 60000:
           sockets.broadcast(
             "Your team will lose in 60 seconds! No players can respawn until a sanctuary is repaired!"
@@ -2512,10 +2520,12 @@ function siegeCountdown() {
           sockets.broadcast("Your team has lost the game!");
           currentState.bossWaves = 1;
           currentState.modeVotes = [];
+          clearInterval(siegeCountdownTimer);
+          siegeCountdownTimer = null;
           closeArena();
-      }
-      c.countdown -= 1000;
+          return;
     }
+    c.countdown -= 1000;
   }, 1000);
 }
 
@@ -4926,13 +4936,13 @@ var minimap = [];
 var views = [];
 var entitiesToAvoid = [];
 const dirtyCheck = (p, r) => {
-  return entitiesToAvoid.some((e) => {
-    if (e.valid()) {
-      return (
-        Math.abs(p.x - e.x) < r + e.size && Math.abs(p.y - e.y) < r + e.size
-      );
+  for (let i = 0; i < entitiesToAvoid.length; i++) {
+    const e = entitiesToAvoid[i];
+    if (e.valid() && Math.abs(p.x - e.x) < r + e.size && Math.abs(p.y - e.y) < r + e.size) {
+      return true;
     }
-  });
+  }
+  return false;
 };
 
 class KeyManager {
@@ -4945,6 +4955,15 @@ class KeyManager {
 
   createKey() {
     if (this.unusedIndexLength === 0) {
+      if (this.length >= this.generation.length) {
+        const newSize = this.generation.length * 2;
+        const nextGeneration = new Uint32Array(newSize);
+        const nextUnused = new Uint32Array(newSize);
+        nextGeneration.set(this.generation);
+        nextUnused.set(this.unusedIndex);
+        this.generation = nextGeneration;
+        this.unusedIndex = nextUnused;
+      }
       this.unusedIndex[this.unusedIndexLength] = this.length;
       this.unusedIndexLength++;
       this.length++;
@@ -4958,9 +4977,12 @@ class KeyManager {
   }
 
   removeKey(key) {
+    // A destroyed entity can be reached by more than one cleanup path.
+    if (!this.hasKey(key)) return false;
     this.unusedIndex[this.unusedIndexLength] = key.i;
     this.unusedIndexLength++;
     this.generation[key.i]++;
+    return true;
   }
 
   hasKey(key) {
@@ -5151,7 +5173,8 @@ class Entity {
       polygons: 0,
       killers: [],
     };
-    this.creationTime = new Date().getTime();
+    this.creationTime = Date.now();
+    this._destroyed = false;
     this.key = keyManager.createKey();
     // Inheritance
     this.extraMinions = 0;
@@ -5782,7 +5805,7 @@ class Entity {
           this.coreSize = this.SIZE;
         }
       }
-      if (set.SKILL != null && set.SKILL != []) {
+      if (Array.isArray(set.SKILL) && set.SKILL.length) {
         if (set.SKILL.length != 10) {
           throw "Inappropiate skill raws.";
         }
@@ -5801,7 +5824,7 @@ class Entity {
         }
         this.refreshBodyAttributes();
       }
-      if (set.SKILL_CAP != null && set.SKILL_CAP != []) {
+      if (Array.isArray(set.SKILL_CAP) && set.SKILL_CAP.length) {
         if (set.SKILL_CAP.length != 10) {
           throw "Inappropiate skill caps.";
         }
@@ -14979,6 +15002,7 @@ console.log('Lore mode sequence advanced.');*/
   }
 
   protect() {
+    if (this._destroyed || this.isProtected) return;
     entitiesToAvoid.push(this);
     this.isProtected = true;
   }
@@ -14993,44 +15017,108 @@ console.log('Lore mode sequence advanced.');*/
   }
 
   destroy() {
-    // Remove from the protected entities list
-    if (this.isProtected)
-      util.remove(entitiesToAvoid, entitiesToAvoid.indexOf(this));
-    // Remove from minimap
-    let i = minimap.findIndex((entry) => {
-      return entry[0] === this.id;
-    });
-    if (i != -1) util.remove(minimap, i);
-    // Remove this from views
-    views.forEach((v) => v.remove(this));
-    // Remove from parent lists if needed
-    if (this.parent != null)
-      util.remove(this.parent.children, this.parent.children.indexOf(this));
-    // Kill all of its children
-    this.possiblyChildren.forEach((instance) => {
-      if (instance === this) {
-        return;
+    // Several systems can observe the same dead entity in a single tick.
+    if (this._destroyed || !keyManager.hasKey(this.key)) return;
+    this._destroyed = true;
+
+    // Break every live-entity reference that can otherwise retain this object.
+    const master = this.MASTER;
+    const source = this.SOURCE;
+    const parent = this.PARENT;
+    if (master && master.possiblyChildren) master.possiblyChildren.delete(this);
+    if (source && source.possiblyChildren) source.possiblyChildren.delete(this);
+    if (parent && parent.children) {
+      let parentIndex;
+      while ((parentIndex = parent.children.indexOf(this)) !== -1) {
+        util.remove(parent.children, parentIndex);
       }
-      if (instance.source.id === this.id) {
-        if (instance.settings.persistsAfterDeath) {
+    }
+
+    // Turrets are also retained by their bond/master. Break that reference
+    // when a turret dies independently so the master cannot keep it alive.
+    const bond = this.bond;
+    if (bond && Array.isArray(bond.turrets)) {
+      let turretIndex;
+      while ((turretIndex = bond.turrets.indexOf(this)) !== -1) {
+        util.remove(bond.turrets, turretIndex);
+      }
+    }
+
+    // Defensive cleanup for duplicate protection registrations.
+    if (this.isProtected) {
+      let index;
+      while ((index = entitiesToAvoid.indexOf(this)) !== -1) {
+        util.remove(entitiesToAvoid, index);
+      }
+      this.isProtected = false;
+    }
+
+    // Remove from minimap and active views.
+    let i = minimap.findIndex((entry) => entry[0] === this.id);
+    if (i !== -1) util.remove(minimap, i);
+    for (let v = 0; v < views.length; v++) views[v].remove(this);
+
+    // Kill/unlink children. Relationship setters mutate possiblyChildren, so
+    // iterate a snapshot and then clear the original Set.
+    const children = Array.from(this.possiblyChildren);
+    for (let n = 0; n < children.length; n++) {
+      const instance = children[n];
+      if (!instance || instance === this || instance._destroyed) continue;
+
+      if (instance.SOURCE === this) {
+        if (instance.settings && instance.settings.persistsAfterDeath) {
           instance.source = instance;
         } else {
           instance.kill();
         }
       }
-      if (instance.parent && instance.parent.id === this.id) {
-        instance.parent = null;
-      }
-      if (instance.master.id === this.id) {
+      if (instance.PARENT === this) instance.parent = null;
+      if (instance.MASTER === this) {
         instance.kill();
         instance.master = instance;
       }
-    });
-    // Remove everything bound to it
-    this.turrets.forEach((t) => t.destroy());
-    // Remove from the collision grid
+    }
+    this.possiblyChildren.clear();
+
+    // Use a snapshot because turret.destroy() removes itself from this array.
+    const turrets = this.turrets.slice();
+    for (let t = 0; t < turrets.length; t++) {
+      const turret = turrets[t];
+      if (turret && !turret._destroyed) turret.destroy();
+    }
+    this.turrets.length = 0;
+    this.bond = null;
+
+    // Release the key and sparse-out the entity slot so V8 can reclaim the
+    // entity object while the numeric key/index remains reusable.
+    const keyIndex = this.key.i;
     keyManager.removeKey(this.key);
-    this.guns = [];
+    if (entities[keyIndex] === this) delete entities[keyIndex];
+
+    // Per-key physics state contains only primitive values, but deleting it
+    // avoids keeping stale sparse data around and makes slot reuse clean.
+    delete soaEntity.x[keyIndex];
+    delete soaEntity.y[keyIndex];
+    delete soaEntity.velocityX[keyIndex];
+    delete soaEntity.velocityY[keyIndex];
+    delete soaEntity.accelX[keyIndex];
+    delete soaEntity.accelY[keyIndex];
+    delete soaEntity.stepRemaining[keyIndex];
+    delete soaEntity.activationCheck[keyIndex];
+    delete soaEntity.activationTimer[keyIndex];
+
+    // Drop large per-entity containers immediately.
+    this.controllers.length = 0;
+    this.children.length = 0;
+    this.possiblyChildren.clear();
+    this.MASTER = null;
+    this.SOURCE = null;
+    this.PARENT = null;
+    this.excludedTargets.length = 0;
+    this.collisionArray.length = 0;
+    this.upgrades.length = 0;
+    this.guns.length = 0;
+    this.turrets.length = 0;
   }
 
   isDead() {
@@ -15421,6 +15509,10 @@ class View {
     this.lastDowndate = undefined;
     this.fov = 2000;
     this.ping = 0;
+    this.nearEntity.clear();
+    this.visibleEntity.clear();
+    this.photos.clear();
+    this.excludedEntityID.length = 0;
   }
 
   add(e) {
@@ -15430,11 +15522,10 @@ class View {
   }
 
   remove(e) {
-    if (this.visibleEntity.delete(e)) {
-      this.photos.delete(e.id);
-      this.nearEntity.delete(e);
-      this.excludedEntityID.push(e.id);
-    }
+    const wasVisible = this.visibleEntity.delete(e);
+    this.nearEntity.delete(e);
+    this.photos.delete(e.id);
+    if (wasVisible) this.excludedEntityID.push(e.id);
   }
 
   isInView(e) {
@@ -15489,7 +15580,7 @@ class View {
             this.socket.talk("F", ...player.records(), 100000000000);
           }
         } else if (player.body.bannable) {
-          c.banList.push(player.body.ip);
+          if (!c.banList.includes(player.body.ip)) c.banList.push(player.body.ip);
           this.socket.kick("Go. Away. Fatman.");
         }
         // Remove the body
@@ -15687,7 +15778,7 @@ class View {
         }
       });
       this.visibleEntity.forEach((e) => {
-        if (!e.valid() || (!this.isInView(e) && e.alwaysExists | e.isDead())) {
+        if (!e.valid() || (!this.isInView(e) && (e.alwaysExists || e.isDead()))) {
           this.remove(e);
         }
       });
@@ -15746,7 +15837,7 @@ const sockets = (() => {
         switch (thing) {
           case "mute":
             if (IP === dude.ip) {
-              c.muteList.push(dude.ip);
+              if (!c.muteList.includes(dude.ip)) c.muteList.push(dude.ip);
               util.log(dude.name + " was muted temporarily!");
             }
             break;
@@ -15763,7 +15854,7 @@ const sockets = (() => {
             break;
           case "ban":
             if (IP === dude.ip) {
-              c.banList.push(dude.ip);
+              if (!c.banList.includes(dude.ip)) c.banList.push(dude.ip);
               util.log(dude.name + " was banned temporarily!");
             }
             break;
@@ -15804,19 +15895,24 @@ const sockets = (() => {
             player.body.isDominator !== true &&
             !player.body.trueDev
           ) {
-            player.body.invuln = false;
+            const disconnectedBody = player.body;
+            disconnectedBody.invuln = false;
             setTimeout(() => {
-              if (player.body.skill.score >= 500000 && c.MODE !== "siege") {
-                let o = new Entity(player.body);
+              if (!disconnectedBody || !disconnectedBody.valid()) return;
+              if (
+                disconnectedBody.skill.score >= 500000 &&
+                c.MODE !== "siege"
+              ) {
+                let o = new Entity(disconnectedBody);
                 o.define(Class.goldenEgg);
-                o.name = player.body.name;
-                o.scoreSave = player.body.skill.score;
-                o.ip = player.body.ip;
+                o.name = disconnectedBody.name;
+                o.scoreSave = disconnectedBody.skill.score;
+                o.ip = disconnectedBody.ip;
                 o.impervious = true;
               }
-              player.body.kill();
-              if (!player.body.plagued) {
-                player.body.destroy();
+              disconnectedBody.kill();
+              if (!disconnectedBody.plagued) {
+                disconnectedBody.destroy();
               }
             }, 10000);
           }
@@ -17310,37 +17406,6 @@ const sockets = (() => {
               body.color = ran.choose([10, 19, 7, 18]);
             }
 
-            //Pick Player test
-            function pickRandomPlayers(players, numPlayers) {
-              if (players.length <= 0 || numPlayers <= 0) {
-                return [];
-              }
-
-              const shuffledPlayers = [...players]; // Create a copy to avoid modifying the original array
-
-              // Fisher-Yates shuffle
-              for (let i = shuffledPlayers.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [shuffledPlayers[i], shuffledPlayers[j]] = [
-                  shuffledPlayers[j],
-                  shuffledPlayers[i],
-                ];
-              }
-
-              return shuffledPlayers.slice(0, numPlayers);
-            }
-
-            // Example usage:
-            const allPlayers = [this.type === "Player"];
-            const numPlayersToPick = 1;
-
-            const selectedPlayers = pickRandomPlayers(
-              allPlayers,
-              numPlayersToPick
-            );
-
-            console.log("Randomly selected players:", selectedPlayers);
-            //Pick Player test end
             //  if (!socket.once) {
             socket.once = true;
             if (c.TEAMS === "color") {
@@ -18162,7 +18227,7 @@ player.color = easy;
         let minimapAll = new Delta(5, () => {
           let all = [];
           for (let my of entities) {
-            if (!my.valid() && !my.isDead()) {
+            if (!my || (!my.valid() && !my.isDead())) {
               continue;
             }
             if (
@@ -18206,7 +18271,7 @@ player.color = easy;
             new Delta(3, () => {
               let all = [];
               for (let my of entities) {
-                if (!my.valid()) {
+                if (!my || !my.valid()) {
                   continue;
                 }
                 if (
@@ -18237,6 +18302,7 @@ player.color = easy;
           let list = [];
           for (let instance of entities)
             if (
+              instance &&
               instance.valid() &&
               instance.settings.leaderboardable &&
               instance.settings.drawShape &&
@@ -18311,7 +18377,7 @@ player.color = easy;
           let time = util.time();
           for (let socket of clients) {
             if (socket.timeout.check(time)) socket.lastWords("K");
-            if (time - socket.statuslastHeartbeat > c.maxHeartbeatInterval)
+            if (time - socket.status.lastHeartbeat > c.maxHeartbeatInterval)
               socket.kick("Lost heartbeat.");
           }
         }, 100);
@@ -20562,35 +20628,38 @@ var gameloop = (() => {
     let timer = soaEntity.activationTimer;
     if (c.ACTIVATION_MODE === undefined || c.ACTIVATION_MODE === "normal") {
       for (let i = 0; i < entities.length; i++) {
+        const entity = entities[i];
+        if (!entity) {
+          check[i] = false;
+          continue;
+        }
         if (!check[i]) {
-          // Remove bullets and swarm
-          // if (entities[i].settings.diesAtRange) entities[i].kill();
           if (!timer[i]--) check[i] = true;
         } else {
           timer[i] = 15;
-          const entity = entities[i];
-          if (entity.valid()) {
-            let inView = false;
-            for (let v = 0; v < views.length; v++) {
-              if (views[v].isInView(entity)) {
-                inView = true;
-                break;
-              }
+          let inView = false;
+          for (let v = 0; v < views.length; v++) {
+            if (views[v].isInView(entity)) {
+              inView = true;
+              break;
             }
-            check[i] = inView;
           }
+          check[i] = inView;
         }
       }
     } else if (c.ACTIVATION_MODE === "distance") {
       const range = 1.0;
-      for (let i = 0; i < entities.length; i++) {
-        check[i] = false;
-      }
       if (views.length > 0) {
         let x = soaEntity.x;
         let y = soaEntity.y;
         const viewCount = views.length;
         for (let i = 0; i < entities.length; i++) {
+          const entity = entities[i];
+          if (!entity) {
+            check[i] = false;
+            timer[i] = 0;
+            continue;
+          }
           let minDistance = 4;
           for (let v = 0; v < viewCount; v++) {
             const view = views[v];
@@ -20607,10 +20676,14 @@ var gameloop = (() => {
             check[i] = true;
           }
         }
+      } else {
+        for (let i = 0; i < entities.length; i++) {
+          check[i] = !!entities[i];
+        }
       }
     } else if (c.ACTIVATION_MODE === "alwaysTrue") {
       for (let i = 0; i < entities.length; i++) {
-        check[i] = true;
+        check[i] = !!entities[i];
       }
     } else if (c.ACTIVATION_MODE === "alwaysFalse") {
       for (let i = 0; i < entities.length; i++) {
@@ -20622,9 +20695,9 @@ var gameloop = (() => {
 
     activeEntities.length = 0;
     for (let i = 0; i < entities.length; i++) {
-      if (check[i]) {
-        const e = entities[i];
-        if (e.valid() && e.bond == null) activeEntities.push(e);
+      const e = entities[i];
+      if (e && check[i] && e.valid() && e.bond == null) {
+        activeEntities.push(e);
       }
     }
   };
@@ -20671,6 +20744,7 @@ var gameloop = (() => {
     let check = soaEntity.activationCheck;
 
     for (let i = 0; i < entities.length; i++) {
+      if (!entities[i]) continue;
       if (c.ACTIVATION_MODE === "distance" && !check[i]) continue;
       velocityX[i] += accelX[i];
       velocityY[i] += accelY[i];
@@ -20686,7 +20760,7 @@ var gameloop = (() => {
     let scheduleCooldown = false;
     for (let i = 0; i < entities.length; i++) {
       const e = entities[i];
-      if (!e.valid()) continue;
+      if (!e || !e.valid()) continue;
 
       // Consider death.
       if (e.contemplationOfMortality()) {
@@ -21962,7 +22036,9 @@ var maintainloop = (() => {
     // Return the spawning function
     let bots = [];
     return () => {
-      let census = {
+      // Single-pass NPC census. This replaces the old map/filter allocation
+      // and keeps only the counts actually consumed by the spawn routines.
+      const census = {
         crasher: 0,
         thrasher: 0,
         Aspect: 0,
@@ -21974,22 +22050,16 @@ var maintainloop = (() => {
         fallenBoss: 0,
         tank: 0,
       };
-      let npcs = entities
-        .map(function npcCensus(instance) {
-          if (instance.valid()) {
-            if (census[instance.type] != null) {
-              census[instance.type]++;
-              return instance;
-            }
-            if (census[instance.specialEffect] != null) {
-              census[instance.specialEffect]++;
-              return instance;
-            }
-          }
-        })
-        .filter((e) => {
-          return e;
-        });
+      for (let i = 0; i < entities.length; i++) {
+        const instance = entities[i];
+        if (!instance || !instance.valid()) continue;
+        if (census[instance.type] != null) {
+          census[instance.type]++;
+        } else if (census[instance.specialEffect] != null) {
+          census[instance.specialEffect]++;
+        }
+      }
+
       let ruh;
       if (c.REDUCE_BOTS_PER_PLAYER) ruh = c.playerCount;
       else ruh = 0;
@@ -22297,10 +22367,11 @@ var maintainloop = (() => {
           bots.push(o);
         }
       }
-      // Remove dead ones
-      bots = bots.filter((e) => {
-        return !e.isDead();
-      });
+      // Remove dead bots in place to avoid allocating a fresh array every
+      // maintain cycle.
+      for (let i = bots.length - 1; i >= 0; i--) {
+        if (bots[i].isDead()) util.remove(bots, i);
+      }
 
       for (let i = 0; i < bots.length; i++) {
         let o = bots[i];
@@ -22945,35 +23016,31 @@ var maintainloop = (() => {
         [9]: 0, //Nonagon
         sum: 0,
       };
-      // Do the censusNest
-      food = entities
-        .map((instance) => {
-          if (!instance.valid()) {
-            return;
-          }
-          try {
-            if (instance.type === "tank") {
-              census.tank++;
-              c.tankCount = census.tank;
-            } else if (instance.foodLevel > -1) {
-              if (room.isIn("nest", { x: instance.x, y: instance.y })) {
-                censusNest.sum++;
-                censusNest[instance.foodLevel]++;
-              } else {
-                census.sum++;
-                census[instance.foodLevel]++;
-              }
-              return instance;
+      // Rebuild the food list without creating intermediate map/filter arrays.
+      food.length = 0;
+      for (let i = 0; i < entities.length; i++) {
+        const instance = entities[i];
+        if (!instance || !instance.valid()) continue;
+        try {
+          if (instance.type === "tank") {
+            census.tank++;
+            c.tankCount = census.tank;
+          } else if (instance.foodLevel > -1) {
+            if (room.isIn("nest", instance)) {
+              censusNest.sum++;
+              censusNest[instance.foodLevel]++;
+            } else {
+              census.sum++;
+              census[instance.foodLevel]++;
             }
-          } catch (err) {
-            util.error(instance.label);
-            util.error(err);
-            instance.kill();
+            food.push(instance);
           }
-        })
-        .filter((e) => {
-          return e;
-        });
+        } catch (err) {
+          util.error(instance.label);
+          util.error(err);
+          instance.kill();
+        }
+      }
       // Sum it up
       let maxFood = room.maxFood / 7;
       let maxNestFood = room.maxFood / 25;
@@ -24736,7 +24803,26 @@ function getListenPort() {
   return 8080;
 }
 
+let shuttingDown = false;
+
 function cleanup() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  if (siegeCountdownTimer !== null) {
+    clearInterval(siegeCountdownTimer);
+    siegeCountdownTimer = null;
+  }
+  // Ensure WebSocket resources do not keep the HTTP server open forever.
+  if (sockets && sockets.clients) {
+    for (const socket of [...sockets.clients]) {
+      try {
+        socket.loops?.terminate();
+        socket.terminate();
+      } catch (error) {
+        util.error(error);
+      }
+    }
+  }
   console.log("Shutting down server gracefully.");
   sockets.broadcast(
     "Server Shutting Down! Possible Error May have occurred, please rejoin in 30 seconds!"

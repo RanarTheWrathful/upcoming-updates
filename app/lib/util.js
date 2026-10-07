@@ -168,14 +168,14 @@ exports.warn = text => {
 exports.error = text => {
     console.log(text);
 };
-exports.remove = (array, index) => {    
-    // there is more than one object in the container
-    if(index === array.length - 1){
-        // special case if the obj is the newest in the container
-        return array.pop();
-    } else {
-        let o = array[index];
-        array[index] = array.pop();
-        return o;
-    }
+exports.remove = (array, index) => {
+    // Invalid/already-removed indexes are a no-op. The old implementation
+    // could assign array[-1], retaining objects and corrupting array state.
+    if (index < 0 || index >= array.length) return undefined;
+
+    if (index === array.length - 1) return array.pop();
+
+    const removed = array[index];
+    array[index] = array.pop();
+    return removed;
 };
