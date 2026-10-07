@@ -1,11 +1,12 @@
 const fs = require('fs');
+const path = require('path');
   
 let serverState = {}; 
    
 // Function to load server state from file
 function loadServerState() {
     try {  
-        let data = fs.readFileSync('serverState.json');
+        let data = fs.readFileSync(path.join(__dirname, 'serverState.json'));
         serverState = JSON.parse(data);
     } catch (err) {
         console.error('Error loading server state:', err.message);
@@ -21,7 +22,7 @@ function loadServerState() {
 
 // Function to save server state to file
 function saveServerState() {
-    fs.writeFileSync('serverState.json', JSON.stringify(serverState, null, 2));
+    fs.writeFileSync(path.join(__dirname, 'serverState.json'), JSON.stringify(serverState, null, 2));
 }
 
 // Function to advance lore mode sequence

@@ -13,14 +13,17 @@ const { cleanText } = require("./filter");
 // Import utilities.
 const util = require("./lib/util");
 const ran = require("./lib/random");
-const fs = require("fs"); // Example of using serverStateManager module
+const fs = require("fs");
+const path = require("path"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
 // Example usage:
 let currentState = serverState.getServerState();
 
-const lockFilePath = "./serv.lock";
+const lockFilePath = path.join(__dirname, "serv.lock");
 // Create lock file
 fs.writeFileSync(lockFilePath, process.pid.toString());
+
+let chosenMode;
 function countInstances(arr) {
   const countMap = {}; // Object to store counts
 
@@ -32,9 +35,9 @@ function countInstances(arr) {
       countMap[item] = 1; // Initialize count if item does not exist
     }
   });
+
   return countMap; // Return the object containing counts
 }
-
 function pickTheBiggest(countMap) {
   // Determine the maximum count
   let maxCount = -1;
@@ -52,17 +55,21 @@ function pickTheBiggest(countMap) {
   // Randomly select one item from maxItems
   const randomIndex = Math.floor(Math.random() * maxItems.length);
   const selected = maxItems[randomIndex];
+
   // Return just the selected item (not wrapped in an array)
   return { selected, count: maxCount };
 }
 
-let chosenMode,
-modeList = ["Unknown"],
-serverType = "testing"; //change this to play preset modes look.
-
-if (serverType === "testing") chosenMode = "Soccer"; //change this to play a specific mode.
+let modeList = ["Unknown"];
+let serverType = "lore"; //change this to play preset modes look
+if (serverType === "JJ's Reasearch Facility")
+  chosenMode = "JJ's Reasearch Facility"; //or this
+if (serverType === "testing") chosenMode = "Sandbox";
+//change this to play a specifict mode
 else if (serverType === "normal") {
+  //dont change these - J.J.
   modeList = [
+    //oh ok - kris
     "Open Execution",
     "Maze Execution",
     "4TDM Growth",
@@ -84,7 +91,6 @@ else if (serverType === "normal") {
     "Grudge Ball",
     "Siege",
   ];
-  
   if (currentState.modeVotes.length === 0) {
     chosenMode = ran.choose(modeList);
   } else {
@@ -92,19 +98,15 @@ else if (serverType === "normal") {
     let result = pickTheBiggest(votes);
     chosenMode = result.selected;
   }
-  
   currentState.modeVotes = [];
-  
-  if (chosenMode === "siege") {
+  if (chosenMode === "Siege") {
     for (let i = 0; i < 3; i++) {
-      currentState.modeVotes.push("siege");
+      currentState.modeVotes.push("Siege");
     }
-    
     if (currentState.bossWaves > 50) {
       currentState.modeVotes = [];
     }
   }
-  
 } else if (serverType === "lore") {
   modeList = [
     "The Expanse",
@@ -132,23 +134,21 @@ let config = require("./config.js"),
 const decodeHTML = require("html-entities").decode;
 // Set up room
 util.log(chosenMode);
-global.fps = 50;
-var roomSpeed = c.gameSpeed;
-
+c.allowEntry = false;
+c.server = `upcoming-update.glitch.me`;
+c.botSpawn = true;
+c.messageLimit = 3000;
 let rareMode = Math.random() * 250;
 if (rareMode < 1 && c.SPAWN_FOOD) {
   c.SHINY_GLORY = true;
 }
+global.fps = 50;
 
-c.server = `upcoming-update.glitch.me`;
-c.messageLimit = 3000;
-
-c.soccerGoals = {
-  GUARDIANS: 0,
-  FALLEN: 0,
-  HIGHLORDS: 0,
-  VOIDLORDS: 0,
-}
+var roomSpeed = c.gameSpeed;
+c.soccerBlueCount = 0;
+c.soccerGreenCount = 0;
+c.soccerRedCount = 0;
+c.soccerPurpleCount = 0;
 c.enemyCount = 0;
 c.botAmount = 1;
 c.playerz = 1;
@@ -2433,7 +2433,14 @@ function closeArena() {
         o.defy = true;
         c.killCheaters = true;
       }/*/
+
+        c.soccerBlueCount = 0;
+
+        c.soccerGreenCount = 0;
+
+        c.soccerRedCount = 0;
         c.BOTS = 0;
+        c.soccerPurpleCount = 0;
         c.SPAWN_SENTINEL = false;
         c.SPAWN_CRASHER = false;
         c.SPAWN_SENTINEL = false;
@@ -2477,7 +2484,7 @@ function siegeCountdown() {
           sockets.broadcast(
             "Your team will lose in 60 seconds! No players can respawn until a sanctuary is repaired!"
           );
-          c.BOTS = 0;
+          c.botSpawn = false;
           break;
         case 45000:
           sockets.broadcast("Your team will lose in 45 seconds!");
@@ -7195,6 +7202,7 @@ class Entity {
         c.RESPAWN_TIMER = 5;
         c.countdown = 60000;
         c.initiateCountdown = false;
+        c.botSpawn = true;
       }
 
       if (this.eliteBoss) {
@@ -13727,36 +13735,83 @@ console.log('Lore mode sequence advanced.');*/
         this.health.amount = this.health.max;
         switch (this.lastCollide.team) {
           case -1:
-            c.soccerGoals.GUARDIANS += 1;
-              sockets.broadcast("A Goal was scored by " + util.getTeam(this.lastCollide.team) + "!");
+            if (room.isIn("bas" + -this.lastCollide.team, spwn)) {
+              sockets.broadcast(
+                "The ball got blocked by " +
+                  util.getTeam(this.lastCollide.team) +
+                  " and was returned to the center!"
+              );
+            } else {
+              c.soccerBlueCount += 1;
+              sockets.broadcast(
+                "A Goal was scored by " +
+                  util.getTeam(this.lastCollide.team) +
+                  "!"
+              );
+            }
             break;
           case -2:
-            c.soccerGoals.FALLEN += 1;
-              sockets.broadcast("A Goal was scored by " + util.getTeam(this.lastCollide.team) + "!");
+            if (room.isIn("bas" + -this.lastCollide.team, spwn)) {
+              sockets.broadcast(
+                "The ball got blocked by " +
+                  util.getTeam(this.lastCollide.team) +
+                  " and was returned to the center!"
+              );
+            } else {
+              c.soccerGreenCount += 1;
+              sockets.broadcast(
+                "A Goal was scored by " +
+                  util.getTeam(this.lastCollide.team) +
+                  "!"
+              );
+            }
             break;
           case -3:
-            c.soccerGoals.HIGHLORDS += 1;
-              sockets.broadcast("A Goal was scored by " + util.getTeam(this.lastCollide.team) + "!");
+            if (room.isIn("bas" + -this.lastCollide.team, spwn)) {
+              sockets.broadcast(
+                "The ball got blocked by " +
+                  util.getTeam(this.lastCollide.team) +
+                  " and was returned to the center!"
+              );
+            } else {
+              c.soccerRedCount += 1;
+              sockets.broadcast(
+                "A Goal was scored by " +
+                  util.getTeam(this.lastCollide.team) +
+                  "!"
+              );
+            }
             break;
           case -4:
-            c.soccerGoals.VOIDLORDS += 1;
-              sockets.broadcast("A Goal was scored by " + util.getTeam(this.lastCollide.team) + "!");
+            if (room.isIn("bas" + -this.lastCollide.team, spwn)) {
+              sockets.broadcast(
+                "The ball got blocked by " +
+                  util.getTeam(this.lastCollide.team) +
+                  " and was returned to the center!"
+              );
+            } else {
+              c.soccerPurpleCount += 1;
+              sockets.broadcast(
+                "A Goal was scored by " +
+                  util.getTeam(this.lastCollide.team) +
+                  "!"
+              );
+            }
             break;
           default:
-            sockets.broadcast("The ball popped!");
         }
         let goal = "GOALS: ";
         if (c.TEAMS.includes(1)) {
-          goal += util.getTeam(-1) + "|" + c.soccerGoals.GUARDIANS + ", ";
+          goal += util.getTeam(-1) + "|" + c.soccerBlueCount + ", ";
         }
         if (c.TEAMS.includes(2)) {
-          goal += util.getTeam(-2) + "|" + c.soccerGoals.FALLEN + ", ";
+          goal += util.getTeam(-2) + "|" + c.soccerGreenCount + ", ";
         }
         if (c.TEAMS.includes(3)) {
-          goal += util.getTeam(-3) + "|" + c.soccerGoals.HIGHLORDS + ", ";
+          goal += util.getTeam(-3) + "|" + c.soccerRedCount + ", ";
         }
         if (c.TEAMS.includes(4)) {
-          goal += util.getTeam(-4) + "|" + c.soccerGoals.VOIDLORDS + ", ";
+          goal += util.getTeam(-4) + "|" + c.soccerPurpleCount + ", ";
         }
         goal += "You need " + c.goals + " goals to win!";
         sockets.broadcast(goal);
@@ -13765,17 +13820,17 @@ console.log('Lore mode sequence advanced.');*/
         this.accel.y = 0;
         this.x = relo.x;
         this.y = relo.y;
-        if (c.soccerGoals.GUARDIANS >= c.goals) {
+        if (c.soccerBlueCount >= c.goals) {
           sockets.broadcast(util.getTeam(-1) + " have won the game!");
           closeArena();
-        } else if (c.soccerGoals.FALLEN >= c.goals) {
-          sockets.broadcast(util.getTeam(-1) + " have won the game!");
+        } else if (c.soccerGreenCount >= c.goals) {
+          sockets.broadcast(util.getTeam(-2) + " have won the game!");
           closeArena();
-        } else if (c.soccerGoals.HIGHLORDS >= c.goals) {
-          sockets.broadcast(util.getTeam(-1) + " have won the game!");
+        } else if (c.soccerRedCount >= c.goals) {
+          sockets.broadcast(util.getTeam(-3) + " have won the game!");
           closeArena();
-        } else if (c.soccerGoals.VOIDLORDS >= c.goals) {
-          sockets.broadcast(util.getTeam(-1) + " have won the game!");
+        } else if (c.soccerPurpleCount >= c.goals) {
+          sockets.broadcast(util.getTeam(-4) + " have won the game!");
           closeArena();
         }
       }
@@ -17209,6 +17264,14 @@ const sockets = (() => {
                 player.body.trueDev = true;
               }
             }
+            if (!c.allowEntry && !devList.includes(socket.ip)) {
+              player.body.sendMessage(
+                "This server is down for maintenance, please play at: ranars-prophecy.glitch.me, thank you!"
+              );
+              setTimeout(() => {
+                socket.kick("NO ENTRY!");
+              }, 5000);
+            }*/
             if (c.TESTBED_ACCESS === 2) {
               player.body.isDeveloper = true;
             }
@@ -21891,7 +21954,7 @@ var maintainloop = (() => {
       if (c.REDUCE_BOTS_PER_PLAYER) ruh = c.playerCount;
       else ruh = 0;
       // Bots
-      if (bots.length < c.BOTS - ruh) {
+      if (bots.length < c.BOTS - ruh && c.botSpawn === true) {
         c.botCount = bots.length;
         let position;
         let team;
@@ -24617,6 +24680,22 @@ process.on("SIGTERM", () => {
   cleanup();
 });
 
+function getListenPort() {
+  const envPort = Number(process.env.PORT);
+  if (Number.isInteger(envPort) && envPort >= 0 && envPort <= 65535) {
+    return envPort;
+  }
+
+  const portFlag = process.argv.indexOf("--port");
+  if (portFlag !== -1) {
+    const value = Number(process.argv[portFlag + 1]);
+    if (Number.isInteger(value) && value >= 0 && value <= 65535) return value;
+    throw new Error("Invalid --port value. Expected an integer from 0 to 65535.");
+  }
+
+  return 8080;
+}
+
 function cleanup() {
   console.log("Shutting down server gracefully.");
   sockets.broadcast(
@@ -24627,8 +24706,8 @@ function cleanup() {
   c.DEADLY_BORDERS = true;
   server.close(() => {
     console.log("Server closed.");
-    // Remove lock file
-    fs.unlinkSync(lockFilePath);
+    // Remove lock file if it still exists.
+    if (fs.existsSync(lockFilePath)) fs.unlinkSync(lockFilePath);
     setTimeout(() => {
       sockets.broadcast("Closing!");
       process.exit(0);
@@ -24638,7 +24717,7 @@ function cleanup() {
 let websockets = (() => {
   // Configure the websocketserver
   let config = { server: server };
-  server.listen(process.env.PORT || 8080, function httpListening() {
+  server.listen(getListenPort(), function httpListening() {
     util.log(
       new Date() +
         ". Joint HTTP+Websocket server turned on, listening on port " +
