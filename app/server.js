@@ -22,6 +22,7 @@ const lockFilePath = path.join(__dirname, "serv.lock");
 fs.writeFileSync(lockFilePath, process.pid.toString());
 
 let chosenMode;
+let ID = -1;
 function countInstances(arr) {
   const countMap = {}; // Object to store counts
 
@@ -97,6 +98,7 @@ else if (serverType === "normal") {
     chosenMode = result.selected;
   }
   currentState.modeVotes = [];
+  c.voteList.clear();
   if (chosenMode === "Siege") {
     for (let i = 0; i < 3; i++) {
       currentState.modeVotes.push("Siege");
@@ -130,6 +132,18 @@ let config = require("./config.js"),
   c = { ...config, ...gameMode };
 //util.log(JSON.stringify(c, null, 2));
 const decodeHTML = require("html-entities").decode;
+
+// Delayed entity callbacks should not keep destroyed entities alive until the
+// timer fires. The WeakRef keeps the scheduling semantics while allowing V8
+// to reclaim an entity immediately after normal destruction.
+const scheduleWeakEntityTimeout = (entity, callback, delay) => {
+  const ref = new WeakRef(entity);
+  return setTimeout(() => {
+    const target = ref.deref();
+    if (!target || target._destroyed) return;
+    callback(target);
+  }, delay);
+};
 // Set up room
 util.log(chosenMode);
 c.allowEntry = false;
@@ -152,7 +166,10 @@ c.botAmount = 1;
 c.playerz = 1;
 c.bossAmount = 0;
 c.whar = 0;
-c.uniqueBossList = [];
+c.uniqueBossList = new Set();
+const addUniqueBosses = (...bosses) => {
+  for (let i = 0; i < bosses.length; i++) c.uniqueBossList.add(bosses[i]);
+};
 let wE1 = [
   "eggCrasher",
   "squareCrasher",
@@ -292,6 +309,8 @@ switch (c.MODE) {
 }
 //currentState.bossWaves = 1;
 c.timeLeft = 0;
+let timeLeftInterval = null;
+let arenaCloseTimeout = null;
 c.playerCount = 0;
 setTimeout(() => {
   c.playerCount = 0;
@@ -304,12 +323,11 @@ c.preparedCounter = 50;
 c.countdown = 60000;
 c.godRole = true; //ran.choose([true, false]);
 //important settings
-c.voteList = ["placeHolder"];
-c.banList = ["placeHolder"];
-c.muteList = ["placeHolder"];
-c.socketList = [];
-c.socketEnterList = [];
-c.socketExitList = [];
+c.voteList = new Set();
+c.banList = new Set(["placeHolder"]);
+c.muteList = new Set(["placeHolder"]);
+c.socketEnterList = new Set();
+c.socketExitList = new Set();
 c.host = "0.0.0.0";
 for (let i = 1; i < 11; i++) {
   c["recentMessage" + i] = "";
@@ -363,18 +381,13 @@ c.DomxClass = "minibois";
 function removeMuted(socketIP) {
   console.log("Removing from muteList:", socketIP);
   console.log("Current muteList:", c.muteList);
-  const index = c.muteList.indexOf(socketIP);
-  if (index !== -1) {
-    c.muteList.splice(index, 1);
+  if (c.muteList.delete(socketIP)) {
     console.log("Updated muteList:", c.muteList);
   }
 }
 
 function removeBanned(socketIP) {
-  const index = c.banList.indexOf(socketIP);
-  if (index !== -1) {
-    c.banList.splice(index, 1);
-  }
+  c.banList.delete(socketIP);
 }
 const room = {
   lastCycle: undefined,
@@ -1233,7 +1246,7 @@ function makeAnubis() {
     o.team = -2;
     o.isAnubis = true;
     //o.ignoreCollision = true;
-    o.addController(new io_guard1(o));
+    o.addController(new io_guard1(bot));
   };
   if (room["dbc2"]) {
     room["dbc2"].forEach((loc) => {
@@ -2354,7 +2367,7 @@ function closeArena() {
       c.RESPAWN_TIMER = Infinity;
       room.closed = true;
       setTimeout(() => {
-        entities.forEach((e) => {
+        liveEntities.forEach((e) => {
           e.alwaysExists = true;
           if (e.isWall || e.isGate || e.isDominator || e.type === "tile") {
             e.kill();
@@ -4214,6 +4227,13 @@ const levelers = [
   43, 45, 54, 63, 72, 80, 88, 94, 100, 110, 119, 127, 134, 143, 150, 159, 168,
   175, 184, 195, 200, 208, 219, 227, 234, 240, 252, 259, 267, 275,
 ];
+const levelerSet = new Set(levelers);
+const skillCurveLog5 = Math.log(5);
+const skillCurve = new Float64Array(c.MAX_SKILL * 2);
+for (let i = 0; i < skillCurve.length; i++) {
+  const x = i / c.MAX_SKILL;
+  skillCurve[i] = Math.log(4 * x + 1) / skillCurveLog5;
+}
 class Skill {
   constructor(inital = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) {
     // Just skill stuff.
@@ -4272,22 +4292,8 @@ class Skill {
   }
 
   update() {
-    let curve = (() => {
-      function make(x) {
-        return Math.log(4 * x + 1) / Math.log(5);
-      }
-      let a = [];
-      for (let i = 0; i < c.MAX_SKILL * 2; i++) {
-        a.push(make(i / c.MAX_SKILL));
-      }
-      // The actual lookup function
-      return (x) => {
-        return a[x * c.MAX_SKILL];
-      };
-    })();
-    function apply(f, x) {
-      return x < 0 ? 1 / (1 - x * f) : f * x + 1;
-    }
+    const maxSkill = c.MAX_SKILL;
+    const apply = (f, x) => (x < 0 ? 1 / (1 - x * f) : f * x + 1);
     for (let i = 0; i < 10; i++) {
       if (this.raw[i] > this.caps[i]) {
         this.points += this.raw[i] - this.caps[i];
@@ -4297,9 +4303,8 @@ class Skill {
     let attrib = [];
     for (let i = 0; i < 5; i++) {
       for (let j = 0; j < 2; j += 1) {
-        attrib[i + 5 * j] = curve(
-          (this.raw[i + 5 * j] + this.bleed(i, j)) / c.MAX_SKILL
-        );
+        attrib[i + 5 * j] =
+          skillCurve[(this.raw[i + 5 * j] + this.bleed(i, j)) * maxSkill];
       }
     }
     this.rld = Math.pow(0.5, attrib[skcnv.rld]);
@@ -4397,11 +4402,7 @@ class Skill {
   }
 
   get levelPoints() {
-    if (
-      levelers.findIndex((e) => {
-        return e === this.level;
-      }) != -1
-    ) {
+    if (levelerSet.has(this.level)) {
       return 1;
     }
     return 0;
@@ -4944,10 +4945,12 @@ class Gun {
 // Define entities
 var minimap = [];
 var views = [];
-var entitiesToAvoid = [];
+// Dense live-entity registry used by hot loops. `entities[]` remains as the
+// legacy key-indexed table because many systems and definitions rely on it.
+var liveEntities = new Set();
+var entitiesToAvoid = new Set();
 const dirtyCheck = (p, r) => {
-  for (let i = 0; i < entitiesToAvoid.length; i++) {
-    const e = entitiesToAvoid[i];
+  for (const e of entitiesToAvoid) {
     if (e.valid() && Math.abs(p.x - e.x) < r + e.size && Math.abs(p.y - e.y) < r + e.size) {
       return true;
     }
@@ -5020,80 +5023,83 @@ let soaEntity = {
 };
 
 let bringToLife = (() => {
-  let remapTarget = (i, ref, self) => {
-    if (i.target == null || (!i.main && !i.alt)) return undefined;
-    return {
-      x: i.target.x + ref.x - self.x,
-      y: i.target.y + ref.y - self.y,
-    };
-  };
-  let passer = (a, b, acceptsFromTop) => {
-    return (index) => {
-      if (
-        a != null &&
-        a[index] != null &&
-        (b[index] == null || acceptsFromTop)
-      ) {
-        b[index] = a[index];
-      }
-    };
-  };
   return (my) => {
-    // Size
-    if (my.SIZE - my.coreSize) my.coreSize += (my.SIZE - my.coreSize) / 100;
-    // Think
-    let faucet =
+    // Size.
+    if (my.SIZE !== my.coreSize) my.coreSize += (my.SIZE - my.coreSize) / 100;
+
+    // Reuse one per-entity controller buffer instead of allocating a new
+    // object and several small closures every simulation tick.
+    const faucet =
       my.settings.independent || my.source == null || my.source === my
-        ? {}
+        ? null
         : my.source.control;
-    let b = {
-      target: remapTarget(faucet, my.source, my),
-      goal: undefined,
-      fire: faucet.fire,
-      main: faucet.main,
-      alt: faucet.alt,
-      power: undefined,
-    };
-    // Seek attention
-    if (my.settings.attentionCraver && !faucet.main && my.range) {
+    const b = my._thinkState;
+    b.target = undefined;
+    b.goal = undefined;
+    b.fire = faucet ? faucet.fire : undefined;
+    b.main = faucet ? faucet.main : undefined;
+    b.alt = faucet ? faucet.alt : undefined;
+    b.power = undefined;
+
+    if (
+      faucet &&
+      faucet.target != null &&
+      (faucet.main || faucet.alt)
+    ) {
+      const t = my._remappedTarget;
+      const ref = my.source;
+      t.x = faucet.target.x + ref.x - my.x;
+      t.y = faucet.target.y + ref.y - my.y;
+      b.target = t;
+    }
+
+    // Seek attention.
+    if (my.settings.attentionCraver && (!faucet || !faucet.main) && my.range) {
       my.range -= 1;
     }
-    // Invisibility
-    // Invisibility
+
+    // Invisibility.
     if (my.invisible[1] && !my.invuln) {
       my.alpha = Math.max(0, my.alpha - my.invisible[1]);
       if (
-        !(
-          my.velocity.x * my.velocity.x + my.velocity.y * my.velocity.y <
-          0.15 * 0.15
-        ) ||
+        my.velocity.x * my.velocity.x + my.velocity.y * my.velocity.y >=
+          0.15 * 0.15 ||
         my.damageReceived
-      )
+      ) {
         my.alpha = Math.min(1, my.alpha + my.invisible[0]);
+      }
     }
-    // So we start with my master's thoughts and then we filter them down through our control stack
-    my.controllers.forEach((AI) => {
-      let a = AI.think(b);
-      let passValue = passer(a, b, AI.acceptsFromTop);
-      passValue("target");
-      passValue("goal");
-      passValue("fire");
-      passValue("main");
-      passValue("alt");
-      passValue("power");
-    });
+
+    // Filter controller outputs without creating a passer closure per AI.
+    const controllers = my.controllers;
+    for (let i = 0; i < controllers.length; i++) {
+      const AI = controllers[i];
+      const a = AI.think(b);
+      if (a == null) continue;
+      const acceptsFromTop = AI.acceptsFromTop;
+      if (a.target != null && (b.target == null || acceptsFromTop)) b.target = a.target;
+      if (a.goal != null && (b.goal == null || acceptsFromTop)) b.goal = a.goal;
+      if (a.fire != null && (b.fire == null || acceptsFromTop)) b.fire = a.fire;
+      if (a.main != null && (b.main == null || acceptsFromTop)) b.main = a.main;
+      if (a.alt != null && (b.alt == null || acceptsFromTop)) b.alt = a.alt;
+      if (a.power != null && (b.power == null || acceptsFromTop)) b.power = a.power;
+    }
+
     my.control.target = b.target == null ? my.control.target : b.target;
     my.control.goal = b.goal;
     my.control.fire = b.fire;
     my.control.main = b.main;
     my.control.alt = b.alt;
     my.control.power = b.power == null ? 1 : b.power;
-    // React
+
+    // React.
     my.move();
     my.face();
-    // Handle guns and turrets if we've got them
-    my.guns.forEach((gun) => gun.live());
-    my.turrets.forEach((turret) => turret.life());
+
+    const guns = my.guns;
+    for (let i = 0; i < guns.length; i++) guns[i].live();
+    const turrets = my.turrets;
+    for (let i = 0; i < turrets.length; i++) turrets[i].life();
     if (my.skill.maintain()) my.refreshBodyAttributes();
   };
 })();
@@ -5200,6 +5206,15 @@ class Entity {
       fire: false,
       power: 0,
     };
+    this._thinkState = {
+      target: undefined,
+      goal: undefined,
+      fire: undefined,
+      main: undefined,
+      alt: undefined,
+      power: undefined,
+    };
+    this._remappedTarget = new Vector(0, 0);
     this.activation = (() => {
       soaEntity.activationCheck[this.key.i] = true;
       soaEntity.activationTimer[this.key.i] = ran.irandom(15);
@@ -5245,6 +5260,7 @@ class Entity {
     this.accel = new Vector(0, 0);
     this.damp = 0.05;
     this.collisionArray = [];
+    this.firingArc = [0, 0];
 
     if (this.invulnerable !== true) {
       this.invuln = false;
@@ -5256,7 +5272,8 @@ class Entity {
     this.team = this.id;
     this.team = master.team;
     entities[this.key.i] = this;
-    views.forEach((v) => v.add(this));
+    liveEntities.add(this);
+    for (let v = 0; v < views.length; v++) views[v].add(this);
   }
 
   get master() {
@@ -5271,7 +5288,7 @@ class Entity {
     ) {
       this.master.possiblyChildren.delete(this);
     }
-    if (e && e.possiblyChildren) {
+    if (e && e !== this && e.possiblyChildren) {
       e.possiblyChildren.add(this);
     }
     this.MASTER = e;
@@ -5289,7 +5306,7 @@ class Entity {
     ) {
       this.source.possiblyChildren.delete(this);
     }
-    if (e && e.possiblyChildren) {
+    if (e && e !== this && e.possiblyChildren) {
       e.possiblyChildren.add(this);
     }
     this.SOURCE = e;
@@ -5307,7 +5324,7 @@ class Entity {
     ) {
       this.parent.possiblyChildren.delete(this);
     }
-    if (e && e.possiblyChildren) {
+    if (e && e !== this && e.possiblyChildren) {
       e.possiblyChildren.add(this);
     }
     this.PARENT = e;
@@ -6232,50 +6249,50 @@ class Entity {
       turrets: this.turrets.map((turret) => turret.camera(true)),
     };
   }
-  takePhoto() {
-    return {
-      x: this.x * 16,
-      y: this.y * 16,
-      facing: this.facing / (Math.PI / 256),
-      type:
-        0 +
-        (this.facingType === "autospin" ||
-          (this.facingType === "locksFacing" && this.control.alt)) *
-          0x03 +
-        this.settings.drawHealth * 0x04 +
-        this.invuln * 0x08,
-      health: Math.ceil(255 * this.health.display()),
-      shield: Math.round(255 * this.shield.display()),
-      alpha: Math.round(255 * this.alpha),
-      size: this.size * 16,
-      score: this.skill.score,
-      name: this.allowPlate ? this.name : "",
-      index: this.index,
-      color: this.color,
-      layer: this.layer,
-      /*/   this.bond != null
-          ? this.bound.layer
-          : this.type === "wall" || this.type === "squareWall"
-          ? 11
-          : this.type === "food"
-          ? 10
-          : this.type === "tank"
-          ? 5
-          : this.type === "crasher"
-          ? 1
-          : this.type === "ariser"
-          ? 1
-          : this.type === "shooter"
-          ? 1
-          : this.type === "protector"
-          ? 1
-          : this.type === "thrasher"
-          ? 1
-          : 0,/*/
-      guns: this.guns.map((gun) => gun.getLastShot()),
-      turrets: this.turrets.map((turret) => turret.takePhoto()),
-      masterId: this.master.id,
-    };
+  // Populate a reusable network photo object. The View owns this scratch
+  // tree and consumes it synchronously, so visible-entity updates do not
+  // allocate a new object/array graph every network tick.
+  takePhoto(target = {}) {
+    target.x = this.x * 16;
+    target.y = this.y * 16;
+    target.facing = this.facing / (Math.PI / 256);
+    target.type =
+      0 +
+      (this.facingType === "autospin" ||
+        (this.facingType === "locksFacing" && this.control.alt)) *
+        0x03 +
+      this.settings.drawHealth * 0x04 +
+      this.invuln * 0x08;
+    target.health = Math.ceil(255 * this.health.display());
+    target.shield = Math.round(255 * this.shield.display());
+    target.alpha = Math.round(255 * this.alpha);
+    target.size = this.size * 16;
+    target.score = this.skill.score;
+    target.name = this.allowPlate ? this.name : "";
+    target.index = this.index;
+    target.color = this.color;
+    target.layer = this.layer;
+
+    let guns = target.guns;
+    if (!guns) guns = target.guns = [];
+    guns.length = this.guns.length;
+    for (let i = 0; i < this.guns.length; i++) {
+      guns[i] = this.guns[i].getLastShot();
+    }
+
+    let turrets = target.turrets;
+    if (!turrets) turrets = target.turrets = [];
+    turrets.length = this.turrets.length;
+    for (let i = 0; i < this.turrets.length; i++) {
+      let turretPhoto = turrets[i];
+      if (!turretPhoto) turretPhoto = turrets[i] = { guns: [], turrets: [] };
+      this.turrets[i].takePhoto(turretPhoto);
+    }
+
+    // A live entity should always have a master, but use a sentinel for the
+    // rare tick where a stale relationship is observed during destruction.
+    target.masterId = this.master ? this.master.id : -1;
+    return target;
   }
 
   skillUp(stat) {
@@ -6517,7 +6534,7 @@ class Entity {
         util.log(dude + " has become a " + this.label + ".");
       }
       let ID = this.id;
-      entities.forEach((instance) => {
+      liveEntities.forEach((instance) => {
         if (
           instance.valid() &&
           instance.settings.clearOnMasterUpgrade &&
@@ -6541,126 +6558,106 @@ class Entity {
   }
 
   move() {
-    if (this.control.goal !== undefined) {
-      let g = {
-          x: this.control.goal.x - this.x,
-          y: this.control.goal.y - this.y,
-        },
-        gactive = g.x !== 0 || g.y !== 0,
-        engine = {
-          x: 0,
-          y: 0,
-        },
-        a = this.acceleration / roomSpeed;
-      switch (this.motionType) {
-        case "glide":
-          this.maxSpeed = this.topSpeed;
-          this.damp = 0.05;
+    const goal = this.control.goal;
+    if (goal === undefined) return;
 
-          break;
-        case "accel":
-          this.maxSpeed = this.topSpeed;
-          this.damp = -0.05;
-          break;
-          case "grow":
-          this.SIZE += 2;
-          this.maxSpeed = this.topSpeed;
-          this.damp = 5;
-          break;
-        case "growth":
-          this.SIZE += 20;
-          this.maxSpeed = this.topSpeed;
-          this.damp = 5;
-          break;
-        case "motor":
-          this.maxSpeed = 0;
-          if (this.topSpeed) {
-            this.damp = a / this.topSpeed;
-          }
-          if (gactive) {
-            let len = Math.sqrt(g.x * g.x + g.y * g.y);
-            engine = {
-              x: (a * g.x) / len,
-              y: (a * g.y) / len,
-            };
-          }
-          break;
-        case "swarm":
-          this.maxSpeed = this.topSpeed;
-          let l = util.getDistance({ x: 0, y: 0 }, g) + 1;
-          if (gactive && l > this.size) {
-            let desiredxspeed = (this.topSpeed * g.x) / l,
-              desiredyspeed = (this.topSpeed * g.y) / l,
-              turning = Math.sqrt(
-                (this.topSpeed * Math.max(1, this.range) + 1) / a
-              );
-            engine = {
-              x: (desiredxspeed - this.velocity.x) / Math.max(5, turning),
-              y: (desiredyspeed - this.velocity.y) / Math.max(5, turning),
-            };
-          } else {
-            if (this.velocity.length < this.topSpeed) {
-              engine = {
-                x: (this.velocity.x * a) / 20,
-                y: (this.velocity.y * a) / 20,
-              };
-            }
-          }
-          break;
-        case "chase":
-          if (gactive) {
-            let l = util.getDistance({ x: 0, y: 0 }, g);
-            if (l > this.size * 2) {
-              this.maxSpeed = this.topSpeed;
-              let desiredxspeed = (this.topSpeed * g.x) / l,
-                desiredyspeed = (this.topSpeed * g.y) / l;
-              engine = {
-                x: (desiredxspeed - this.velocity.x) * a,
-                y: (desiredyspeed - this.velocity.y) * a,
-              };
-            } else {
-              this.maxSpeed = 0;
-            }
+    const gx = goal.x - this.x;
+    const gy = goal.y - this.y;
+    const gactive = gx !== 0 || gy !== 0;
+    const a = this.acceleration / roomSpeed;
+    let engineX = 0;
+    let engineY = 0;
+
+    switch (this.motionType) {
+      case "glide":
+        this.maxSpeed = this.topSpeed;
+        this.damp = 0.05;
+        break;
+      case "accel":
+        this.maxSpeed = this.topSpeed;
+        this.damp = -0.05;
+        break;
+      case "grow":
+        this.SIZE += 2;
+        this.maxSpeed = this.topSpeed;
+        this.damp = 5;
+        break;
+      case "growth":
+        this.SIZE += 20;
+        this.maxSpeed = this.topSpeed;
+        this.damp = 5;
+        break;
+      case "motor":
+        this.maxSpeed = 0;
+        if (this.topSpeed) this.damp = a / this.topSpeed;
+        if (gactive) {
+          const len = Math.sqrt(gx * gx + gy * gy);
+          engineX = (a * gx) / len;
+          engineY = (a * gy) / len;
+        }
+        break;
+      case "swarm": {
+        this.maxSpeed = this.topSpeed;
+        const len = Math.sqrt(gx * gx + gy * gy) + 1;
+        if (gactive && len > this.size) {
+          const desiredX = (this.topSpeed * gx) / len;
+          const desiredY = (this.topSpeed * gy) / len;
+          const turning = Math.sqrt(
+            (this.topSpeed * Math.max(1, this.range) + 1) / a
+          );
+          const divisor = Math.max(5, turning);
+          engineX = (desiredX - this.velocity.x) / divisor;
+          engineY = (desiredY - this.velocity.y) / divisor;
+        } else if (this.velocity.length < this.topSpeed) {
+          engineX = (this.velocity.x * a) / 20;
+          engineY = (this.velocity.y * a) / 20;
+        }
+        break;
+      }
+      case "chase": {
+        if (gactive) {
+          const len = Math.sqrt(gx * gx + gy * gy);
+          if (len > this.size * 2) {
+            this.maxSpeed = this.topSpeed;
+            const desiredX = (this.topSpeed * gx) / len;
+            const desiredY = (this.topSpeed * gy) / len;
+            engineX = (desiredX - this.velocity.x) * a;
+            engineY = (desiredY - this.velocity.y) * a;
           } else {
             this.maxSpeed = 0;
           }
-          break;
-        case "drift":
+        } else {
           this.maxSpeed = 0;
-          engine = {
-            x: g.x * a,
-            y: g.y * a,
-          };
-          break;
-        case "bound":
-          let bound = this.bound,
-            ref = this.bond;
-          this.x =
-            ref.x +
-            ref.size *
-              bound.offset *
-              Math.cos(bound.direction + bound.angle + ref.facing);
-          this.y =
-            ref.y +
-            ref.size *
-              bound.offset *
-              Math.sin(bound.direction + bound.angle + ref.facing);
-          this.bond.velocity.x += bound.size * this.accel.x;
-          this.bond.velocity.y += bound.size * this.accel.y;
-          this.firingArc = [ref.facing + bound.angle, bound.arc / 2];
-          nullVector(this.accel);
-          this.blend = ref.blend;
-          break;
+        }
+        break;
       }
-      this.accel.x += engine.x * this.control.power;
-      this.accel.y += engine.y * this.control.power;
-      //ON Move
+      case "drift":
+        this.maxSpeed = 0;
+        engineX = gx * a;
+        engineY = gy * a;
+        break;
+      case "bound": {
+        const bound = this.bound;
+        const ref = this.bond;
+        const angle = bound.direction + bound.angle + ref.facing;
+        this.x = ref.x + ref.size * bound.offset * Math.cos(angle);
+        this.y = ref.y + ref.size * bound.offset * Math.sin(angle);
+        this.bond.velocity.x += bound.size * this.accel.x;
+        this.bond.velocity.y += bound.size * this.accel.y;
+        this.firingArc[0] = ref.facing + bound.angle;
+        this.firingArc[1] = bound.arc / 2;
+        nullVector(this.accel);
+        this.blend = ref.blend;
+        break;
+      }
     }
+
+    this.accel.x += engineX * this.control.power;
+    this.accel.y += engineY * this.control.power;
   }
   face() {
-    let t = this.control.target,
-      tactive = t.x !== 0 || t.y !== 0,
-      oldFacing = this.facing;
+    const t = this.control.target;
+    const oldFacing = this.facing;
     switch (this.facingType) {
       case "autospin":
       case "spin":
@@ -6983,7 +6980,7 @@ class Entity {
         }
       }
       this.chill = true;
-      setTimeout(() => (this.chill = false), 5000);
+      scheduleWeakEntityTimeout(this, (entity) => (entity.chill = false), 5000);
     }
     if (c.extinction) {
       this.godMode = false;
@@ -7027,8 +7024,8 @@ class Entity {
           this.invuln = true;
           this.x = loc.x;
           this.y = loc.y;
-          setTimeout(() => {
-            this.invuln = false;
+          scheduleWeakEntityTimeout(this, (entity) => {
+            entity.invuln = false;
           }, 5000);
         }
       }
@@ -7046,8 +7043,8 @@ class Entity {
           this.invuln = true;
           this.x = loc.x;
           this.y = loc.y;
-          setTimeout(() => {
-            this.invuln = false;
+          scheduleWeakEntityTimeout(this, (entity) => {
+            entity.invuln = false;
           }, 5000);
         }
       }
@@ -7065,8 +7062,8 @@ class Entity {
           this.invuln = true;
           this.x = loc.x;
           this.y = loc.y;
-          setTimeout(() => {
-            this.invuln = false;
+          scheduleWeakEntityTimeout(this, (entity) => {
+            entity.invuln = false;
           }, 5000);
         }
       }
@@ -7193,8 +7190,8 @@ class Entity {
           this.invuln = true;
           this.x = loc.x;
           this.y = loc.y;
-          setTimeout(() => {
-            this.invuln = false;
+          scheduleWeakEntityTimeout(this, (entity) => {
+            entity.invuln = false;
           }, 5000);
         }
       }
@@ -7204,7 +7201,7 @@ class Entity {
     if (c.MODE === "siege") {
       if (!c.waveCount) {
         c.bossAmount = 0;
-        entities.forEach((entity) => {
+        liveEntities.forEach((entity) => {
           if (entity.siegeProgress && entity.team === -100 && !entity.isDead())
             c.bossAmount += 1;
         });
@@ -7451,11 +7448,9 @@ class Entity {
                     o.siegeProgress = true;
                     o.impervious = true;
                     o.team = -100;
-                    setTimeout(() => {
-                      o.addController(new io_guard1(o));
-                    }, 7500);
+                    scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     sockets.broadcast("CX: No more games, its time you die!");
-                    c.uniqueBossList.push("cx");
+                    addUniqueBosses("cx");
                   }
                   break;
                 case 2:
@@ -7494,14 +7489,12 @@ class Entity {
                           o.siegeProgress = true;
                           o.impervious = true;
                           o.team = -100;
-                          setTimeout(() => {
-                            o.addController(new io_guard1(o));
-                          }, 7500);
+                          scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                         }
                         sockets.broadcast(
                           "Ranar: OK SINCE YOU CAN'T 1V1 ME, I'LL JUST SUMMON TEAM MATES OF MY OWN!"
                         );
-                        c.uniqueBossList.push(
+                        addUniqueBosses(
                           "ranar",
                           "excaliber",
                           "chaser",
@@ -7541,14 +7534,12 @@ class Entity {
                           o.siegeProgress = true;
                           o.impervious = true;
                           o.team = -100;
-                          setTimeout(() => {
-                            o.addController(new io_guard1(o));
-                          }, 7500);
+                          scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                         }
                         sockets.broadcast(
                           "Ranar: OK SINCE YOU CAN'T 1V1 ME, I'LL JUST SUMMON TEAM MATES OF MY OWN!"
                         );
-                        c.uniqueBossList.push(
+                        addUniqueBosses(
                           "ranar",
                           "alex",
                           "pop64",
@@ -7609,14 +7600,12 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast(
                       "Reality seems to tear itself open, entities are emerging from it!"
                     );
-                    c.uniqueBossList.push("sardonyx");
+                    addUniqueBosses("sardonyx");
                   }
                   break;
                 case 4:
@@ -7626,13 +7615,11 @@ class Entity {
                     o.siegeProgress = true;
                     o.impervious = true;
                     o.team = -100;
-                    setTimeout(() => {
-                      o.addController(new io_guard1(o));
-                    }, 7500);
+                    scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     sockets.broadcast(
                       "Undead hoards seem to gather...what the hell?"
                     );
-                    c.uniqueBossList.push("anubis");
+                    addUniqueBosses("anubis");
                   }
                   break;
                 case 5:
@@ -7675,14 +7662,12 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast(
                       "Ranar: The time has come to purify you scum in the name of Valrayvn!"
                     );
-                    c.uniqueBossList.push("ranar");
+                    addUniqueBosses("ranar");
                   }
                   break;
                 case 6:
@@ -7706,14 +7691,12 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast(
                       "The Council has arrived to test you...and decide your fate!"
                     );
-                    c.uniqueBossList.push(
+                    addUniqueBosses(
                       "highlordDominique",
                       "highlordKairo",
                       "highlordAkavir",
@@ -7773,14 +7756,12 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast(
                       "CX: THE DEATHLESS SHALL REIGN SUPREME, AND YOU...YOU SHALL FALL...YOU ALL SHALL FALL!"
                     );
-                    c.uniqueBossList.push("cx", "anubis");
+                    addUniqueBosses("cx", "anubis");
                   }
                   break;
                 case 2:
@@ -7847,14 +7828,12 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast(
                       "Ranar: Ok, I am officially done, you clearly aren't kidding around...I will stop joking, die."
                     );
-                    c.uniqueBossList.push(
+                    addUniqueBosses(
                       "ranar",
                       "stark",
                       "bret",
@@ -7915,14 +7894,12 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast(
                       "Sardonyx: It is time! THE VOID SHALL CONSUME ALL!"
                     );
-                    c.uniqueBossList.push("sardonyx");
+                    addUniqueBosses("sardonyx");
                   }
                   break;
                 case 4:
@@ -7973,14 +7950,12 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast(
                       "Anubis: The lost shall be no more, come...join us and be found..."
                     );
-                    c.uniqueBossList.push("anubis");
+                    addUniqueBosses("anubis");
                   }
                   break;
                 case 6:
@@ -8017,14 +7992,12 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast(
                       "Highlord Akavir: I think I speak for all of us when I say...YOU DONE SCREWED UP!"
                     );
-                    c.uniqueBossList.push(
+                    addUniqueBosses(
                       "highlordDominique",
                       "highlordAkavir",
                       "highlordKairo",
@@ -8090,14 +8063,12 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast(
                       "Valrayvn: UGH, GREAT, NOW I HAVE TO FIGHT IN PERSON, YOU GUYS SUCK!"
                     );
-                    c.uniqueBossList.push(
+                    addUniqueBosses(
                       "legionaryCrasher",
                       "kronos",
                       "valrayvn"
@@ -8147,15 +8118,13 @@ class Entity {
                       o.siegeProgress = true;
                       o.impervious = true;
                       o.team = -100;
-                      setTimeout(() => {
-                        o.addController(new io_guard1(o));
-                      }, 7500);
+                      scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
                     }
                     sockets.broadcast("Kronos: Terrestrials and Celestials...");
                     sockets.broadcast(
                       "Kronos: Arise under my rule, and crush these inferior roadblocks.."
                     );
-                    c.uniqueBossList.push(
+                    addUniqueBosses(
                       "kronos",
                       "paladin",
                       "freyja",
@@ -8247,76 +8216,76 @@ class Entity {
             (o.bossTier === "tierTwoBoss" && bc < 30) ||
             (o.bossTier === "tierThreeBoss" && bc < 45) ||
             (o.bossTier === "stark" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "bret" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "klayton" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "pop64" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "annoyingDog" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "alex" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "oxiniVrochi" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "duodeci" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "kristaps" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "icecream" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "possessor" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "excaliber" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "xxtrianguli" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "chaser" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "johnathon" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "powernoob" &&
-              (bc < 20 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 20 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "selene" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "ezekiel" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "gersemi" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "eris" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "ares" &&
-              (bc < 45 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 45 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "theia" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "zaphkiel" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "freyja" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "nyx" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "paladin" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "anicetus" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "ranar" &&
-              (bc < 60 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 60 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "disconnecter" && bc < 60) ||
             (o.bossTier === "kronos" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "tryi" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "cubed" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "baltyla" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "pendekot" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "stfellas" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier))) ||
+              (bc < 100 || !c.uniqueBossList.has(o.bossTier))) ||
             (o.bossTier === "legionaryCrasher" &&
-              (bc < 100 || !c.uniqueBossList.includes(o.bossTier)))
+              (bc < 100 || !c.uniqueBossList.has(o.bossTier)))
           ) {
             o.bossTier = "weakEnemy1";
           }
@@ -8355,7 +8324,7 @@ class Entity {
           if (o.bossTier === "ranar") {
             o.define(Class.ranarDiscipleForm);
             c.bossCounter -= 60;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
             switch (c.ranarDialog) {
               case 0:
                 sockets.broadcast(
@@ -8403,7 +8372,7 @@ class Entity {
               o.define(Class.ranarAscendantForm);
               o.isRanar = true;
               c.bossCounter -= 100;
-              c.uniqueBossList.push(o.bossTier);
+              addUniqueBosses(o.bossTier);
               sockets.broadcast(
                 //gg
                 "Ranar: Come children, and I shall show you supreme power!"
@@ -8420,7 +8389,7 @@ class Entity {
           if (o.bossTier === "kronos") {
             o.define(Class.kronos);
             c.bossCounter -= 100;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
             sockets.broadcast(
               //gg
               "Time itself starts to warp as an ancient God appears..."
@@ -8429,7 +8398,7 @@ class Entity {
           if (o.bossTier === "legionaryCrasher") {
             o.define(Class.legionaryCrasher);
             c.bossCounter -= 100;
-            c.uniqueBossList.push(o.bossTier); //but
+            addUniqueBosses(o.bossTier); //but
             sockets.broadcast(
               "The crashers were only the disciples of what you have awakened...what have you done?"
             ); //fair enough
@@ -8437,7 +8406,7 @@ class Entity {
           if (o.bossTier === "anicetus") {
             o.define(Class.bishop);
             c.bossCounter -= 60;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
             sockets.broadcast(
               "Anicetus: Those who oppose the great Valrayvn shall be returned dust!"
             );
@@ -8445,118 +8414,118 @@ class Entity {
           if (o.bossTier === "ares") {
             o.define(Class.ares);
             c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "ezekiel") {
             o.define(Class.ezekiel);
             c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "selene") {
             o.define(Class.selene);
             c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "gersemi") {
             o.define(Class.gersemi);
             c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "eris") {
             o.define(Class.eris);
             c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "ares") {
             o.define(Class.ares);
             c.bossCounter -= 45;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "paladin") {
             o.define(Class.paladin);
             c.bossCounter -= 60;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "stark") {
             o.define(Class.swarmDisciple);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "bret") {
             o.define(Class.annihilatorDisciple);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "klayton") {
             o.define(Class.mortarDisciple);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "kristaps") {
             o.define(Class.kristaps);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "duodeci") {
             o.define(Class.duodeci);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "annoyingDog") {
             o.define(Class.annoyingDog);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "icecream") {
             o.define(Class.icecream);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
 
           if (o.bossTier === "xxtrianguli") {
             o.define(Class.xxtrianguli);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "alex") {
             o.define(Class.alexTheDemonical);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "possessor") {
             o.define(Class.possessor);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "oxiniVrochi") {
             o.define(Class.rainOfAcid);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "chaser") {
             o.define(Class.chaser);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "excaliber") {
             o.define(Class.excaliber);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "powernoob") {
             o.define(Class.powernoob);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "johnathon") {
             o.define(Class.johnathon);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.bossTier === "pop64") {
             o.define(Class.pop64);
             c.bossCounter -= 20;
-            c.uniqueBossList.push(o.bossTier);
+            addUniqueBosses(o.bossTier);
           }
           if (o.type === "thrasher") {
             if (o.rarity <= 20) {
@@ -8617,14 +8586,12 @@ class Entity {
           o.impervious = true;
           o.showOnMap = true;
           o.team = -100;
-          setTimeout(() => {
-            o.addController(new io_guard1(o));
-          }, 7500);
+          scheduleWeakEntityTimeout(o, (entity) => entity.addController(new io_guard1(entity)), 7500);
         }
 
         if (c.bossCounter <= 0) {
           c.bossAmount = 0;
-          entities.forEach((entity) => {
+          liveEntities.forEach((entity) => {
             if (
               entity.siegeProgress &&
               entity.team === -100 &&
@@ -8636,7 +8603,7 @@ class Entity {
           c.initiateEpicWave = false;
           c.pingBack = false;
 
-          c.uniqueBossList = [];
+          c.uniqueBossList.clear();
         }
       }
     }
@@ -9288,7 +9255,7 @@ class Entity {
                   }
                   o.team = -100;
                   o.controllers = [
-                    new io_pathFinder(o),
+                    new io_pathFinder(bot),
                     new io_nearestDifferentMaster(o),
                   ];
                 }
@@ -9668,7 +9635,7 @@ class Entity {
           o.DAMAGE *= 2;
           o.team = -100;
           o.specialEffect = "dieWall";
-          o.ignoreCfalseion = true;
+          o.ignoreCollision = true;
         }
         for (let i = 0; i < 1; i++) {
           let o = new Entity(room.type("bos3"));
@@ -9676,7 +9643,7 @@ class Entity {
           o.team = -2;
           o.HEALTH *= 3;
           o.specialEffect = "dieWall";
-          o.ignoreCfalseion = true;
+          o.ignoreCollision = true;
         }
         for (let i = 0; i < 1; i++) {
           let o = new Entity(room.type("bos3"));
@@ -9684,7 +9651,7 @@ class Entity {
           o.team = -2;
           o.HEALTH *= 3;
           o.specialEffect = "dieWall";
-          o.ignoreCfalseion = true;
+          o.ignoreCollision = true;
         }
       }
       if (
@@ -9983,7 +9950,7 @@ class Entity {
       }
       if (c.bossStage === 3 && census[2] >= 8) {
         c.unlockClasses = true;
-        entities.forEach((boss) => {
+        liveEntities.forEach((boss) => {
           if (boss.tier === 1) {
             boss.x = c.anubLocX;
             boss.y = c.anubLocY;
@@ -10303,7 +10270,7 @@ class Entity {
       }
       if (!c.shift) {
         c.thing = 0;
-        entities.forEach((entity) => {
+        liveEntities.forEach((entity) => {
           if (entity.isPlayer || entity.isBot) {
             if (entity.type === "tank" && !entity.isDead()) {
               c.thing += 1;
@@ -10320,7 +10287,7 @@ class Entity {
         }, 2000);
       }
       if (c.thing === 1) {
-        entities.forEach((entity) => {
+        liveEntities.forEach((entity) => {
           if (entity.isPlayer || entity.isBot) {
             if (entity.type === "tank" && !entity.isDead()) {
               sockets.broadcast(
@@ -10340,7 +10307,7 @@ class Entity {
       }
 
       /* if (c.goNow) {
-        entities.forEach((e) => {
+        liveEntities.forEach((e) => {
           if (e.isPlayer || e.isBot) {
             if (e.label !== "Spectator" && c.doItNow && e.health.amount > 0) {
               sockets.broadcast(e.name + " has survived and won the game!");
@@ -12461,8 +12428,8 @@ class Entity {
           this.invuln = true;
           this.x = loc.x;
           this.y = loc.y;
-          setTimeout(() => {
-            this.invuln = false;
+          scheduleWeakEntityTimeout(this, (entity) => {
+            entity.invuln = false;
           }, 5000);
         }
       }
@@ -12622,7 +12589,7 @@ class Entity {
       if (c.MODE === "execution" && c.startingClass === "spectator") {
         c.playerz = 0;
         c.botCount = 0;
-        entities.forEach((instance) => {
+        liveEntities.forEach((instance) => {
           if (this.isPlayer && this.type === "tank") c.playerz += 1;
           if (this.isBot && this.type === "tank") c.botCount += 1;
         });
@@ -12951,7 +12918,7 @@ console.log('Lore mode sequence advanced.');*/
                 "Valrayvn: How long does it take to kill a measly outsider?"
               );
               c.SPAWN_SPECIAL_ENEMIES = false;
-              entities.forEach((e) => {
+              liveEntities.forEach((e) => {
                 if (e.type === "Aspect") e.kill();
               });
               setTimeout(() => {
@@ -13636,7 +13603,7 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (c.MODE === "siege" && !this.isProjectile && this.team === -100) {
         c.bossAmount = 0;
-        entities.forEach((entity) => {
+        liveEntities.forEach((entity) => {
           if (entity.siegeProgress && entity.team === -100 && !entity.isDead())
             c.bossAmount += 1;
         });
@@ -15025,7 +14992,7 @@ console.log('Lore mode sequence advanced.');*/
 
   protect() {
     if (this._destroyed || this.isProtected) return;
-    entitiesToAvoid.push(this);
+    entitiesToAvoid.add(this);
     this.isProtected = true;
   }
 
@@ -15068,10 +15035,7 @@ console.log('Lore mode sequence advanced.');*/
 
     // Defensive cleanup for duplicate protection registrations.
     if (this.isProtected) {
-      let index;
-      while ((index = entitiesToAvoid.indexOf(this)) !== -1) {
-        util.remove(entitiesToAvoid, index);
-      }
+      entitiesToAvoid.delete(this);
       this.isProtected = false;
     }
 
@@ -15114,23 +15078,28 @@ console.log('Lore mode sequence advanced.');*/
     // Release the key and sparse-out the entity slot so V8 can reclaim the
     // entity object while the numeric key/index remains reusable.
     const keyIndex = this.key.i;
+    liveEntities.delete(this);
     keyManager.removeKey(this.key);
     if (entities[keyIndex] === this) delete entities[keyIndex];
 
-    // Per-key physics state contains only primitive values, but deleting it
-    // avoids keeping stale sparse data around and makes slot reuse clean.
-    delete soaEntity.x[keyIndex];
-    delete soaEntity.y[keyIndex];
-    delete soaEntity.velocityX[keyIndex];
-    delete soaEntity.velocityY[keyIndex];
-    delete soaEntity.accelX[keyIndex];
-    delete soaEntity.accelY[keyIndex];
-    delete soaEntity.stepRemaining[keyIndex];
-    delete soaEntity.activationCheck[keyIndex];
-    delete soaEntity.activationTimer[keyIndex];
+    // These are dense numeric arrays. Deleting an element creates a hole and can
+    // deoptimize the entire array, so reset the primitive slot instead. There are
+    // no object references here to retain; the entity itself has already left the
+    // live registry. This keeps slot reuse fast and V8-friendly.
+    soaEntity.x[keyIndex] = 0;
+    soaEntity.y[keyIndex] = 0;
+    soaEntity.velocityX[keyIndex] = 0;
+    soaEntity.velocityY[keyIndex] = 0;
+    soaEntity.accelX[keyIndex] = 0;
+    soaEntity.accelY[keyIndex] = 0;
+    soaEntity.stepRemaining[keyIndex] = 0;
+    soaEntity.activationCheck[keyIndex] = false;
+    soaEntity.activationTimer[keyIndex] = 0;
 
     // Drop large per-entity containers immediately.
     this.controllers.length = 0;
+    this._thinkState = null;
+    this._remappedTarget = null;
     this.children.length = 0;
     this.possiblyChildren.clear();
     this.MASTER = null;
@@ -15501,6 +15470,121 @@ var http = require("http"),
     return writeData;
   })();
 
+function syncPhoto(playerBody, autospin, p1, p2, tur, output) {
+      let flag = 0;
+
+      if (playerBody && p2.masterId === playerBody.id) {
+        if (autospin) {
+          p2.type |= 0x03;
+        }
+      }
+
+      if (p1.x !== p2.x || p1.y !== p2.y) {
+        flag |= 1;
+        output.push(p2.x, p2.y);
+        p1.x = p2.x;
+        p1.y = p2.y;
+      }
+      if (p1.facing !== p2.facing) {
+        flag |= 2;
+        output.push(p2.facing);
+        p1.facing = p2.facing;
+      }
+      if (p1.type !== p2.type) {
+        flag |= 4;
+        output.push(p2.type);
+        p1.type = p2.type;
+      }
+      if (p1.health !== p2.health) {
+        flag |= 8;
+        output.push(p2.health);
+        p1.health = p2.health;
+      }
+      if (p1.shield !== p2.shield) {
+        flag |= 16;
+        output.push(p2.shield);
+        p1.shield = p2.shield;
+      }
+      if (p1.alpha !== p2.alpha) {
+        flag |= 32;
+        output.push(p2.alpha);
+        p1.alpha = p2.alpha;
+      }
+      if (p1.size !== p2.size) {
+        flag |= 64;
+        output.push(p2.size);
+        p1.size = p2.size;
+      }
+      if (p1.score !== p2.score && p2.name) {
+        flag |= 128;
+        output.push(p2.score);
+        p1.score = p2.score;
+      }
+      if (p1.name !== p2.name) {
+        flag |= 256;
+        output.push(p2.name);
+        p1.name = p2.name;
+      }
+      if (p1.index !== p2.index) {
+        flag |= 512;
+        output.push(p2.index);
+        p1.index = p2.index;
+      }
+      if (p1.color !== p2.color) {
+        flag |= 1024;
+        output.push(p2.color);
+        p1.color = p2.color;
+      }
+      if (p1.layer !== p2.layer) {
+        flag |= 2048;
+        output.push(p2.layer);
+        p1.layer = p2.layer;
+      }
+
+      if (!p1.guns) p1.guns = [];
+      for (let i = 0; i < p2.guns.length; i++) {
+        if (!p1.guns[i]) p1.guns.push({});
+        let gunFlag = 0;
+        const gun1 = p1.guns[i];
+        const gun2 = p2.guns[i];
+        if (gun1.time !== gun2.time) {
+          gunFlag |= 1;
+          gun1.time = gun2.time;
+        }
+        if (gun1.power !== gun2.power) {
+          gunFlag |= 2;
+        }
+        if (gunFlag) {
+          flag |= 4096;
+          output.push(i, gunFlag);
+          if (gunFlag & 1) output.push(gun2.time);
+          if (gunFlag & 2) {
+            output.push(gun2.power);
+            gun1.power = gun2.power;
+          }
+        }
+      }
+      if (flag & 4096) output.push(-1);
+
+      if (!p1.turrets) p1.turrets = [];
+      for (let i = 0; i < p2.turrets.length; i++) {
+        if (!p1.turrets[i]) p1.turrets.push({});
+        const turretStart = output.length;
+        output.push(i, 0);
+        const nestedFlag = syncPhoto(playerBody, autospin, p1.turrets[i], p2.turrets[i], true, output);
+        if (nestedFlag) {
+          output[turretStart + 1] = nestedFlag;
+          flag |= 8192;
+        } else {
+          output.length = turretStart;
+        }
+      }
+      if (flag & 8192) output.push(-1);
+
+      return flag;
+
+}
+
 class View {
   constructor(socket) {
     this.socket = socket;
@@ -15517,7 +15601,19 @@ class View {
     this.visibleEntity = new Set();
     this.photos = new Map();
     this.excludedEntityID = [];
+    this._changed = [];
+    this._photoScratch = { guns: [], turrets: [] };
     views.push(this);
+  }
+
+  dispose() {
+    this.socket = null;
+    this.nearEntity.clear();
+    this.visibleEntity.clear();
+    this.photos.clear();
+    this.excludedEntityID.length = 0;
+    this._changed.length = 0;
+    this._photoScratch = null;
   }
 
   reset(socket) {
@@ -15535,6 +15631,8 @@ class View {
     this.visibleEntity.clear();
     this.photos.clear();
     this.excludedEntityID.length = 0;
+    this._changed.length = 0;
+    this._photoScratch = { guns: [], turrets: [] };
   }
 
   add(e) {
@@ -15602,7 +15700,7 @@ class View {
             this.socket.talk("F", ...player.records(), 100000000000);
           }
         } else if (player.body.bannable) {
-          if (!c.banList.includes(player.body.ip)) c.banList.push(player.body.ip);
+          if (!c.banList.has(player.body.ip)) c.banList.add(player.body.ip);
           this.socket.kick("Go. Away. Fatman.");
         }
         // Remove the body
@@ -15641,7 +15739,7 @@ class View {
       ...changed,
       -1
     );
-    this.excludedEntityID = [];
+    this.excludedEntityID.length = 0;
 
     // Queue up some for the front util.log if neededs
     if (this.socket.status.receiving < c.networkFrontlog) {
@@ -15659,179 +15757,48 @@ class View {
   }
 
   sync(player) {
-    let syncPhoto = (p1, p2, tur) => {
-      let flag = 0;
-      let diff = [];
-
-      if (player.body && p2.masterId === player.body.id) {
-        //p2.color = player.teamColor;
-        if (player.command.autospin) {
-          p2.type |= 0x03;
-        }
-      }
-
-      if (p1.x !== p2.x || p1.y !== p2.y) {
-        flag |= 1;
-        diff.push(p2.x);
-        diff.push(p2.y);
-        p1.x = p2.x;
-        p1.y = p2.y;
-      }
-      if (p1.facing !== p2.facing) {
-        flag |= 2;
-        diff.push(p2.facing);
-        p1.facing = p2.facing;
-      }
-      if (p1.type !== p2.type) {
-        flag |= 4;
-        diff.push(p2.type);
-        p1.type = p2.type;
-      }
-      if (p1.health !== p2.health) {
-        flag |= 8;
-        diff.push(p2.health);
-        p1.health = p2.health;
-      }
-      if (p1.shield !== p2.shield) {
-        flag |= 16;
-        diff.push(p2.shield);
-        p1.shield = p2.shield;
-      }
-      if (p1.alpha !== p2.alpha) {
-        flag |= 32;
-        diff.push(p2.alpha);
-        p1.alpha = p2.alpha;
-      }
-      if (p1.size !== p2.size) {
-        flag |= 64;
-        diff.push(p2.size);
-        p1.size = p2.size;
-      }
-      if (p1.score !== p2.score && p2.name) {
-        flag |= 128;
-        diff.push(p2.score);
-        p1.score = p2.score;
-      }
-      if (p1.name !== p2.name) {
-        flag |= 256;
-        diff.push(p2.name);
-        p1.name = p2.name;
-      }
-      if (p1.index !== p2.index) {
-        flag |= 512;
-        diff.push(p2.index);
-        p1.index = p2.index;
-      }
-      if (p1.color !== p2.color) {
-        flag |= 1024;
-        diff.push(p2.color);
-        p1.color = p2.color;
-      }
-      if (p1.layer !== p2.layer) {
-        flag |= 2048;
-        diff.push(p2.layer);
-        p1.layer = p2.layer;
-      }
-
-      if (!p1.guns) {
-        p1.guns = [];
-      }
-      for (let i = 0; i < p2.guns.length; i++) {
-        if (!p1.guns[i]) {
-          p1.guns.push({});
-        }
-        let gunFlag = 0;
-        let gunDiff = [];
-        let gun1 = p1.guns[i];
-        let gun2 = p2.guns[i];
-        if (gun1.time !== gun2.time) {
-          gunFlag |= 1;
-          gunDiff.push(gun2.time);
-          gun1.time = gun2.time;
-        }
-        if (gun1.power !== gun2.power) {
-          gunFlag |= 2;
-          gunDiff.push(gun2.power);
-          gun1.power = gun2.power;
-        }
-        if (gunFlag) {
-          flag |= 4096;
-          diff.push(i);
-          diff.push(gunFlag);
-          diff.push(...gunDiff);
-        }
-      }
-      if (flag & 4096) {
-        diff.push(-1);
-      }
-
-      if (!p1.turrets) {
-        p1.turrets = [];
-      }
-      for (let i = 0; i < p2.turrets.length; i++) {
-        if (!p1.turrets[i]) {
-          p1.turrets.push({});
-        }
-        let t1 = p1.turrets[i];
-        let t2 = p2.turrets[i];
-        let o = syncPhoto(t1, t2, true);
-        if (o.flag) {
-          flag |= 8192;
-          diff.push(i);
-          diff.push(o.flag);
-          diff.push(...o.diff);
-        }
-      }
-      if (flag & 8192) {
-        diff.push(-1);
-      }
-
-      return {
-        flag: flag,
-        diff: diff,
-      };
-    };
 
     if (this.lastUpdate - this.lastVisibleUpdate > c.visibleListInterval) {
       this.nearEntity.clear();
-      entities.forEach((e) => {
-        if (e.valid() && this.isInView(e) && e.bond == null) {
-          this.nearEntity.add(e);
-        }
-      });
-      this.visibleEntity.forEach((e) => {
-        if (!e.valid() || (!this.isInView(e) && (e.alwaysExists || e.isDead()))) {
-          this.remove(e);
-        }
-      });
-      this.lastVisibleUpdate = this.lastUpdate;
-    }
-
-    let changed = [];
-    this.nearEntity.forEach((e) => {
-      if (e.valid() && e.settings.drawShape) {
-        if (
-          !e.isDead() &&
-          Math.abs(e.x - this.x) < this.fov / 2 + 1.5 * e.size &&
-          Math.abs(e.y - this.y) < (this.fov / 2) * (9 / 16) + 1.5 * e.size
-        ) {
-          this.visibleEntity.add(e);
-          if (!this.photos.has(e.id)) {
-            this.photos.set(e.id, {});
-          }
-          let p1 = this.photos.get(e.id); // current photo
-          let p2 = e.takePhoto(); // new photo
-          let o = syncPhoto(p1, p2, false);
-          if (o.flag) {
-            changed.push(e.id);
-            changed.push(o.flag);
-            changed.push(...o.diff);
-          }
-        } else {
+      for (const e of liveEntities) {
+        if (e.bond == null && this.isInView(e)) this.nearEntity.add(e);
+      }
+      for (const e of this.visibleEntity) {
+        if (e._destroyed || (!this.isInView(e) && (e.alwaysExists || e.isDead()))) {
           this.remove(e);
         }
       }
-    });
+      this.lastVisibleUpdate = this.lastUpdate;
+    }
+
+    const changed = this._changed;
+    changed.length = 0;
+    for (const e of this.nearEntity) {
+      if (e._destroyed || !e.settings.drawShape) continue;
+      if (
+        e.isDead() ||
+        Math.abs(e.x - this.x) >= this.fov / 2 + 1.5 * e.size ||
+        Math.abs(e.y - this.y) >= (this.fov / 2) * (9 / 16) + 1.5 * e.size
+      ) {
+        this.remove(e);
+        continue;
+      }
+
+      this.visibleEntity.add(e);
+      let p1 = this.photos.get(e.id);
+      if (p1 === undefined) {
+        p1 = {};
+        this.photos.set(e.id, p1);
+      }
+      const changeStart = changed.length;
+      changed.push(e.id, 0);
+      const flag = syncPhoto(player.body, player.command.autospin, p1, e.takePhoto(this._photoScratch), false, changed);
+      if (flag) {
+        changed[changeStart + 1] = flag;
+      } else {
+        changed.length = changeStart;
+      }
+    }
 
     return changed;
   }
@@ -15842,6 +15809,7 @@ const sockets = (() => {
   const protocol = require("./lib/fasttalk");
   let clients = [],
     players = [];
+  let shutdownBroadcast = () => {};
   /*/return {
     broadcast: (message) => {
       clients.forEach((socket) => {
@@ -15859,7 +15827,7 @@ const sockets = (() => {
         switch (thing) {
           case "mute":
             if (IP === dude.ip) {
-              if (!c.muteList.includes(dude.ip)) c.muteList.push(dude.ip);
+              if (!c.muteList.has(dude.ip)) c.muteList.add(dude.ip);
               util.log(dude.name + " was muted temporarily!");
             }
             break;
@@ -15876,7 +15844,7 @@ const sockets = (() => {
             break;
           case "ban":
             if (IP === dude.ip) {
-              if (!c.banList.includes(dude.ip)) c.banList.push(dude.ip);
+              if (!c.banList.has(dude.ip)) c.banList.add(dude.ip);
               util.log(dude.name + " was banned temporarily!");
             }
             break;
@@ -15890,8 +15858,8 @@ const sockets = (() => {
       });
     },
     changeroom: () => {
-      // room.findType();
-      clients.forEach((socket) => {
+      for (let i = 0; i < clients.length; i++) {
+        const socket = clients[i];
         socket.talk(
           "R",
           room.width,
@@ -15900,8 +15868,9 @@ const sockets = (() => {
           JSON.stringify(util.serverStartTime),
           roomSpeed
         );
-      });
+      }
     },
+    shutdown: () => shutdownBroadcast(),
     connect: (() => {
       // Define shared functions
       // Closing the socket
@@ -15948,7 +15917,7 @@ const sockets = (() => {
           }
           let updated = players.length - 1;
           // Disconnect everything
-          if (!c.socketExitList.includes(socket.ip)) {
+          if (!c.socketExitList.has(socket.ip)) {
             let call = socket.name;
             if (socket.name === "") {
               call = "An unnamed player";
@@ -15958,7 +15927,7 @@ const sockets = (() => {
 
             sockets.broadcast(exitMessage);
             util.log(exitMessage);
-            c.socketExitList.push(socket.ip);
+            c.socketExitList.add(socket.ip);
           }
           // util.log("[INFO] User " + player.body.name + " disconnected!");
           util.remove(players, index);
@@ -15973,8 +15942,11 @@ const sockets = (() => {
             process.exit();
           }
         }
-        // Free the view
-        util.remove(views, views.indexOf(socket.view));
+        // Free the view and all entity/photo references it owns.
+        if (socket.view) {
+          socket.view.dispose();
+          util.remove(views, views.indexOf(socket.view));
+        }
         // Remove the socket
         util.remove(clients, clients.indexOf(socket));
         util.log(
@@ -16001,10 +15973,16 @@ const sockets = (() => {
           socket.kick("Non-binary packet.");
           return 1;
         }
-        // Decode it
-        let m = protocol.decode(message);
-        // Make sure it looks legit
-        if (m === -1) {
+        // Decode it. FastTalk returns null for malformed packets; treat those
+        // as protocol violations instead of silently ignoring attacker input.
+        let m;
+        try {
+          m = protocol.decode(message);
+        } catch (error) {
+          socket.kick("Malformed packet.");
+          return 1;
+        }
+        if (m == null || m === -1) {
           socket.kick("Malformed packet.");
           return 1;
         }
@@ -16119,7 +16097,7 @@ const sockets = (() => {
               if (!socket.name) {
                 socket.name = name;
               }
-              if (!c.socketEnterList.includes(socket.ip) && !socket.no) {
+              if (!c.socketEnterList.has(socket.ip) && !socket.no) {
                 let call = socket.name;
                 if (socket.name === "") {
                   call = "An unnamed player";
@@ -16133,10 +16111,7 @@ const sockets = (() => {
                 sockets.broadcast(enterMessage);
                 util.log(enterMessage);
                 socket.no = true;
-                c.socketEnterList.push(socket.ip);
-              }
-              if (!c.socketList.includes(socket.ip)) {
-                c.socketList.push(socket.ip);
+                c.socketEnterList.add(socket.ip);
               }
               socket.commandLoopCount = 1;
               socket.creationTeam = -100;
@@ -16761,7 +16736,7 @@ const sockets = (() => {
               }
               /*if (c.PLAGUE !== true && !player.body.trueDev) {
              socket.domList = [];
-                  entities.forEach((entity) => { 
+                  liveEntities.forEach((entity) => { 
                     if (entity.isDominator && entity.team === player.body.team && !entity.isTaken) {
                       socket.domList.push(entity);
                       }
@@ -16771,7 +16746,7 @@ const sockets = (() => {
                     "You have surrendered control of the Dominator."
                   );
                  let o;
-                  entities.forEach((entity) => {
+                  liveEntities.forEach((entity) => {
                    if (entity.id === player.body.id) {
                     entity.died = true;
                      o = entity;
@@ -16822,7 +16797,7 @@ const sockets = (() => {
                 }*/
               if (player.body.specialEffect === "experiment") {
                 let ID = player.body.id;
-                entities.forEach((instance) => {
+                liveEntities.forEach((instance) => {
                   if (
                     instance.valid() &&
                     instance.settings.clearOnMasterUpgrade &&
@@ -16856,33 +16831,24 @@ const sockets = (() => {
           // socket.kick("Bad packet index.");
         }
       }
-      // Monitor traffic and handle inactivity disconnects
+      // Monitor traffic. One shared timer handles every socket instead of
+      // creating a separate interval/closure for every connection.
       function traffic(socket) {
-        let strikes = 0;
-        // This function will be called in the slow loop
-        return () => {
-          // Kick if it's d/c'd
-          if (
-            util.time() - socket.status.lastHeartbeat >
-            c.maxHeartbeatInterval
-          ) {
-            socket.kick("Heartbeat lost.");
-            return 0;
-          }
-          // Add a strike if there's more than 50 requests in a second
-          if (socket.status.requests > 50) {
-            strikes++;
-          } else {
-            strikes = 0;
-          }
-          // Kick if we've had 3 violations in a row
-          if (strikes > 3) {
-            socket.kick("Socket traffic volume violation!");
-            return 0;
-          }
-          // Reset the requests
-          socket.status.requests = 0;
-        };
+        if (!socket || socket.closing || !socket.status) return;
+
+        // Traffic checks run every 1.5 seconds. Heartbeats are already checked
+        // by the 100 ms broadcast loop, so do not duplicate that work here.
+        if (socket.status.requests > 50) {
+          socket.status.trafficStrikes++;
+        } else {
+          socket.status.trafficStrikes = 0;
+        }
+
+        if (socket.status.trafficStrikes > 3) {
+          socket.kick("Socket traffic volume violation!");
+        }
+
+        socket.status.requests = 0;
       }
       // Make a function to spawn new players
       const spawn = (() => {
@@ -18178,95 +18144,147 @@ player.color = easy;
               return 11;
           }
         };
-        // Delta Calculator
+        // Delta Calculator. The finder writes into a reusable buffer, so the
+        // 10 Hz broadcast path does not allocate a new snapshot for every pass.
         const Delta = class {
           constructor(dataLength, finder) {
             this.dataLength = dataLength;
             this.finder = finder;
-            this.now = finder();
+            this.now = [];
+            this.buffer = [];
+            this.updateBuffer = [];
+            this.updatePayload = [];
+            this.resetBuffer = [];
+            this.result = { reset: this.resetBuffer, update: this.updateBuffer };
+            this.finder(this.buffer);
+            this.now = this.buffer;
+            this.buffer = [];
           }
+
           update() {
-            let old = this.now;
-            let now = this.finder();
+            const old = this.now;
+            const now = this.buffer;
+            now.length = 0;
+            this.finder(now);
             this.now = now;
+            this.buffer = old;
+
+            const updates = this.updateBuffer;
+            const payload = this.updatePayload;
+            const deletes = this._deletes || (this._deletes = []);
+            updates.length = 0;
+            payload.length = 0;
+            deletes.length = 0;
 
             let oldIndex = 0;
             let nowIndex = 0;
-            let updates = [];
             let updatesLength = 0;
-            let deletes = [];
-            let deletesLength = 0;
+
+            const appendRecord = (record) => {
+              payload.push(record.id);
+              const data = record.data;
+              for (let i = 0; i < this.dataLength; i++) payload.push(data[i]);
+              updatesLength++;
+            };
 
             while (oldIndex < old.length && nowIndex < now.length) {
-              let oldElement = old[oldIndex];
-              let nowElement = now[nowIndex];
+              const oldElement = old[oldIndex];
+              const nowElement = now[nowIndex];
 
               if (oldElement.id === nowElement.id) {
-                // update
-                nowIndex++;
-                oldIndex++;
-
                 let updated = false;
-                for (let i = 0; i < this.dataLength; i++)
-                  if (oldElement.data[i] !== nowElement.data[i]) {
+                const oldData = oldElement.data;
+                const nowData = nowElement.data;
+                for (let i = 0; i < this.dataLength; i++) {
+                  if (oldData[i] !== nowData[i]) {
                     updated = true;
                     break;
                   }
-
-                if (updated) {
-                  updates.push(nowElement.id, ...nowElement.data);
-                  updatesLength++;
                 }
+                if (updated) appendRecord(nowElement);
+                oldIndex++;
+                nowIndex++;
               } else if (oldElement.id < nowElement.id) {
-                // delete
                 deletes.push(oldElement.id);
-                deletesLength++;
                 oldIndex++;
               } else {
-                // create
-                updates.push(nowElement.id, ...nowElement.data);
-                updatesLength++;
+                appendRecord(nowElement);
                 nowIndex++;
               }
             }
 
-            for (let i = oldIndex; i < old.length; i++) {
-              deletes.push(old[i].id);
-              deletesLength++;
-            }
-            for (let i = nowIndex; i < now.length; i++) {
-              updates.push(now[i].id, ...now[i].data);
-              updatesLength++;
+            while (oldIndex < old.length) deletes.push(old[oldIndex++].id);
+            while (nowIndex < now.length) appendRecord(now[nowIndex++]);
+
+            const reset = this.resetBuffer;
+            reset.length = 0;
+            reset.push(0, now.length);
+            for (let i = 0; i < now.length; i++) {
+              const element = now[i];
+              reset.push(element.id);
+              for (let j = 0; j < this.dataLength; j++) reset.push(element.data[j]);
             }
 
-            let reset = [0, now.length];
-            for (let element of now) reset.push(element.id, ...element.data);
-            let update = [deletesLength, ...deletes, updatesLength, ...updates];
-            return { reset, update };
+            const update = this.updateBuffer;
+            const deleteCount = deletes.length;
+            update.push(deleteCount);
+            for (let i = 0; i < deleteCount; i++) update.push(deletes[i]);
+            update.push(updatesLength);
+            for (let i = 0; i < payload.length; i++) update.push(payload[i]);
+
+            // Keep the returned packet object stable; socket.talk consumes it immediately.
+            return this.result;
           }
         };
-        // Deltas
-        let minimapAll = new Delta(5, () => {
-          let all = [];
-          for (let my of entities) {
-            if (!my || (!my.valid() && !my.isDead())) {
-              continue;
+
+        // One pass over liveEntities builds every periodic public snapshot. This
+        // replaces five independent scans with one and keeps all snapshot records
+        // reusable between ticks.
+        const broadcastState = (() => {
+          const all = [];
+          const teams = [[], [], [], []];
+          const leaderboard = [];
+          const candidates = [];
+          const sortCandidatesById = (a, b) => a.id - b.id;
+
+          const ensureRecord = (list, index, dataLength) => {
+            let record = list[index];
+            if (!record) {
+              record = { id: 0, data: new Array(dataLength) };
+              list[index] = record;
             }
-            if (
-              my.type === "fortGate" ||
-              my.type === "grid" ||
-              my.type === "fortWall" ||
-              my.type === "squareWall" ||
-              my.type === "tile" ||
-              my.isDominator ||
-              (my.type === "wall" && my.alpha > 0.2) ||
-              my.isBoss ||
-              (my.type === "tank" && my.lifetime) ||
-              my.showOnMap
-            ) {
-              all.push({
-                id: my.id,
-                data: [
+            return record;
+          };
+
+          const refresh = () => {
+            all.length = 0;
+            for (let i = 0; i < 4; i++) teams[i].length = 0;
+            leaderboard.length = 0;
+            candidates.length = 0;
+
+            let allCount = 0;
+            const teamCounts = [0, 0, 0, 0];
+
+            for (const my of liveEntities) {
+              if (!my || my._destroyed) continue;
+
+              const isMapStatic =
+                my.type === "fortGate" ||
+                my.type === "grid" ||
+                my.type === "fortWall" ||
+                my.type === "squareWall" ||
+                my.type === "tile" ||
+                my.isDominator ||
+                (my.type === "wall" && my.alpha > 0.2) ||
+                my.isBoss ||
+                (my.type === "tank" && my.lifetime) ||
+                my.showOnMap;
+
+              if (isMapStatic) {
+                const record = ensureRecord(all, allCount++, 5);
+                record.id = my.id;
+                const data = record.data;
+                data[0] =
                   my.type === "wall" ||
                   my.type === "grid" ||
                   my.type === "squareWall" ||
@@ -18276,103 +18294,135 @@ player.color = easy;
                     ? my.shape === 4
                       ? 2
                       : 1
-                    : 0,
+                    : 0;
+                data[1] = util.clamp(Math.floor((256 * my.x) / room.width), 0, 255);
+                data[2] = util.clamp(Math.floor((256 * my.y) / room.height), 0, 255);
+                data[3] = my.color;
+                data[4] = Math.round(my.SIZE);
+              }
 
-                  util.clamp(Math.floor((256 * my.x) / room.width), 0, 255),
-                  util.clamp(Math.floor((256 * my.y) / room.height), 0, 255),
-                  my.color,
-                  Math.round(my.SIZE),
-                ],
-              });
-            }
-          }
-          return all;
-        });
-        let minimapTeams = [1, 2, 3, 4].map(
-          (team) =>
-            new Delta(3, () => {
-              let all = [];
-              for (let my of entities) {
-                if (!my || !my.valid()) {
-                  continue;
-                }
-                if (
-                  my.type === "tank" &&
-                  my.team === -team &&
-                  my.master === my &&
-                  !my.lifetime &&
-                  !my.isDead()
-                ) {
-                  all.push({
-                    id: my.id,
-                    data: [
-                      util.clamp(Math.floor((256 * my.x) / room.width), 0, 255),
-                      util.clamp(
-                        Math.floor((256 * my.y) / room.height),
-                        0,
-                        255
-                      ),
-                      my.color,
-                    ],
-                  });
+              if (
+                my.type === "tank" &&
+                my.master === my &&
+                !my.lifetime &&
+                !my.isDead() &&
+                my.team >= -4 &&
+                my.team <= -1
+              ) {
+                const teamIndex = -my.team - 1;
+                const record = ensureRecord(teams[teamIndex], teamCounts[teamIndex]++, 3);
+                record.id = my.id;
+                const data = record.data;
+                data[0] = util.clamp(Math.floor((256 * my.x) / room.width), 0, 255);
+                data[1] = util.clamp(Math.floor((256 * my.y) / room.height), 0, 255);
+                data[2] = my.color;
+              }
+
+              if (
+                my.settings.leaderboardable &&
+                my.settings.drawShape &&
+                (my.type === "tank" ||
+                  my.type === "deity" ||
+                  my.isBoss ||
+                  my.killCount.solo ||
+                  my.killCount.assists)
+              ) {
+                const score = my.skill.score;
+                if (score > 0) {
+                  // Maintain the same ordering as the old repeated max scan:
+                  // score descending, then ID ascending for ties.
+                  let at = candidates.length;
+                  while (at > 0) {
+                    const previous = candidates[at - 1];
+                    const previousScore = previous.skill.score;
+                    if (
+                      previousScore > score ||
+                      (previousScore === score && previous.id < my.id)
+                    )
+                      break;
+                    at--;
+                  }
+                  if (at < 10) {
+                    candidates.splice(at, 0, my);
+                    if (candidates.length > 10) candidates.pop();
+                  }
                 }
               }
-              return all;
+            }
+
+            all.length = allCount;
+            for (let i = 0; i < 4; i++) teams[i].length = teamCounts[i];
+
+            candidates.sort(sortCandidatesById);
+            let leaderboardCount = 0;
+            for (let i = 0; i < candidates.length; i++) {
+              const entry = candidates[i];
+              const record = ensureRecord(leaderboard, leaderboardCount++, 5);
+              record.id = entry.id;
+              const data = record.data;
+              data[0] = Math.round(entry.skill.score);
+              data[1] = entry.index;
+              data[2] = entry.name;
+              data[3] = entry.color;
+              data[4] = getBarColor(entry);
+            }
+            leaderboard.length = leaderboardCount;
+            room.topPlayerID = leaderboardCount ? leaderboard[0].id : -1;
+          };
+
+          return { all, teams, leaderboard, refresh };
+        })();
+
+        broadcastState.refresh();
+        const minimapAll = new Delta(5, (buffer) => {
+          for (let i = 0; i < broadcastState.all.length; i++) {
+            const source = broadcastState.all[i];
+            let target = buffer[i];
+            if (!target) target = buffer[i] = { id: 0, data: [0, 0, 0, 0, 0] };
+            target.id = source.id;
+            for (let j = 0; j < 5; j++) target.data[j] = source.data[j];
+          }
+          buffer.length = broadcastState.all.length;
+        });
+        const minimapTeams = [0, 1, 2, 3].map(
+          (i) =>
+            new Delta(3, (buffer) => {
+              const source = broadcastState.teams[i];
+              for (let j = 0; j < source.length; j++) {
+                let target = buffer[j];
+                if (!target) target = buffer[j] = { id: 0, data: [0, 0, 0] };
+                target.id = source[j].id;
+                target.data[0] = source[j].data[0];
+                target.data[1] = source[j].data[1];
+                target.data[2] = source[j].data[2];
+              }
+              buffer.length = source.length;
             })
         );
-        let leaderboard = new Delta(5, () => {
-          let list = [];
-          for (let instance of entities)
-            if (
-              instance &&
-              instance.valid() &&
-              instance.settings.leaderboardable &&
-              instance.settings.drawShape &&
-              (instance.type === "tank" ||
-                instance.type === "deity" ||
-                instance.isBoss ||
-                instance.killCount.solo ||
-                instance.killCount.assists)
-            ) {
-              list.push(instance);
-            }
-
-          let topTen = [];
-          for (let i = 0; i < 10 && list.length; i++) {
-            let top,
-              is = 0;
-            for (let j = 0; j < list.length; j++) {
-              let val = list[j].skill.score;
-              if (val > is) {
-                is = val;
-                top = j;
-              }
-            }
-            if (is === 0) break;
-            let entry = list[top];
-            topTen.push({
-              id: entry.id,
-              data: [
-                Math.round(entry.skill.score),
-                entry.index,
-                entry.name,
-                entry.color,
-                getBarColor(entry),
-              ],
-            });
-            list.splice(top, 1);
+        const leaderboard = new Delta(5, (buffer) => {
+          const source = broadcastState.leaderboard;
+          for (let i = 0; i < source.length; i++) {
+            let target = buffer[i];
+            if (!target) target = buffer[i] = { id: 0, data: [0, 0, 0, 0, 0] };
+            target.id = source[i].id;
+            for (let j = 0; j < 5; j++) target.data[j] = source[i].data[j];
           }
-          room.topPlayerID = topTen.length ? topTen[0].id : -1;
-
-          return topTen.sort((a, b) => a.id - b.id);
+          buffer.length = source.length;
         });
 
-        // Periodically give out updates
+
+        shutdownBroadcast = () => broadcast.shutdown();
+
+        // Periodically give out updates. Keep both handles so graceful shutdown
+        // can release timers and their closures over all socket state.
         let subscribers = [];
-        setInterval(() => {
+        const minimapTeamUpdates = [null, null, null, null];
+        const emptyDelta = [0, 0];
+        let broadcastInterval = setInterval(() => {
           logs.minimap.set();
+          broadcastState.refresh();
           let minimapUpdate = minimapAll.update();
-          let minimapTeamUpdates = minimapTeams.map((r) => r.update());
+          for (let i = 0; i < 4; i++) minimapTeamUpdates[i] = minimapTeams[i].update();
           let leaderboardUpdate = leaderboard.update();
           for (let socket of subscribers) {
             if (!socket.status.hasSpawned) continue;
@@ -18381,16 +18431,16 @@ player.color = easy;
               socket.talk(
                 "b",
                 ...minimapUpdate.reset,
-                ...(team ? team.reset : [0, 0]),
-                ...(socket.anon ? [0, 0] : leaderboardUpdate.reset)
+                ...(team ? team.reset : emptyDelta),
+                ...(socket.anon ? emptyDelta : leaderboardUpdate.reset)
               );
               socket.status.needsNewBroadcast = false;
             } else {
               socket.talk(
                 "b",
                 ...minimapUpdate.update,
-                ...(team ? team.update : [0, 0]),
-                ...(socket.anon ? [0, 0] : leaderboardUpdate.update)
+                ...(team ? team.update : emptyDelta),
+                ...(socket.anon ? emptyDelta : leaderboardUpdate.update)
               );
             }
           }
@@ -18403,6 +18453,9 @@ player.color = easy;
               socket.kick("Lost heartbeat.");
           }
         }, 100);
+        const trafficMonitorInterval = setInterval(() => {
+          for (const socket of clients) traffic(socket);
+        }, 1500);
 
         return {
           subscribe(socket) {
@@ -18411,6 +18464,11 @@ player.color = easy;
           unsubscribe(socket) {
             let i = subscribers.indexOf(socket);
             if (i !== -1) util.remove(subscribers, i);
+          },
+          shutdown() {
+            clearInterval(broadcastInterval);
+            clearInterval(trafficMonitorInterval);
+            subscribers.length = 0;
           },
         };
       })();
@@ -18425,6 +18483,8 @@ player.color = easy;
         };
         // Set it up
         socket.binaryType = "arraybuffer";
+        socket.closing = false;
+        socket.closeTimer = null;
         socket.key = "";
         socket.player = { camera: {} };
         socket.timeout = (() => {
@@ -18448,6 +18508,7 @@ player.color = easy;
           receiving: 0,
           deceased: true,
           requests: 0,
+          trafficStrikes: 0,
           hasSpawned: false,
           needsFullMap: true,
           needsNewBroadcast: true,
@@ -18456,7 +18517,6 @@ player.color = easy;
         // Set up loops
         socket.loops = (() => {
           let nextUpdateCall = null; // has to be started manually
-          let trafficMonitoring = setInterval(() => traffic(socket), 1500);
           broadcast.subscribe(socket);
           // Return the loop methods
           return {
@@ -18464,11 +18524,12 @@ player.color = easy;
               nextUpdateCall = timeout;
             },
             cancelUpdate: () => {
-              clearTimeout(nextUpdateCall);
+              if (nextUpdateCall !== null) clearTimeout(nextUpdateCall);
+              nextUpdateCall = null;
             },
             terminate: () => {
-              clearTimeout(nextUpdateCall);
-              clearTimeout(trafficMonitoring);
+              if (nextUpdateCall !== null) clearTimeout(nextUpdateCall);
+              nextUpdateCall = null;
               broadcast.unsubscribe(socket);
             },
           };
@@ -18477,20 +18538,27 @@ player.color = easy;
         socket.view = new View(socket);
         // Put the fundamental functions in the socket
         socket.kick = (reason) => kick(socket, reason);
-        socket.talk = (...message) => {
+        // Use arguments directly so variable-length packets do not first
+        // allocate a rest-parameter array. FastTalk only needs array-like
+        // .length/index access, so the wire format remains unchanged.
+        socket.talk = function () {
           if (socket.readyState === socket.OPEN) {
-            socket.send(protocol.encode(message), { binary: true });
+            socket.send(protocol.encode(arguments), { binary: true });
           }
         };
-        socket.lastWords = (...message) => {
-          if (socket.readyState === socket.OPEN) {
-            socket.send(protocol.encode(message), { binary: true }, () =>
-              setTimeout(() => socket.terminate(), 1000)
-            );
-          }
+        socket.lastWords = function () {
+          if (socket.readyState !== socket.OPEN || socket.closing) return;
+          socket.closing = true;
+          socket.send(protocol.encode(arguments), { binary: true }, () => {
+            socket.closeTimer = setTimeout(() => socket.terminate(), 1000);
+          });
         };
         socket.on("message", (message) => incoming(message, socket));
         socket.on("close", () => {
+          if (socket.closeTimer !== null) {
+            clearTimeout(socket.closeTimer);
+            socket.closeTimer = null;
+          }
           socket.loops.terminate();
           close(socket);
         });
@@ -18538,7 +18606,7 @@ player.color = easy;
 
         socket.ip = ips[0];
         clients.push(socket);
-        if (c.banList.includes(socket.ip)) {
+        if (c.banList.has(socket.ip)) {
           socket.kick("This ip is banned: " + socket.ip);
           // socket.sendMessage("You have been banned!");
         }
@@ -19596,12 +19664,10 @@ var gameloop = (() => {
       let grid_y = 0; // -1 or 0 or 1
       let dest = { x: n.x + n.m_x, y: n.y + n.m_y };
       let kill = false;
-      setTimeout(() => {
-        n.left = false;
-        n.right = false;
-        n.up = false;
-        n.down = false;
-      }, 100);
+      // Contact flags used to schedule one timeout per collision. Busy servers
+      // could therefore accumulate thousands of short-lived timers. Store the
+      // expiry on the entity and clear flags once per collision iteration.
+      n._wallContactExpire = util.time() + 100;
       let muliplier = 1;
       let dealt = false;
       switch (my.label) {
@@ -19814,10 +19880,10 @@ var gameloop = (() => {
       }
     }
     // The actual collision resolution function
-    return (collision) => {
-      // Pull the two objects from the collision grid
-      let instance = collision[0],
-        other = collision[1];
+    return (instance, other) => {
+      // Pull the two objects directly from the collision grid callback.
+      // Avoiding a temporary two-element array here saves an allocation for every collision.
+
 
       // Check for ghosts...
       if (!other.valid()) {
@@ -20649,12 +20715,8 @@ var gameloop = (() => {
     let check = soaEntity.activationCheck;
     let timer = soaEntity.activationTimer;
     if (c.ACTIVATION_MODE === undefined || c.ACTIVATION_MODE === "normal") {
-      for (let i = 0; i < entities.length; i++) {
-        const entity = entities[i];
-        if (!entity) {
-          check[i] = false;
-          continue;
-        }
+      for (const entity of liveEntities) {
+        const i = entity.key.i;
         if (!check[i]) {
           if (!timer[i]--) check[i] = true;
         } else {
@@ -20675,13 +20737,8 @@ var gameloop = (() => {
         let x = soaEntity.x;
         let y = soaEntity.y;
         const viewCount = views.length;
-        for (let i = 0; i < entities.length; i++) {
-          const entity = entities[i];
-          if (!entity) {
-            check[i] = false;
-            timer[i] = 0;
-            continue;
-          }
+        for (const entity of liveEntities) {
+          const i = entity.key.i;
           let minDistance = 4;
           for (let v = 0; v < viewCount; v++) {
             const view = views[v];
@@ -20699,32 +20756,34 @@ var gameloop = (() => {
           }
         }
       } else {
-        for (let i = 0; i < entities.length; i++) {
-          check[i] = !!entities[i];
-        }
+        for (const entity of liveEntities) check[entity.key.i] = true;
       }
     } else if (c.ACTIVATION_MODE === "alwaysTrue") {
-      for (let i = 0; i < entities.length; i++) {
-        check[i] = !!entities[i];
-      }
+      for (const entity of liveEntities) check[entity.key.i] = true;
     } else if (c.ACTIVATION_MODE === "alwaysFalse") {
-      for (let i = 0; i < entities.length; i++) {
-        check[i] = false;
-      }
+      for (const entity of liveEntities) check[entity.key.i] = false;
     } else {
       throw new Error("Activation mode settings error!");
     }
 
     activeEntities.length = 0;
-    for (let i = 0; i < entities.length; i++) {
-      const e = entities[i];
-      if (e && check[i] && e.valid() && e.bond == null) {
-        activeEntities.push(e);
-      }
+    for (const e of liveEntities) {
+      if (check[e.key.i] && e.bond == null) activeEntities.push(e);
     }
   };
 
   let collisionIteration = () => {
+    const now = util.time();
+    for (const entity of liveEntities) {
+      if (entity._wallContactExpire && entity._wallContactExpire <= now) {
+        entity._wallContactExpire = 0;
+        entity.left = false;
+        entity.right = false;
+        entity.up = false;
+        entity.down = false;
+      }
+    }
+
     if (activeAabb.length < activeEntities.length) {
       while (activeAabb.length < activeEntities.length) activeAabb.push([0, 0, 0, 0]);
     } else if (activeAabb.length > activeEntities.length) {
@@ -20737,12 +20796,14 @@ var gameloop = (() => {
       const y = e.y;
       const vx = e.velocity.x + e.accel.x;
       const vy = e.velocity.y + e.accel.y;
+      const nextX = x + vx;
+      const nextY = y + vy;
       const size = e.realSize + 5;
       const box = activeAabb[i];
-      box[0] = Math.min(x, x + vx) - size;
-      box[1] = Math.min(y, y + vy) - size;
-      box[2] = Math.max(x, x + vx) + size;
-      box[3] = Math.max(y, y + vy) + size;
+      box[0] = (x < nextX ? x : nextX) - size;
+      box[1] = (y < nextY ? y : nextY) - size;
+      box[2] = (x > nextX ? x : nextX) + size;
+      box[3] = (y > nextY ? y : nextY) + size;
     }
 
     let e1, e2;
@@ -20750,7 +20811,7 @@ var gameloop = (() => {
       e1 = activeEntities[i];
       e2 = activeEntities[j];
       if (e1.valid() && e1.bond == null && e2.valid() && e2.bond == null) {
-        collide([e1, e2]);
+        collide(e1, e2);
       }
     });
   };
@@ -20765,8 +20826,8 @@ var gameloop = (() => {
     let stepRemaining = soaEntity.stepRemaining;
     let check = soaEntity.activationCheck;
 
-    for (let i = 0; i < entities.length; i++) {
-      if (!entities[i]) continue;
+    for (const entity of liveEntities) {
+      const i = entity.key.i;
       if (c.ACTIVATION_MODE === "distance" && !check[i]) continue;
       velocityX[i] += accelX[i];
       velocityY[i] += accelY[i];
@@ -20779,11 +20840,10 @@ var gameloop = (() => {
   };
 
   let liveIteration = () => {
-    let scheduleCooldown = false;
-    for (let i = 0; i < entities.length; i++) {
-      const e = entities[i];
-      if (!e || !e.valid()) continue;
-
+    // The live-entity registry contains only registered entities, so a validity
+    // lookup per object is unnecessary here.
+    const scheduleCooldown = !c.cooldown && liveEntities.size > 0;
+    for (const e of liveEntities) {
       // Consider death.
       if (e.contemplationOfMortality()) {
         e.destroy();
@@ -20798,13 +20858,12 @@ var gameloop = (() => {
 
       // Update collisions.
       e.collisionArray.length = 0;
-      if (!c.cooldown) scheduleCooldown = true;
     }
 
-    if (scheduleCooldown && !c.cooldown) {
+    if (scheduleCooldown) {
       setTimeout(() => {
-        c.socketEnterList = [];
-        c.socketExitList = [];
+        c.socketEnterList.clear();
+        c.socketExitList.clear();
         c.cooldown = false;
       }, 10000);
       c.cooldown = true;
@@ -22017,10 +22076,11 @@ var maintainloop = (() => {
   }
 
   if (c.MODE !== "siege") {
-    setInterval(() => {
+    timeLeftInterval = setInterval(() => {
       c.timeLeft += 1000;
     }, 1000);
-    setTimeout(() => {
+    arenaCloseTimeout = setTimeout(() => {
+      arenaCloseTimeout = null;
       closeArena();
     }, 7200000);
   }
@@ -22072,8 +22132,7 @@ var maintainloop = (() => {
         fallenBoss: 0,
         tank: 0,
       };
-      for (let i = 0; i < entities.length; i++) {
-        const instance = entities[i];
+      for (const instance of liveEntities) {
         if (!instance || !instance.valid()) continue;
         if (census[instance.type] != null) {
           census[instance.type]++;
@@ -22150,196 +22209,196 @@ var maintainloop = (() => {
             "leastDeadly",
             "general",
           ]);
-          setTimeout(() => {
-            o.wan = Math.random() * 2;
-            if (o.wan <= 1) {
+          scheduleWeakEntityTimeout(o, (bot) => {
+            bot.wan = Math.random() * 2;
+            if (bot.wan <= 1) {
               if (c.MODE !== "theDistance") {
-                o.addController(new io_wanderAroundMap(o));
+                bot.addController(new io_wanderAroundMap(bot));
               }
             }
-            o.invuln = false;
+            bot.invuln = false;
             if (
-              o.skill.score >= 1000000 &&
-              o.team === -4 &&
+              bot.skill.score >= 1000000 &&
+              bot.team === -4 &&
               c.MODE !== "theControlled"
             ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              o.rando = Math.ceil(Math.random() * 2);
-              switch (o.rando) {
+              bot.skill.points += 10;
+              bot.name = "[LORD]_";
+              bot.aiTarget = "general";
+              bot.name += ran.chooseBossBotName();
+              bot.rando = Math.ceil(Math.random() * 2);
+              switch (bot.rando) {
                 case 1:
                 default:
                   setTimeout(() => {
                     sockets.broadcast(
                       "Clouds of sinister black mist gather around " +
-                        o.name +
+                        bot.name +
                         ". be afraid, VERY AFRAID!"
                     );
                   }, 10);
-                  o.define(Class.reaper);
+                  bot.define(Class.reaper);
                   break;
               }
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
-              o.ignoreCollision = false;
+              bot.maxChildren = 0;
+              bot.intangibility = false;
+              bot.invisible = [100, 0];
+              bot.alpha = 100;
+              bot.ignoreCollision = false;
             }
             if (
-              o.skill.score >= 1000000 &&
-              o.team === -3 &&
+              bot.skill.score >= 1000000 &&
+              bot.team === -3 &&
               c.MODE !== "theExpanse" &&
               c.MODE !== "theControlled"
             ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              o.rando = Math.ceil(Math.random() * 2);
-              switch (o.rando) {
+              bot.skill.points += 10;
+              bot.name = "[LORD]_";
+              bot.aiTarget = "general";
+              bot.name += ran.chooseBossBotName();
+              bot.rando = Math.ceil(Math.random() * 2);
+              switch (bot.rando) {
                 case 1:
                   setTimeout(() => {
                     sockets.broadcast(
-                      o.name +
+                      bot.name +
                         ": BE BLINDED BY THE POWER OF SCIENCE YOU EVIL FIENDS!"
                     );
                   }, 10);
-                  o.define(Class.operator);
+                  bot.define(Class.operator);
                   break;
                 case 2:
                   setTimeout(() => {
                     sockets.broadcast(
-                      o.name + ": THE POWER OF SCIENCE SHALL DESTROY YOU, SCUM!"
+                      bot.name + ": THE POWER OF SCIENCE SHALL DESTROY YOU, SCUM!"
                     );
                   }, 10);
-                  o.define(Class.MassProducer);
+                  bot.define(Class.MassProducer);
                   break;
               }
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
-              o.ignoreCollision = false;
+              bot.maxChildren = 0;
+              bot.intangibility = false;
+              bot.invisible = [100, 0];
+              bot.alpha = 100;
+              bot.ignoreCollision = false;
             }
             if (
-              o.skill.score >= 1000000 &&
-              o.team === -2 &&
+              bot.skill.score >= 1000000 &&
+              bot.team === -2 &&
               c.MODE !== "theInfestation"
             ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              o.rando = Math.ceil(Math.random() * 2);
-              switch (o.rando) {
+              bot.skill.points += 10;
+              bot.name = "[LORD]_";
+              bot.aiTarget = "general";
+              bot.name += ran.chooseBossBotName();
+              bot.rando = Math.ceil(Math.random() * 2);
+              switch (bot.rando) {
                 case 1:
                   setTimeout(() => {
                     sockets.broadcast(
-                      o.name +
+                      bot.name +
                         ": Minions and servants, tanks and barrels, drones and souls, obey my call!"
                     );
                   }, 10);
-                  o.define(Class.necrotyrant);
+                  bot.define(Class.necrotyrant);
                   break;
                 case 2:
                   setTimeout(() => {
                     sockets.broadcast(
                       "Hoards of the undead gather around " +
-                        o.name +
+                        bot.name +
                         "... What the hell?"
                     );
                   }, 10);
-                  o.define(Class.flesh);
+                  bot.define(Class.flesh);
                   break;
               }
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
-              o.ignoreCollision = false;
+              bot.intangibility = false;
+              bot.invisible = [100, 0];
+              bot.alpha = 100;
+              bot.ignoreCollision = false;
             }
             if (
-              o.skill.score >= 1000000 &&
-              o.team === -1 &&
+              bot.skill.score >= 1000000 &&
+              bot.team === -1 &&
               c.MODE !== "theDenied" &&
               c.MODE !== "siege"
             ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
+              bot.skill.points += 10;
+              bot.name = "[LORD]_";
+              bot.aiTarget = "general";
+              bot.name += ran.chooseBossBotName();
               setTimeout(() => {
                 sockets.broadcast(
-                  o.name +
+                  bot.name +
                     ": Okay, I have taken your crap long enough, time for a barrel-whooping!"
                 );
               }, 10);
-              o.define(Class.rebel);
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
-              o.ignoreCollision = false;
+              bot.define(Class.rebel);
+              bot.maxChildren = 0;
+              bot.intangibility = false;
+              bot.invisible = [100, 0];
+              bot.alpha = 100;
+              bot.ignoreCollision = false;
             }
             if (
-              (o.skill.score >= 1000000 &&
-                o.team === -100 &&
+              (bot.skill.score >= 1000000 &&
+                bot.team === -100 &&
                 c.MODE !== "theAwakening" &&
                 c.MODE !== "siege") ||
-              (o.skill.score >= 1000000 &&
+              (bot.skill.score >= 1000000 &&
                 c.MODE === "siege" &&
-                o.maxChildren > 0)
+                bot.maxChildren > 0)
             ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
+              bot.skill.points += 10;
+              bot.name = "[LORD]_";
+              bot.aiTarget = "general";
+              bot.name += ran.chooseBossBotName();
               setTimeout(() => {
                 sockets.broadcast(
                   "Valrayvn: " +
-                    o.name +
+                    bot.name +
                     "! I shall grant you true power! ASCEND!"
                 );
               }, 10);
-              o.define(Class.arenaguardpl);
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
+              bot.define(Class.arenaguardpl);
+              bot.maxChildren = 0;
+              bot.intangibility = false;
+              bot.invisible = [100, 0];
+              bot.alpha = 100;
             }
             if (
-              o.skill.score >= 2500000 &&
+              bot.skill.score >= 2500000 &&
               c.MODE === "siege" &&
-              o.label !== "Spectator"
+              bot.label !== "Spectator"
             ) {
-              o.skill.points += 10;
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.ignoreCollision = false;
-              o.alpha = 100;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              o.define(Class.legendaryClassList);
+              bot.skill.points += 10;
+              bot.maxChildren = 0;
+              bot.intangibility = false;
+              bot.invisible = [100, 0];
+              bot.ignoreCollision = false;
+              bot.alpha = 100;
+              bot.name = "[LORD]_";
+              bot.aiTarget = "general";
+              bot.name += ran.chooseBossBotName();
+              bot.define(Class.legendaryClassList);
             }
             if (
               // c.MODE === "theInfestation" ||
               c.MODE === "siege"
             ) {
-              o.addController(new io_guard1(o));
+              bot.addController(new io_guard1(bot));
             }
             if (c.MODE === "theDistance") {
-              o.addController(new io_pathFinder(o));
-              o.addController(new io_alwaysFire(o));
-              o.facingType = "smoothWithMotion";
-              o.aiTarget = "general";
+              bot.addController(new io_pathFinder(bot));
+              bot.addController(new io_alwaysFire(bot));
+              bot.facingType = "smoothWithMotion";
+              bot.aiTarget = "general";
             }
           }, 12500);
-          setTimeout(() => {
-            if (room.isIn("bas" + -o.team, o)) {
-              o.kill();
+          scheduleWeakEntityTimeout(o, (bot) => {
+            if (room.isIn("bas" + -bot.team, bot)) {
+              bot.kill();
             }
           }, 100000);
           o.refreshBodyAttributes();
@@ -23040,8 +23099,7 @@ var maintainloop = (() => {
       };
       // Rebuild the food list without creating intermediate map/filter arrays.
       food.length = 0;
-      for (let i = 0; i < entities.length; i++) {
-        const instance = entities[i];
+      for (const instance of liveEntities) {
         if (!instance || !instance.valid()) continue;
         try {
           if (instance.type === "tank") {
@@ -23188,7 +23246,7 @@ var maintainloop = (() => {
     makenpcs();
     if (c.SPAWN_FOOD !== false) makefood();
     // Regen health and update the grid
-    entities.forEach((instance) => {
+    liveEntities.forEach((instance) => {
       if (instance.health.amount > 0 || instance.health.max > 0) {
         if (instance.valid()) {
           if (
@@ -24077,12 +24135,13 @@ You must have the chat site and the game site open at the same time for your cha
                       } else if (command.includes("vote")) {
                         if (serverType === "normal") {
                           let vote = command.slice(command.indexOf("e") + 2);
-                          if (!c.voteList.includes(socket.ip)) {
+                          if (!c.voteList.has(socket.ip)) {
                             let re = 1;
                             if (socket.trueDev) re = 100;
                             for (let i = 0; i < re; i++) {
                               if (modeList.includes(vote)) {
                                 currentState.modeVotes.push(vote);
+                                c.voteList.add(socket.ip);
                                 message =
                                   "You have successfully voted on " +
                                   vote +
@@ -24292,7 +24351,7 @@ You must have the chat site and the game site open at the same time for your cha
                           if (parseInt(parts[4])) value = parts[4] * 1;
                           else value = parts[4];
 
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24365,7 +24424,7 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts.slice(2).join(" "); // Join
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24399,7 +24458,7 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts.slice(2).join(" "); // Join
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24428,7 +24487,7 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let size = parts.slice(2).join(" "); // Join
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24456,7 +24515,7 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let skill = parts[2] * 1; // Join
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24484,7 +24543,7 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let score = parts[2] * 1; // Join
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24511,7 +24570,7 @@ You must have the chat site and the game site open at the same time for your cha
                         } else if (command.includes("heal")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24540,7 +24599,7 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts[2] * 1; // Join
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24568,7 +24627,7 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let myTeam = parts[2] * 1; // Join
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24628,7 +24687,7 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let become = parts.slice(2).join(" "); // Join
-                          entities.forEach((instance) => {
+                          liveEntities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
                                 instance.isProjectile) ||
@@ -24720,7 +24779,7 @@ You must have the chat site and the game site open at the same time for your cha
                           "You do not have permission to use this command!";
                       c.recentMessage1 = "";
                     } else {
-                      if (c.muteList.includes(socket.ip)) {
+                      if (c.muteList.has(socket.ip)) {
                         message = "You have been muted, message was not sent!";
                         c.recentMessage1 = "";
                       } else {
@@ -24826,6 +24885,10 @@ function getListenPort() {
 }
 
 let shuttingDown = false;
+let shutdownExitTimer = null;
+let gameLoopTimer = null;
+let maintainLoopTimer = null;
+let speedcheckLoopTimer = null;
 
 function cleanup() {
   if (shuttingDown) return;
@@ -24834,7 +24897,37 @@ function cleanup() {
     clearInterval(siegeCountdownTimer);
     siegeCountdownTimer = null;
   }
-  // Ensure WebSocket resources do not keep the HTTP server open forever.
+  if (gameLoopTimer !== null) {
+    clearInterval(gameLoopTimer);
+    gameLoopTimer = null;
+  }
+  if (maintainLoopTimer !== null) {
+    clearInterval(maintainLoopTimer);
+    maintainLoopTimer = null;
+  }
+  if (speedcheckLoopTimer !== null) {
+    clearInterval(speedcheckLoopTimer);
+    speedcheckLoopTimer = null;
+  }
+  if (timeLeftInterval !== null) {
+    clearInterval(timeLeftInterval);
+    timeLeftInterval = null;
+  }
+  if (arenaCloseTimeout !== null) {
+    clearTimeout(arenaCloseTimeout);
+    arenaCloseTimeout = null;
+  }
+  if (shutdownExitTimer !== null) {
+    clearTimeout(shutdownExitTimer);
+    shutdownExitTimer = null;
+  }
+  sockets.shutdown();
+  console.log("Shutting down server gracefully.");
+  sockets.broadcast(
+    "Server Shutting Down! Possible Error May have occurred, please rejoin in 30 seconds!"
+  );
+  // Give the final broadcast a chance to enter the ws send queue, then release
+  // all socket resources.
   if (sockets && sockets.clients) {
     for (const socket of [...sockets.clients]) {
       try {
@@ -24845,10 +24938,6 @@ function cleanup() {
       }
     }
   }
-  console.log("Shutting down server gracefully.");
-  sockets.broadcast(
-    "Server Shutting Down! Possible Error May have occurred, please rejoin in 30 seconds!"
-  );
   room.closed = true;
   c.extinction = true;
   c.DEADLY_BORDERS = true;
@@ -24856,7 +24945,8 @@ function cleanup() {
     console.log("Server closed.");
     // Remove lock file if it still exists.
     if (fs.existsSync(lockFilePath)) fs.unlinkSync(lockFilePath);
-    setTimeout(() => {
+    shutdownExitTimer = setTimeout(() => {
+      shutdownExitTimer = null;
       sockets.broadcast("Closing!");
       process.exit(0);
     }, 15000);
@@ -24878,7 +24968,8 @@ let websockets = (() => {
   return new WebSocket.Server(config);
 })().on("connection", sockets.connect);
 
-// Bring it to life
-setInterval(gameloop, room.cycleSpeed);
-setInterval(maintainloop, 200);
-setInterval(speedcheckloop, 1000);
+// Bring it to life. Store timer handles so graceful shutdown can stop all
+// simulation activity immediately.
+gameLoopTimer = setInterval(gameloop, room.cycleSpeed);
+maintainLoopTimer = setInterval(maintainloop, 200);
+speedcheckLoopTimer = setInterval(speedcheckloop, 1000);

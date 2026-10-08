@@ -22,7 +22,11 @@ function loadServerState() {
 
 // Function to save server state to file
 function saveServerState() {
-    fs.writeFileSync(path.join(__dirname, 'serverState.json'), JSON.stringify(serverState, null, 2));
+    const target = path.join(__dirname, 'serverState.json');
+    const temp = target + '.tmp';
+    const data = JSON.stringify(serverState, null, 2);
+    fs.writeFileSync(temp, data);
+    fs.renameSync(temp, target);
 }
 
 // Function to advance lore mode sequence
@@ -49,8 +53,6 @@ function handleServerShutdown() {
 
 // Hook into process events for server shutdown
 process.on('exit', handleServerShutdown); // Handle normal server exit
-process.on('SIGINT', handleServerShutdown); // Handle Ctrl+C in terminal
-process.on('SIGTERM', handleServerShutdown); // Handle termination signal
 
 // Export functions to manipulate server state
 module.exports = {
@@ -60,5 +62,7 @@ module.exports = {
         saveServerState();
     },
     advanceLoreSequence: advanceLoreSequence,
-    resetLoreIndex: resetLoreIndex
+    resetLoreIndex: resetLoreIndex,
+    saveServerState: saveServerState,
+    handleServerShutdown: handleServerShutdown
 };
