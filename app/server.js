@@ -16838,7 +16838,12 @@ const sockets = (() => {
 
         // Traffic checks run every 1.5 seconds. Heartbeats are already checked
         // by the 100 ms broadcast loop, so do not duplicate that work here.
-        if (socket.status.requests > 50) {
+        // Normal clients can legitimately send several packets per server
+        // update (input, ping/sync, and the update acknowledgement). The old
+        // 50-packets-per-1.5s threshold was low enough to kick active players.
+        // Allow a burst up to 180 packets per 1.5s (120 packets/sec) and only
+        // act after four consecutive over-limit windows.
+        if (socket.status.requests > 180) {
           socket.status.trafficStrikes++;
         } else {
           socket.status.trafficStrikes = 0;
@@ -18638,11 +18643,20 @@ var gameloop = (() => {
   // Collision stuff
   let collide = (() => {
     function simplecollide(my, n) {
+      if (
+        !Number.isFinite(my.x) ||
+        !Number.isFinite(my.y) ||
+        !Number.isFinite(n.x) ||
+        !Number.isFinite(n.y) ||
+        !Number.isFinite(roomSpeed) ||
+        roomSpeed <= 0
+      )
+        return;
       const dx = my.x - n.x;
       const dy = my.y - n.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance < 2 + my.realSize + n.realSize) {
-        let diff = (1 + distance / 2) * roomSpeed;
+      const distance = Math.hypot(dx, dy);
+      if (Number.isFinite(distance) && distance < 2 + my.realSize + n.realSize) {
+        let diff = (1 + distance / 2) * roomSpeed || roomSpeed;
         let a = my.intangibility ? 1 : my.pushability,
           b = n.intangibility ? 1 : n.pushability,
           c = (0.05 * (my.x - n.x)) / diff,
@@ -18664,11 +18678,20 @@ var gameloop = (() => {
       }
     }
     function polycollide(my, n) {
+      if (
+        !Number.isFinite(my.x) ||
+        !Number.isFinite(my.y) ||
+        !Number.isFinite(n.x) ||
+        !Number.isFinite(n.y) ||
+        !Number.isFinite(roomSpeed) ||
+        roomSpeed <= 0
+      )
+        return;
       const dx = my.x - n.x;
       const dy = my.y - n.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance < 2 + my.realSize + n.realSize) {
-        let diff = (1 + distance) * roomSpeed;
+      const distance = Math.hypot(dx, dy);
+      if (Number.isFinite(distance) && distance < 2 + my.realSize + n.realSize) {
+        let diff = (1 + distance) * roomSpeed || roomSpeed;
         let a = my.intangibility ? 1 : my.pushability * 5,
           b = n.intangibility ? 1 : n.pushability * 5,
           c = (0.5 * (my.x - n.x)) / diff,
@@ -18680,11 +18703,20 @@ var gameloop = (() => {
       }
     }
     function reversecollide(my, n) {
+      if (
+        !Number.isFinite(my.x) ||
+        !Number.isFinite(my.y) ||
+        !Number.isFinite(n.x) ||
+        !Number.isFinite(n.y) ||
+        !Number.isFinite(roomSpeed) ||
+        roomSpeed <= 0
+      )
+        return;
       const dx = my.x - n.x;
       const dy = my.y - n.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance < 2 + my.realSize + n.realSize) {
-        let diff = (1 + distance / 2) * roomSpeed;
+      const distance = Math.hypot(dx, dy);
+      if (Number.isFinite(distance) && distance < 2 + my.realSize + n.realSize) {
+        let diff = (1 + distance / 2) * roomSpeed || roomSpeed;
         let a = my.intangibility ? 1 : my.pushability,
           b = n.intangibility ? 1 : n.pushability,
           c = (0.05 * (my.x - n.x)) / diff,
@@ -18696,6 +18728,15 @@ var gameloop = (() => {
       }
     }
     function firmcollide(my, n, buffer = 0) {
+      if (
+        !Number.isFinite(my.x) ||
+        !Number.isFinite(my.y) ||
+        !Number.isFinite(n.x) ||
+        !Number.isFinite(n.y) ||
+        !Number.isFinite(roomSpeed) ||
+        roomSpeed <= 0
+      )
+        return 0;
       let item1x = my.x + my.m_x;
       let item1y = my.y + my.m_y;
       let item2x = n.x + n.m_x;
@@ -18712,7 +18753,7 @@ var gameloop = (() => {
             (my.realSize + n.realSize + buffer - dist)) /
           buffer /
           roomSpeed;
-        const safeDist = dist || 0.000001;
+        const safeDist = Number.isFinite(dist) && dist > 0 ? dist : 0.000001;
         my.accel.x += (repel * dx) / safeDist;
         my.accel.y += (repel * dy) / safeDist;
         n.accel.x -= (repel * dx) / safeDist;
@@ -18721,7 +18762,7 @@ var gameloop = (() => {
       while (dist <= my.realSize + n.realSize && !(strike1 && strike2)) {
         strike1 = false;
         strike2 = false;
-        const safeDist = dist || 0.000001;
+        const safeDist = Number.isFinite(dist) && dist > 0 ? dist : 0.000001;
         if (my.velocity.length <= s1) {
           my.velocity.x += (0.05 * (item1x - item2x)) / safeDist / roomSpeed;
           my.velocity.y += (0.05 * (item1y - item2y)) / safeDist / roomSpeed;
@@ -18744,12 +18785,19 @@ var gameloop = (() => {
       }
     }
     function reflectcollide(wall, bounce) {
+      if (
+        !Number.isFinite(wall.x) ||
+        !Number.isFinite(wall.y) ||
+        !Number.isFinite(bounce.x) ||
+        !Number.isFinite(bounce.y)
+      )
+        return 0;
       const dx = wall.x - bounce.x;
       const dy = wall.y - bounce.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const diff = wall.size + bounce.size - dist;
       if (diff > 0) {
-        const safeDist = dist || 0.000001;
+        const safeDist = Number.isFinite(dist) && dist > 0 ? dist : 0.000001;
         const pushX = (diff * dx) / safeDist;
         const pushY = (diff * dy) / safeDist;
         bounce.accel.x -= pushX * bounce.pushability;
@@ -18768,8 +18816,23 @@ var gameloop = (() => {
       nIsFirmCollide = false
     ) {
       if (n.isDead() || my.isDead()) return;
-      // Prepare to check
-      let tock = Math.min(my.stepRemaining, n.stepRemaining),
+      if (
+        !Number.isFinite(my.x) ||
+        !Number.isFinite(my.y) ||
+        !Number.isFinite(n.x) ||
+        !Number.isFinite(n.y) ||
+        !Number.isFinite(my.velocity.x) ||
+        !Number.isFinite(my.velocity.y) ||
+        !Number.isFinite(n.velocity.x) ||
+        !Number.isFinite(n.velocity.y) ||
+        !Number.isFinite(my.stepRemaining) ||
+        !Number.isFinite(n.stepRemaining)
+      )
+        return;
+      // Prepare to check. Overlapping entities have no unique direction; use
+      // their relative motion when available, otherwise a deterministic
+      // opposite direction based on their ids. This prevents 0/0 -> NaN.
+      let tock = Math.max(0, Math.min(1, my.stepRemaining, n.stepRemaining)),
         combinedRadius = n.size + my.size,
         motion = {
           _me: new Vector(my.m_x, my.m_y),
@@ -18780,11 +18843,27 @@ var gameloop = (() => {
           tock * (motion._me.y - motion._n.y)
         ),
         diff = new Vector(my.x - n.x, my.y - n.y),
-        dir = new Vector(
-          (n.x - my.x) / diff.length,
-          (n.y - my.y) / diff.length
-        ),
-        component = Math.max(0, dir.x * delt.x + dir.y * delt.y);
+        diffLength = Math.hypot(diff.x, diff.y),
+        dirX,
+        dirY;
+
+      if (!Number.isFinite(diffLength)) return;
+      if (diffLength > 1e-9) {
+        dirX = (n.x - my.x) / diffLength;
+        dirY = (n.y - my.y) / diffLength;
+      } else {
+        const rvx = motion._n.x - motion._me.x;
+        const rvy = motion._n.y - motion._me.y;
+        const relativeMotion = Math.hypot(rvx, rvy);
+        if (relativeMotion > 1e-9 && Number.isFinite(relativeMotion)) {
+          dirX = rvx / relativeMotion;
+          dirY = rvy / relativeMotion;
+        } else {
+          dirX = my.id <= n.id ? 1 : -1;
+          dirY = 0;
+        }
+      }
+      let component = Math.max(0, dirX * delt.x + dirY * delt.y);
 
       if (
         component >= diff.length - combinedRadius &&
@@ -18866,13 +18945,26 @@ var gameloop = (() => {
             // Update things
 
             diff = new Vector(my.x - n.x, my.y - n.y);
-            dir = new Vector(
-              (n.x - my.x) / diff.length,
-              (n.y - my.y) / diff.length
-            );
-            component = Math.max(0, dir.x * delt.x + dir.y * delt.y);
+            diffLength = Math.hypot(diff.x, diff.y);
+            if (!Number.isFinite(diffLength)) return;
+            if (diffLength > 1e-9) {
+              dirX = (n.x - my.x) / diffLength;
+              dirY = (n.y - my.y) / diffLength;
+            } else {
+              const rvx = motion._n.x - motion._me.x;
+              const rvy = motion._n.y - motion._me.y;
+              const relativeMotion = Math.hypot(rvx, rvy);
+              if (relativeMotion > 1e-9 && Number.isFinite(relativeMotion)) {
+                dirX = rvx / relativeMotion;
+                dirY = rvy / relativeMotion;
+              } else {
+                dirX = my.id <= n.id ? 1 : -1;
+                dirY = 0;
+              }
+            }
+            component = Math.max(0, dirX * delt.x + dirY * delt.y);
           }
-          let componentNorm = component / delt.length;
+          let componentNorm = delt.length > 1e-9 && Number.isFinite(delt.length) ? component / delt.length : 0;
           /************ APPLY COLLISION ***********/
           // Prepare some things
           let reductionFactor = 1,
@@ -18901,14 +18993,22 @@ var gameloop = (() => {
               up: depth._me * depth._n,
               down: (1 - depth._me) * (1 - depth._n),
             },
+            myPenetration = Math.max(
+              1e-6,
+              Number.isFinite(my.penetration) ? Math.abs(my.penetration) : 1e-6
+            ),
+            nPenetration = Math.max(
+              1e-6,
+              Number.isFinite(n.penetration) ? Math.abs(n.penetration) : 1e-6
+            ),
             pen = {
               _me: {
-                sqr: Math.pow(my.penetration, 2),
-                sqrt: Math.sqrt(my.penetration),
+                sqr: myPenetration * myPenetration,
+                sqrt: Math.sqrt(myPenetration),
               },
               _n: {
-                sqr: Math.pow(n.penetration, 2),
-                sqrt: Math.sqrt(n.penetration),
+                sqr: nPenetration * nPenetration,
+                sqrt: Math.sqrt(nPenetration),
               },
             },
             savedHealthRatio = {
@@ -18918,12 +19018,14 @@ var gameloop = (() => {
           if (doDamage && !my.invuln && !n.invuln) {
             let speedFactor = {
               // Avoid NaNs and infinities
-              _me: my.maxSpeed
-                ? Math.pow(motion._me.length / my.maxSpeed, 0.25)
-                : 1,
-              _n: n.maxSpeed
-                ? Math.pow(motion._n.length / n.maxSpeed, 0.25)
-                : 1,
+              _me:
+                Number.isFinite(my.maxSpeed) && my.maxSpeed > 0
+                  ? Math.pow(Math.max(0, motion._me.length / my.maxSpeed), 0.25)
+                  : 1,
+              _n:
+                Number.isFinite(n.maxSpeed) && n.maxSpeed > 0
+                  ? Math.pow(Math.max(0, motion._n.length / n.maxSpeed), 0.25)
+                  : 1,
             };
 
             /********** DO DAMAGE *********/
@@ -19062,7 +19164,7 @@ var gameloop = (() => {
                   1,
                   Math.pow(
                     Math.max(my.health.ratio, my.shield.ratio),
-                    1 / my.penetration
+                    1 / myPenetration
                   )
                 );
               }
@@ -19071,7 +19173,7 @@ var gameloop = (() => {
                   1,
                   Math.pow(
                     Math.max(n.health.ratio, n.shield.ratio),
-                    1 / n.penetration
+                    1 / nPenetration
                   )
                 );
               }
@@ -19079,7 +19181,7 @@ var gameloop = (() => {
                 damage._me *=
                   (accelerationFactor *
                     (1 +
-                      ((componentNorm - 1) * (1 - depth._n)) / my.penetration) *
+                      ((componentNorm - 1) * (1 - depth._n)) / myPenetration) *
                     (1 + pen._n.sqrt * depth._n - depth._n)) /
                   pen._n.sqrt;
               }
@@ -19087,10 +19189,15 @@ var gameloop = (() => {
                 damage._n *=
                   (accelerationFactor *
                     (1 +
-                      ((componentNorm - 1) * (1 - depth._me)) / n.penetration) *
+                      ((componentNorm - 1) * (1 - depth._me)) / nPenetration) *
                     (1 + pen._me.sqrt * depth._me - depth._me)) /
                   pen._me.sqrt;
               }
+              if (!Number.isFinite(damage._me) || !Number.isFinite(damage._n)) {
+                // Never propagate an invalid collision result into health/score/physics.
+                return;
+              }
+
               // Find out if you'll die in this cycle, and if so how much damage you are able to do to the other target
               let damageToApply = {
                 _me: damage._me,
@@ -19407,15 +19514,15 @@ var gameloop = (() => {
           if (!n.ignoreCollision) {
             if (nIsFirmCollide < 0) {
               nIsFirmCollide *= -0.5;
-              my.accel.x -= nIsFirmCollide * component * dir.x;
-              my.accel.y -= nIsFirmCollide * component * dir.y;
-              n.accel.x += nIsFirmCollide * component * dir.x;
-              n.accel.y += nIsFirmCollide * component * dir.y;
+              my.accel.x -= nIsFirmCollide * component * dirX;
+              my.accel.y -= nIsFirmCollide * component * dirY;
+              n.accel.x += nIsFirmCollide * component * dirX;
+              n.accel.y += nIsFirmCollide * component * dirY;
             } else if (nIsFirmCollide > 0) {
               n.accel.x +=
-                nIsFirmCollide * (component * dir.x + combinedDepth.up);
+                nIsFirmCollide * (component * dirX + combinedDepth.up);
               n.accel.y +=
-                nIsFirmCollide * (component * dir.y + combinedDepth.up);
+                nIsFirmCollide * (component * dirY + combinedDepth.up);
             } else {
               // Calculate the impulse of the collision
               let elasticity =
@@ -19448,8 +19555,8 @@ var gameloop = (() => {
                   (1 - my.intangibility) *
                   (1 - n.intangibility),
                 force = {
-                  x: impulse * dir.x,
-                  y: impulse * dir.y,
+                  x: impulse * dirX,
+                  y: impulse * dirY,
                 },
                 modifiers = {
                   _me:
@@ -20772,6 +20879,37 @@ var gameloop = (() => {
     }
   };
 
+  // Collision is allowed to run before the normal per-entity NaN recovery.
+  // Repair invalid numeric state here as well so one bad collision can never
+  // poison the spatial index or make the entity vanish on a later tick.
+  const repairCollisionState = (entity) => {
+    if (
+      Number.isFinite(entity.x) &&
+      Number.isFinite(entity.y) &&
+      Number.isFinite(entity.velocity.x) &&
+      Number.isFinite(entity.velocity.y) &&
+      Number.isFinite(entity.accel.x) &&
+      Number.isFinite(entity.accel.y)
+    )
+      return false;
+
+    const fallback = room.random();
+    entity.x = fallback.x;
+    entity.y = fallback.y;
+    entity.velocity.x = 0;
+    entity.velocity.y = 0;
+    entity.accel.x = 0;
+    entity.accel.y = 0;
+    entity.stepRemaining = 1;
+    entity.collisionArray.length = 0;
+    entity.targetLock = undefined;
+    entity.invuln = true;
+    setTimeout(() => {
+      if (!entity._destroyed) entity.invuln = false;
+    }, 250);
+    return true;
+  };
+
   let collisionIteration = () => {
     const now = util.time();
     for (const entity of liveEntities) {
@@ -20792,6 +20930,7 @@ var gameloop = (() => {
 
     for (let i = 0; i < activeEntities.length; i++) {
       const e = activeEntities[i];
+      if (repairCollisionState(e)) continue;
       const x = e.x;
       const y = e.y;
       const vx = e.velocity.x + e.accel.x;
@@ -20810,8 +20949,17 @@ var gameloop = (() => {
     boxIntersect(activeAabb, (i, j) => {
       e1 = activeEntities[i];
       e2 = activeEntities[j];
-      if (e1.valid() && e1.bond == null && e2.valid() && e2.bond == null) {
+      if (
+        e1.valid() &&
+        e1.bond == null &&
+        e1.activation.check() &&
+        e2.valid() &&
+        e2.bond == null &&
+        e2.activation.check()
+      ) {
         collide(e1, e2);
+        repairCollisionState(e1);
+        repairCollisionState(e2);
       }
     });
   };
