@@ -144,9 +144,9 @@ const projectile = {
 const emergencyEntities = [player, boss, modestEntity, expensiveEntity, customKeptEntity, uppercaseKeptEntity, projectile];
 const emergencyProtection = createLoadProtection({
   env: {
-    RANAR_LOAD_SUSPEND_INTERVAL_MS: "5000",
+    RANAR_LOAD_SUSPEND_INTERVAL_MS: "99999",
     RANAR_LOAD_SUSPEND_WINDOW_MS: "60000",
-    RANAR_LOAD_ENTITY_FADE_MS: "5000",
+    RANAR_LOAD_ENTITY_FADE_MS: "2500",
   },
   nowProvider: () => emergencyNow,
   memoryLimitBytes: null,
@@ -175,29 +175,29 @@ assert.strictEqual(customKeptEntity._loadDisabled, undefined, "keep=true opt-out
 assert.strictEqual(uppercaseKeptEntity._loadDisabled, undefined, "KEEP=true opt-outs are never suspended");
 assert.strictEqual(projectile._loadDisabled, undefined, "projectiles are not frozen mid-flight");
 
-emergencyNow = 2500;
+emergencyNow = 1250;
 emergencyProtection.reportCycle(260, emergencyEntities);
-assert.ok(Math.abs(expensiveEntity.alpha - 0.4) < 0.001, "alpha fades linearly to zero over five seconds");
+assert.ok(Math.abs(expensiveEntity.alpha - 0.4) < 0.001, "alpha fades linearly to zero over 2.5 seconds");
 assert.strictEqual(expensiveEntity.name, "[Disabled]", "the Disabled label stays during fade-out");
 
 // Recovery before a full fade-out reverses smoothly and eventually restores
 // the entity's exact name, alpha, and original nameplate setting.
-emergencyNow = 2600;
+emergencyNow = 1300;
 emergencyProtection.reportCycle(249, emergencyEntities);
 assert.strictEqual(expensiveEntity.name, "[Respawning...]", "recovery switches to the Respawning label");
 assert.strictEqual(expensiveEntity._loadDisabled, true, "gameplay remains paused until the fade-in completes");
 assert.ok(Math.abs(expensiveEntity.alpha - 0.384) < 0.001, "mid-fade recovery smoothly reverses from its current opacity");
-emergencyNow = 7600;
+emergencyNow = 3800;
 emergencyProtection.reportCycle(49, emergencyEntities);
-assert.strictEqual(expensiveEntity._loadDisabled, undefined, "entity resumes gameplay after the five-second fade-in");
+assert.strictEqual(expensiveEntity._loadDisabled, undefined, "entity resumes gameplay after the 2.5-second fade-in");
 assert.strictEqual(expensiveEntity.name, "Original Expensive Name", "original entity name is restored");
 assert.strictEqual(expensiveEntity.alpha, 0.8, "original alpha is restored exactly");
 assert.strictEqual(expensiveEntity.allowPlate, false, "original nameplate setting is restored exactly");
 assert.deepStrictEqual(entityChanges.map((entry) => entry.disabled), [true, false]);
 emergencyProtection.stop();
 
-// Sustained critical lag selects another entity every five seconds. After one
-// full minute without a dip below 250ms, every suspended entity begins fading
+// Sustained critical lag selects another entity every 2.5 seconds. After one
+// full minute without a dip below 250ms, every critical-suspended entity begins fading
 // back in and a lockout prevents more suspensions until lag falls below 250ms.
 let windowNow = 0;
 const thirdEntity = {
@@ -208,9 +208,9 @@ const thirdEntity = {
 const windowEntities = [player, boss, modestEntity, expensiveEntity, thirdEntity, customKeptEntity, uppercaseKeptEntity, projectile];
 const windowProtection = createLoadProtection({
   env: {
-    RANAR_LOAD_SUSPEND_INTERVAL_MS: "5000",
+    RANAR_LOAD_SUSPEND_INTERVAL_MS: "2500",
     RANAR_LOAD_SUSPEND_WINDOW_MS: "60000",
-    RANAR_LOAD_ENTITY_FADE_MS: "5000",
+    RANAR_LOAD_ENTITY_FADE_MS: "2500",
   },
   nowProvider: () => windowNow,
   memoryLimitBytes: null,
@@ -221,16 +221,16 @@ windowProtection.recordEntityLifeCost(expensiveEntity, 18);
 windowProtection.recordCollisionCost(expensiveEntity, modestEntity, 2);
 windowProtection.reportCycle(250, windowEntities);
 assert.strictEqual(expensiveEntity._loadDisabled, true, "first eligible high-cost entity is suspended immediately");
-windowNow = 4999;
+windowNow = 2499;
 windowProtection.reportCycle(260, windowEntities);
 assert.strictEqual(modestEntity._loadDisabled, undefined, "next entity waits for the configured interval");
+windowNow = 2500;
+windowProtection.reportCycle(260, windowEntities);
+assert.strictEqual(modestEntity._loadDisabled, true, "second entity is suspended 2.5 seconds later");
+assert.strictEqual(expensiveEntity.alpha, 0, "first entity finishes its 2.5-second fade-out");
 windowNow = 5000;
 windowProtection.reportCycle(260, windowEntities);
-assert.strictEqual(modestEntity._loadDisabled, true, "second entity is suspended five seconds later");
-assert.strictEqual(expensiveEntity.alpha, 0, "first entity finishes its five-second fade-out");
-windowNow = 10000;
-windowProtection.reportCycle(260, windowEntities);
-assert.strictEqual(thirdEntity._loadDisabled, true, "third eligible entity is suspended at the next interval");
+assert.strictEqual(thirdEntity._loadDisabled, true, "third eligible entity is suspended at the next 2.5-second interval");
 windowNow = 60000;
 windowProtection.reportCycle(260, windowEntities);
 assert.strictEqual(windowProtection.getSnapshot().loadSuspensionLockout, true, "one minute of uninterrupted critical lag activates lockout");
@@ -238,11 +238,11 @@ assert.strictEqual(windowProtection.getSnapshot().loadDisabledEntityCount, 3, "a
 assert.deepStrictEqual(
   [expensiveEntity.name, modestEntity.name, thirdEntity.name],
   ["[Respawning...]", "[Respawning...]", "[Respawning...]"],
-  "the one-minute timeout restores all entities visually"
+  "the one-minute timeout restores all critical-suspended entities visually"
 );
 windowNow = 65000;
 windowProtection.reportCycle(260, windowEntities);
-assert.strictEqual(windowProtection.getSnapshot().loadDisabledEntityCount, 0, "all three entities are restored after the five-second fade-in");
+assert.strictEqual(windowProtection.getSnapshot().loadDisabledEntityCount, 0, "all three entities are restored after the 2.5-second fade-in");
 assert.strictEqual(expensiveEntity._loadDisabled, undefined);
 assert.strictEqual(modestEntity._loadDisabled, undefined);
 assert.strictEqual(thirdEntity._loadDisabled, undefined);
@@ -319,6 +319,90 @@ const p95Protection = createLoadProtection({
 p95Protection.sample();
 assert.strictEqual(eventLoopTarget._loadDisabled, true, "critical event-loop delay also triggers entity suspension");
 p95Protection.stop();
+
+
+// Candidate filtering and structural priority.
+let candidateNow = 0;
+const disabledCandidate = { id: 201, name: "[Disabled]", _loadDisabled: true, _loadLifeCostMs: 5000, guns: [], turrets: [], children: [], controllers: [], excludedTargets: [], valid: () => true };
+const respawningCandidate = { id: 202, name: "[Respawning...]", _loadDisabled: true, _loadLifeCostMs: 6000, guns: [], turrets: [], children: [], controllers: [], excludedTargets: [], valid: () => true };
+const structurallyHeavy = { id: 203, label: "Many weapons", name: "Many weapons", alpha: 1, guns: Array(5).fill({}), turrets: Array(2).fill({}), children: Array(4).fill({}), controllers: [], excludedTargets: [], valid: () => true };
+const measuredLight = { id: 204, label: "Measured light entity", name: "Measured light entity", alpha: 1, guns: [], turrets: [], children: [], controllers: [], excludedTargets: [], valid: () => true };
+const candidateProtection = createLoadProtection({ env: { RANAR_LOAD_ENTITY_FADE_MS: "2500" }, memoryLimitBytes: null, nowProvider: () => candidateNow });
+candidateProtection.recordEntityLifeCost(measuredLight, 5);
+candidateProtection.reportCycle(250, [disabledCandidate, respawningCandidate, structurallyHeavy, measuredLight]);
+assert.strictEqual(structurallyHeavy._loadDisabled, true, "gun/turret/child-heavy entities receive structural-cost priority");
+assert.strictEqual(disabledCandidate._loadDisabled, true, "existing disabled entities remain untouched");
+assert.strictEqual(respawningCandidate.name, "[Respawning...]", "respawning entities are never selected again");
+candidateProtection.stop();
+
+// 100ms for 10 seconds pauses spawning/food and fade-disables unknown labels.
+let policyNow = 0;
+const unknownEntity = { id: 301, label: "Unknown Entity", name: "Odd Entity", alpha: 1, guns: [], turrets: [], children: [], controllers: [], excludedTargets: [], valid: () => true };
+const policyProtection = createLoadProtection({ env: {}, memoryLimitBytes: null, nowProvider: () => policyNow, getEntities: () => [unknownEntity] });
+policyProtection.reportCycle(100, [unknownEntity]);
+policyNow = 9999;
+policyProtection.reportCycle(100, [unknownEntity]);
+assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), true, "natural spawning continues before 10 seconds elapse");
+policyNow = 10000;
+policyProtection.reportCycle(100, [unknownEntity]);
+assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), false, "natural entity spawning pauses after persistent 100ms lag");
+assert.strictEqual(policyProtection.shouldSpawnFood(), false, "food spawning pauses after persistent 100ms lag");
+assert.strictEqual(unknownEntity._loadDisabled, true, "Unknown Entity is temporarily disabled");
+assert.strictEqual(unknownEntity.name, "[Disabled]", "unknown entity displays the Disabled label");
+policyNow = 20000;
+policyProtection.reportCycle(99, [unknownEntity]);
+assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), false, "brief recovery does not resume spawning immediately");
+policyNow = 29999;
+policyProtection.reportCycle(99, [unknownEntity]);
+assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), false, "10 healthy seconds are required before spawning resumes");
+policyNow = 30000;
+policyProtection.reportCycle(99, [unknownEntity]);
+assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), true, "natural spawns resume after sustained recovery");
+assert.strictEqual(unknownEntity.name, "[Respawning...]", "unknown entity begins visual restoration");
+policyNow = 32500;
+policyProtection.reportCycle(50, [unknownEntity]);
+assert.strictEqual(unknownEntity._loadDisabled, undefined, "unknown entity resumes after 2.5-second fade-in");
+policyProtection.stop();
+
+// 150ms for 15 seconds destroys only tagged natural entities off-screen.
+let cleanup150Now = 0;
+const makeCleanupEntity = (id, onScreen, natural = true) => ({ id, name: "Entity " + id, alpha: 1, onScreen, _loadProtectionNaturalSpawn: natural, guns: [], turrets: [], children: [], controllers: [], excludedTargets: [], _destroyed: false, valid() { return !this._destroyed; }, destroy() { this._destroyed = true; } });
+const offscreenNatural = makeCleanupEntity(401, false);
+const onscreenNatural150 = makeCleanupEntity(402, true);
+const oneTimeWall = makeCleanupEntity(403, false, false);
+const projectile150 = makeCleanupEntity(404, true, false); projectile150.isProjectile = true;
+const entities150 = [offscreenNatural, onscreenNatural150, oneTimeWall, projectile150];
+const screenProtection150 = createLoadProtection({ env: {}, memoryLimitBytes: null, nowProvider: () => cleanup150Now, getEntities: () => entities150, isEntityOnScreen: (entity) => entity.onScreen });
+screenProtection150.reportCycle(150, entities150);
+cleanup150Now = 14999; screenProtection150.reportCycle(150, entities150);
+assert.strictEqual(offscreenNatural._destroyed, false, "off-screen cleanup waits 15 seconds");
+cleanup150Now = 15000; screenProtection150.reportCycle(150, entities150);
+assert.strictEqual(offscreenNatural._destroyed, true, "off-screen natural entities are destroyed at sustained 150ms lag");
+assert.strictEqual(onscreenNatural150._destroyed, false, "on-screen natural entities survive the 150ms policy");
+assert.strictEqual(projectile150._destroyed, false, "projectiles survive the 150ms policy");
+assert.strictEqual(oneTimeWall._destroyed, false, "unmarked one-time structures are preserved");
+screenProtection150.stop();
+
+// 200ms for 15 seconds destroys projectiles and on-screen natural entities,
+// repeating every 2.5 seconds while severe lag persists.
+let cleanup200Now = 0;
+const onscreenNatural200 = makeCleanupEntity(411, true);
+const preservedWall200 = makeCleanupEntity(412, true, false);
+const projectile200 = makeCleanupEntity(413, true, false); projectile200.isProjectile = true;
+const entities200 = [onscreenNatural200, preservedWall200, projectile200];
+const screenProtection200 = createLoadProtection({ env: {}, memoryLimitBytes: null, nowProvider: () => cleanup200Now, getEntities: () => entities200, isEntityOnScreen: (entity) => entity.onScreen });
+screenProtection200.reportCycle(200, entities200);
+cleanup200Now = 14999; screenProtection200.reportCycle(200, entities200);
+assert.strictEqual(onscreenNatural200._destroyed, false, "on-screen cleanup waits 15 seconds");
+cleanup200Now = 15000; screenProtection200.reportCycle(200, entities200);
+assert.strictEqual(onscreenNatural200._destroyed, true, "on-screen natural entities are destroyed at sustained 200ms lag");
+assert.strictEqual(projectile200._destroyed, true, "all projectiles are destroyed at sustained 200ms lag");
+assert.strictEqual(preservedWall200._destroyed, false, "unmarked one-time structures are preserved at 200ms too");
+cleanup200Now = 17500;
+const laterProjectile = makeCleanupEntity(414, true, false); laterProjectile.isProjectile = true; entities200.push(laterProjectile);
+screenProtection200.reportCycle(200, entities200);
+assert.strictEqual(laterProjectile._destroyed, true, "projectile cleanup repeats while severe lag persists");
+screenProtection200.stop();
 
 protection.stop();
 console.log("Load protection tests passed.");

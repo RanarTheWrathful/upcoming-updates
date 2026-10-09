@@ -15097,6 +15097,15 @@ let cleanupStarted = false;
 
 const loadProtection = createLoadProtection({
   getEntities: () => entities,
+  isEntityOnScreen(entity) {
+    if (!entity) return false;
+    // Runs only during sustained-lag cleanup, not in the per-entity hot path.
+    return views.some((view) => {
+      if (!view || typeof view.isInView !== "function") return false;
+      if (view.socket && view.socket.status && !view.socket.status.hasSpawned) return false;
+      try { return view.isInView(entity); } catch (_) { return false; }
+    });
+  },
   onEntityChange(entity, disabled, details) {
     if (!entity) {
       util.warn("[LOAD-PROTECTION] " + (details && details.reason || "No eligible entity could be suspended."));
@@ -20977,6 +20986,12 @@ var maintainloop = (() => {
           "Something happened lol u should probably let Neph know this broke",
         loc = "norm";
       let spawn = () => {
+        // A spawn may have been queued before load protection engaged. Defer it
+        // rather than allowing delayed callbacks to create entities during lag.
+        if (!loadProtection.shouldSpawnNaturalEntities()) {
+          setTimeout(spawn, 2500);
+          return;
+        }
         let spot,
           m = 0;
         do {
@@ -21067,6 +21082,12 @@ var maintainloop = (() => {
           "Something happened lol u should probably let Neph know this broke",
         loc = "norm";
       let spawn = () => {
+        // A spawn may have been queued before load protection engaged. Defer it
+        // rather than allowing delayed callbacks to create entities during lag.
+        if (!loadProtection.shouldSpawnNaturalEntities()) {
+          setTimeout(spawn, 2500);
+          return;
+        }
         let spot,
           m = 0;
         do {
@@ -21237,6 +21258,12 @@ var maintainloop = (() => {
           "Something happened lol u should probably let Neph know this broke",
         loc = "norm";
       let spawn = () => {
+        // A spawn may have been queued before load protection engaged. Defer it
+        // rather than allowing delayed callbacks to create entities during lag.
+        if (!loadProtection.shouldSpawnNaturalEntities()) {
+          setTimeout(spawn, 2500);
+          return;
+        }
         let spot,
           m = 0;
         do {
@@ -21369,6 +21396,12 @@ var maintainloop = (() => {
           "Something happened lol u should probably let Neph know this broke",
         loc = "norm";
       let spawn = () => {
+        // A spawn may have been queued before load protection engaged. Defer it
+        // rather than allowing delayed callbacks to create entities during lag.
+        if (!loadProtection.shouldSpawnNaturalEntities()) {
+          setTimeout(spawn, 2500);
+          return;
+        }
         let spot,
           m = 0;
         do {
@@ -21617,6 +21650,7 @@ var maintainloop = (() => {
         );
       }
       o.team = -100;
+      o._loadProtectionNaturalSpawn = true;
       o.facing = ran.randomAngle();
     }
   };
@@ -21662,6 +21696,7 @@ var maintainloop = (() => {
       o.accel.y + Math.random * 0.1 - 0.2;
       o.facing = ran.randomAngle();
       o.team = -100;
+      o._loadProtectionNaturalSpawn = true;
     }
   };
 
@@ -21756,6 +21791,7 @@ var maintainloop = (() => {
       o.accel.y + Math.random * 0.1 - 0.2;
       o.facing = ran.randomAngle();
       o.team = -100;
+      o._loadProtectionNaturalSpawn = true;
     }
   };
   let spawnThrasher = (census) => {
@@ -21824,6 +21860,7 @@ var maintainloop = (() => {
         );
       }
       o.team = -4;
+      o._loadProtectionNaturalSpawn = true;
     }
   };
   let spawnLasher = (census) => {
@@ -21875,6 +21912,7 @@ var maintainloop = (() => {
         );
       }
       o.team = -4;
+      o._loadProtectionNaturalSpawn = true;
     }
   };
   let spawnSpark = (census) => {
@@ -21926,6 +21964,7 @@ var maintainloop = (() => {
         );
       }
       o.team = -1;
+      o._loadProtectionNaturalSpawn = true;
     }
   };
   let spawnVoidlord = (census) => {
@@ -22021,6 +22060,8 @@ var maintainloop = (() => {
         );
       }
       o.team = -4;
+      if (o.rarity > 1000) o._loadProtectionNaturalSpawn = true;
+      else o._loadProtectionSpecialSpawn = true;
     }
   };
   let spawnUndead = (census) => {
@@ -22068,6 +22109,7 @@ var maintainloop = (() => {
       o.infector = true;
       o.team = -2;
       o.skill.set([4, 6, 4, 4, 4, 4, 4, 4, 4, 4]);
+      o._loadProtectionNaturalSpawn = true;
     }
   };
   c.KNOCKBACK_CONSTANT += 0.75;
@@ -22177,6 +22219,7 @@ var maintainloop = (() => {
         }
         if (!room.isIn("wall", position)) {
           let o = new Entity(position);
+          o._loadProtectionNaturalSpawn = true;
 
           let rand = Math.random() * 100;
           let tierOne = Math.random() * 50;
@@ -22458,7 +22501,7 @@ var maintainloop = (() => {
       }
       // Remove dead ones
       bots = bots.filter((e) => {
-        return !e.isDead();
+        return e && (typeof e.valid !== "function" || e.valid()) && !e.isDead();
       });
 
       for (let i = 0; i < bots.length; i++) {
@@ -22526,20 +22569,24 @@ var maintainloop = (() => {
           o.kill();
         }
       }
-      // Spawning
-      if (c.SPAWN_SENTINEL) spawnSentinel(census);
-      if (c.SPAWN_PENTAGON_SENTINELS) spawnpentaSentinels(census);
-      if (c.SPAWN_CRASHER) spawnCrasher(census);
-      if (c.SPAWN_VOIDLORD_ENEMIES) spawnThrasher(census);
-      if (c.SPAWN_SPARKS) spawnSpark(census);
-      if (c.SPAWN_DESCENDED_ENEMIES) spawnLasher(census);
-      if (c.SPAWN_FALLEN_ENEMIES) spawnUndead(census);
-      if (c.SPAWN_VOIDLORD_BOSSES_AND_ENEMIES) spawnVoidlord(census);
-      if (c.SPAWN_NEUTRAL_BOSSES) spawnNeutral(census);
-      if (c.SPAWN_GUARDIAN_BOSSES) spawnGuardian(census);
-      if (c.SPAWN_FALLEN_BOSSES) spawnFallen(census);
-      if (c.SPAWN_SPECIAL_BOSSES) spawnSpecialBosses(census);
-      if (c.SPAWN_SPECIAL_ENEMIES) spawnSpecialEnemies(census);
+      // Sustained 100ms+ lag pauses recurring world/bot spawns. One-time room
+      // structures (maze walls, gates, portals, etc.) were built during setup
+      // and are not tagged as natural population for emergency cleanup.
+      if (loadProtection.shouldSpawnNaturalEntities()) {
+        if (c.SPAWN_SENTINEL) spawnSentinel(census);
+        if (c.SPAWN_PENTAGON_SENTINELS) spawnpentaSentinels(census);
+        if (c.SPAWN_CRASHER) spawnCrasher(census);
+        if (c.SPAWN_VOIDLORD_ENEMIES) spawnThrasher(census);
+        if (c.SPAWN_SPARKS) spawnSpark(census);
+        if (c.SPAWN_DESCENDED_ENEMIES) spawnLasher(census);
+        if (c.SPAWN_FALLEN_ENEMIES) spawnUndead(census);
+        if (c.SPAWN_VOIDLORD_BOSSES_AND_ENEMIES) spawnVoidlord(census);
+        if (c.SPAWN_NEUTRAL_BOSSES) spawnNeutral(census);
+        if (c.SPAWN_GUARDIAN_BOSSES) spawnGuardian(census);
+        if (c.SPAWN_FALLEN_BOSSES) spawnFallen(census);
+        if (c.SPAWN_SPECIAL_BOSSES) spawnSpecialBosses(census);
+        if (c.SPAWN_SPECIAL_ENEMIES) spawnSpecialEnemies(census);
+      }
     };
   })();
   // The big food function
@@ -22916,6 +22963,7 @@ var maintainloop = (() => {
               y: o.y + o.size * Math.sin(o.facing),
             };
           let new_o = new Entity(place);
+          new_o._loadProtectionNaturalSpawn = true;
           switch (new_o.rarityType) {
             case "shiny":
               new_o.define(getShinyFoodClass(levelToMake));
@@ -22955,6 +23003,7 @@ var maintainloop = (() => {
         else if (room.isIn("nest", position) === allowInNest) {
           if (!dirtyCheck(position, 20)) {
             o = new Entity(position);
+            o._loadProtectionNaturalSpawn = true;
 
             switch (o.rarityType) {
               case "shiny":
@@ -23073,8 +23122,10 @@ var maintainloop = (() => {
 
       return true;
     };
-    // Return the full function
-    return () => {
+    // Return the full function. When allowSpawning is false, still refresh the
+    // local food registry (so destroyed food is not retained) but skip new food,
+    // spawner rotations, and optional upgrade work.
+    return (allowSpawning = true) => {
       // Find and understand all food
       let census = {
         [0]: 0, // Egg
@@ -23133,6 +23184,7 @@ var maintainloop = (() => {
         .filter((e) => {
           return e;
         });
+      if (!allowSpawning) return;
       // Sum it up
       let maxFood = room.maxFood / 7;
       let maxNestFood = room.maxFood / 25;
@@ -23256,7 +23308,7 @@ var maintainloop = (() => {
     logs.maintainloop.set();
     // Do stuff
     makenpcs();
-    if (c.SPAWN_FOOD !== false && loadProtection.shouldSpawnFood()) makefood();
+    if (c.SPAWN_FOOD !== false) makefood(loadProtection.shouldSpawnFood());
     // Regen health and update the grid
     entities.forEach((instance) => {
       if (instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;

@@ -65,3 +65,15 @@ node tests/loadProtection.test.js
 ```
 
 The full server requires the dependencies declared in `package.json`. The controller is compatible with Node's built-in `perf_hooks` API; this project continues to declare Node 16.x as its target runtime.
+
+
+## Sustained-lag entity policies (current defaults)
+
+- **100 ms for 10 seconds:** pause recurring bot/natural entity spawns and food. Fade-disable entities labeled `Unknown Entity` or `Unknown Class`; resume spawning after 10 seconds below 100 ms and fade those entities back in.
+- **150 ms for 15 seconds:** destroy tagged naturally spawned entities that are outside every active spawned client's view.
+- **200 ms for 15 seconds:** destroy every projectile and tagged naturally spawned entity visible in a client's view. Cleanup repeats every 2.5 seconds while the relevant condition remains active.
+- Suspension fades, fade-ins, and sequential-selection cadence are **2.5 seconds**. The critical suspension episode keeps its 60-second cutoff and lockout until lag falls below 250 ms.
+- High-cost selection emphasizes guns, turrets, and children as well as measured update/collision work; already-disabled and `[Respawning...]` entities are never candidates.
+- One-time map structures are not marked as natural spawns and are excluded from routine cleanup. The client protocol remains unchanged.
+
+Delayed special-boss/guardian/fallen spawn callbacks are also deferred while the spawn pause is active, so a sequence queued before a lag spike cannot bypass the contingency. One-time map structures remain untagged and are not removed by natural-spawn cleanup.

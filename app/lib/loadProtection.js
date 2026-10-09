@@ -47,6 +47,7 @@ function createLoadProtection(options = {}) {
   const onStageChange = options.onStageChange || (() => {});
   const sampleProvider = options.sampleProvider || null;
   const getEntities = options.getEntities || (() => []);
+  const isEntityOnScreen = options.isEntityOnScreen || (() => false);
   const onEntityChange = options.onEntityChange || (() => {});
   const nowProvider = options.nowProvider || (() => performance.now());
   const intervalMs = positiveNumber(env.RANAR_LOAD_SAMPLE_MS, 1000);
@@ -57,9 +58,14 @@ function createLoadProtection(options = {}) {
   const warningDelayMs = positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 75);
   const highDelayMs = positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 150);
   const criticalDelayMs = positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 250);
-  const suspensionIntervalMs = positiveNumber(env.RANAR_LOAD_SUSPEND_INTERVAL_MS, 5000);
+  const suspensionIntervalMs = positiveNumber(env.RANAR_LOAD_SUSPEND_INTERVAL_MS, 2500);
   const suspensionWindowMs = positiveNumber(env.RANAR_LOAD_SUSPEND_WINDOW_MS, 60000);
-  const entityFadeMs = positiveNumber(env.RANAR_LOAD_ENTITY_FADE_MS, 5000);
+  const entityFadeMs = positiveNumber(env.RANAR_LOAD_ENTITY_FADE_MS, 2500);
+  const naturalSpawnPauseMs = positiveNumber(env.RANAR_LAG_100_DURATION_MS, 10000);
+  const offscreenCleanupDelayMs = positiveNumber(env.RANAR_LAG_150_DURATION_MS, 15000);
+  const onScreenCleanupDelayMs = positiveNumber(env.RANAR_LAG_200_DURATION_MS, 15000);
+  const cleanupIntervalMs = positiveNumber(env.RANAR_LAG_CLEANUP_INTERVAL_MS, 2500);
+  const policyRecoveryMs = positiveNumber(env.RANAR_LAG_POLICY_RECOVERY_MS, 10000);
   const warningGrowthMb = positiveNumber(env.RANAR_LOAD_WARNING_GROWTH_MB, 64);
   const highGrowthMb = positiveNumber(env.RANAR_LOAD_HIGH_GROWTH_MB, 128);
   const criticalGrowthMb = positiveNumber(env.RANAR_LOAD_CRITICAL_GROWTH_MB, 256);
@@ -98,6 +104,14 @@ function createLoadProtection(options = {}) {
   let minimapTick = 0;
   let foodSpawnTick = 0;
   let botSpawnTick = 0;
+  const sustainedPolicies = {
+    100: { durationMs: naturalSpawnPauseMs, since: null, triggered: false, lastActionAt: 0 },
+    150: { durationMs: offscreenCleanupDelayMs, since: null, triggered: false, lastActionAt: 0 },
+    200: { durationMs: onScreenCleanupDelayMs, since: null, triggered: false, lastActionAt: 0 },
+  };
+  let naturalSpawnsPaused = false;
+  let below100Since = null;
+  let lastUnknownSweepAt = 0;
   let lastMetrics = {
     stage: 0,
     stageName: "normal",
@@ -118,6 +132,10 @@ function createLoadProtection(options = {}) {
     loadDisabledEntityCount: 0,
     loadSuspensionLockout: false,
     loadSuspensionElapsedMs: 0,
+    naturalSpawnsPaused: false,
+    lagPolicy100Triggered: false,
+    lagPolicy150Triggered: false,
+    lagPolicy200Triggered: false,
     sampledAt: 0,
   };
 
@@ -245,6 +263,110 @@ function createLoadProtection(options = {}) {
     return Math.max(0, Math.min(1, alpha));
   }
 
+  function isDisabledOrRespawning(entity) {
+    if (!entity) return true;
+    if (entity._loadDisabled === true || entity._loadRespawning === true) return true;
+    const name = typeof entity.name === "string" ? entity.name.trim().toLowerCase() : "";
+    return name === "[disabled]" || name === "[respawning...]" || name === "[respawning]";
+  }
+
+  function isUnknownEntity(entity) {
+    if (!entity) return false;
+    const values = [entity.label, entity.name, entity.type];
+    const state = suspendedEntities.get(entity);
+    // The visible status name temporarily replaces the original name during a
+    // quarantine fade. Keep using the saved name until that policy is released.
+    if (state && state.kind === "unknown" &&
+        /^unknown (entity|class)$/i.test(String(state.originalName || "").trim()) &&
+        /^\[(disabled|respawning)(\.\.\.)?\]$/i.test(String(entity.name || "").trim())) {
+      values.push(state.originalName);
+    }
+    return values.some((value) => typeof value === "string" &&
+      /^(unknown entity|unknown class)$/i.test(value.trim()));
+  }
+
+  function isProjectile(entity) {
+    return !!(entity && (entity.isProjectile === true || entity.type === "bullet"));
+  }
+
+  function isNaturalSpawnEntity(entity) {
+    if (!entity) return false;
+    if (entity._loadProtectionNaturalSpawn === true) return true;
+    if (typeof entity.foodLevel === "number" && entity.foodLevel >= 0) return true;
+    const source = entity.source;
+    return !!(source && source !== entity && source._loadProtectionNaturalSpawn === true);
+  }
+
+  function shouldProtectFromNaturalCleanup(entity) {
+    if (!entity) return true;
+    const settings = entity.settings || {};
+    if (
+      entity._loadProtectionSpecialSpawn === true || entity.keep === true ||
+      entity.KEEP === true || settings.KEEP === true || entity.isProtected === true ||
+      entity.alwaysExists === true || entity.isPlayer === true || entity.isBoss === true ||
+      entity.boss === true || entity.isDominator === true || entity.isGate === true ||
+      entity.isWall === true || entity.bond != null || entity.type === "base" ||
+      entity.type === "wall" || entity.type === "fortWall" || entity.type === "fortGate" ||
+      (entity.isBot === true && entity.skill && Number(entity.skill.score) >= 1000000) ||
+      (typeof entity.name === "string" && entity.name.startsWith("[LORD]_"))
+    ) return true;
+    return false;
+  }
+
+  function destroyForLoadProtection(entity) {
+    if (!entity || !isEntityLive(entity) || shouldProtectFromNaturalCleanup(entity)) return false;
+    suspendedEntities.delete(entity);
+    try {
+      if (typeof entity.destroy === "function") {
+        entity.destroy();
+        return true;
+      }
+    } catch (_) {
+      // A later cleanup pass can retry remaining entities. Never crash the game loop.
+    }
+    return false;
+  }
+
+  function cleanupNaturalEntities(entityList, mode) {
+    const list = Array.isArray(entityList) ? entityList : [];
+    let destroyed = 0;
+    for (let i = 0; i < list.length; i++) {
+      const entity = list[i];
+      if (!entity || !isEntityLive(entity)) continue;
+      if (mode === "projectiles-and-onscreen") {
+        // The 200ms rule explicitly includes every projectile, regardless of source.
+        if (isProjectile(entity)) {
+          try {
+            if (typeof entity.destroy === "function") {
+              suspendedEntities.delete(entity);
+              entity.destroy();
+              destroyed++;
+            }
+          } catch (_) {}
+          continue;
+        }
+        if (!isNaturalSpawnEntity(entity) || shouldProtectFromNaturalCleanup(entity)) continue;
+        let onScreen = false;
+        try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
+        if (onScreen && destroyForLoadProtection(entity)) destroyed++;
+      } else {
+        // Projectiles are deliberately reserved for the more severe 200ms rule.
+        if (isProjectile(entity) || !isNaturalSpawnEntity(entity) || shouldProtectFromNaturalCleanup(entity)) continue;
+        let onScreen = false;
+        try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
+        if (!onScreen && destroyForLoadProtection(entity)) destroyed++;
+      }
+    }
+    if (destroyed > 0) {
+      callEntityChange(null, false, {
+        reason: "load policy " + mode + " removed " + destroyed + " entity/entities",
+        destroyedCount: destroyed,
+        cycleMs: lastCycleMs,
+      });
+    }
+    return destroyed;
+  }
+
   function callEntityChange(entity, disabled, details) {
     try {
       onEntityChange(entity, disabled, details || {});
@@ -261,7 +383,8 @@ function createLoadProtection(options = {}) {
     if (
       entity.keep === true || entity.KEEP === true ||
       (entity.settings && entity.settings.KEEP === true) ||
-      entity.isPlayer === true || entity.isBoss === true ||
+      entity.isPlayer === true || entity.isBoss === true || entity.boss === true ||
+      entity._loadProtectionSpecialSpawn === true || entity.alwaysExists === true ||
       entity.isProjectile === true || entity.type === "bullet" ||
       entity.isDominator === true || entity.isGate === true ||
       entity.isWall === true || entity.isProtected === true ||
@@ -301,8 +424,10 @@ function createLoadProtection(options = {}) {
     const excludedTargets = entity.excludedTargets && entity.excludedTargets.length || 0;
     // JS does not expose reliable per-object heap sizes. This is a workload/structure
     // proxy, not a claim that these values are exact bytes of memory.
-    const structureCost = controllers * 0.2 + guns * 0.1 + turrets * 1.5 +
-      children * 0.05 + linkedChildren * 0.15 + excludedTargets * 0.02;
+    // Structures multiply descendant updates and collision work, so they need
+    // meaningful weight alongside measured life/collision time.
+    const structureCost = controllers * 10 + guns * 80 + turrets * 120 +
+      children * 30 + linkedChildren * 25 + excludedTargets * 2;
     return lifeCost * 100 + collisionCost * 100 + collisionLoad * 0.25 + structureCost;
   }
 
@@ -325,10 +450,15 @@ function createLoadProtection(options = {}) {
     entity.alpha = state.startAlpha;
   }
 
-  function restoreAllSuspendedEntities(reason) {
+  function restoreSuspendedEntities(reason, kind) {
     for (const [entity, state] of suspendedEntities) {
+      if (kind && state.kind !== kind) continue;
       beginEntityRestore(entity, state, reason);
     }
+  }
+
+  function restoreAllSuspendedEntities(reason) {
+    restoreSuspendedEntities(reason, null);
   }
 
   function reverseRestoringEntities(now) {
@@ -357,6 +487,8 @@ function createLoadProtection(options = {}) {
       // A runtime KEEP opt-out takes effect immediately, even mid-fade.
       if (shouldKeepEntity(entity) && state.phase !== "restoring") {
         beginEntityRestore(entity, state, "entity became protected");
+      } else if (state.kind === "unknown" && !isUnknownEntity(entity) && state.phase !== "restoring") {
+        beginEntityRestore(entity, state, "entity no longer has an unknown label");
       }
 
       // Keep the entity out of gameplay until it is fully visible again.
@@ -401,16 +533,50 @@ function createLoadProtection(options = {}) {
     }
   }
 
+  function suspendEntity(entity, reason, kind, score) {
+    if (!entity || !isEntityLive(entity) || isDisabledOrRespawning(entity) || suspendedEntities.has(entity) || shouldKeepEntity(entity)) return null;
+    if (typeof entity.isDead === "function") {
+      let dead = false;
+      try { dead = entity.isDead(); } catch (_) { dead = true; }
+      if (dead) return null;
+    }
+    const originalAlpha = typeof entity.alpha === "number" && Number.isFinite(entity.alpha) ? entity.alpha : 1;
+    const state = {
+      kind: kind || "critical",
+      originalName: entity.name,
+      originalAlpha,
+      targetAlpha: clampVisualAlpha(originalAlpha),
+      hadAllowPlate: Object.prototype.hasOwnProperty.call(entity, "allowPlate"),
+      originalAllowPlate: entity.allowPlate,
+      phase: "fadingOut",
+      transitionStartedAt: nowProvider(),
+      startAlpha: clampVisualAlpha(originalAlpha),
+      restoreReason: null,
+    };
+    suspendedEntities.set(entity, state);
+    entity._loadDisabled = true;
+    entity.name = "[Disabled]";
+    entity.allowPlate = true;
+    entity.alpha = state.startAlpha;
+    callEntityChange(entity, true, {
+      reason: reason || "load policy suspended entity",
+      score: Number.isFinite(score) ? score : entityCostScore(entity),
+      cycleMs: lastCycleMs,
+      stage: effectiveStage(),
+      fadeMs: entityFadeMs,
+      kind: state.kind,
+    });
+    return entity;
+  }
+
   function suspendNextEntity(entityList, reason) {
     const list = Array.isArray(entityList) ? entityList : [];
     let best = null;
     let bestScore = -1;
     for (let i = 0; i < list.length; i++) {
       const entity = list[i];
-      if (!entity || entity._loadDisabled || suspendedEntities.has(entity) || shouldKeepEntity(entity)) continue;
+      if (!entity || isDisabledOrRespawning(entity) || suspendedEntities.has(entity) || shouldKeepEntity(entity)) continue;
       if (!isEntityLive(entity)) continue;
-      // Do not suspend something that is already due for destruction; otherwise
-      // its mortality check would be postponed until load protection releases it.
       if (typeof entity.isDead === "function") {
         let dead = false;
         try { dead = entity.isDead(); } catch (_) { dead = true; }
@@ -422,46 +588,109 @@ function createLoadProtection(options = {}) {
         bestScore = score;
       }
     }
-
     if (!best) {
       const now = Date.now();
       if (now - lastNoCandidateWarningAt > 10000) {
         lastNoCandidateWarningAt = now;
         callEntityChange(null, false, {
-          reason: "no eligible entity; all candidates are protected or already suspended",
+          reason: "no eligible entity; all candidates are protected, disabled, or respawning",
           cycleMs: lastCycleMs,
         });
       }
       return null;
     }
+    return suspendEntity(best, reason, "critical", bestScore);
+  }
 
-    const originalAlpha = typeof best.alpha === "number" && Number.isFinite(best.alpha) ? best.alpha : 1;
-    const state = {
-      originalName: best.name,
-      originalAlpha,
-      targetAlpha: clampVisualAlpha(originalAlpha),
-      hadAllowPlate: Object.prototype.hasOwnProperty.call(best, "allowPlate"),
-      originalAllowPlate: best.allowPlate,
-      phase: "fadingOut",
-      transitionStartedAt: nowProvider(),
-      startAlpha: clampVisualAlpha(originalAlpha),
-      restoreReason: null,
-    };
-    suspendedEntities.set(best, state);
-    best._loadDisabled = true;
-    best.name = "[Disabled]";
-    // The protocol only sends names for entities with ALLOW_PLATE; temporarily
-    // expose it so the requested status remains visible without a protocol change.
-    best.allowPlate = true;
-    best.alpha = state.startAlpha;
-    callEntityChange(best, true, {
-      reason: reason || "simulation lag reached emergency threshold",
-      score: bestScore,
-      cycleMs: lastCycleMs,
-      stage: effectiveStage(),
-      fadeMs: entityFadeMs,
-    });
-    return best;
+  function disableUnknownEntities(entityList, now) {
+    const list = Array.isArray(entityList) ? entityList : [];
+    if (now - lastUnknownSweepAt < cleanupIntervalMs) return 0;
+    lastUnknownSweepAt = now;
+    let disabled = 0;
+    for (let i = 0; i < list.length; i++) {
+      const entity = list[i];
+      if (!entity || !isUnknownEntity(entity) || isDisabledOrRespawning(entity) || suspendedEntities.has(entity)) continue;
+      if (suspendEntity(entity, "lag >= 100ms for " + Math.round(naturalSpawnPauseMs / 1000) + "s; unknown entity quarantined", "unknown")) disabled++;
+    }
+    return disabled;
+  }
+
+  function updateSustainedLagPolicies(lagMs, entityList) {
+    const now = nowProvider();
+    const finiteLag = Number.isFinite(lagMs) ? lagMs : 0;
+    const lag100 = sustainedPolicies[100];
+    const lag150 = sustainedPolicies[150];
+    const lag200 = sustainedPolicies[200];
+    const list = Array.isArray(entityList) ? entityList : getEntities();
+
+    if (finiteLag >= 100) {
+      below100Since = null;
+      if (lag100.since === null) lag100.since = now;
+      if (now - lag100.since >= lag100.durationMs) {
+        lag100.triggered = true;
+        if (!naturalSpawnsPaused) {
+          naturalSpawnsPaused = true;
+          lastUnknownSweepAt = 0;
+          callEntityChange(null, false, {
+            reason: "lag >= 100ms for " + Math.round(naturalSpawnPauseMs / 1000) + "s; natural bot/entity spawning and food paused",
+            cycleMs: lastCycleMs,
+          });
+        }
+        disableUnknownEntities(list, now);
+      }
+    } else {
+      lag100.since = null;
+      lag100.triggered = false;
+      if (naturalSpawnsPaused) {
+        if (below100Since === null) below100Since = now;
+        if (now - below100Since >= policyRecoveryMs) {
+          naturalSpawnsPaused = false;
+          below100Since = null;
+          restoreSuspendedEntities("lag stayed below 100ms for " + Math.round(policyRecoveryMs / 1000) + "s", "unknown");
+          callEntityChange(null, false, {
+            reason: "lag recovered below 100ms; natural bot/entity spawning and food resumed",
+            cycleMs: lastCycleMs,
+          });
+        }
+      } else {
+        below100Since = null;
+      }
+    }
+
+    if (finiteLag >= 150) {
+      if (lag150.since === null) lag150.since = now;
+      if (now - lag150.since >= lag150.durationMs) {
+        lag150.triggered = true;
+        if (lag150.lastActionAt === 0 || now - lag150.lastActionAt >= cleanupIntervalMs) {
+          cleanupNaturalEntities(list, "offscreen");
+          lag150.lastActionAt = now;
+        }
+      }
+    } else {
+      lag150.since = null;
+      lag150.triggered = false;
+      lag150.lastActionAt = 0;
+    }
+
+    if (finiteLag >= 200) {
+      if (lag200.since === null) lag200.since = now;
+      if (now - lag200.since >= lag200.durationMs) {
+        lag200.triggered = true;
+        if (lag200.lastActionAt === 0 || now - lag200.lastActionAt >= cleanupIntervalMs) {
+          cleanupNaturalEntities(list, "projectiles-and-onscreen");
+          lag200.lastActionAt = now;
+        }
+      }
+    } else {
+      lag200.since = null;
+      lag200.triggered = false;
+      lag200.lastActionAt = 0;
+    }
+
+    lastMetrics.naturalSpawnsPaused = naturalSpawnsPaused;
+    lastMetrics.lagPolicy100Triggered = lag100.triggered;
+    lastMetrics.lagPolicy150Triggered = lag150.triggered;
+    lastMetrics.lagPolicy200Triggered = lag200.triggered;
   }
 
   function handleCriticalLag(lagMs, entityList, reason) {
@@ -479,7 +708,7 @@ function createLoadProtection(options = {}) {
       if (suspensionEpisodeStartedAt !== null) {
         suspensionEpisodeStartedAt = null;
         lastEntitySuspensionAt = null;
-        restoreAllSuspendedEntities("lag fell below " + criticalDelayMs + "ms");
+        restoreSuspendedEntities("lag fell below " + criticalDelayMs + "ms", "critical");
       }
       return;
     }
@@ -501,8 +730,9 @@ function createLoadProtection(options = {}) {
 
     const episodeElapsed = Math.max(0, now - suspensionEpisodeStartedAt);
     if (episodeElapsed >= suspensionWindowMs) {
-      restoreAllSuspendedEntities(
-        "lag stayed at or above " + criticalDelayMs + "ms for " + Math.round(suspensionWindowMs / 1000) + " seconds"
+      restoreSuspendedEntities(
+        "lag stayed at or above " + criticalDelayMs + "ms for " + Math.round(suspensionWindowMs / 1000) + " seconds",
+        "critical"
       );
       suspensionEpisodeStartedAt = null;
       lastEntitySuspensionAt = null;
@@ -599,6 +829,7 @@ function createLoadProtection(options = {}) {
     // Advance existing fades before episode transitions. In particular, the
     // 60-second cutoff must see the latest opacity of a just-disabled entity.
     advanceEntityTransitions(nowProvider());
+    updateSustainedLagPolicies(observedLagMs, entityList || getEntities());
     handleCriticalLag(observedLagMs, entityList || getEntities(), reason);
     advanceEntityTransitions(nowProvider());
 
@@ -695,6 +926,7 @@ function createLoadProtection(options = {}) {
       ? "event-loop p95 reached " + Math.round(sampledP95) + "ms"
       : "simulation lag reached emergency threshold";
     advanceEntityTransitions(nowProvider());
+    updateSustainedLagPolicies(observedLagMs, getEntities());
     handleCriticalLag(observedLagMs, getEntities(), reason);
     advanceEntityTransitions(nowProvider());
     lastMetrics.cycleStage = cycleStage;
@@ -761,6 +993,10 @@ function createLoadProtection(options = {}) {
     snapshot.stageName = STAGE_NAMES[currentStage];
     snapshot.cycleMs = lastCycleMs;
     snapshot.cycleStage = cycleStage;
+    snapshot.naturalSpawnsPaused = naturalSpawnsPaused;
+    snapshot.lagPolicy100Triggered = sustainedPolicies[100].triggered;
+    snapshot.lagPolicy150Triggered = sustainedPolicies[150].triggered;
+    snapshot.lagPolicy200Triggered = sustainedPolicies[200].triggered;
     updateSuspensionSnapshot(snapshot);
     snapshot.memoryRatio = Number.isFinite(snapshot.memoryRatio) ? snapshot.memoryRatio : 0;
     return snapshot;
@@ -774,6 +1010,7 @@ function createLoadProtection(options = {}) {
   }
 
   function shouldSpawnFood() {
+    if (naturalSpawnsPaused) return false;
     const currentStage = effectiveStage();
     if (currentStage >= 3) return false;
     if (currentStage < 2) return true;
@@ -782,11 +1019,16 @@ function createLoadProtection(options = {}) {
   }
 
   function shouldSpawnBot() {
+    if (naturalSpawnsPaused) return false;
     const currentStage = effectiveStage();
     if (currentStage >= 3) return false;
     if (currentStage < 2) return true;
     botSpawnTick++;
     return botSpawnTick % 2 === 0;
+  }
+
+  function shouldSpawnNaturalEntities() {
+    return !naturalSpawnsPaused;
   }
 
   return {
@@ -804,6 +1046,10 @@ function createLoadProtection(options = {}) {
     shouldUpdateMinimap,
     shouldSpawnFood,
     shouldSpawnBot,
+    shouldSpawnNaturalEntities,
+    isEntityOnScreen: (entity) => {
+      try { return !!isEntityOnScreen(entity); } catch (_) { return false; }
+    },
   };
 }
 
