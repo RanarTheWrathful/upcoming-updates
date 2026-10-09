@@ -16,6 +16,7 @@ const ran = require("./lib/random");
 const fs = require("fs");
 const path = require("path"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
+const createLoadProtection = require("./lib/loadProtection");
 // Example usage:
 let currentState = serverState.getServerState();
 
@@ -3071,7 +3072,7 @@ class io_nearestDifferentMaster extends IO {
                             e.ignoreCollision) ||
                           (c.MODE === "theDenied" && e.isGate)||(this.body.isAnubis && c.MODE === "theInfestation" && (e.isGate && e.isWall))
                   )
-                          return; 
+                          return;
                         if (
                           e.isGate &&
                           (c.MODE === "theExpanse" ||
@@ -3128,7 +3129,7 @@ class io_nearestDifferentMaster extends IO {
             mostDangerous = Infinity;
             mostDangerous = Math.min(e.dangerValue, mostDangerous);
             break;
-            
+
           default:
             if (yaboi) {
               mostDangerous = Math.max(e.dangerValue, mostDangerous);
@@ -6354,7 +6355,7 @@ class Entity {
           this.sendMessage(
             "When 1 Million score is achieved, you may use the '~' button(or ??? button) to transform!"
           );
-        
+
       }*/
       //if (this.isDeveloper) {}
       if (this.label === "Score Settings") {
@@ -7124,7 +7125,7 @@ class Entity {
       }
     }
     /*if (this.skill.points >= 80) {
-  
+
     for (let i = 0; i < this.skill.cap.length; i++) {
         this.skill.cap[i] *= 10;
         if (this.skill.cap[i] > 15) {
@@ -13324,7 +13325,7 @@ console.log('Lore mode sequence advanced.');*/
         // Assuming this loop is correctly controlled elsewhere in your code
         /*  for (let i = 0; i < 9; i++) {
     if (room["gte" + i]) {
-      
+
       room["gte" + i].forEach((loc) => {
   let gridWidth = room.width / room.xgrid;
   let gridHeight = room.height / room.ygrid;
@@ -13392,7 +13393,7 @@ console.log('Lore mode sequence advanced.');*/
     o.isGate = true;
       o.spawnLoc = loc;
         });
-    
+
    }
   }*/
         makeFortGates();
@@ -13466,7 +13467,7 @@ console.log('Lore mode sequence advanced.');*/
         // Assuming this loop is correctly controlled elsewhere in your code
         /*  for (let i = 0; i < 9; i++) {
     if (room["gte" + i]) {
-      
+
       room["gte" + i].forEach((loc) => {
   let gridWidth = room.width / room.xgrid;
   let gridHeight = room.height / room.ygrid;
@@ -13534,7 +13535,7 @@ console.log('Lore mode sequence advanced.');*/
     o.isGate = true;
       o.spawnLoc = loc;
         });
-    
+
    }
   }*/
         makeFortGates();
@@ -15084,6 +15085,24 @@ let speedcheckLoopTimer = null;
 let shutdownExitTimer = null;
 let cleanupStarted = false;
 
+const loadProtection = createLoadProtection({
+  onStageChange(previous, next, metrics) {
+    const previousName = ["normal", "elevated", "high", "critical"][previous];
+    const nextName = ["normal", "elevated", "high", "critical"][next];
+    const memoryPercent = Number.isFinite(metrics.memoryRatio)
+      ? Math.round(metrics.memoryRatio * 100)
+      : 0;
+    util.warn(
+      "[LOAD-PROTECTION] " + previousName + " -> " + nextName +
+      " | memory=" + memoryPercent + "%" +
+      " | rss=" + Math.round(metrics.rssMb || 0) + "MB" +
+      " | heap=" + Math.round(metrics.heapUsedMb || 0) + "MB" +
+      " | rss-growth=" + Math.round(metrics.memoryGrowthMb || 0) + "MB/window" +
+      " | event-loop-p95=" + Math.round(metrics.eventLoopP95Ms || 0) + "ms"
+    );
+  },
+});
+
 var logs = (() => {
   let logger = (() => {
     // The two basic functions
@@ -15772,6 +15791,7 @@ const sockets = (() => {
   const protocol = require("./lib/fasttalk");
   let clients = [],
     players = [];
+  let stopBroadcastLoop = null;
   /*/return {
     broadcast: (message) => {
       clients.forEach((socket) => {
@@ -15781,6 +15801,12 @@ const sockets = (() => {
   return {
     clients,
     players,
+    stop: () => {
+      if (stopBroadcastLoop) {
+        stopBroadcastLoop();
+        stopBroadcastLoop = null;
+      }
+    },
     broadcast: (message) => {
       for (let client of clients) client.talk("m", message);
     },
@@ -16686,7 +16712,7 @@ const sockets = (() => {
               }
               /*if (c.PLAGUE !== true && !player.body.trueDev) {
              socket.domList = [];
-                  entities.forEach((entity) => { 
+                  entities.forEach((entity) => {
                     if (entity.isDominator && entity.team === player.body.team && !entity.isTaken) {
                       socket.domList.push(entity);
                       }
@@ -16703,16 +16729,16 @@ const sockets = (() => {
                      }
                     });
                   o.isTaken = false;
-           
+
                   o.controllers = [];
                   o.addController(new io_Dominator(player.body));
                   return;
-                } 
+                }
                else if (!player.body.isDominator) {
                   if (socket.domList.length !== 0) {
                     let o = ran.choose(socket.domList);
                   if (
-                 
+
                     player.body.specialEffect !== "experiment" && player.body.label !== "Spectator"
                   ) {
                     player.body.team = o.team;
@@ -16784,8 +16810,14 @@ const sockets = (() => {
       // Monitor traffic and handle inactivity disconnects
       function traffic(socket) {
         let strikes = 0;
-        // This function will be called in the slow loop
+        const configuredLimit = Number(process.env.RANAR_MAX_REQUESTS_PER_WINDOW);
+        // The threshold applies to each 1.5-second window. Four consecutive windows
+        // are required, giving legitimate bursty gameplay a generous margin.
+        const maxRequestsPerWindow = Number.isFinite(configuredLimit) && configuredLimit > 0
+          ? configuredLimit
+          : 450;
         return () => {
+          if (!socket.status || socket.readyState !== socket.OPEN) return 0;
           // Kick if it's d/c'd
           if (
             util.time() - socket.status.lastHeartbeat >
@@ -16796,7 +16828,7 @@ const sockets = (() => {
           }
           // Normal gameplay can generate bursts of input packets. Keep the
           // abuse guard, but leave a wide safety margin for legitimate clients.
-          if (socket.status.requests > 180) {
+          if (socket.status.requests > maxRequestsPerWindow) {
             strikes++;
           } else {
             strikes = 0;
@@ -17112,7 +17144,7 @@ const sockets = (() => {
                 // Make sure you're in a base
                 player.spawnPlace = Math.ceil(Math.random() * 2);
 
-               
+
           if (
                   room["bas" + player.team] &&
                   room["bas" + player.team].length
@@ -17327,16 +17359,16 @@ const sockets = (() => {
 
             // Decide how to color and team the body
 
-            /*/ 
+            /*/
                   body.team = null;
               body.color = c.RANDOM_COLORS
-                ? 
-       
+                ?
+
               body.color = ran.choose([
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
                 18, 19, 30, 31, 32, 33, 34, 35, 39, 40, 41
               ])
-            
+
                 : 12; // red
                   /*/
             body.team = player.team;
@@ -17418,7 +17450,7 @@ const sockets = (() => {
               default:
               easy = 12;
               }
-          
+
 player.color = easy;
             }        /*/
             player.target = {
@@ -18325,42 +18357,69 @@ player.color = easy;
           return topTen.sort((a, b) => a.id - b.id);
         });
 
-        // Periodically give out updates
+        // Periodically give out updates. The load-protection controller owns this
+        // optional broadcast cadence; heartbeat and timeout checks remain unthrottled.
         let subscribers = [];
-        setInterval(() => {
-          logs.minimap.set();
-          let minimapUpdate = minimapAll.update();
-          let minimapTeamUpdates = minimapTeams.map((r) => r.update());
-          let leaderboardUpdate = leaderboard.update();
-          for (let socket of subscribers) {
-            if (!socket.status.hasSpawned) continue;
-            let team = minimapTeamUpdates[socket.player.team - 1];
-            if (socket.status.needsNewBroadcast) {
-              socket.talk(
-                "b",
-                ...minimapUpdate.reset,
-                ...(team ? team.reset : [0, 0]),
-                ...(socket.anon ? [0, 0] : leaderboardUpdate.reset)
-              );
-              socket.status.needsNewBroadcast = false;
-            } else {
-              socket.talk(
-                "b",
-                ...minimapUpdate.update,
-                ...(team ? team.update : [0, 0]),
-                ...(socket.anon ? [0, 0] : leaderboardUpdate.update)
-              );
+        const maxBufferedBytesValue = Number(process.env.RANAR_MAX_SOCKET_BUFFER_BYTES);
+        const maxBufferedBytes = Number.isFinite(maxBufferedBytesValue) && maxBufferedBytesValue > 0
+          ? maxBufferedBytesValue
+          : 4 * 1024 * 1024;
+        const maxBackpressureWindowsValue = Number(process.env.RANAR_SOCKET_BACKPRESSURE_WINDOWS);
+        const maxBackpressureWindows = Number.isFinite(maxBackpressureWindowsValue) && maxBackpressureWindowsValue > 0
+          ? Math.floor(maxBackpressureWindowsValue)
+          : 10;
+        const minimapBroadcastTimer = setInterval(() => {
+          if (loadProtection.shouldUpdateMinimap()) {
+            logs.minimap.set();
+            let minimapUpdate = minimapAll.update();
+            let minimapTeamUpdates = minimapTeams.map((r) => r.update());
+            let leaderboardUpdate = leaderboard.update();
+            for (let socket of subscribers) {
+              if (!socket.status.hasSpawned) continue;
+              let team = minimapTeamUpdates[socket.player.team - 1];
+              if (socket.status.needsNewBroadcast) {
+                socket.talk(
+                  "b",
+                  ...minimapUpdate.reset,
+                  ...(team ? team.reset : [0, 0]),
+                  ...(socket.anon ? [0, 0] : leaderboardUpdate.reset)
+                );
+                socket.status.needsNewBroadcast = false;
+              } else {
+                socket.talk(
+                  "b",
+                  ...minimapUpdate.update,
+                  ...(team ? team.update : [0, 0]),
+                  ...(socket.anon ? [0, 0] : leaderboardUpdate.update)
+                );
+              }
             }
+            logs.minimap.mark();
           }
 
-          logs.minimap.mark();
+          // Health checks are deliberately outside the minimap throttle.
           let time = util.time();
           for (let socket of clients) {
             if (socket.timeout.check(time)) socket.lastWords("K");
-            if (time - socket.statuslastHeartbeat > c.maxHeartbeatInterval)
+            if (time - socket.status.lastHeartbeat > c.maxHeartbeatInterval)
               socket.kick("Lost heartbeat.");
+
+            // A single queue spike is tolerated; sustained congestion is not.
+            if (socket.readyState === socket.OPEN && socket.bufferedAmount > maxBufferedBytes) {
+              socket._outboundBackpressureStrikes = (socket._outboundBackpressureStrikes || 0) + 1;
+              if (
+                socket._outboundBackpressureStrikes >= maxBackpressureWindows &&
+                !socket._loadProtectionBackpressureKicked
+              ) {
+                socket._loadProtectionBackpressureKicked = true;
+                socket.kick("Persistent outbound network backlog.");
+              }
+            } else {
+              socket._outboundBackpressureStrikes = 0;
+            }
           }
         }, 100);
+        stopBroadcastLoop = () => clearInterval(minimapBroadcastTimer);
 
         return {
           subscribe(socket) {
@@ -18375,6 +18434,15 @@ player.color = easy;
       // Build the returned function
       // This function initalizes the socket upon connection
       return (socket, req) => {
+        // In critical load states, reject new sessions before allocating player/view state.
+        if (loadProtection.isCritical()) {
+          try {
+            socket.close(1013, "Server temporarily overloaded; retry shortly.");
+          } catch (_) {
+            try { socket.terminate(); } catch (_) {}
+          }
+          return;
+        }
         // Get information about the new connection and verify it
         util.log("A client is trying to connect...");
         socket.lastMessage = {
@@ -18414,7 +18482,8 @@ player.color = easy;
         // Set up loops
         socket.loops = (() => {
           let nextUpdateCall = null; // has to be started manually
-          let trafficMonitoring = setInterval(() => traffic(socket), 1500);
+          const trafficCheck = traffic(socket);
+          let trafficMonitoring = setInterval(trafficCheck, 1500);
           broadcast.subscribe(socket);
           // Return the loop methods
           return {
@@ -22014,7 +22083,11 @@ var maintainloop = (() => {
       if (c.REDUCE_BOTS_PER_PLAYER) ruh = c.playerCount;
       else ruh = 0;
       // Bots
-      if (bots.length < c.BOTS - ruh && c.botSpawn === true) {
+      if (
+        bots.length < c.BOTS - ruh &&
+        c.botSpawn === true &&
+        loadProtection.shouldSpawnBot()
+      ) {
         c.botCount = bots.length;
         let position;
         let team;
@@ -23117,7 +23190,7 @@ var maintainloop = (() => {
     logs.maintainloop.set();
     // Do stuff
     makenpcs();
-    if (c.SPAWN_FOOD !== false) makefood();
+    if (c.SPAWN_FOOD !== false && loadProtection.shouldSpawnFood()) makefood();
     // Regen health and update the grid
     entities.forEach((instance) => {
       if (instance.health.amount > 0 || instance.health.max > 0) {
@@ -23821,7 +23894,7 @@ You must have the chat site and the game site open at the same time for your cha
   </div>
 
 
- 
+
               <div class="game-modes">
     <h2>Possible Game Modes</h2>
     <h2>(Chosen randomly on server starts and restarts):</h2>
@@ -23847,7 +23920,7 @@ You must have the chat site and the game site open at the same time for your cha
       <li>Open Plague</li>
       */
           `</ul>
-    
+
   </div>
 
 
@@ -24768,6 +24841,8 @@ function cleanup() {
   sockets.broadcast(
     "Server Shutting Down! Possible Error May have occurred, please rejoin in 30 seconds!"
   );
+  sockets.stop();
+  loadProtection.stop();
   room.closed = true;
   c.extinction = true;
   c.DEADLY_BORDERS = true;
@@ -24798,6 +24873,7 @@ let websockets = (() => {
 })().on("connection", sockets.connect);
 
 // Bring it to life. Retain timer handles so shutdown can stop simulation cleanly.
+loadProtection.start();
 gameLoopTimer = setInterval(gameloop, room.cycleSpeed);
 maintainLoopTimer = setInterval(maintainloop, 200);
 speedcheckLoopTimer = setInterval(speedcheckloop, 1000);

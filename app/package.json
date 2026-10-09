@@ -3,7 +3,8 @@
   "version": "@.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js --port 3000"
+    "start": "node server.js --port 3000",
+    "test": "node tests/loadProtection.test.js"
   },
   "dependencies": {
     "box-intersect": "^1.0.2",
