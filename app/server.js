@@ -17,6 +17,7 @@ const fs = require("fs");
 const path = require("path"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
 const createLoadProtection = require("./lib/loadProtection");
+const { performance } = require("perf_hooks");
 // Example usage:
 let currentState = serverState.getServerState();
 
@@ -5157,6 +5158,9 @@ class Entity {
     this.master = master;
     this.source = this;
     this.parent = this;
+    // An entity definition may set KEEP: true, or runtime code may set
+    // entity.keep = true, to opt out of emergency lag suspension. An absent
+    // flag defaults to eligible and avoids adding properties to every entity.
     this.control = {
       target: new Vector(0, 0),
       goal: new Vector(0, 0),
@@ -5561,6 +5565,10 @@ class Entity {
       }
       if (set.IS_BOSS != null) {
         this.isBoss = set.IS_BOSS;
+        if (set.IS_BOSS === true) this.keep = true;
+      }
+      if (set.KEEP != null) {
+        this.keep = set.KEEP === true;
       }
       if (set.IS_PROJECTILE != null) {
         this.isProjectile = set.IS_PROJECTILE;
@@ -12905,6 +12913,7 @@ console.log('Lore mode sequence advanced.');*/
               let o = new Entity(room.type("bos9"));
               o.define(Class.valrayvn);
               o.isPlayer = true;
+              o.keep = true;
               o.aiTarget = "structures";
               setTimeout(() => {
                 o.controllers = [new io_nearestDifferentMaster(o)];
@@ -15070,6 +15079,7 @@ console.log('Lore mode sequence advanced.');*/
     this.collisionArray.length = 0;
     this.guns.length = 0;
     this.turrets.length = 0;
+    delete this._loadDisabled;
   }
 
   isDead() {
@@ -15086,6 +15096,22 @@ let shutdownExitTimer = null;
 let cleanupStarted = false;
 
 const loadProtection = createLoadProtection({
+  getEntities: () => entities,
+  onEntityChange(entity, disabled, details) {
+    if (!entity) {
+      util.warn("[LOAD-PROTECTION] " + (details && details.reason || "No eligible entity could be suspended."));
+      return;
+    }
+    const verb = disabled ? "SUSPENDED" : "RESTORED";
+    util.warn(
+      "[LOAD-PROTECTION] entity " + verb +
+      " | id=" + entity.id +
+      " | label=" + (entity.label || entity.type || "unknown") +
+      " | score=" + (Number.isFinite(details && details.score) ? details.score.toFixed(2) : "n/a") +
+      " | cycle=" + Math.round(details && details.cycleMs || 0) + "ms" +
+      " | reason=" + (details && details.reason || "load protection")
+    );
+  },
   onStageChange(previous, next, metrics) {
     const previousName = ["normal", "elevated", "high", "critical"][previous];
     const nextName = ["normal", "elevated", "high", "critical"][next];
@@ -15098,7 +15124,8 @@ const loadProtection = createLoadProtection({
       " | rss=" + Math.round(metrics.rssMb || 0) + "MB" +
       " | heap=" + Math.round(metrics.heapUsedMb || 0) + "MB" +
       " | rss-growth=" + Math.round(metrics.memoryGrowthMb || 0) + "MB/window" +
-      " | event-loop-p95=" + Math.round(metrics.eventLoopP95Ms || 0) + "ms"
+      " | event-loop-p95=" + Math.round(metrics.eventLoopP95Ms || 0) + "ms" +
+      " | sim-cycle=" + Math.round(metrics.cycleMs || 0) + "ms"
     );
   },
 });
@@ -17303,6 +17330,7 @@ const sockets = (() => {
             body.invuln = true; // Make it safe
             player.body = body;
             player.body.isPlayer = true;
+            player.body.keep = true;
             setTimeout(() => {
               if (player.body !== null) {
                 player.body.invuln = false;
@@ -18594,6 +18622,15 @@ player.color = easy;
 // Define how the game lives
 // The most important loop. Fast looping.
 var gameloop = (() => {
+  // Bound turrets are driven by their parent. Suspending the parent must also
+  // freeze those bound components without changing their identity or protocol.
+  const isLoadSuspended = (entity) => !!(
+    entity && (
+      entity._loadDisabled === true ||
+      (entity.bond && entity.bond._loadDisabled === true)
+    )
+  );
+
   // Collision stuff
   let collide = (() => {
     function simplecollide(my, n) {
@@ -20662,6 +20699,11 @@ var gameloop = (() => {
           check[i] = false;
           continue;
         }
+        if (isLoadSuspended(entities[i])) {
+          check[i] = false;
+          timer[i] = 15;
+          continue;
+        }
         if (!check[i]) {
           // Remove bullets and swarm
           // if (entities[i].settings.diesAtRange) entities[i].kill();
@@ -20682,7 +20724,7 @@ var gameloop = (() => {
         let x = soaEntity.x;
         let y = soaEntity.y;
         for (let i = 0; i < entities.length; i++) {
-          if (!entities[i]) continue;
+          if (!entities[i] || isLoadSuspended(entities[i])) continue;
           let minDistance = 4;
           views.forEach((view) => {
             let distance = Math.max(
@@ -20715,7 +20757,7 @@ var gameloop = (() => {
 
     activeEntities = [];
     for (let i = 0; i < entities.length; i++) {
-      if (check[i] && entities[i]) {
+      if (check[i] && entities[i] && !isLoadSuspended(entities[i])) {
         let e = entities[i];
         if (e.valid() && e.bond == null) {
           activeEntities.push(e);
@@ -20745,7 +20787,13 @@ var gameloop = (() => {
         e2.bond == null &&
         e2.activation.check()
       ) {
-        collide([e1, e2]);
+        if (loadProtection.shouldProfileCollision()) {
+          const collisionStartedAt = performance.now();
+          collide([e1, e2]);
+          loadProtection.recordCollisionCost(e1, e2, performance.now() - collisionStartedAt);
+        } else {
+          collide([e1, e2]);
+        }
       }
     });
   };
@@ -20761,7 +20809,7 @@ var gameloop = (() => {
     let check = soaEntity.activationCheck;
 
     for (let i = 0; i < entities.length; i++) {
-      if (!entities[i]) continue;
+      if (!entities[i] || isLoadSuspended(entities[i])) continue;
       if (c.ACTIVATION_MODE === "distance" && !check[i]) continue;
       velocityX[i] += accelX[i];
       velocityY[i] += accelY[i];
@@ -20776,6 +20824,12 @@ var gameloop = (() => {
   let liveIteration = () => {
     entities.forEach((e) => {
       if (e.valid()) {
+        // Emergency-suspended entities stay registered and visible but do not
+        // think, fire, collide, move, or regenerate until lag has recovered.
+        if (isLoadSuspended(e)) {
+          e.collisionArray = [];
+          return;
+        }
         // Consider death.
         if (e.contemplationOfMortality()) {
           e.destroy();
@@ -20783,7 +20837,16 @@ var gameloop = (() => {
           logs.entities.tally();
           // Think about my actions.
           logs.life.set();
-          e.life();
+          if (loadProtection.shouldProfileEntity()) {
+            const lifeStartedAt = performance.now();
+            try {
+              e.life();
+            } finally {
+              loadProtection.recordEntityLifeCost(e, performance.now() - lifeStartedAt);
+            }
+          } else {
+            e.life();
+          }
           logs.life.mark();
           // Apply friction.
           e.friction();
@@ -20804,8 +20867,10 @@ var gameloop = (() => {
     });
   };
 
-  // Return the loop function
+  // Return the loop function. Measure work actually spent inside one simulation
+  // cycle, separate from event-loop delay measured by perf_hooks.
   return () => {
+    const cycleStartedAt = performance.now();
     logs.loops.tally();
     logs.master.set();
 
@@ -20829,6 +20894,7 @@ var gameloop = (() => {
 
     logs.master.mark();
     room.lastCycle = util.time();
+    loadProtection.reportCycle(performance.now() - cycleStartedAt, entities);
   };
   //let expected = 1000 / c.gameSpeed / 30;
   //let alphaFactor = (delta > expected) ? expected / delta : 1;
@@ -23193,6 +23259,7 @@ var maintainloop = (() => {
     if (c.SPAWN_FOOD !== false && loadProtection.shouldSpawnFood()) makefood();
     // Regen health and update the grid
     entities.forEach((instance) => {
+      if (instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;
       if (instance.health.amount > 0 || instance.health.max > 0) {
         if (instance.valid()) {
           if (

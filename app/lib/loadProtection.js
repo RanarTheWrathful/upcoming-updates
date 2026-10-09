@@ -2,7 +2,7 @@
 
 const fs = require("fs");
 const v8 = require("v8");
-const { monitorEventLoopDelay } = require("perf_hooks");
+const { monitorEventLoopDelay, performance } = require("perf_hooks");
 
 const STAGE_NAMES = ["normal", "elevated", "high", "critical"];
 
@@ -46,19 +46,29 @@ function createLoadProtection(options = {}) {
   const env = options.env || process.env;
   const onStageChange = options.onStageChange || (() => {});
   const sampleProvider = options.sampleProvider || null;
+  const getEntities = options.getEntities || (() => []);
+  const onEntityChange = options.onEntityChange || (() => {});
+  const nowProvider = options.nowProvider || (() => performance.now());
   const intervalMs = positiveNumber(env.RANAR_LOAD_SAMPLE_MS, 1000);
   const warningMemory = positiveNumber(env.RANAR_LOAD_WARNING_MEMORY, 0.75);
   const highMemory = positiveNumber(env.RANAR_LOAD_HIGH_MEMORY, 0.86);
   const criticalMemory = positiveNumber(env.RANAR_LOAD_CRITICAL_MEMORY, 0.94);
-  const warningDelayMs = positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 50);
-  const highDelayMs = positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 100);
+  // Match actual simulation lag thresholds requested for this server.
+  const warningDelayMs = positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 75);
+  const highDelayMs = positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 150);
   const criticalDelayMs = positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 250);
+  const suspensionIntervalMs = positiveNumber(env.RANAR_LOAD_SUSPEND_INTERVAL_MS, 5000);
+  const suspensionWindowMs = positiveNumber(env.RANAR_LOAD_SUSPEND_WINDOW_MS, 60000);
+  const entityFadeMs = positiveNumber(env.RANAR_LOAD_ENTITY_FADE_MS, 5000);
   const warningGrowthMb = positiveNumber(env.RANAR_LOAD_WARNING_GROWTH_MB, 64);
   const highGrowthMb = positiveNumber(env.RANAR_LOAD_HIGH_GROWTH_MB, 128);
   const criticalGrowthMb = positiveNumber(env.RANAR_LOAD_CRITICAL_GROWTH_MB, 256);
   const trendWindowValue = Math.floor(positiveNumber(env.RANAR_LOAD_TREND_SAMPLES, 30));
   const trendWindowSamples = Math.max(10, Math.min(300, trendWindowValue));
   const memoryHistory = [];
+  // Weak keys keep profiling data from extending destroyed entity lifetimes and
+  // avoid adding hidden properties to every hot-path game object.
+  const entityStats = new WeakMap();
   const memoryLimitBytes = options.memoryLimitBytes === undefined
     ? detectMemoryLimitBytes(env)
     : options.memoryLimitBytes;
@@ -67,6 +77,21 @@ function createLoadProtection(options = {}) {
   let timer = null;
   let running = false;
   let stage = 0;
+  // Cycle-based load responds immediately instead of waiting for the 1 Hz sampler.
+  let cycleStage = 0;
+  let lastCycleMs = 0;
+  let lowCycleSamples = 0;
+  let cycleIndex = 0;
+  // Entity references are held only while they are visibly suspended/fading.
+  // The episode is bounded to one minute and invalid entities are pruned each cycle.
+  const suspendedEntities = new Map();
+  let suspensionEpisodeStartedAt = null;
+  let lastEntitySuspensionAt = null;
+  let suspensionLockout = false;
+  let lastObservedLagMs = 0;
+  let lastNoCandidateWarningAt = 0;
+  let profileCounter = 0;
+  let collisionProfileCounter = 0;
   let candidateStage = 0;
   let candidateSamples = 0;
   let recoverySamples = 0;
@@ -86,6 +111,13 @@ function createLoadProtection(options = {}) {
     eventLoopMaxMs: 0,
     memoryGrowthMb: 0,
     memoryTrendReady: false,
+    cycleMs: 0,
+    cycleStage: 0,
+    loadDisabledEntityId: null,
+    loadDisabledEntityLabel: null,
+    loadDisabledEntityCount: 0,
+    loadSuspensionLockout: false,
+    loadSuspensionElapsedMs: 0,
     sampledAt: 0,
   };
 
@@ -103,6 +135,7 @@ function createLoadProtection(options = {}) {
         eventLoopMaxMs: 0,
         memoryGrowthMb: 0,
         memoryTrendReady: false,
+        cycleMs: lastCycleMs,
       }, provided);
     }
 
@@ -132,6 +165,7 @@ function createLoadProtection(options = {}) {
       memoryLimitMb: memoryLimitBytes ? memoryLimitBytes / 1048576 : null,
       eventLoopP95Ms: p95,
       eventLoopMaxMs: max,
+      cycleMs: lastCycleMs,
     };
   }
 
@@ -152,21 +186,368 @@ function createLoadProtection(options = {}) {
   function classify(metrics) {
     const memoryRatio = Number.isFinite(metrics.memoryRatio) ? metrics.memoryRatio : 0;
     const p95 = Number.isFinite(metrics.eventLoopP95Ms) ? metrics.eventLoopP95Ms : 0;
+    const cycleMs = Number.isFinite(metrics.cycleMs) ? metrics.cycleMs : lastCycleMs;
+    const lagMs = Math.max(p95, cycleMs);
     const growth = metrics.memoryTrendReady && Number.isFinite(metrics.memoryGrowthMb)
       ? metrics.memoryGrowthMb
       : 0;
     if (
       memoryRatio >= criticalMemory ||
-      p95 >= criticalDelayMs ||
+      lagMs >= criticalDelayMs ||
       growth >= criticalGrowthMb
     ) return 3;
-    if (memoryRatio >= highMemory || p95 >= highDelayMs || growth >= highGrowthMb) return 2;
-    if (memoryRatio >= warningMemory || p95 >= warningDelayMs || growth >= warningGrowthMb) return 1;
+    if (memoryRatio >= highMemory || lagMs >= highDelayMs || growth >= highGrowthMb) return 2;
+    if (memoryRatio >= warningMemory || lagMs >= warningDelayMs || growth >= warningGrowthMb) return 1;
     return 0;
   }
 
+  function effectiveStage() {
+    return Math.max(stage, cycleStage);
+  }
+
+  function notifyStageChange(previousEffective, metrics) {
+    const currentEffective = effectiveStage();
+    if (previousEffective === currentEffective) return;
+    try {
+      onStageChange(previousEffective, currentEffective, getSnapshot(metrics));
+    } catch (_) {
+      // Monitoring must never crash the game server.
+    }
+  }
+
+  function getEntityStats(entity) {
+    let stats = entityStats.get(entity);
+    if (!stats) {
+      stats = {
+        lifeMs: 0,
+        lastLifeCycle: 0,
+        collisionMs: 0,
+        collisionLoad: 0,
+        lastCollisionCycle: 0,
+      };
+      entityStats.set(entity, stats);
+    }
+    return stats;
+  }
+
+  function isEntityLive(entity) {
+    if (!entity) return false;
+    try {
+      return typeof entity.valid !== "function" || entity.valid();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function clampVisualAlpha(value) {
+    const alpha = Number(value);
+    if (!Number.isFinite(alpha)) return 1;
+    return Math.max(0, Math.min(1, alpha));
+  }
+
+  function callEntityChange(entity, disabled, details) {
+    try {
+      onEntityChange(entity, disabled, details || {});
+    } catch (_) {
+      // Monitoring and presentation callbacks must never crash the game server.
+    }
+  }
+
+  function shouldKeepEntity(entity) {
+    if (!entity) return true;
+    // Bound turrets are lifecycle-controlled by their parent; suspending them
+    // independently would not reliably stop their nested life() calls.
+    if (entity.bond != null) return true;
+    if (
+      entity.keep === true || entity.KEEP === true ||
+      (entity.settings && entity.settings.KEEP === true) ||
+      entity.isPlayer === true || entity.isBoss === true ||
+      entity.isProjectile === true || entity.type === "bullet" ||
+      entity.isDominator === true || entity.isGate === true ||
+      entity.isWall === true || entity.isProtected === true ||
+      entity.type === "base" || entity.type === "wall" ||
+      entity.type === "fortWall" || entity.type === "fortGate"
+    ) return true;
+
+    // Do not disable support entities belonging to a protected player or boss.
+    const master = entity.master;
+    const source = entity.source;
+    const parent = entity.parent;
+    if (master && master !== entity && (
+      master.keep === true || master.KEEP === true || master.isPlayer === true || master.isBoss === true
+    )) return true;
+    if (source && source !== entity && (
+      source.keep === true || source.KEEP === true || source.isPlayer === true || source.isBoss === true
+    )) return true;
+    if (parent && parent !== entity && (
+      parent.keep === true || parent.KEEP === true || parent.isPlayer === true || parent.isBoss === true
+    )) return true;
+    return false;
+  }
+
+  function entityCostScore(entity) {
+    if (!entity) return -1;
+    const stats = entityStats.get(entity);
+    const lifeAge = Math.max(0, cycleIndex - (stats ? stats.lastLifeCycle : 0));
+    const collisionAge = Math.max(0, cycleIndex - (stats ? stats.lastCollisionCycle : 0));
+    const lifeCost = (stats ? stats.lifeMs : 0) * Math.pow(0.85, lifeAge);
+    const collisionCost = (stats ? stats.collisionMs : 0) * Math.pow(0.75, collisionAge);
+    const collisionLoad = (stats ? stats.collisionLoad : 0) * Math.pow(0.70, collisionAge);
+    const controllers = entity.controllers && entity.controllers.length || 0;
+    const guns = entity.guns && entity.guns.length || 0;
+    const turrets = entity.turrets && entity.turrets.length || 0;
+    const children = entity.children && entity.children.length || 0;
+    const linkedChildren = entity.possiblyChildren && entity.possiblyChildren.size || 0;
+    const excludedTargets = entity.excludedTargets && entity.excludedTargets.length || 0;
+    // JS does not expose reliable per-object heap sizes. This is a workload/structure
+    // proxy, not a claim that these values are exact bytes of memory.
+    const structureCost = controllers * 0.2 + guns * 0.1 + turrets * 1.5 +
+      children * 0.05 + linkedChildren * 0.15 + excludedTargets * 0.02;
+    return lifeCost * 100 + collisionCost * 100 + collisionLoad * 0.25 + structureCost;
+  }
+
+  function beginEntityRestore(entity, state, reason) {
+    if (!entity || !state || state.phase === "restoring") return;
+    if (!isEntityLive(entity)) {
+      suspendedEntities.delete(entity);
+      return;
+    }
+    const now = nowProvider();
+    state.phase = "restoring";
+    state.transitionStartedAt = now;
+    // If lag clears part-way through fade-out, reverse smoothly from the
+    // current opacity instead of making the entity pop out and back in.
+    state.startAlpha = clampVisualAlpha(entity.alpha);
+    state.restoreReason = reason || "lag recovered";
+    entity._loadDisabled = true;
+    entity.name = "[Respawning...]";
+    entity.allowPlate = true;
+    entity.alpha = state.startAlpha;
+  }
+
+  function restoreAllSuspendedEntities(reason) {
+    for (const [entity, state] of suspendedEntities) {
+      beginEntityRestore(entity, state, reason);
+    }
+  }
+
+  function reverseRestoringEntities(now) {
+    let reversed = 0;
+    for (const [entity, state] of suspendedEntities) {
+      if (state.phase !== "restoring" || !isEntityLive(entity)) continue;
+      state.phase = "fadingOut";
+      state.transitionStartedAt = now;
+      state.startAlpha = clampVisualAlpha(entity.alpha);
+      entity._loadDisabled = true;
+      entity.name = "[Disabled]";
+      entity.allowPlate = true;
+      reversed++;
+    }
+    return reversed;
+  }
+
+  function advanceEntityTransitions(now = nowProvider()) {
+    for (const [entity, state] of suspendedEntities) {
+      if (!isEntityLive(entity)) {
+        // Prune dead entities immediately so this controller cannot retain them.
+        suspendedEntities.delete(entity);
+        continue;
+      }
+
+      // A runtime KEEP opt-out takes effect immediately, even mid-fade.
+      if (shouldKeepEntity(entity) && state.phase !== "restoring") {
+        beginEntityRestore(entity, state, "entity became protected");
+      }
+
+      // Keep the entity out of gameplay until it is fully visible again.
+      entity._loadDisabled = true;
+      const elapsed = Math.max(0, now - state.transitionStartedAt);
+      const progress = entityFadeMs > 0 ? Math.max(0, Math.min(1, elapsed / entityFadeMs)) : 1;
+
+      if (state.phase === "fadingOut") {
+        entity.name = "[Disabled]";
+        entity.allowPlate = true;
+        entity.alpha = state.startAlpha * (1 - progress);
+        if (progress >= 1) {
+          state.phase = "suspended";
+          state.transitionStartedAt = now;
+          state.startAlpha = 0;
+          entity.alpha = 0;
+        }
+      } else if (state.phase === "suspended") {
+        entity.name = "[Disabled]";
+        entity.allowPlate = true;
+        entity.alpha = 0;
+      } else if (state.phase === "restoring") {
+        entity.name = "[Respawning...]";
+        entity.allowPlate = true;
+        entity.alpha = state.startAlpha + (state.targetAlpha - state.startAlpha) * progress;
+        if (progress >= 1) {
+          entity.name = state.originalName;
+          entity.alpha = state.originalAlpha;
+          if (state.hadAllowPlate) entity.allowPlate = state.originalAllowPlate;
+          else delete entity.allowPlate;
+          delete entity._loadDisabled;
+          suspendedEntities.delete(entity);
+          callEntityChange(entity, false, {
+            reason: state.restoreReason || "lag recovered",
+            score: entityCostScore(entity),
+            cycleMs: lastCycleMs,
+            stage: effectiveStage(),
+            fadeMs: entityFadeMs,
+          });
+        }
+      }
+    }
+  }
+
+  function suspendNextEntity(entityList, reason) {
+    const list = Array.isArray(entityList) ? entityList : [];
+    let best = null;
+    let bestScore = -1;
+    for (let i = 0; i < list.length; i++) {
+      const entity = list[i];
+      if (!entity || entity._loadDisabled || suspendedEntities.has(entity) || shouldKeepEntity(entity)) continue;
+      if (!isEntityLive(entity)) continue;
+      // Do not suspend something that is already due for destruction; otherwise
+      // its mortality check would be postponed until load protection releases it.
+      if (typeof entity.isDead === "function") {
+        let dead = false;
+        try { dead = entity.isDead(); } catch (_) { dead = true; }
+        if (dead) continue;
+      }
+      const score = entityCostScore(entity);
+      if (score > bestScore) {
+        best = entity;
+        bestScore = score;
+      }
+    }
+
+    if (!best) {
+      const now = Date.now();
+      if (now - lastNoCandidateWarningAt > 10000) {
+        lastNoCandidateWarningAt = now;
+        callEntityChange(null, false, {
+          reason: "no eligible entity; all candidates are protected or already suspended",
+          cycleMs: lastCycleMs,
+        });
+      }
+      return null;
+    }
+
+    const originalAlpha = typeof best.alpha === "number" && Number.isFinite(best.alpha) ? best.alpha : 1;
+    const state = {
+      originalName: best.name,
+      originalAlpha,
+      targetAlpha: clampVisualAlpha(originalAlpha),
+      hadAllowPlate: Object.prototype.hasOwnProperty.call(best, "allowPlate"),
+      originalAllowPlate: best.allowPlate,
+      phase: "fadingOut",
+      transitionStartedAt: nowProvider(),
+      startAlpha: clampVisualAlpha(originalAlpha),
+      restoreReason: null,
+    };
+    suspendedEntities.set(best, state);
+    best._loadDisabled = true;
+    best.name = "[Disabled]";
+    // The protocol only sends names for entities with ALLOW_PLATE; temporarily
+    // expose it so the requested status remains visible without a protocol change.
+    best.allowPlate = true;
+    best.alpha = state.startAlpha;
+    callEntityChange(best, true, {
+      reason: reason || "simulation lag reached emergency threshold",
+      score: bestScore,
+      cycleMs: lastCycleMs,
+      stage: effectiveStage(),
+      fadeMs: entityFadeMs,
+    });
+    return best;
+  }
+
+  function handleCriticalLag(lagMs, entityList, reason) {
+    const now = nowProvider();
+    lastObservedLagMs = Number.isFinite(lagMs) ? lagMs : 0;
+
+    if (lastObservedLagMs < criticalDelayMs) {
+      if (suspensionLockout) {
+        suspensionLockout = false;
+        callEntityChange(null, false, {
+          reason: "lag fell below " + criticalDelayMs + "ms; entity-suspension lockout cleared",
+          cycleMs: lastCycleMs,
+        });
+      }
+      if (suspensionEpisodeStartedAt !== null) {
+        suspensionEpisodeStartedAt = null;
+        lastEntitySuspensionAt = null;
+        restoreAllSuspendedEntities("lag fell below " + criticalDelayMs + "ms");
+      }
+      return;
+    }
+
+    if (suspensionLockout) return;
+
+    if (suspensionEpisodeStartedAt === null) {
+      suspensionEpisodeStartedAt = now;
+      const reversing = reverseRestoringEntities(now);
+      if (reversing > 0) {
+        // Existing suspended entities have resumed fading out; wait before
+        // selecting another so the response remains one-at-a-time.
+        lastEntitySuspensionAt = now;
+      } else {
+        suspendNextEntity(entityList || getEntities(), reason);
+        lastEntitySuspensionAt = now;
+      }
+    }
+
+    const episodeElapsed = Math.max(0, now - suspensionEpisodeStartedAt);
+    if (episodeElapsed >= suspensionWindowMs) {
+      restoreAllSuspendedEntities(
+        "lag stayed at or above " + criticalDelayMs + "ms for " + Math.round(suspensionWindowMs / 1000) + " seconds"
+      );
+      suspensionEpisodeStartedAt = null;
+      lastEntitySuspensionAt = null;
+      suspensionLockout = true;
+      callEntityChange(null, false, {
+        reason: "critical lag persisted for " + Math.round(suspensionWindowMs / 1000) +
+          " seconds; restoring all entities and locking out further suspensions until lag falls below " +
+          criticalDelayMs + "ms",
+        cycleMs: lastCycleMs,
+      });
+      return;
+    }
+
+    if (
+      lastEntitySuspensionAt === null ||
+      now - lastEntitySuspensionAt >= suspensionIntervalMs
+    ) {
+      suspendNextEntity(entityList || getEntities(), reason);
+      // Rate-limit attempts as well as successful suspensions when every
+      // remaining candidate is KEEP-protected.
+      lastEntitySuspensionAt = now;
+    }
+  }
+
+  function primarySuspendedEntity() {
+    for (const [entity, state] of suspendedEntities) {
+      if (state.phase !== "restoring") return entity;
+    }
+    return suspendedEntities.size ? suspendedEntities.keys().next().value : null;
+  }
+
+  function updateSuspensionSnapshot(target) {
+    const entity = primarySuspendedEntity();
+    target.loadDisabledEntityId = entity ? entity.id : null;
+    target.loadDisabledEntityLabel = entity ? (entity.label || entity.type || "entity") : null;
+    target.loadDisabledEntityCount = suspendedEntities.size;
+    target.loadSuspensionLockout = suspensionLockout;
+    target.loadSuspensionElapsedMs = suspensionEpisodeStartedAt === null
+      ? 0
+      : Math.max(0, nowProvider() - suspensionEpisodeStartedAt);
+    target.loadObservedLagMs = lastObservedLagMs;
+  }
+
   function transition(nextStage, metrics) {
-    const previous = stage;
+    const previousEffective = effectiveStage();
     stage = nextStage;
     candidateStage = stage;
     candidateSamples = 0;
@@ -176,14 +557,106 @@ function createLoadProtection(options = {}) {
     botSpawnTick = 0;
     lastMetrics = Object.assign({}, metrics, {
       stage,
-      stageName: STAGE_NAMES[stage],
+      stageName: STAGE_NAMES[effectiveStage()],
+      cycleMs: lastCycleMs,
+      cycleStage,
       sampledAt: Date.now(),
     });
-    try {
-      onStageChange(previous, stage, getSnapshot());
-    } catch (_) {
-      // Monitoring must never crash the game server.
+    notifyStageChange(previousEffective, metrics);
+  }
+
+  function reportCycle(durationMs, entityList) {
+    const cycleMs = Number(durationMs);
+    if (!Number.isFinite(cycleMs) || cycleMs < 0) return getSnapshot();
+    const previousEffective = effectiveStage();
+    lastCycleMs = cycleMs;
+    cycleIndex++;
+
+    const sampledP95 = Number(lastMetrics.eventLoopP95Ms) || 0;
+    const observedLagMs = Math.max(cycleMs, sampledP95);
+    if (observedLagMs >= criticalDelayMs) {
+      cycleStage = 3;
+      lowCycleSamples = 0;
+    } else if (observedLagMs >= highDelayMs) {
+      cycleStage = Math.max(cycleStage, 2);
+      lowCycleSamples = 0;
+    } else if (observedLagMs >= warningDelayMs) {
+      cycleStage = Math.max(cycleStage, 1);
+      lowCycleSamples = 0;
+    } else {
+      lowCycleSamples++;
+      if (lowCycleSamples >= 10) {
+        lowCycleSamples = 0;
+        if (cycleStage > 0) cycleStage--;
+      }
     }
+
+    const reason = cycleMs >= criticalDelayMs
+      ? "simulation cycle reached " + Math.round(cycleMs) + "ms"
+      : sampledP95 >= criticalDelayMs
+        ? "event-loop p95 reached " + Math.round(sampledP95) + "ms"
+        : "simulation lag reached emergency threshold";
+    // Advance existing fades before episode transitions. In particular, the
+    // 60-second cutoff must see the latest opacity of a just-disabled entity.
+    advanceEntityTransitions(nowProvider());
+    handleCriticalLag(observedLagMs, entityList || getEntities(), reason);
+    advanceEntityTransitions(nowProvider());
+
+    // Keep the sampled telemetry current without storing entity references in history.
+    lastMetrics = Object.assign({}, lastMetrics, {
+      cycleMs: lastCycleMs,
+      cycleStage,
+      stage,
+      stageName: STAGE_NAMES[effectiveStage()],
+    });
+    updateSuspensionSnapshot(lastMetrics);
+    notifyStageChange(previousEffective, lastMetrics);
+    return getSnapshot();
+  }
+
+  function recordEntityLifeCost(entity, elapsedMs) {
+    if (!entity || !Number.isFinite(elapsedMs) || elapsedMs < 0) return;
+    if (typeof entity.valid === "function") {
+      try { if (!entity.valid()) return; } catch (_) { return; }
+    }
+    const stats = getEntityStats(entity);
+    stats.lifeMs = stats.lifeMs ? stats.lifeMs * 0.8 + elapsedMs * 0.2 : elapsedMs;
+    stats.lastLifeCycle = cycleIndex;
+  }
+
+  function recordOneCollisionCost(entity, elapsedMs) {
+    if (!entity) return;
+    // The collision callback already checked validity; avoid another key lookup
+    // on the hottest path. WeakMap keys do not retain destroyed entities.
+    const stats = getEntityStats(entity);
+    stats.collisionMs = stats.collisionMs
+      ? stats.collisionMs * 0.8 + elapsedMs * 0.2
+      : elapsedMs;
+    stats.collisionLoad = Math.min(100, stats.collisionLoad + 1);
+    stats.lastCollisionCycle = cycleIndex;
+  }
+
+  function recordCollisionCost(first, second, elapsedMs) {
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return;
+    const halfCost = elapsedMs / 2;
+    recordOneCollisionCost(first, halfCost);
+    recordOneCollisionCost(second, halfCost);
+  }
+
+  function shouldProfileEntity() {
+    profileCounter++;
+    const currentStage = effectiveStage();
+    const interval = currentStage >= 2 ? 2 : currentStage === 1 ? 4 : 8;
+    // Rotate the sampling phase each cycle so long-lived entities don't end up
+    // permanently inside or outside the sample just because of array order.
+    return (profileCounter + cycleIndex) % interval === 0;
+  }
+
+  function shouldProfileCollision() {
+    const currentStage = effectiveStage();
+    collisionProfileCounter++;
+    const interval = currentStage >= 2 ? 2 : currentStage === 1 ? 4 : 16;
+    return (collisionProfileCounter + cycleIndex) % interval === 0;
   }
 
   function sample() {
@@ -197,9 +670,37 @@ function createLoadProtection(options = {}) {
     const desiredStage = classify(metrics);
     lastMetrics = Object.assign({}, metrics, {
       stage,
-      stageName: STAGE_NAMES[stage],
+      stageName: STAGE_NAMES[effectiveStage()],
+      cycleMs: lastCycleMs,
+      cycleStage,
       sampledAt: Date.now(),
     });
+
+    // Event-loop delay can be high even when the measured simulation body is
+    // short. Treat either measurement as lag for emergency entity suspension.
+    const sampledP95 = Number.isFinite(metrics.eventLoopP95Ms) ? metrics.eventLoopP95Ms : 0;
+    const observedLagMs = Math.max(sampledP95, lastCycleMs);
+    const previousDelayEffective = effectiveStage();
+    if (observedLagMs >= criticalDelayMs) {
+      cycleStage = 3;
+      lowCycleSamples = 0;
+    } else if (observedLagMs >= highDelayMs) {
+      cycleStage = Math.max(cycleStage, 2);
+      lowCycleSamples = 0;
+    } else if (observedLagMs >= warningDelayMs) {
+      cycleStage = Math.max(cycleStage, 1);
+      lowCycleSamples = 0;
+    }
+    const reason = sampledP95 >= criticalDelayMs
+      ? "event-loop p95 reached " + Math.round(sampledP95) + "ms"
+      : "simulation lag reached emergency threshold";
+    advanceEntityTransitions(nowProvider());
+    handleCriticalLag(observedLagMs, getEntities(), reason);
+    advanceEntityTransitions(nowProvider());
+    lastMetrics.cycleStage = cycleStage;
+    lastMetrics.stageName = STAGE_NAMES[effectiveStage()];
+    updateSuspensionSnapshot(lastMetrics);
+    notifyStageChange(previousDelayEffective, lastMetrics);
 
     if (desiredStage > stage) {
       recoverySamples = 0;
@@ -253,30 +754,37 @@ function createLoadProtection(options = {}) {
     running = false;
   }
 
-  function getSnapshot() {
-    return Object.assign({}, lastMetrics, {
-      stage,
-      stageName: STAGE_NAMES[stage],
-      memoryRatio: Number.isFinite(lastMetrics.memoryRatio) ? lastMetrics.memoryRatio : 0,
-    });
+  function getSnapshot(metrics) {
+    const snapshot = Object.assign({}, lastMetrics, metrics || {});
+    const currentStage = effectiveStage();
+    snapshot.stage = currentStage;
+    snapshot.stageName = STAGE_NAMES[currentStage];
+    snapshot.cycleMs = lastCycleMs;
+    snapshot.cycleStage = cycleStage;
+    updateSuspensionSnapshot(snapshot);
+    snapshot.memoryRatio = Number.isFinite(snapshot.memoryRatio) ? snapshot.memoryRatio : 0;
+    return snapshot;
   }
 
   function shouldUpdateMinimap() {
     minimapTick++;
-    const interval = stage >= 3 ? 10 : stage === 2 ? 5 : stage === 1 ? 2 : 1;
+    const currentStage = effectiveStage();
+    const interval = currentStage >= 3 ? 10 : currentStage === 2 ? 5 : currentStage === 1 ? 2 : 1;
     return minimapTick % interval === 0;
   }
 
   function shouldSpawnFood() {
-    if (stage >= 3) return false;
-    if (stage < 2) return true;
+    const currentStage = effectiveStage();
+    if (currentStage >= 3) return false;
+    if (currentStage < 2) return true;
     foodSpawnTick++;
     return foodSpawnTick % 2 === 0;
   }
 
   function shouldSpawnBot() {
-    if (stage >= 3) return false;
-    if (stage < 2) return true;
+    const currentStage = effectiveStage();
+    if (currentStage >= 3) return false;
+    if (currentStage < 2) return true;
     botSpawnTick++;
     return botSpawnTick % 2 === 0;
   }
@@ -285,8 +793,13 @@ function createLoadProtection(options = {}) {
     start,
     stop,
     sample,
-    get stage() { return stage; },
-    isCritical: () => stage >= 3,
+    reportCycle,
+    recordEntityLifeCost,
+    recordCollisionCost,
+    shouldProfileEntity,
+    shouldProfileCollision,
+    get stage() { return effectiveStage(); },
+    isCritical: () => effectiveStage() >= 3,
     getSnapshot,
     shouldUpdateMinimap,
     shouldSpawnFood,

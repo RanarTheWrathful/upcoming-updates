@@ -1,15 +1,25 @@
 # Runtime load and memory contingencies
 
-Ranar's Prophecy now has a lightweight server-side load-protection controller. It monitors process memory and Node's event-loop delay once per second by default. It does not change the game/client packet format and does not throttle collision resolution, physics, AI updates, weapons, health effects, or regeneration.
+Ranar's Prophecy has a lightweight server-side load-protection controller. It monitors process memory and Node's event-loop delay once per second by default, and it measures the duration of each actual simulation cycle. It does not change the game/client packet format.
 
 ## Automatic stages
 
 - **Normal:** the simulation and optional broadcasts/spawns run normally.
-- **Elevated:** minimap/leaderboard updates are sent every 200 ms rather than every 100 ms.
-- **High:** minimap/leaderboard updates are sent every 500 ms, and optional food and bot spawning is reduced to every other eligible maintenance pass.
-- **Critical:** minimap/leaderboard updates are sent every second, optional food/bot spawning pauses, and new WebSocket sessions are temporarily rejected with close code 1013. Existing gameplay loops continue to run.
+- **Elevated (75 ms):** mitigation begins immediately when a simulation cycle takes about 75 ms or event-loop p95 reaches 75 ms. Minimap/leaderboard updates are sent every 200 ms rather than every 100 ms.
+- **High (150 ms):** minimap/leaderboard updates are sent every 500 ms, and optional food and bot spawning is reduced to every other eligible maintenance pass.
+- **Critical (250 ms):** when a simulation cycle or event-loop p95 reaches 250 ms, the server starts an emergency suspension episode. It selects the eligible entity with the highest measured workload/structural-cost score, then considers another entity every five seconds while lag remains at or above 250 ms. Minimap/leaderboard updates are sent every second, optional food/bot spawning pauses, and new WebSocket sessions are temporarily rejected with close code 1013.
 
-Escalation requires repeated samples (three samples for elevated/high; two for critical event-loop delay). Reaching the configured critical memory fraction or critical 30-second memory-growth threshold triggers an immediate critical response. The controller keeps a bounded, 30-sample RSS history to catch sustained growth before the hard limit. Recovery requires 10 healthy samples and descends one stage at a time. State changes are logged with memory and event-loop measurements. No automatic process restart or forced garbage collection is attempted.
+Each selected entity stays registered and retains its state. Its name changes to **`[Disabled]`** and its alpha fades to zero over five seconds. During this time it does not think, fire, collide, move, or regenerate. When load recovers below 250 ms, suspended entities enter a **`[Respawning...]`** state and fade back in over five seconds. Their original name, alpha, and nameplate setting are restored exactly, and gameplay resumes once the fade-in completes.
+
+If lag does not fall below 250 ms within 60 seconds of the emergency episode starting, the controller starts restoring all suspended entities and activates a suspension lockout. No additional entities are disabled until the measured lag falls below 250 ms. If load recovers earlier, the episode ends and restoration starts without activating that timeout lockout. Each new emergency episode can suspend entities again. These timings are configurable and use monotonic time.
+
+### Entity opt-out (`KEEP`)
+
+Player-controlled entities, bosses, dominators, map walls/gates, projectiles, protected entities, bonded turrets, and entities owned by a player/boss are excluded from automatic suspension. Player bodies and boss class definitions are marked `keep = true` automatically. For additional special cases, set `KEEP: true` in the entity class definition (the `define()` method reads this property), or set `entity.keep = true` at runtime. Both `entity.keep = true` and `entity.KEEP = true` are recognized. These hard-coded safety exclusions cannot be overridden just by setting `keep = false`.
+
+The server cannot read an exact JavaScript heap-size figure for each individual object. Entity selection therefore uses sampled per-entity `life()` time, measured collision work, recent collision frequency, and a structural-size proxy (guns, turrets, controllers, children, and excluded targets). This targets the entity most likely to be causing work/lag; it is not an exact per-object memory measurement. Profiling is sampled at about 1/8 of entity updates and 1/16 of collisions during normal operation, then increases to 1/4 and 1/2 under load. A `WeakMap` holds the metrics so profiling does not add properties to every entity or keep destroyed entities alive.
+
+Lag actions respond immediately when a measured simulation cycle crosses 75/150/250 ms, and they respond on the same telemetry sample when event-loop p95 crosses those thresholds. The separate memory-pressure classification requires sustained samples in normal cases; reaching the configured critical memory fraction or critical 30-second memory-growth threshold triggers an immediate critical response. The controller keeps a bounded, 30-sample RSS history to catch sustained growth before the hard limit. Memory-stage recovery requires 10 healthy samples and descends one stage at a time. State changes are logged with memory, event-loop, and simulation-cycle measurements. No automatic process restart or forced garbage collection is attempted.
 
 Minimap/leaderboard updates are delayed, not discarded: their existing delta snapshots remain in place until the next update, preserving the packet structure and allowing the next delta to include accumulated changes. Heartbeat/timeout checks continue every 100 ms even when map broadcasts are throttled.
 
@@ -30,9 +40,12 @@ All settings are optional; defaults are suitable as conservative starting points
 | `RANAR_LOAD_WARNING_MEMORY` | `0.75` | Elevated threshold, as a memory-limit fraction |
 | `RANAR_LOAD_HIGH_MEMORY` | `0.86` | High threshold, as a memory-limit fraction |
 | `RANAR_LOAD_CRITICAL_MEMORY` | `0.94` | Critical threshold, as a memory-limit fraction |
-| `RANAR_LOAD_WARNING_DELAY_MS` | `50` | Elevated event-loop p95 delay |
-| `RANAR_LOAD_HIGH_DELAY_MS` | `100` | High event-loop p95 delay |
-| `RANAR_LOAD_CRITICAL_DELAY_MS` | `250` | Critical event-loop p95 delay |
+| `RANAR_LOAD_WARNING_DELAY_MS` | `75` | Elevated simulation-cycle duration or event-loop p95 delay |
+| `RANAR_LOAD_HIGH_DELAY_MS` | `150` | High simulation-cycle duration or event-loop p95 delay |
+| `RANAR_LOAD_CRITICAL_DELAY_MS` | `250` | Critical simulation-cycle duration or event-loop p95 delay; starts an entity-suspension episode |
+| `RANAR_LOAD_SUSPEND_INTERVAL_MS` | `5000` | Delay between suspending additional eligible entities |
+| `RANAR_LOAD_SUSPEND_WINDOW_MS` | `60000` | Maximum time spent progressively suspending entities before restoring all and entering lockout |
+| `RANAR_LOAD_ENTITY_FADE_MS` | `5000` | Duration of each fade-out/fade-in visual transition |
 | `RANAR_LOAD_TREND_SAMPLES` | `30` | Samples used for the bounded memory-growth window (10–300) |
 | `RANAR_LOAD_WARNING_GROWTH_MB` | `64` | Elevated when RSS grows this many MB over the trend window |
 | `RANAR_LOAD_HIGH_GROWTH_MB` | `128` | High when RSS grows this many MB over the trend window |
