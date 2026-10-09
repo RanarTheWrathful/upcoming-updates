@@ -1,12 +1,11 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require('fs'); 
   
 let serverState = {}; 
    
 // Function to load server state from file
 function loadServerState() {
     try {  
-        let data = fs.readFileSync(path.join(__dirname, 'serverState.json'));
+        let data = fs.readFileSync('serverState.json');
         serverState = JSON.parse(data);
     } catch (err) {
         console.error('Error loading server state:', err.message);
@@ -14,19 +13,15 @@ function loadServerState() {
         serverState = { 
             loreModeIndex: 0,
             bossWaves: 1,
-            modeVotes: [],
-            ranarDialog: 0
+  modeVotes: []
+          
         };
     }
 }
 
 // Function to save server state to file
 function saveServerState() {
-    const target = path.join(__dirname, 'serverState.json');
-    const temp = target + '.tmp';
-    const data = JSON.stringify(serverState, null, 2);
-    fs.writeFileSync(temp, data);
-    fs.renameSync(temp, target);
+    fs.writeFileSync('serverState.json', JSON.stringify(serverState, null, 2));
 }
 
 // Function to advance lore mode sequence

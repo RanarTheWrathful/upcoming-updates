@@ -9,9 +9,7 @@ exports.addArticle = function(string) {
 }; 
 
 exports.getDistance = function (p1, p2) {
-    const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
-    return Math.sqrt(dx * dx + dy * dy);
+    return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
 };
 
 exports.getDirection = function (p1, p2) {
@@ -130,15 +128,14 @@ exports.deepClone = (obj, hash = new WeakMap()) => {
 };
 
 exports.averageArray = arr => {
-    if (!arr.length) return 0;
-    let sum = 0;
-    for (let i = 0; i < arr.length; i++) sum += arr[i];
+    if (!arr.length) return 0;    
+    var sum = arr.reduce((a, b) => { return a + b; });
     return sum / arr.length;
 };
 
 exports.sumArray = arr => {
-    let sum = 0;
-    for (let i = 0; i < arr.length; i++) sum += arr[i];
+    if (!arr.length) return 0;    
+    var sum = arr.reduce((a, b) => { return a + b; });
     return sum;
 };
 
@@ -169,12 +166,8 @@ exports.error = text => {
     console.log(text);
 };
 exports.remove = (array, index) => {
-    // Invalid/already-removed indexes are a no-op. The old implementation
-    // could assign array[-1], retaining objects and corrupting array state.
-    if (index < 0 || index >= array.length) return undefined;
-
+    if (!Array.isArray(array) || index < 0 || index >= array.length) return undefined;
     if (index === array.length - 1) return array.pop();
-
     const removed = array[index];
     array[index] = array.pop();
     return removed;
