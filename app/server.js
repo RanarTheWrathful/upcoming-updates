@@ -15109,18 +15109,18 @@ const loadProtection = createLoadProtection({
   },
   onEntityChange(entity, disabled, details) {
     if (!entity) {
-      util.warn("[LOAD-PROTECTION] " + (details && details.reason || "No eligible entity could be suspended."));
+      //util.warn("[LOAD-PROTECTION] " + (details && details.reason || "No eligible entity could be suspended."));
       return;
     }
     const verb = disabled ? "SUSPENDED" : "RESTORED";
-    util.warn(
+   /* util.warn(
       "[LOAD-PROTECTION] entity " + verb +
       " | id=" + entity.id +
       " | label=" + (entity.label || entity.type || "unknown") +
       " | score=" + (Number.isFinite(details && details.score) ? details.score.toFixed(2) : "n/a") +
       " | cycle=" + Math.round(details && details.cycleMs || 0) + "ms" +
       " | reason=" + (details && details.reason || "load protection")
-    );
+    );*/
   },
   onStageChange(previous, next, metrics) {
     const previousName = ["normal", "elevated", "high", "critical"][previous];
@@ -15128,7 +15128,7 @@ const loadProtection = createLoadProtection({
     const memoryPercent = Number.isFinite(metrics.memoryRatio)
       ? Math.round(metrics.memoryRatio * 100)
       : 0;
-    util.warn(
+   /* util.warn(
       "[LOAD-PROTECTION] " + previousName + " -> " + nextName +
       " | memory=" + memoryPercent + "%" +
       " | rss=" + Math.round(metrics.rssMb || 0) + "MB" +
@@ -15137,7 +15137,7 @@ const loadProtection = createLoadProtection({
       " | event-loop-p95=" + Math.round(metrics.eventLoopP95Ms || 0) + "ms" +
       " | sim-cycle=" + Math.round(metrics.cycleMs || 0) + "ms" +
       " | target-tick-rate=" + Math.round(100 / (metrics.runSpeedMultiplier || 1)) + "%"
-    );
+    );*/
   },
 });
 

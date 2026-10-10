@@ -1457,7 +1457,7 @@ exports.policeSquareSymbol1 = {
   COLOR: 22,
 };
 exports.redsquar = {
-  PARENT: [exports.policeSquareSymbol],
+  PARENT: [exports.policeSquareSymbol1],
   COLOR: 32,
 };
 exports.policeSquareSymbol2 = {
@@ -2563,12 +2563,12 @@ exports.magentaHexagon = {
   SHAPE: 6,
 };
 exports.pinkTriangle = {
-  PARENT: [exports.triangle],
+  PARENT: [exports.orangeTriangle],
   COLOR: 5,
   SHAPE: 3,
 };
 exports.shellsquare = {
-  PARENT: [exports.square,],
+  PARENT: [exports.yellowSquare],
   COLOR: 9,
   SHAPE: 4,
 };
