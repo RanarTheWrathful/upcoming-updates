@@ -51,7 +51,7 @@ function createLoadProtection(options = {}) {
   const isEntityOnScreen = options.isEntityOnScreen || (() => false);
   const onEntityChange = options.onEntityChange || (() => {});
   const nowProvider = options.nowProvider || (() => performance.now());
-  const intervalMs = positiveNumber(env.RANAR_LOAD_SAMPLE_MS, 1000);
+  const intervalMs = positiveNumber(env.RANAR_LOAD_SAMPLE_MS, 2000);
   const warningMemory = positiveNumber(env.RANAR_LOAD_WARNING_MEMORY, 0.75);
   const highMemory = positiveNumber(env.RANAR_LOAD_HIGH_MEMORY, 0.86);
   const criticalMemory = positiveNumber(env.RANAR_LOAD_CRITICAL_MEMORY, 0.94);
@@ -101,11 +101,11 @@ function createLoadProtection(options = {}) {
   // cadence; recovery is deliberately gradual to prevent threshold flapping.
   const runSpeedMultipliers = [
     1,
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_75, 1.15),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_100, 1.3),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_150, 1.5),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_200, 1.75),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_250, 2),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_75, 1.05),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_100, 1.1),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_150, 1.15),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_200, 1.25),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_250, 1.35),
   ];
   let runSpeedLevel = 0;
   let runSpeedRecoveryCycles = 0;
@@ -125,9 +125,14 @@ function createLoadProtection(options = {}) {
   };
   let naturalSpawnsPaused = false;
   let below100Since = null;
+  // Unknown entities are cleaned once per upward crossing of 100ms. Keep this
+  // independent from the 10-second natural-spawn pause policy.
+  let unknownCleanupLatched = false;
+  let unknownCleanupGeneration = 0;
+  let unknownCleanupPending = false;
   // Cleanup work is spread across game cycles instead of scanning the entire
   // entity table in one burst. Higher-severity modes share one scan.
-  const cleanupBatchSize = Math.max(1, Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_BATCH_SIZE, 32)));
+  const cleanupBatchSize = Math.max(1, Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_BATCH_SIZE, 8)));
   const CLEAN_UNKNOWN = 1;
   const CLEAN_OFFSCREEN = 2;
   const CLEAN_ONSCREEN_AND_PROJECTILES = 4;
@@ -137,6 +142,7 @@ function createLoadProtection(options = {}) {
     end: 0,
     mode: 0,
     lastCompletedMode: 0,
+    unknownGeneration: 0,
     nextSweepAt: 0,
     destroyedUnknown: 0,
     destroyedOffscreen: 0,
@@ -358,7 +364,7 @@ function createLoadProtection(options = {}) {
 
   function currentCleanupMode() {
     let mode = 0;
-    if (sustainedPolicies[100].triggered) mode |= CLEAN_UNKNOWN;
+    if (unknownCleanupPending) mode |= CLEAN_UNKNOWN;
     if (sustainedPolicies[150].triggered) mode |= CLEAN_OFFSCREEN;
     if (sustainedPolicies[200].triggered) mode |= CLEAN_ONSCREEN_AND_PROJECTILES;
     return mode;
@@ -421,6 +427,9 @@ function createLoadProtection(options = {}) {
       });
     }
     cleanupSweep.lastCompletedMode = cleanupSweep.mode;
+    if ((cleanupSweep.mode & CLEAN_UNKNOWN) && cleanupSweep.unknownGeneration === unknownCleanupGeneration) {
+      unknownCleanupPending = false;
+    }
     cleanupSweep.active = false;
     cleanupSweep.cursor = 0;
     cleanupSweep.end = 0;
@@ -442,6 +451,7 @@ function createLoadProtection(options = {}) {
       const expandedMode = cleanupSweep.mode | requestedMode;
       if (expandedMode !== cleanupSweep.mode) {
         cleanupSweep.mode = expandedMode;
+        if (expandedMode & CLEAN_UNKNOWN) cleanupSweep.unknownGeneration = unknownCleanupGeneration;
         cleanupSweep.cursor = 0;
         cleanupSweep.end = list.length;
         cleanupSweep.destroyedUnknown = 0;
@@ -450,12 +460,14 @@ function createLoadProtection(options = {}) {
         cleanupSweep.destroyedProjectiles = 0;
       }
     } else if (requestedMode && (
+      (requestedMode & CLEAN_UNKNOWN) !== 0 ||
       now >= cleanupSweep.nextSweepAt || (requestedMode & ~cleanupSweep.lastCompletedMode) !== 0
     )) {
       cleanupSweep.active = true;
       cleanupSweep.cursor = 0;
       cleanupSweep.end = list.length;
       cleanupSweep.mode = requestedMode;
+      cleanupSweep.unknownGeneration = unknownCleanupGeneration;
       cleanupSweep.destroyedUnknown = 0;
       cleanupSweep.destroyedOffscreen = 0;
       cleanupSweep.destroyedOnscreen = 0;
@@ -720,7 +732,15 @@ function createLoadProtection(options = {}) {
     const lag150 = sustainedPolicies[150];
     const lag200 = sustainedPolicies[200];
 
+    // Trigger a single incremental unknown-entity sweep immediately on the
+    // transition from below 100ms to >=100ms. It rearms only after lag dips
+    // below 100ms, preventing repeated scans while lag remains high.
     if (finiteLag >= 100) {
+      if (!unknownCleanupLatched) {
+        unknownCleanupLatched = true;
+        unknownCleanupPending = true;
+        unknownCleanupGeneration++;
+      }
       below100Since = null;
       if (lag100.since === null) lag100.since = now;
       if (now - lag100.since >= lag100.durationMs) {
@@ -734,6 +754,7 @@ function createLoadProtection(options = {}) {
         }
       }
     } else {
+      unknownCleanupLatched = false;
       lag100.since = null;
       lag100.triggered = false;
       if (naturalSpawnsPaused) {
@@ -1003,7 +1024,7 @@ function createLoadProtection(options = {}) {
     const currentStage = effectiveStage();
     // Instrumentation backs off as load rises. The previous version sampled up
     // to half of all entity updates while already lagging, creating feedback.
-    const interval = currentStage >= 3 ? 128 : currentStage >= 2 ? 64 : currentStage === 1 ? 32 : 16;
+    const interval = currentStage >= 3 ? 512 : currentStage >= 2 ? 256 : currentStage === 1 ? 128 : 64;
     return (profileCounter + cycleIndex) % interval === 0;
   }
 
@@ -1011,7 +1032,7 @@ function createLoadProtection(options = {}) {
     const currentStage = effectiveStage();
     collisionProfileCounter++;
     // Collision counts can be enormous, so sample much more sparsely under load.
-    const interval = currentStage >= 3 ? 128 : currentStage >= 2 ? 64 : currentStage === 1 ? 32 : 16;
+    const interval = currentStage >= 3 ? 512 : currentStage >= 2 ? 256 : currentStage === 1 ? 128 : 64;
     return (collisionProfileCounter + cycleIndex) % interval === 0;
   }
 
