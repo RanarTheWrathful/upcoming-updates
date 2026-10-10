@@ -11648,7 +11648,7 @@ exports.launcherTurret = {
   ],
 };
 exports.juliusLauncherTurret = {
-  PARENT: [exports.auto3Turret, exports.skimmer],
+  PARENT: [exports.auto3Turret, exports.rogueMissile],
   LABEL: "",
   BODY: {
     FOV: 1.1,
@@ -24074,7 +24074,71 @@ exports.protect = {
   IS_SMASHER: true,
   STAT_NAMES: statnames.smasher,
 };
-
+exports.barrier = makeMulti(
+  {
+    PARENT: [exports.genericTank],
+    DANGER: 7,
+    TURRETS: [
+    {
+      POSITION: [14.5, 0, 0, 0, 360, 1],
+      TYPE: [exports.repairSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+      {
+      POSITION: [14.5, 0, 0, 0, 360, 1],
+      TYPE: [exports.healSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+    {
+      POSITION: [8.5, 0, 0, 30, 360, 1],
+      TYPE: exports.repsanctuary_snow,
+    },
+      {
+      POSITION: [8.5, 0, 0, 30, 360, 1],
+      TYPE: exports.sanctuary_snow,
+    },
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [21.5, 0, 0, 0, 361, 0],
+      TYPE: exports.dominatorBody,
+    },
+  ],
+    GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [15, 7, 1, 0, 0, 0, 0.5],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [12, 8, 1, 0, 0, 0, 0.5],
+    },
+    {
+      POSITION: [3, 7, 1.7, 15, 0, 0, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
+        TYPE: exports.repairTrap,
+        STAT_CALCULATOR: gunCalcNames.trap,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [15, 7, 1, 0, 0, 40, 0],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [12, 8, 1, 0, 0, 40, 0],
+    },
+    {
+      POSITION: [3, 7, 1.7, 15, 0, 40, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
+        TYPE: exports.healTrap,
+        STAT_CALCULATOR: gunCalcNames.trap,
+      },
+    },
+  ],
+  },
+  4,
+  "Barrier"
+);
 exports.healer = {
   PARENT: [exports.genericTank],
   LABEL: "Healer",
@@ -29579,51 +29643,6 @@ exports.musket = {
         SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.sniper, g.rifle]),
         TYPE: exports.bullet,
       },
-    },
-  ],
-};
-exports.woodpecker = {
-  PARENT: [exports.falcon],
-  LABEL: "Wood Pecker",
-  BODY: {
-    ACCELERATION: base.ACCEL * 0.9,
-    FOV: base.FOV * 1.225,
-  },
-  DANGER: 7,
-  GUNS: [
-    ...birdGuns,
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [16, 9.5, 1, 0, 0, -90, 0],
-    },
-    {
-      POSITION: [16, 9.5, 1, 0, 0, 90, 0],
-    },
-    {
-      POSITION: [18, 7, 1, 0, 0, -90, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.sniper, g.rifle]),
-        TYPE: exports.bullet,
-      },
-    },
-    {
-      POSITION: [18, 7, 1, 0, 0, 90, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.sniper, g.rifle]),
-        TYPE: exports.bullet,
-      },
-    },
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [27, 8.5, 1, 0, 0, 0, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.assass]),
-        TYPE: exports.bullet,
-        ALT_FIRE: true,
-      },
-    },
-    {
-      POSITION: [5, 8.5, -1.6, 8, 0, 0, 0],
     },
   ],
 };
@@ -38249,71 +38268,7 @@ exports.octo = makeMulti(
   4,
   "Octo Tank"
 );
-exports.barrier = makeMulti(
-  {
-    PARENT: [exports.genericTank],
-    DANGER: 7,
-    TURRETS: [
-    {
-      POSITION: [14.5, 0, 0, 0, 360, 1],
-      TYPE: [exports.repairSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-      {
-      POSITION: [14.5, 0, 0, 0, 360, 1],
-      TYPE: [exports.healSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-    {
-      POSITION: [8.5, 0, 0, 30, 360, 1],
-      TYPE: exports.repsanctuary_snow,
-    },
-      {
-      POSITION: [8.5, 0, 0, 30, 360, 1],
-      TYPE: exports.sanctuary_snow,
-    },
-    {
-      /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [21.5, 0, 0, 0, 361, 0],
-      TYPE: exports.dominatorBody,
-    },
-  ],
-    GUNS: [
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [15, 7, 1, 0, 0, 0, 0.5],
-    },
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [12, 8, 1, 0, 0, 0, 0.5],
-    },
-    {
-      POSITION: [3, 7, 1.7, 15, 0, 0, 0.5],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
-        TYPE: exports.repairTrap,
-        STAT_CALCULATOR: gunCalcNames.trap,
-      },
-    },
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [15, 7, 1, 0, 0, 40, 0],
-    },
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [12, 8, 1, 0, 0, 40, 0],
-    },
-    {
-      POSITION: [3, 7, 1.7, 15, 0, 40, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
-        TYPE: exports.healTrap,
-        STAT_CALCULATOR: gunCalcNames.trap,
-      },
-    },
-  ],
-  },
-  4,
-  "Barrier"
-);
+
 exports.cyclone = makeMulti(
   {
     PARENT: [exports.genericTank],
@@ -39610,6 +39565,52 @@ exports.falcon = {
       POSITION: [5, 8.5, -1.6, 8, 0, 0, 0],
     },
     ...birdGuns,
+  ],
+};
+
+exports.woodpecker = {
+  PARENT: [exports.falcon],
+  LABEL: "Wood Pecker",
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.9,
+    FOV: base.FOV * 1.225,
+  },
+  DANGER: 7,
+  GUNS: [
+    ...birdGuns,
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [16, 9.5, 1, 0, 0, -90, 0],
+    },
+    {
+      POSITION: [16, 9.5, 1, 0, 0, 90, 0],
+    },
+    {
+      POSITION: [18, 7, 1, 0, 0, -90, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.sniper, g.rifle]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [18, 7, 1, 0, 0, 90, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.sniper, g.rifle]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [27, 8.5, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.assass]),
+        TYPE: exports.bullet,
+        ALT_FIRE: true,
+      },
+    },
+    {
+      POSITION: [5, 8.5, -1.6, 8, 0, 0, 0],
+    },
   ],
 };
 exports.armoredauto3 = {
