@@ -24078,71 +24078,7 @@ exports.protect = {
   IS_SMASHER: true,
   STAT_NAMES: statnames.smasher,
 };
-exports.barrier = makeMulti(
-  {
-    PARENT: [exports.genericTank],
-    DANGER: 7,
-    TURRETS: [
-    {
-      POSITION: [14.5, 0, 0, 0, 360, 1],
-      TYPE: [exports.repairSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-      {
-      POSITION: [14.5, 0, 0, 0, 360, 1],
-      TYPE: [exports.healSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-    {
-      POSITION: [8.5, 0, 0, 30, 360, 1],
-      TYPE: exports.repsanctuary_snow,
-    },
-      {
-      POSITION: [8.5, 0, 0, 30, 360, 1],
-      TYPE: exports.sanctuary_snow,
-    },
-    {
-      /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [21.5, 0, 0, 0, 361, 0],
-      TYPE: exports.dominatorBody,
-    },
-  ],
-    GUNS: [
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [15, 7, 1, 0, 0, 0, 0.5],
-    },
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [12, 8, 1, 0, 0, 0, 0.5],
-    },
-    {
-      POSITION: [3, 7, 1.7, 15, 0, 0, 0.5],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
-        TYPE: exports.repairTrap,
-        STAT_CALCULATOR: gunCalcNames.trap,
-      },
-    },
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [15, 7, 1, 0, 0, 40, 0],
-    },
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [12, 8, 1, 0, 0, 40, 0],
-    },
-    {
-      POSITION: [3, 7, 1.7, 15, 0, 40, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
-        TYPE: exports.healTrap,
-        STAT_CALCULATOR: gunCalcNames.trap,
-      },
-    },
-  ],
-  },
-  4,
-  "Barrier"
-);
+
 exports.healer = {
   PARENT: [exports.genericTank],
   LABEL: "Healer",
@@ -24510,6 +24446,71 @@ exports.repsanctuary_snow = {
   CONTROLLERS: ["spin", "alwaysFire"],
   SPIN_RATE: -0.02,
 };
+exports.barrier = makeMulti(
+  {
+    PARENT: [exports.genericTank],
+    DANGER: 7,
+    TURRETS: [
+    {
+      POSITION: [14.5, 0, 0, 0, 360, 1],
+      TYPE: [exports.repairSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+      {
+      POSITION: [14.5, 0, 0, 0, 360, 1],
+      TYPE: [exports.healSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+    {
+      POSITION: [8.5, 0, 0, 30, 360, 1],
+      TYPE: exports.repsanctuary_snow,
+    },
+      {
+      POSITION: [8.5, 0, 0, 30, 360, 1],
+      TYPE: exports.sanctuary_snow,
+    },
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [21.5, 0, 0, 0, 361, 0],
+      TYPE: exports.dominatorBody,
+    },
+  ],
+    GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [15, 7, 1, 0, 0, 0, 0.5],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [12, 8, 1, 0, 0, 0, 0.5],
+    },
+    {
+      POSITION: [3, 7, 1.7, 15, 0, 0, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
+        TYPE: exports.repairTrap,
+        STAT_CALCULATOR: gunCalcNames.trap,
+      },
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [15, 7, 1, 0, 0, 40, 0],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [12, 8, 1, 0, 0, 40, 0],
+    },
+    {
+      POSITION: [3, 7, 1.7, 15, 0, 40, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
+        TYPE: exports.healTrap,
+        STAT_CALCULATOR: gunCalcNames.trap,
+      },
+    },
+  ],
+  },
+  4,
+  "Barrier"
+);
 exports.heal3 = {
   PARENT: [exports.genericTank],
   LABEL: "Healer-3",
