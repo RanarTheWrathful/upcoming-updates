@@ -6037,7 +6037,7 @@ class Entity {
             break;
         }
       }
-    } // else util.log(`ERROR: Something is wrong this entity, check it out: ` + this.define());
+    }  else util.log(`ERROR: Something is wrong this entity, check it out: ` + this.define());
   }
   refreshBodyAttributes() {
     let speedReduce = Math.pow(this.size / (this.coreSize || this.SIZE), 1);
