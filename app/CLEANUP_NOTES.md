@@ -14,13 +14,21 @@ This copy is the cleaned canonical project from the supplied archive.
 
 ## Verification performed
 
-- All 99 JavaScript source files in the supplied project tree pass Node syntax checking.
-- All 39 game-mode configuration modules load successfully.
-- `package.json`, `package-lock.json`, and `serverState.json` parse successfully.
-- The server was smoke-tested through room initialization and HTTP/WebSocket listen using controlled stubs for unavailable third-party packages. No uncaught startup/runtime exception occurred before shutdown.
+- The current lag-contingency tree passes syntax checking for all 53 JavaScript files.
+- All 40 top-level game-mode files remain present.
+- `package.json`, `package-lock.json`, `serverState.json`, and the remaining JSON files parse successfully.
+- The dependency-free load protection and adaptive game-loop regression suites pass.
+- `npm ci --dry-run --offline` confirms the lockfile can resolve against the locally available package metadata; Node 22 warns that the declared target remains Node 16.x.
 
 ## Remaining verification limitation
 
 The archive did not contain installed dependencies, and this environment could not fetch them. The live smoke test therefore used minimal controlled stubs for the third-party packages. A final run with `npm ci` on Node 16.x is still recommended before deployment.
 
 The original archive contained a real `.env` with credentials; those values were intentionally not copied into this release. Restore them locally or through the hosting platform's secret/environment-variable settings.
+
+## Adaptive simulation cadence (current update)
+
+- Replaced the fixed game-loop interval with `lib/adaptiveGameLoop.js`, a single self-scheduling timer that cannot overlap itself or queue catch-up ticks.
+- Normal operation maintains the nominal `room.cycleSpeed` cadence. As lag rises, configurable factors of 1.15x, 1.30x, 1.50x, 1.75x, and 2.00x apply at 75/100/150/200/250ms. The scheduler adds a proportional idle gap even when a tick itself exceeds the normal period, reducing simulation work per second.
+- Scheduler cleanup is part of graceful shutdown. The existing `room.cycleSpeed`, socket update timing, and server/client packet format remain unchanged.
+- `npm test` runs both dependency-free regression files, covering stage selection, recovery hysteresis, long-running cycles, single-timer ownership, and cancellation.

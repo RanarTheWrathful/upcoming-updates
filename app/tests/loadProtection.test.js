@@ -100,6 +100,28 @@ const faultProtection = createLoadProtection({
 assert.doesNotThrow(() => faultProtection.sample(), "monitoring failures must not crash the server");
 faultProtection.stop();
 
+// Adaptive tick-rate recommendations scale with lag and recover gradually.
+const pacingProtection = createLoadProtection({
+  env: {}, memoryLimitBytes: null,
+  sampleProvider: () => Object.assign({}, metrics, { eventLoopP95Ms: 5 }),
+});
+const baseCycleMs = 1000 / 30;
+assert.strictEqual(pacingProtection.getRunSpeedMultiplier(), 1, "normal load keeps the original tick cadence");
+assert.ok(Math.abs(pacingProtection.getRecommendedCycleIntervalMs(baseCycleMs) - baseCycleMs) < 0.001);
+pacingProtection.reportCycle(75, []);
+assert.strictEqual(pacingProtection.getRunSpeedMultiplier(), 1.15, "75ms lag reduces tick cadence modestly");
+pacingProtection.reportCycle(100, []);
+assert.strictEqual(pacingProtection.getRunSpeedMultiplier(), 1.3, "100ms lag reduces tick cadence further");
+pacingProtection.reportCycle(150, []);
+assert.strictEqual(pacingProtection.getRunSpeedMultiplier(), 1.5, "150ms lag increases slowdown");
+pacingProtection.reportCycle(200, []);
+assert.strictEqual(pacingProtection.getRunSpeedMultiplier(), 1.75, "200ms lag increases slowdown further");
+pacingProtection.reportCycle(250, []);
+assert.strictEqual(pacingProtection.getRunSpeedMultiplier(), 2, "250ms lag halves the target tick rate");
+for (let i = 0; i < 10; i++) pacingProtection.reportCycle(50, []);
+assert.strictEqual(pacingProtection.getRunSpeedMultiplier(), 1.75, "recovery restores one speed tier per ten healthy cycles");
+pacingProtection.stop();
+
 
 // Cycle-time mitigation, visual fade, and exact restoration of original state.
 let emergencyNow = 0;
@@ -335,33 +357,52 @@ assert.strictEqual(disabledCandidate._loadDisabled, true, "existing disabled ent
 assert.strictEqual(respawningCandidate.name, "[Respawning...]", "respawning entities are never selected again");
 candidateProtection.stop();
 
-// 100ms for 10 seconds pauses spawning/food and fade-disables unknown labels.
+// 100ms for 10 seconds pauses spawning/food and destroys unknown labels.
 let policyNow = 0;
-const unknownEntity = { id: 301, label: "Unknown Entity", name: "Odd Entity", alpha: 1, guns: [], turrets: [], children: [], controllers: [], excludedTargets: [], valid: () => true };
-const policyProtection = createLoadProtection({ env: {}, memoryLimitBytes: null, nowProvider: () => policyNow, getEntities: () => [unknownEntity] });
-policyProtection.reportCycle(100, [unknownEntity]);
+const unknownEntity = {
+  id: 301, label: "Unknown Entity", name: "Odd Entity", alpha: 1,
+  guns: [], turrets: [], children: [], controllers: [], excludedTargets: [],
+  _destroyed: false,
+  valid() { return !this._destroyed; },
+  destroy() { this._destroyed = true; },
+};
+const unknownClassEntity = {
+  id: 302, name: "Unknown Class", alpha: 1,
+  guns: [], turrets: [], children: [], controllers: [], excludedTargets: [],
+  _destroyed: false,
+  valid() { return !this._destroyed; },
+  destroy() { this._destroyed = true; },
+};
+const protectedUnknown = {
+  id: 303, label: "Unknown Class", name: "Protected Unknown", KEEP: true,
+  guns: [], turrets: [], children: [], controllers: [], excludedTargets: [],
+  _destroyed: false,
+  valid() { return !this._destroyed; },
+  destroy() { this._destroyed = true; },
+};
+const unknownEntities = [unknownEntity, unknownClassEntity, protectedUnknown];
+const policyProtection = createLoadProtection({ env: {}, memoryLimitBytes: null, nowProvider: () => policyNow, getEntities: () => unknownEntities });
+policyProtection.reportCycle(100, unknownEntities);
 policyNow = 9999;
-policyProtection.reportCycle(100, [unknownEntity]);
+policyProtection.reportCycle(100, unknownEntities);
 assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), true, "natural spawning continues before 10 seconds elapse");
 policyNow = 10000;
-policyProtection.reportCycle(100, [unknownEntity]);
+policyProtection.reportCycle(100, unknownEntities);
 assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), false, "natural entity spawning pauses after persistent 100ms lag");
 assert.strictEqual(policyProtection.shouldSpawnFood(), false, "food spawning pauses after persistent 100ms lag");
-assert.strictEqual(unknownEntity._loadDisabled, true, "Unknown Entity is temporarily disabled");
-assert.strictEqual(unknownEntity.name, "[Disabled]", "unknown entity displays the Disabled label");
+assert.strictEqual(unknownEntity._destroyed, true, "Unknown Entity is destroyed once the 100ms persistence requirement is met");
+assert.strictEqual(unknownClassEntity._destroyed, true, "Unknown Class is destroyed even when only its name matches");
+assert.strictEqual(protectedUnknown._destroyed, false, "explicit KEEP protection overrides unknown-label cleanup");
+assert.strictEqual(unknownEntity._loadDisabled, undefined, "Unknown Entity is destroyed directly, not put through a fade/disable cycle");
 policyNow = 20000;
-policyProtection.reportCycle(99, [unknownEntity]);
+policyProtection.reportCycle(99, unknownEntities);
 assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), false, "brief recovery does not resume spawning immediately");
 policyNow = 29999;
-policyProtection.reportCycle(99, [unknownEntity]);
+policyProtection.reportCycle(99, unknownEntities)
 assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), false, "10 healthy seconds are required before spawning resumes");
 policyNow = 30000;
-policyProtection.reportCycle(99, [unknownEntity]);
+policyProtection.reportCycle(99, unknownEntities)
 assert.strictEqual(policyProtection.shouldSpawnNaturalEntities(), true, "natural spawns resume after sustained recovery");
-assert.strictEqual(unknownEntity.name, "[Respawning...]", "unknown entity begins visual restoration");
-policyNow = 32500;
-policyProtection.reportCycle(50, [unknownEntity]);
-assert.strictEqual(unknownEntity._loadDisabled, undefined, "unknown entity resumes after 2.5-second fade-in");
 policyProtection.stop();
 
 // 150ms for 15 seconds destroys only tagged natural entities off-screen.
@@ -403,6 +444,50 @@ const laterProjectile = makeCleanupEntity(414, true, false); laterProjectile.isP
 screenProtection200.reportCycle(200, entities200);
 assert.strictEqual(laterProjectile._destroyed, true, "projectile cleanup repeats while severe lag persists");
 screenProtection200.stop();
+
+// Cleanup only inspects a bounded batch per game cycle and resumes next cycle.
+let batchNow = 0;
+const batchEntities = [
+  makeCleanupEntity(421, false),
+  makeCleanupEntity(422, false),
+  makeCleanupEntity(423, false),
+];
+const batchedProtection = createLoadProtection({
+  env: { RANAR_LAG_CLEANUP_BATCH_SIZE: "1" },
+  memoryLimitBytes: null,
+  nowProvider: () => batchNow,
+  getEntities: () => batchEntities,
+  isEntityOnScreen: (entity) => entity.onScreen,
+});
+batchedProtection.reportCycle(150, batchEntities);
+batchNow = 15000;
+batchedProtection.reportCycle(150, batchEntities);
+assert.strictEqual(batchEntities[0]._destroyed, true, "first cleanup batch is processed immediately");
+assert.strictEqual(batchEntities[1]._destroyed, false, "cleanup stops after its configured per-cycle budget");
+batchedProtection.reportCycle(150, batchEntities);
+assert.strictEqual(batchEntities[1]._destroyed, true, "cleanup continues on the next cycle");
+batchedProtection.reportCycle(150, batchEntities);
+assert.strictEqual(batchEntities[2]._destroyed, true, "the bounded scan eventually visits every entity");
+batchedProtection.stop();
+
+// Instrumentation must back off—not increase—when the server is already lagging.
+const profilingProtection = createLoadProtection({ env: {}, memoryLimitBytes: null });
+let normalEntitySamples = 0;
+let normalCollisionSamples = 0;
+for (let i = 0; i < 1024; i++) {
+  if (profilingProtection.shouldProfileEntity()) normalEntitySamples++;
+  if (profilingProtection.shouldProfileCollision()) normalCollisionSamples++;
+}
+profilingProtection.reportCycle(250, []);
+let criticalEntitySamples = 0;
+let criticalCollisionSamples = 0;
+for (let i = 0; i < 1024; i++) {
+  if (profilingProtection.shouldProfileEntity()) criticalEntitySamples++;
+  if (profilingProtection.shouldProfileCollision()) criticalCollisionSamples++;
+}
+assert.ok(criticalEntitySamples < normalEntitySamples / 4, "entity timing sampling backs off during critical lag");
+assert.ok(criticalCollisionSamples < normalCollisionSamples / 4, "collision timing sampling backs off during critical lag");
+profilingProtection.stop();
 
 protection.stop();
 console.log("Load protection tests passed.");

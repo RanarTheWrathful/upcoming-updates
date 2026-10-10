@@ -17,6 +17,7 @@ const fs = require("fs");
 const path = require("path"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
 const createLoadProtection = require("./lib/loadProtection");
+const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const { performance } = require("perf_hooks");
 // Example usage:
 let currentState = serverState.getServerState();
@@ -15089,7 +15090,7 @@ console.log('Lore mode sequence advanced.');*/
 
 /*** SERVER SETUP ***/
 // Make a speed monitor
-let gameLoopTimer = null;
+let gameLoopScheduler = null;
 let maintainLoopTimer = null;
 let speedcheckLoopTimer = null;
 let shutdownExitTimer = null;
@@ -15134,7 +15135,8 @@ const loadProtection = createLoadProtection({
       " | heap=" + Math.round(metrics.heapUsedMb || 0) + "MB" +
       " | rss-growth=" + Math.round(metrics.memoryGrowthMb || 0) + "MB/window" +
       " | event-loop-p95=" + Math.round(metrics.eventLoopP95Ms || 0) + "ms" +
-      " | sim-cycle=" + Math.round(metrics.cycleMs || 0) + "ms"
+      " | sim-cycle=" + Math.round(metrics.cycleMs || 0) + "ms" +
+      " | target-tick-rate=" + Math.round(100 / (metrics.runSpeedMultiplier || 1)) + "%"
     );
   },
 });
@@ -24953,7 +24955,7 @@ function cleanup() {
   cleanupStarted = true;
   console.log("Shutting down server gracefully.");
 
-  if (gameLoopTimer !== null) { clearInterval(gameLoopTimer); gameLoopTimer = null; }
+  if (gameLoopScheduler !== null) { gameLoopScheduler.stop(); gameLoopScheduler = null; }
   if (maintainLoopTimer !== null) { clearInterval(maintainLoopTimer); maintainLoopTimer = null; }
   if (speedcheckLoopTimer !== null) { clearInterval(speedcheckLoopTimer); speedcheckLoopTimer = null; }
 
@@ -24993,6 +24995,16 @@ let websockets = (() => {
 
 // Bring it to life. Retain timer handles so shutdown can stop simulation cleanly.
 loadProtection.start();
-gameLoopTimer = setInterval(gameloop, room.cycleSpeed);
+// Adapt the simulation cadence under sustained lag without changing the
+// protocol's nominal room.cycleSpeed used by existing socket update timing.
+// At normal load it preserves the original cadence. Under load it adds a
+// proportional idle gap, even when one tick itself overruns the base period,
+// avoiding catch-up bursts and reducing total simulation work per second.
+gameLoopScheduler = createAdaptiveGameLoop({
+  run: gameloop,
+  baseIntervalMs: room.cycleSpeed,
+  getMultiplier: () => loadProtection.getRunSpeedMultiplier(),
+});
+gameLoopScheduler.start();
 maintainLoopTimer = setInterval(maintainloop, 200);
 speedcheckLoopTimer = setInterval(speedcheckloop, 1000);

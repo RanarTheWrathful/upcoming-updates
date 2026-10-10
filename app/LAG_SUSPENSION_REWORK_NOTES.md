@@ -13,7 +13,7 @@
 
 All timers use measured simulation-cycle duration or Node event-loop p95 delay, and require continuous time above the threshold:
 
-- **100 ms for 10 seconds:** pause recurring bot/natural entity spawning and food generation. Entities whose label, name, or type is exactly `Unknown Entity` or `Unknown Class` are fade-disabled. Spawning resumes after lag remains below 100 ms for 10 seconds; quarantined unknown entities fade back in over 2.5 seconds.
+- **100 ms for 10 seconds:** pause recurring bot/natural entity spawning and food generation. Unprotected entities whose label, name, or type is exactly `Unknown Entity` or `Unknown Class` are destroyed directly, not disabled or faded. Spawning resumes after lag remains below 100 ms for 10 seconds.
 - **150 ms for 15 seconds:** destroy tagged naturally spawned entities outside every spawned client's viewing rectangle. This includes regular recurring crasher/sentinel/thrasher/lasher/spark/undead spawns, standard bots, and naturally spawned food. Projectiles are reserved for the more severe 200 ms rule.
 - **200 ms for 15 seconds:** destroy all projectiles and all tagged naturally spawned entities currently in a client's viewing rectangle. Both cleanup policies repeat every 2.5 seconds while their respective lag thresholds persist.
 
@@ -49,6 +49,6 @@ The visual effect uses the existing entity `name` and `alpha` update fields. No 
 
 ## Validation
 
-- `node tests/loadProtection.test.js` passes, including disabled/respawning exclusion, structural prioritization, 2.5-second transitions/cadence, one-minute lockout, sustained 100/150/200 ms policies, unknown-label quarantine, on/off-screen cleanup, repeated projectile cleanup, and preservation of unmarked one-time structures.
+- `node tests/loadProtection.test.js` passes, including disabled/respawning exclusion, structural prioritization, 2.5-second transitions/cadence, one-minute lockout, sustained 100/150/200 ms policies, unknown-label destruction, on/off-screen cleanup, repeated projectile cleanup, and preservation of unmarked one-time structures.
 - All project JavaScript files pass syntax checks; JSON configs parse; game-mode files are present; the ZIP passes integrity validation.
 - Full startup with real npm dependencies still needs verification under the project's declared Node 16 runtime because this environment cannot fetch uncached packages.

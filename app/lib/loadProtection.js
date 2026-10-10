@@ -5,6 +5,7 @@ const v8 = require("v8");
 const { monitorEventLoopDelay, performance } = require("perf_hooks");
 
 const STAGE_NAMES = ["normal", "elevated", "high", "critical"];
+const RUN_SPEED_THRESHOLDS_MS = [75, 100, 150, 200, 250];
 
 function positiveNumber(value, fallback) {
   const number = Number(value);
@@ -95,6 +96,19 @@ function createLoadProtection(options = {}) {
   let lastEntitySuspensionAt = null;
   let suspensionLockout = false;
   let lastObservedLagMs = 0;
+  // Scheduler pacing is independent of room.cycleSpeed (which is also used by
+  // existing network timing). Higher lag targets a slower start-to-start tick
+  // cadence; recovery is deliberately gradual to prevent threshold flapping.
+  const runSpeedMultipliers = [
+    1,
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_75, 1.15),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_100, 1.3),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_150, 1.5),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_200, 1.75),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_250, 2),
+  ];
+  let runSpeedLevel = 0;
+  let runSpeedRecoveryCycles = 0;
   let lastNoCandidateWarningAt = 0;
   let profileCounter = 0;
   let collisionProfileCounter = 0;
@@ -105,13 +119,30 @@ function createLoadProtection(options = {}) {
   let foodSpawnTick = 0;
   let botSpawnTick = 0;
   const sustainedPolicies = {
-    100: { durationMs: naturalSpawnPauseMs, since: null, triggered: false, lastActionAt: 0 },
-    150: { durationMs: offscreenCleanupDelayMs, since: null, triggered: false, lastActionAt: 0 },
-    200: { durationMs: onScreenCleanupDelayMs, since: null, triggered: false, lastActionAt: 0 },
+    100: { durationMs: naturalSpawnPauseMs, since: null, triggered: false },
+    150: { durationMs: offscreenCleanupDelayMs, since: null, triggered: false },
+    200: { durationMs: onScreenCleanupDelayMs, since: null, triggered: false },
   };
   let naturalSpawnsPaused = false;
   let below100Since = null;
-  let lastUnknownSweepAt = 0;
+  // Cleanup work is spread across game cycles instead of scanning the entire
+  // entity table in one burst. Higher-severity modes share one scan.
+  const cleanupBatchSize = Math.max(1, Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_BATCH_SIZE, 32)));
+  const CLEAN_UNKNOWN = 1;
+  const CLEAN_OFFSCREEN = 2;
+  const CLEAN_ONSCREEN_AND_PROJECTILES = 4;
+  const cleanupSweep = {
+    active: false,
+    cursor: 0,
+    end: 0,
+    mode: 0,
+    lastCompletedMode: 0,
+    nextSweepAt: 0,
+    destroyedUnknown: 0,
+    destroyedOffscreen: 0,
+    destroyedOnscreen: 0,
+    destroyedProjectiles: 0,
+  };
   let lastMetrics = {
     stage: 0,
     stageName: "normal",
@@ -270,19 +301,17 @@ function createLoadProtection(options = {}) {
     return name === "[disabled]" || name === "[respawning...]" || name === "[respawning]";
   }
 
+  function isUnknownLabel(value) {
+    return typeof value === "string" && /^(unknown entity|unknown class)$/i.test(value.trim());
+  }
+
   function isUnknownEntity(entity) {
     if (!entity) return false;
-    const values = [entity.label, entity.name, entity.type];
+    // Avoid allocating a temporary array for each candidate in a stressed server.
+    if (isUnknownLabel(entity.label) || isUnknownLabel(entity.name) || isUnknownLabel(entity.type)) return true;
     const state = suspendedEntities.get(entity);
-    // The visible status name temporarily replaces the original name during a
-    // quarantine fade. Keep using the saved name until that policy is released.
-    if (state && state.kind === "unknown" &&
-        /^unknown (entity|class)$/i.test(String(state.originalName || "").trim()) &&
-        /^\[(disabled|respawning)(\.\.\.)?\]$/i.test(String(entity.name || "").trim())) {
-      values.push(state.originalName);
-    }
-    return values.some((value) => typeof value === "string" &&
-      /^(unknown entity|unknown class)$/i.test(value.trim()));
+    // A status name may mask the original label during a legacy suspension.
+    return !!(state && isUnknownLabel(state.originalName));
   }
 
   function isProjectile(entity) {
@@ -327,44 +356,125 @@ function createLoadProtection(options = {}) {
     return false;
   }
 
-  function cleanupNaturalEntities(entityList, mode) {
-    const list = Array.isArray(entityList) ? entityList : [];
-    let destroyed = 0;
-    for (let i = 0; i < list.length; i++) {
-      const entity = list[i];
-      if (!entity || !isEntityLive(entity)) continue;
-      if (mode === "projectiles-and-onscreen") {
-        // The 200ms rule explicitly includes every projectile, regardless of source.
-        if (isProjectile(entity)) {
-          try {
-            if (typeof entity.destroy === "function") {
-              suspendedEntities.delete(entity);
-              entity.destroy();
-              destroyed++;
-            }
-          } catch (_) {}
-          continue;
-        }
-        if (!isNaturalSpawnEntity(entity) || shouldProtectFromNaturalCleanup(entity)) continue;
-        let onScreen = false;
-        try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
-        if (onScreen && destroyForLoadProtection(entity)) destroyed++;
-      } else {
-        // Projectiles are deliberately reserved for the more severe 200ms rule.
-        if (isProjectile(entity) || !isNaturalSpawnEntity(entity) || shouldProtectFromNaturalCleanup(entity)) continue;
-        let onScreen = false;
-        try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
-        if (!onScreen && destroyForLoadProtection(entity)) destroyed++;
-      }
+  function currentCleanupMode() {
+    let mode = 0;
+    if (sustainedPolicies[100].triggered) mode |= CLEAN_UNKNOWN;
+    if (sustainedPolicies[150].triggered) mode |= CLEAN_OFFSCREEN;
+    if (sustainedPolicies[200].triggered) mode |= CLEAN_ONSCREEN_AND_PROJECTILES;
+    return mode;
+  }
+
+  function destroyProjectileForLoadProtection(entity) {
+    if (!entity || !isEntityLive(entity)) return false;
+    try {
+      if (typeof entity.destroy !== "function") return false;
+      suspendedEntities.delete(entity);
+      entity.destroy();
+      return true;
+    } catch (_) {
+      return false;
     }
-    if (destroyed > 0) {
+  }
+
+  function inspectCleanupEntity(entity, mode) {
+    if (!entity || !isEntityLive(entity)) return;
+
+    // The 100ms sustained-lag policy destroys unknown classes instead of
+    // suspending them. KEEP/protected entities remain protected.
+    if ((mode & CLEAN_UNKNOWN) && isUnknownEntity(entity)) {
+      if (destroyForLoadProtection(entity)) cleanupSweep.destroyedUnknown++;
+      return;
+    }
+
+    if ((mode & CLEAN_ONSCREEN_AND_PROJECTILES) && isProjectile(entity)) {
+      if (destroyProjectileForLoadProtection(entity)) cleanupSweep.destroyedProjectiles++;
+      return;
+    }
+
+    if (!isNaturalSpawnEntity(entity) || shouldProtectFromNaturalCleanup(entity)) return;
+    // Visibility is calculated only for natural entities that passed protection
+    // checks; unknown cleanup and projectile cleanup never pay this cost.
+    let onScreen = false;
+    try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
+
+    if ((mode & CLEAN_ONSCREEN_AND_PROJECTILES) && onScreen) {
+      if (destroyForLoadProtection(entity)) cleanupSweep.destroyedOnscreen++;
+    } else if ((mode & CLEAN_OFFSCREEN) && !onScreen) {
+      if (destroyForLoadProtection(entity)) cleanupSweep.destroyedOffscreen++;
+    }
+  }
+
+  function finishCleanupSweep(now) {
+    const counts = cleanupSweep;
+    const total = counts.destroyedUnknown + counts.destroyedOffscreen +
+      counts.destroyedOnscreen + counts.destroyedProjectiles;
+    if (total > 0) {
+      const parts = [];
+      if (counts.destroyedUnknown) parts.push(counts.destroyedUnknown + " unknown");
+      if (counts.destroyedOffscreen) parts.push(counts.destroyedOffscreen + " off-screen natural");
+      if (counts.destroyedOnscreen) parts.push(counts.destroyedOnscreen + " on-screen natural");
+      if (counts.destroyedProjectiles) parts.push(counts.destroyedProjectiles + " projectiles");
       callEntityChange(null, false, {
-        reason: "load policy " + mode + " removed " + destroyed + " entity/entities",
-        destroyedCount: destroyed,
+        reason: "load protection cleanup removed " + parts.join(", "),
+        destroyedCount: total,
         cycleMs: lastCycleMs,
       });
     }
-    return destroyed;
+    cleanupSweep.lastCompletedMode = cleanupSweep.mode;
+    cleanupSweep.active = false;
+    cleanupSweep.cursor = 0;
+    cleanupSweep.end = 0;
+    cleanupSweep.mode = 0;
+    cleanupSweep.nextSweepAt = now + cleanupIntervalMs;
+    cleanupSweep.destroyedUnknown = 0;
+    cleanupSweep.destroyedOffscreen = 0;
+    cleanupSweep.destroyedOnscreen = 0;
+    cleanupSweep.destroyedProjectiles = 0;
+  }
+
+  function processCleanupSweep(entityList, now = nowProvider()) {
+    const list = Array.isArray(entityList) ? entityList : getEntities();
+    const requestedMode = currentCleanupMode();
+
+    if (cleanupSweep.active) {
+      // If a stricter policy activates mid-scan, restart once so entities already
+      // visited by the weaker policy are also checked by the new rule.
+      const expandedMode = cleanupSweep.mode | requestedMode;
+      if (expandedMode !== cleanupSweep.mode) {
+        cleanupSweep.mode = expandedMode;
+        cleanupSweep.cursor = 0;
+        cleanupSweep.end = list.length;
+        cleanupSweep.destroyedUnknown = 0;
+        cleanupSweep.destroyedOffscreen = 0;
+        cleanupSweep.destroyedOnscreen = 0;
+        cleanupSweep.destroyedProjectiles = 0;
+      }
+    } else if (requestedMode && (
+      now >= cleanupSweep.nextSweepAt || (requestedMode & ~cleanupSweep.lastCompletedMode) !== 0
+    )) {
+      cleanupSweep.active = true;
+      cleanupSweep.cursor = 0;
+      cleanupSweep.end = list.length;
+      cleanupSweep.mode = requestedMode;
+      cleanupSweep.destroyedUnknown = 0;
+      cleanupSweep.destroyedOffscreen = 0;
+      cleanupSweep.destroyedOnscreen = 0;
+      cleanupSweep.destroyedProjectiles = 0;
+    }
+
+    if (!cleanupSweep.active) return;
+
+    let inspected = 0;
+    const end = Math.min(cleanupSweep.end, list.length);
+    while (cleanupSweep.cursor < end && inspected < cleanupBatchSize) {
+      const entity = list[cleanupSweep.cursor++];
+      inspected++;
+      inspectCleanupEntity(entity, cleanupSweep.mode);
+    }
+
+    if (cleanupSweep.cursor >= cleanupSweep.end || cleanupSweep.cursor >= list.length) {
+      finishCleanupSweep(now);
+    }
   }
 
   function callEntityChange(entity, disabled, details) {
@@ -602,26 +712,13 @@ function createLoadProtection(options = {}) {
     return suspendEntity(best, reason, "critical", bestScore);
   }
 
-  function disableUnknownEntities(entityList, now) {
-    const list = Array.isArray(entityList) ? entityList : [];
-    if (now - lastUnknownSweepAt < cleanupIntervalMs) return 0;
-    lastUnknownSweepAt = now;
-    let disabled = 0;
-    for (let i = 0; i < list.length; i++) {
-      const entity = list[i];
-      if (!entity || !isUnknownEntity(entity) || isDisabledOrRespawning(entity) || suspendedEntities.has(entity)) continue;
-      if (suspendEntity(entity, "lag >= 100ms for " + Math.round(naturalSpawnPauseMs / 1000) + "s; unknown entity quarantined", "unknown")) disabled++;
-    }
-    return disabled;
-  }
 
-  function updateSustainedLagPolicies(lagMs, entityList) {
+  function updateSustainedLagPolicies(lagMs) {
     const now = nowProvider();
     const finiteLag = Number.isFinite(lagMs) ? lagMs : 0;
     const lag100 = sustainedPolicies[100];
     const lag150 = sustainedPolicies[150];
     const lag200 = sustainedPolicies[200];
-    const list = Array.isArray(entityList) ? entityList : getEntities();
 
     if (finiteLag >= 100) {
       below100Since = null;
@@ -630,13 +727,11 @@ function createLoadProtection(options = {}) {
         lag100.triggered = true;
         if (!naturalSpawnsPaused) {
           naturalSpawnsPaused = true;
-          lastUnknownSweepAt = 0;
           callEntityChange(null, false, {
             reason: "lag >= 100ms for " + Math.round(naturalSpawnPauseMs / 1000) + "s; natural bot/entity spawning and food paused",
             cycleMs: lastCycleMs,
           });
         }
-        disableUnknownEntities(list, now);
       }
     } else {
       lag100.since = null;
@@ -659,32 +754,18 @@ function createLoadProtection(options = {}) {
 
     if (finiteLag >= 150) {
       if (lag150.since === null) lag150.since = now;
-      if (now - lag150.since >= lag150.durationMs) {
-        lag150.triggered = true;
-        if (lag150.lastActionAt === 0 || now - lag150.lastActionAt >= cleanupIntervalMs) {
-          cleanupNaturalEntities(list, "offscreen");
-          lag150.lastActionAt = now;
-        }
-      }
+      if (now - lag150.since >= lag150.durationMs) lag150.triggered = true;
     } else {
       lag150.since = null;
       lag150.triggered = false;
-      lag150.lastActionAt = 0;
     }
 
     if (finiteLag >= 200) {
       if (lag200.since === null) lag200.since = now;
-      if (now - lag200.since >= lag200.durationMs) {
-        lag200.triggered = true;
-        if (lag200.lastActionAt === 0 || now - lag200.lastActionAt >= cleanupIntervalMs) {
-          cleanupNaturalEntities(list, "projectiles-and-onscreen");
-          lag200.lastActionAt = now;
-        }
-      }
+      if (now - lag200.since >= lag200.durationMs) lag200.triggered = true;
     } else {
       lag200.since = null;
       lag200.triggered = false;
-      lag200.lastActionAt = 0;
     }
 
     lastMetrics.naturalSpawnsPaused = naturalSpawnsPaused;
@@ -795,6 +876,45 @@ function createLoadProtection(options = {}) {
     notifyStageChange(previousEffective, metrics);
   }
 
+  function desiredRunSpeedLevel(lagMs) {
+    let desired = 0;
+    for (let i = 0; i < RUN_SPEED_THRESHOLDS_MS.length; i++) {
+      if (lagMs >= RUN_SPEED_THRESHOLDS_MS[i]) desired = i + 1;
+      else break;
+    }
+    return desired;
+  }
+
+  function updateRunSpeed(lagMs, allowRecovery) {
+    const safeLagMs = Number.isFinite(lagMs) && lagMs >= 0 ? lagMs : 0;
+    const desired = desiredRunSpeedLevel(safeLagMs);
+    if (desired > runSpeedLevel) {
+      // Escalate immediately when lag worsens.
+      runSpeedLevel = desired;
+      runSpeedRecoveryCycles = 0;
+      return;
+    }
+    if (desired < runSpeedLevel && allowRecovery) {
+      // One step faster after ten consecutive healthy simulation cycles.
+      runSpeedRecoveryCycles++;
+      if (runSpeedRecoveryCycles >= 10) {
+        runSpeedLevel = Math.max(desired, runSpeedLevel - 1);
+        runSpeedRecoveryCycles = 0;
+      }
+      return;
+    }
+    if (desired >= runSpeedLevel) runSpeedRecoveryCycles = 0;
+  }
+
+  function getRunSpeedMultiplier() {
+    return runSpeedMultipliers[runSpeedLevel] || 1;
+  }
+
+  function getRecommendedCycleIntervalMs(baseIntervalMs) {
+    const base = positiveNumber(baseIntervalMs, 1000 / 30);
+    return base * getRunSpeedMultiplier();
+  }
+
   function reportCycle(durationMs, entityList) {
     const cycleMs = Number(durationMs);
     if (!Number.isFinite(cycleMs) || cycleMs < 0) return getSnapshot();
@@ -804,6 +924,8 @@ function createLoadProtection(options = {}) {
 
     const sampledP95 = Number(lastMetrics.eventLoopP95Ms) || 0;
     const observedLagMs = Math.max(cycleMs, sampledP95);
+    lastObservedLagMs = observedLagMs;
+    updateRunSpeed(observedLagMs, true);
     if (observedLagMs >= criticalDelayMs) {
       cycleStage = 3;
       lowCycleSamples = 0;
@@ -829,8 +951,10 @@ function createLoadProtection(options = {}) {
     // Advance existing fades before episode transitions. In particular, the
     // 60-second cutoff must see the latest opacity of a just-disabled entity.
     advanceEntityTransitions(nowProvider());
-    updateSustainedLagPolicies(observedLagMs, entityList || getEntities());
-    handleCriticalLag(observedLagMs, entityList || getEntities(), reason);
+    const liveEntities = entityList || getEntities();
+    updateSustainedLagPolicies(observedLagMs);
+    handleCriticalLag(observedLagMs, liveEntities, reason);
+    processCleanupSweep(liveEntities, nowProvider());
     advanceEntityTransitions(nowProvider());
 
     // Keep the sampled telemetry current without storing entity references in history.
@@ -877,16 +1001,17 @@ function createLoadProtection(options = {}) {
   function shouldProfileEntity() {
     profileCounter++;
     const currentStage = effectiveStage();
-    const interval = currentStage >= 2 ? 2 : currentStage === 1 ? 4 : 8;
-    // Rotate the sampling phase each cycle so long-lived entities don't end up
-    // permanently inside or outside the sample just because of array order.
+    // Instrumentation backs off as load rises. The previous version sampled up
+    // to half of all entity updates while already lagging, creating feedback.
+    const interval = currentStage >= 3 ? 128 : currentStage >= 2 ? 64 : currentStage === 1 ? 32 : 16;
     return (profileCounter + cycleIndex) % interval === 0;
   }
 
   function shouldProfileCollision() {
     const currentStage = effectiveStage();
     collisionProfileCounter++;
-    const interval = currentStage >= 2 ? 2 : currentStage === 1 ? 4 : 16;
+    // Collision counts can be enormous, so sample much more sparsely under load.
+    const interval = currentStage >= 3 ? 128 : currentStage >= 2 ? 64 : currentStage === 1 ? 32 : 16;
     return (collisionProfileCounter + cycleIndex) % interval === 0;
   }
 
@@ -911,6 +1036,10 @@ function createLoadProtection(options = {}) {
     // short. Treat either measurement as lag for emergency entity suspension.
     const sampledP95 = Number.isFinite(metrics.eventLoopP95Ms) ? metrics.eventLoopP95Ms : 0;
     const observedLagMs = Math.max(sampledP95, lastCycleMs);
+    lastObservedLagMs = observedLagMs;
+    // Sampling can immediately slow the loop further, but it cannot speed it
+    // back up: recovery is counted only on completed simulation cycles.
+    updateRunSpeed(observedLagMs, false);
     const previousDelayEffective = effectiveStage();
     if (observedLagMs >= criticalDelayMs) {
       cycleStage = 3;
@@ -926,8 +1055,9 @@ function createLoadProtection(options = {}) {
       ? "event-loop p95 reached " + Math.round(sampledP95) + "ms"
       : "simulation lag reached emergency threshold";
     advanceEntityTransitions(nowProvider());
-    updateSustainedLagPolicies(observedLagMs, getEntities());
-    handleCriticalLag(observedLagMs, getEntities(), reason);
+    const liveEntities = getEntities();
+    updateSustainedLagPolicies(observedLagMs);
+    handleCriticalLag(observedLagMs, liveEntities, reason);
     advanceEntityTransitions(nowProvider());
     lastMetrics.cycleStage = cycleStage;
     lastMetrics.stageName = STAGE_NAMES[effectiveStage()];
@@ -992,6 +1122,9 @@ function createLoadProtection(options = {}) {
     snapshot.stage = currentStage;
     snapshot.stageName = STAGE_NAMES[currentStage];
     snapshot.cycleMs = lastCycleMs;
+    snapshot.runSpeedLevel = runSpeedLevel;
+    snapshot.runSpeedMultiplier = getRunSpeedMultiplier();
+    snapshot.targetTickRatePercent = Math.round(100 / getRunSpeedMultiplier());
     snapshot.cycleStage = cycleStage;
     snapshot.naturalSpawnsPaused = naturalSpawnsPaused;
     snapshot.lagPolicy100Triggered = sustainedPolicies[100].triggered;
@@ -1040,6 +1173,8 @@ function createLoadProtection(options = {}) {
     recordCollisionCost,
     shouldProfileEntity,
     shouldProfileCollision,
+    getRunSpeedMultiplier,
+    getRecommendedCycleIntervalMs,
     get stage() { return effectiveStage(); },
     isCritical: () => effectiveStage() >= 3,
     getSnapshot,
