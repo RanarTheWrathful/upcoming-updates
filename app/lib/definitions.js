@@ -2316,96 +2316,6 @@ exports.elite_fort_snow = {
   CONTROLLERS: ["alwaysFire"],
   SPIN_RATE: -0.02,
 };
-exports.sanct_healer = makeMulti(
-  {
-    PARENT: [exports.restorer],
-    TURRETS: [
-      {
-        /*********  SIZE     X       Y     ANGLE    ARC */
-        POSITION: [14.5, 0, 0, 0, 360, 1],
-        TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
-      },
-    ],
-    GUNS: [
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [7, 8, -0.5, 14, 0, 0, 0],
-        PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([
-            g.basic,
-            g.flank,
-            g.halfSpeed,
-            g.halfRange,
-          ]),
-          TYPE: exports.healerBullet,
-        },
-      },
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [18, 8, 1, 0, 0, 0, 0],
-      },
-    ],
-  },
-  3,
-  ""
-);
-exports.sanct_rep_healer = makeMulti(
-  {
-    PARENT: [exports.restorer],
-    TURRETS: [
-      {
-        /*********  SIZE     X       Y     ANGLE    ARC */
-        POSITION: [14.5, 0, 0, 0, 360, 1],
-        TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
-      },
-    ],
-    GUNS: [
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [16, 8, 1, 0, 0, 180, 1],
-      },
-      {
-        POSITION: [7, 8, -0.5, 12, 0, 180, 0.5],
-        PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed]),
-          TYPE: exports.repairBullet,
-        },
-      },
-      {
-        POSITION: [7, 8, -0.5, 14, 0, 0, 0],
-        PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([
-            g.basic,
-            g.flank,
-            g.halfSpeed,
-            g.halfRange,
-          ]),
-          TYPE: exports.healerBullet,
-        },
-      },
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [18, 8, 1, 0, 0, 0, 0],
-      },
-    ],
-  },
-  3,
-  ""
-);
-exports.sanctuary_snow = {
-  PARENT: [exports.sanct_healer],
-  COLOR: 16,
-  INDEPENDENT: true,
-  CONTROLLERS: ["spin", "alwaysFire"],
-  SPIN_RATE: -0.02,
-};
-exports.repsanctuary_snow = {
-  PARENT: [exports.sanct_rep_healer],
-  COLOR: 16,
-  INDEPENDENT: true,
-  CONTROLLERS: ["spin", "alwaysFire"],
-  SPIN_RATE: -0.02,
-};
 exports.dominationBody = {
   LABEL: "",
   COLOR: 9,
@@ -12533,6 +12443,97 @@ function makeHybrid(type, name = -1) {
     name == -1 ? (greekNumbers[count - 1] || count + " ") + type.LABEL : name;
   return output;
 }),
+
+exports.sanct_healer = makeMulti(
+  {
+    PARENT: [exports.restorer],
+    TURRETS: [
+      {
+        /*********  SIZE     X       Y     ANGLE    ARC */
+        POSITION: [14.5, 0, 0, 0, 360, 1],
+        TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      },
+    ],
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [7, 8, -0.5, 14, 0, 0, 0],
+        PROPERTIES: {
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.flank,
+            g.halfSpeed,
+            g.halfRange,
+          ]),
+          TYPE: exports.healerBullet,
+        },
+      },
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [18, 8, 1, 0, 0, 0, 0],
+      },
+    ],
+  },
+  3,
+  ""
+);
+exports.sanct_rep_healer = makeMulti(
+  {
+    PARENT: [exports.restorer],
+    TURRETS: [
+      {
+        /*********  SIZE     X       Y     ANGLE    ARC */
+        POSITION: [14.5, 0, 0, 0, 360, 1],
+        TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      },
+    ],
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [16, 8, 1, 0, 0, 180, 1],
+      },
+      {
+        POSITION: [7, 8, -0.5, 12, 0, 180, 0.5],
+        PROPERTIES: {
+          SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed]),
+          TYPE: exports.repairBullet,
+        },
+      },
+      {
+        POSITION: [7, 8, -0.5, 14, 0, 0, 0],
+        PROPERTIES: {
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.flank,
+            g.halfSpeed,
+            g.halfRange,
+          ]),
+          TYPE: exports.healerBullet,
+        },
+      },
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [18, 8, 1, 0, 0, 0, 0],
+      },
+    ],
+  },
+  3,
+  ""
+);
+exports.sanctuary_snow = {
+  PARENT: [exports.sanct_healer],
+  COLOR: 16,
+  INDEPENDENT: true,
+  CONTROLLERS: ["spin", "alwaysFire"],
+  SPIN_RATE: -0.02,
+};
+exports.repsanctuary_snow = {
+  PARENT: [exports.sanct_rep_healer],
+  COLOR: 16,
+  INDEPENDENT: true,
+  CONTROLLERS: ["spin", "alwaysFire"],
+  SPIN_RATE: -0.02,
+};
   //FOOD
   (exports.goldenEgg = {
     PARENT: [exports.food],
