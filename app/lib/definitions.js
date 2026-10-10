@@ -2287,35 +2287,6 @@ exports.dominatorBody = {
   INDEPENDENT: true,
 };
 
-exports.snowstorm = (() => {
-  var guns = [],
-    u = 3;
-  for (var i = 0; i < u; i++) {
-    guns.push({
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [12, 10, 1.4, 8, 0, (360 * i) / u, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.flank, g.mach]),
-        TYPE: exports.bullet,
-      },
-    });
-  }
-  return {
-    PARENT: [exports.genericTank],
-    LABEL: "Snowstorm",
-    BODY: {
-      SPEED: base.SPEED * 1.1,
-    },
-    GUNS: guns,
-  };
-})();
-exports.elite_fort_snow = {
-  PARENT: [exports.hexanomal],
-  COLOR: 5,
-  INDEPENDENT: true,
-  CONTROLLERS: ["alwaysFire"],
-  SPIN_RATE: -0.02,
-};
 exports.dominationBody = {
   LABEL: "",
   COLOR: 9,
@@ -12444,96 +12415,7 @@ function makeHybrid(type, name = -1) {
   return output;
 }),
 
-exports.sanct_healer = makeMulti(
-  {
-    PARENT: [exports.restorer],
-    TURRETS: [
-      {
-        /*********  SIZE     X       Y     ANGLE    ARC */
-        POSITION: [14.5, 0, 0, 0, 360, 1],
-        TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
-      },
-    ],
-    GUNS: [
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [7, 8, -0.5, 14, 0, 0, 0],
-        PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([
-            g.basic,
-            g.flank,
-            g.halfSpeed,
-            g.halfRange,
-          ]),
-          TYPE: exports.healerBullet,
-        },
-      },
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [18, 8, 1, 0, 0, 0, 0],
-      },
-    ],
-  },
-  3,
-  ""
-);
-exports.sanct_rep_healer = makeMulti(
-  {
-    PARENT: [exports.restorer],
-    TURRETS: [
-      {
-        /*********  SIZE     X       Y     ANGLE    ARC */
-        POSITION: [14.5, 0, 0, 0, 360, 1],
-        TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
-      },
-    ],
-    GUNS: [
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [16, 8, 1, 0, 0, 180, 1],
-      },
-      {
-        POSITION: [7, 8, -0.5, 12, 0, 180, 0.5],
-        PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed]),
-          TYPE: exports.repairBullet,
-        },
-      },
-      {
-        POSITION: [7, 8, -0.5, 14, 0, 0, 0],
-        PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([
-            g.basic,
-            g.flank,
-            g.halfSpeed,
-            g.halfRange,
-          ]),
-          TYPE: exports.healerBullet,
-        },
-      },
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [18, 8, 1, 0, 0, 0, 0],
-      },
-    ],
-  },
-  3,
-  ""
-);
-exports.sanctuary_snow = {
-  PARENT: [exports.sanct_healer],
-  COLOR: 16,
-  INDEPENDENT: true,
-  CONTROLLERS: ["spin", "alwaysFire"],
-  SPIN_RATE: -0.02,
-};
-exports.repsanctuary_snow = {
-  PARENT: [exports.sanct_rep_healer],
-  COLOR: 16,
-  INDEPENDENT: true,
-  CONTROLLERS: ["spin", "alwaysFire"],
-  SPIN_RATE: -0.02,
-};
+
   //FOOD
   (exports.goldenEgg = {
     PARENT: [exports.food],
@@ -24538,7 +24420,96 @@ exports.restorer = makeMulti(
   3,
   "Restorer"
 );
-
+exports.sanct_healer = makeMulti(
+  {
+    PARENT: [exports.restorer],
+    TURRETS: [
+      {
+        /*********  SIZE     X       Y     ANGLE    ARC */
+        POSITION: [14.5, 0, 0, 0, 360, 1],
+        TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      },
+    ],
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [7, 8, -0.5, 14, 0, 0, 0],
+        PROPERTIES: {
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.flank,
+            g.halfSpeed,
+            g.halfRange,
+          ]),
+          TYPE: exports.healerBullet,
+        },
+      },
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [18, 8, 1, 0, 0, 0, 0],
+      },
+    ],
+  },
+  3,
+  ""
+);
+exports.sanct_rep_healer = makeMulti(
+  {
+    PARENT: [exports.restorer],
+    TURRETS: [
+      {
+        /*********  SIZE     X       Y     ANGLE    ARC */
+        POSITION: [14.5, 0, 0, 0, 360, 1],
+        TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      },
+    ],
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [16, 8, 1, 0, 0, 180, 1],
+      },
+      {
+        POSITION: [7, 8, -0.5, 12, 0, 180, 0.5],
+        PROPERTIES: {
+          SHOOT_SETTINGS: combineStats([g.basic, g.halfSpeed]),
+          TYPE: exports.repairBullet,
+        },
+      },
+      {
+        POSITION: [7, 8, -0.5, 14, 0, 0, 0],
+        PROPERTIES: {
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.flank,
+            g.halfSpeed,
+            g.halfRange,
+          ]),
+          TYPE: exports.healerBullet,
+        },
+      },
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [18, 8, 1, 0, 0, 0, 0],
+      },
+    ],
+  },
+  3,
+  ""
+);
+exports.sanctuary_snow = {
+  PARENT: [exports.sanct_healer],
+  COLOR: 16,
+  INDEPENDENT: true,
+  CONTROLLERS: ["spin", "alwaysFire"],
+  SPIN_RATE: -0.02,
+};
+exports.repsanctuary_snow = {
+  PARENT: [exports.sanct_rep_healer],
+  COLOR: 16,
+  INDEPENDENT: true,
+  CONTROLLERS: ["spin", "alwaysFire"],
+  SPIN_RATE: -0.02,
+};
 exports.heal3 = {
   PARENT: [exports.genericTank],
   LABEL: "Healer-3",
@@ -38335,6 +38306,36 @@ exports.hexanomal = makeMulti(
   ""
 );
 exports.hexanomaly = makeAuto(exports.hexanomal, "Hexanomaly");
+
+exports.snowstorm = (() => {
+  var guns = [],
+    u = 3;
+  for (var i = 0; i < u; i++) {
+    guns.push({
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [12, 10, 1.4, 8, 0, (360 * i) / u, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.flank, g.mach]),
+        TYPE: exports.bullet,
+      },
+    });
+  }
+  return {
+    PARENT: [exports.genericTank],
+    LABEL: "Snowstorm",
+    BODY: {
+      SPEED: base.SPEED * 1.1,
+    },
+    GUNS: guns,
+  };
+})();
+exports.elite_fort_snow = {
+  PARENT: [exports.hexanomal],
+  COLOR: 5,
+  INDEPENDENT: true,
+  CONTROLLERS: ["alwaysFire"],
+  SPIN_RATE: -0.02,
+};
 exports.autohexa = makeAuto(exports.hexa);
 exports.combine = makeMulti(
   {
