@@ -30230,13 +30230,13 @@ exports.cheese = {
     SPEED: base.SPEED * 0.95,
     FOV: base.FOV * 1.1,
   },
-  MAX_CHILDREN: 3,
+  MAX_CHILDREN: 1,
   GUNS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [10.5, 18, 1.2, 5.5, 0, 0, 1],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.cheese]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.cheese, g.greaterDamage]),
         TYPE: [exports.drone, { DRAW_HEALTH: true }],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,

@@ -395,7 +395,12 @@ const room = {
     square: (c.WIDTH * c.HEIGHT) / 100000000,
     linear: Math.sqrt(c.WIDTH * c.HEIGHT) / 100000000,
   },
-  maxFood: ((c.WIDTH * c.HEIGHT) / 20000) * c.FOOD_AMOUNT,
+  maxFood:
+    ((c.WIDTH * c.HEIGHT) / 20000) *
+    Math.max(
+      0,
+      Number.isFinite(Number(c.FOOD_AMOUNT)) ? Number(c.FOOD_AMOUNT) : 0
+    ),
   isInRoom: (location) => {
     return (
       location.x >= 0 &&
@@ -15818,7 +15823,10 @@ class View {
         }
       });
       this.visibleEntity.forEach((e) => {
-        if (!e.valid() || (!this.isInView(e) && e.alwaysExists | e.isDead())) {
+        // A client must stop tracking an entity once it leaves this view.
+        // The old expression used bitwise OR (|) and only removed ordinary
+        // entities reliably when dead, leaving stale client-side ghosts.
+        if (!e.valid() || !this.isInView(e) || e.isDead()) {
           this.remove(e);
         }
       });
@@ -21543,10 +21551,46 @@ var maintainloop = (() => {
       } else if (census.fallenBoss < 1) timer++;
     };
   })();
+  // ENEMY_INTENSITY is a positive spawn-pressure setting: larger values
+  // should allow a larger population, while zero disables that enemy type.
+  // Preserve the existing balance at each historical default intensity by
+  // inversely scaling the population penalty around that baseline.
+  const getEnemySpawnChance = (
+    baseChance,
+    population,
+    intensity,
+    baseline,
+    coefficient,
+    denominator
+  ) => {
+    const value = Number(intensity);
+    if (
+      !Number.isFinite(value) ||
+      value <= 0 ||
+      !Number.isFinite(denominator) ||
+      denominator <= 0
+    ) {
+      return 0;
+    }
+    const effectivePenalty = (baseline * baseline) / value;
+    const rawChance =
+      baseChance -
+      (coefficient * population * effectivePenalty) / denominator;
+    return Math.max(0, Math.min(1, rawChance));
+  };
+
   let spawnCrasher = (census) => {
     if (
       ran.chance(
-        1 - (15 * census.crasher * c.ENEMY_INTENSITY.CRASHERS) / room.maxFood
+        room.maxFood > 0 &&
+        getEnemySpawnChance(
+          1,
+          census.crasher,
+          c.ENEMY_INTENSITY && c.ENEMY_INTENSITY.CRASHERS,
+          25,
+          15,
+          room.maxFood
+        )
       )
     ) {
       let spot,
@@ -21703,7 +21747,15 @@ var maintainloop = (() => {
   let spawnSentinel = (census) => {
     if (
       ran.chance(
-        1 - (25 * census.crasher * c.ENEMY_INTENSITY.SENTINELS) / room.maxFood
+        room.maxFood > 0 &&
+        getEnemySpawnChance(
+          1,
+          census.crasher,
+          c.ENEMY_INTENSITY && c.ENEMY_INTENSITY.SENTINELS,
+          5,
+          25,
+          room.maxFood
+        )
       )
     ) {
       let spot,
@@ -21842,11 +21894,16 @@ var maintainloop = (() => {
   let spawnThrasher = (census) => {
     if (
       ran.chance(
-        0.5 -
-          (3.5 * census.thrasher * c.ENEMY_INTENSITY.THRASHERS) /
-            room.maxFood /
-            room.nestFoodAmount /
+        getEnemySpawnChance(
+          0.5,
+          census.thrasher,
+          c.ENEMY_INTENSITY && c.ENEMY_INTENSITY.THRASHERS,
+          15,
+          3.5,
+          room.maxFood *
+            room.nestFoodAmount *
             (c.playerCount * 2.5 + 2.5)
+        )
       )
     ) {
       let spot,
@@ -23123,7 +23180,7 @@ var maintainloop = (() => {
       }
     }
     // Add them
-    if (c.SPAWN_FOOD !== false) {
+    if (c.SPAWN_FOOD !== false && room.maxFood > 0) {
       foodSpawners.push(new FoodSpawner());
       foodSpawners.push(new FoodSpawner());
       foodSpawners.push(new FoodSpawner());
@@ -23353,7 +23410,7 @@ var maintainloop = (() => {
     logs.maintainloop.set();
     // Do stuff
     makenpcs();
-    if (c.SPAWN_FOOD !== false) makefood(loadProtection.shouldSpawnFood());
+    if (c.SPAWN_FOOD !== false && room.maxFood > 0) makefood(loadProtection.shouldSpawnFood());
     // Regen health and update the grid
     entities.forEach((instance) => {
       if (instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;
