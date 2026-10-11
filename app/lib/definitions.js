@@ -12109,21 +12109,24 @@ exports.c4turret = {
   LABEL: "Deployed Plastic Explosive",
   DEATH_THROES: "plasticExplosion",
   GROWTH_FACTOR: 1.25,
-  BODY: {
-    FOV: 1.75,
-    SPEED: 0,
-    ACCELERATION: 0,
-    HEALTH: 2.5,
-    SHIELD: 0,
-    DAMAGE: 1.35,
-    RESIST: 1,
-    PENETRATION: 1,
-    RANGE: 100,
-    DENSITY: 0.4,
-    REGEN: 0,
-    PUSHABILITY: 0,
-  },
   GUNS: [],
+  TURRETS: [
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [21.5, 0, 0, 0, 361, 0],
+      TYPE: exports.dominatorBody,
+    },
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [11, 0, 0, 0, 360, 1],
+      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ]
 };
 exports.researcherStationedTurret = {
   PARENT: [exports.experimenterStationedTurret],
@@ -40486,7 +40489,7 @@ exports.c4deployer = {
     },
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [9, 0, 0, 0, 360, 1],
+      POSITION: [11, 0, 0, 0, 360, 1],
       TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
   ],
@@ -40502,7 +40505,7 @@ exports.c4deployer = {
     {
       POSITION: [8, 11, 1.3, 18, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
+        SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize, g.lesserHealth]),
         TYPE: [exports.c4turret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
