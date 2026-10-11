@@ -1,65 +1,33 @@
 "use strict";
 
-const ROCK_LABELS = /^(rock|gravel|rubble|boulder|abyssal stonecage)$/i;
-
-function isGateOrFortWall(entity) {
+function isSolidOccluder(entity) {
   if (!entity) return false;
-  const type = String(entity.type || "").toLowerCase();
-  const label = String(entity.label || "").toLowerCase();
-  return Boolean(
-    entity.isGate ||
-      entity.isFortGate ||
-      entity.isFortWall ||
-      type === "fortgate" ||
-      type === "fortwall" ||
-      label === "fort gate" ||
-      label === "fort wall"
-  );
-}
-
-function isWallOccluder(entity) {
-  if (!entity || isGateOrFortWall(entity)) return false;
-  const type = String(entity.type || "").toLowerCase();
   const label = String(entity.label || "");
-  // Maze walls block projectiles. Do not use isWall by itself: fort walls
-  // also carry that runtime flag, but projectiles can pass through them.
+  const type = String(entity.type || "");
+
+  // Gates and fort walls do not block projectiles, so they must never occlude
+  // target selection. Maze/room walls and solid rocks do.
+  if (
+    entity.isGate ||
+    type === "fortWall" ||
+    type === "fortGate" ||
+    /^fort wall$/i.test(label) ||
+    /^fort gate$/i.test(label)
+  ) return false;
+
   return Boolean(
     entity.isMazeWall ||
-      type === "squarewall" ||
+      entity.isWall ||
       type === "wall" ||
-      /^maze wall$/i.test(label)
-  );
-}
-
-function isRockOccluder(entity) {
-  if (!entity || isGateOrFortWall(entity)) return false;
-  return ROCK_LABELS.test(String(entity.label || ""));
-}
-
-function isSolidOccluder(entity) {
-  return isWallOccluder(entity) || isRockOccluder(entity);
-}
-
-function canIgnoreWallOcclusion(source) {
-  if (!source) return false;
-  const effect = String(source.specialEffect || "").toLowerCase();
-  return Boolean(
-    source.isRanar === true ||
-      String(source.name || "").toLowerCase() === "ranar" ||
-      source.ignoreCollision === true ||
-      source.canDestroyWalls === true ||
-      source.wallDestroyer === true ||
-      effect === "diewall" ||
-      effect === "crusherfortwall"
+      type === "squareWall" ||
+      /^(rock|gravel|rubble|boulder|abyssal stonecage)$/i.test(label)
   );
 }
 
 /**
- * Determine whether a straight ray from source to target is unobstructed.
- * Maze walls and rocks block ordinary AI. Wall-breaking or wall-phasing AI
- * can see through maze walls, but rocks still block line of sight. Gates and
- * fort walls never occlude the ray because projectiles pass through them.
- * getCandidates(midpoint, radius) should query the server's spatial index.
+ * Determine whether a straight ray from source to target is unobstructed by
+ * solid wall/rock entities. getCandidates(midpoint, radius) should return
+ * nearby entities from the server's existing spatial index.
  */
 function hasClearLineOfSight(source, target, getCandidates) {
   if (
@@ -82,29 +50,28 @@ function hasClearLineOfSight(source, target, getCandidates) {
 
   const length = Math.sqrt(lengthSquared);
   const midpoint = { x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 };
+  // The segment lies inside this midpoint-centred square. The spatial index's
+  // AABBs already include each entity's collision radius, so a small margin is
+  // sufficient to capture walls/rocks touching the ray.
   const candidates = getCandidates(midpoint, length / 2 + 12) || [];
-  const ignoresWalls = canIgnoreWallOcclusion(source);
 
   for (const obstacle of candidates) {
     if (
       !obstacle ||
       obstacle === source ||
       obstacle === target ||
+      !isSolidOccluder(obstacle) ||
       !Number.isFinite(obstacle.x) ||
-      !Number.isFinite(obstacle.y) ||
-      isGateOrFortWall(obstacle)
+      !Number.isFinite(obstacle.y)
     ) {
       continue;
     }
-
-    const isWall = isWallOccluder(obstacle);
-    const isRock = isRockOccluder(obstacle);
-    if ((!isWall && !isRock) || (isWall && ignoresWalls)) continue;
 
     const radiusValue = Number(obstacle.realSize ?? obstacle.size);
     const radius = (Number.isFinite(radiusValue) ? Math.max(0, radiusValue) : 0) + 4;
     if (radius <= 4) continue;
 
+    // Project the obstacle centre onto the finite source-target segment.
     const t =
       ((obstacle.x - source.x) * dx + (obstacle.y - source.y) * dy) /
       lengthSquared;
@@ -114,14 +81,13 @@ function hasClearLineOfSight(source, target, getCandidates) {
     const closestY = source.y + t * dy;
     const offsetX = obstacle.x - closestX;
     const offsetY = obstacle.y - closestY;
-    if (offsetX * offsetX + offsetY * offsetY <= radius * radius) return false;
+    if (offsetX * offsetX + offsetY * offsetY <= radius * radius) {
+      return false;
+    }
   }
 
   return true;
 }
 
 hasClearLineOfSight.isSolidOccluder = isSolidOccluder;
-hasClearLineOfSight.isWallOccluder = isWallOccluder;
-hasClearLineOfSight.isRockOccluder = isRockOccluder;
-hasClearLineOfSight.canIgnoreWallOcclusion = canIgnoreWallOcclusion;
 module.exports = hasClearLineOfSight;

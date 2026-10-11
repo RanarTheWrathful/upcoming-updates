@@ -40,6 +40,5 @@ module.exports =
   "SPAWN_FOOD": true,
   "SPAWN_NEUTRAL_BOSSES": false,
   "SPAWN_CRASHER": false,
-  "SPAWN_SENTINEL": false,
-  "BASE_DRONES": false
+  "SPAWN_SENTINEL": false
 }

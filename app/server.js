@@ -25,57 +25,56 @@ const { performance } = require("perf_hooks");
 let currentState = serverState.getServerState();
 
 const lockFilePath = path.join(__dirname, "serv.lock");
+// Create lock file
+fs.writeFileSync(lockFilePath, process.pid.toString());
 
-// Select a mode by setting GAME_MODE to a Game Modes/*.js filename (without .js).
-// Otherwise SERVER_TYPE keeps the existing testing/normal/lore selection behavior.
-function countInstances(items) {
-  return items.reduce((counts, item) => {
-    if (typeof item === "string" && item.length) {
-      counts[item] = (counts[item] || 0) + 1;
+let chosenMode;
+function countInstances(arr) {
+  const countMap = {}; // Object to store counts
+
+  // Loop through each element in the array
+  arr.forEach((item) => {
+    if (countMap[item]) {
+      countMap[item]++; // Increment count if item exists
+    } else {
+      countMap[item] = 1; // Initialize count if item does not exist
     }
-    return counts;
-  }, Object.create(null));
-}
+  });
 
+  return countMap; // Return the object containing counts
+}
 function pickTheBiggest(countMap) {
-  const entries = Object.entries(countMap);
-  if (!entries.length) return null;
-  const maxCount = Math.max(...entries.map(([, count]) => count));
-  const tied = entries.filter(([, count]) => count === maxCount);
-  const [selected, count] = tied[Math.floor(Math.random() * tied.length)];
-  return { selected, count };
-}
+  // Determine the maximum count
+  let maxCount = -1;
+  let maxItems = [];
 
-const gameModesDirectory = path.join(__dirname, "Game Modes");
-const availableModeNames = fs
-  .readdirSync(gameModesDirectory)
-  .filter((file) => file.endsWith(".js") && file !== "serverStateManager.js")
-  .map((file) => path.basename(file, ".js"));
-
-function resolveModeName(requestedName) {
-  const normalized = String(requestedName || "").trim().toLowerCase();
-  const match = availableModeNames.find((name) => name.toLowerCase() === normalized);
-  if (!match) {
-    throw new Error(
-      `Unknown GAME_MODE "${requestedName}". Available modes: ${availableModeNames.join(", ")}`
-    );
+  for (let key in countMap) {
+    if (countMap[key] > maxCount) {
+      maxCount = countMap[key];
+      maxItems = [key]; // Reset maxItems with the new maximum count item
+    } else if (countMap[key] === maxCount) {
+      maxItems.push(key); // Add to maxItems if count is equal to maxCount
+    }
   }
-  return match;
+
+  // Randomly select one item from maxItems
+  const randomIndex = Math.floor(Math.random() * maxItems.length);
+  const selected = maxItems[randomIndex];
+
+  // Return just the selected item (not wrapped in an array)
+  return { selected, count: maxCount };
 }
 
-let chosenMode,
-modeList = [];
-const serverType = String(process.env.SERVER_TYPE || "testing").trim().toLowerCase();
-const requestedMode = process.env.GAME_MODE;
-
-if (requestedMode && requestedMode.trim()) {
-  chosenMode = resolveModeName(requestedMode);
-} else if (serverType === "jj's reasearch facility") {
-  chosenMode = resolveModeName("JJ's Reasearch Facility");
-} else if (serverType === "testing") {
-  chosenMode = resolveModeName("The Denied");
-} else if (serverType === "normal") {
+let modeList = ["Unknown"];
+let serverType = "testing"; //change this to play preset modes look
+if (serverType === "JJ's Reasearch Facility")
+  chosenMode = "JJ's Reasearch Facility"; //or this
+if (serverType === "testing") chosenMode = "The Denied";
+//change this to play a specifict mode
+else if (serverType === "normal") {
+  //dont change these - J.J.
   modeList = [
+    //oh ok - kris
     "Open Execution",
     "Maze Execution",
     "4TDM Growth",
@@ -97,16 +96,24 @@ if (requestedMode && requestedMode.trim()) {
     "Grudge Ball",
     "Siege",
   ];
-  const votes = Array.isArray(currentState.modeVotes) ? currentState.modeVotes : [];
-  const validVotes = votes.filter((vote) => typeof vote === "string" && modeList.includes(vote));
-  const result = validVotes.length ? pickTheBiggest(countInstances(validVotes)) : null;
-  chosenMode = result ? result.selected : ran.choose(modeList);
+  if (currentState.modeVotes.length === 0) {
+    chosenMode = ran.choose(modeList);
+  } else {
+    let votes = countInstances(currentState.modeVotes);
+    let result = pickTheBiggest(votes);
+    chosenMode = result.selected;
+  }
   currentState.modeVotes = [];
-  if (chosenMode === "Siege" && !(currentState.bossWaves > 50)) {
-    currentState.modeVotes = ["Siege", "Siege", "Siege"];
+  if (chosenMode === "Siege") {
+    for (let i = 0; i < 3; i++) {
+      currentState.modeVotes.push("Siege");
+    }
+    if (currentState.bossWaves > 50) {
+      currentState.modeVotes = [];
+    }
   }
 } else if (serverType === "lore") {
- modeList = [
+  modeList = [
     "The Expanse",
     "The Infestation",
     "The Controlled",
@@ -114,29 +121,33 @@ if (requestedMode && requestedMode.trim()) {
     "The Awakening",
     "The Distance",
   ];
-  const index = Number.isInteger(currentState.loreModeIndex)
-    ? currentState.loreModeIndex
-    : 0;
-  if (index >= 0 && index < modeList.length) {
-    chosenMode = modeList[index];
+  let listCount = modeList.length;
+  if (listCount > currentState.loreModeIndex) {
+    chosenMode = modeList[currentState.loreModeIndex];
   } else {
     chosenMode = modeList[0];
     serverState.resetLoreIndex();
   }
-} else {
-  throw new Error(
-    `Unknown SERVER_TYPE "${serverType}". Use testing, normal, lore, or set GAME_MODE explicitly.`
-  );
 }
 
 //serverState.resetLoreIndex();
 //serverState.advanceLoreSequence();
-const config = require("./config.js");
-const gameMode = require("./Game Modes/" + chosenMode);
-const resolveModeConfig = require("./lib/modeConfig");
-const c = resolveModeConfig(config, gameMode, chosenMode);
-// Write the lock only after mode selection and config validation succeed.
-fs.writeFileSync(lockFilePath, process.pid.toString());
+let config = require("./config.js"),
+  gameMode = require("./Game Modes/" + chosenMode),
+  c = {
+    ...config,
+    ...gameMode,
+    // Mode-specific overrides should replace individual nested settings, not
+    // silently discard unrelated defaults when only one key is supplied.
+    ENEMY_INTENSITY: {
+      ...(config.ENEMY_INTENSITY || {}),
+      ...(gameMode.ENEMY_INTENSITY || {}),
+    },
+    BOSS_LIMIT: {
+      ...(config.BOSS_LIMIT || {}),
+      ...(gameMode.BOSS_LIMIT || {}),
+    },
+  };
 //util.log(JSON.stringify(c, null, 2));
 const decodeHTML = require("html-entities").decode;
 // Set up room
@@ -1504,11 +1515,6 @@ function makeDominators() {
   }
 }
 function makeFortGates() {
-  // The Denied creates gates during initial room setup. Shrine destruction
-  // also calls this function, so don't stack duplicate gates during the event.
-  if (c.MODE === "theDenied" && c._deniedFortGatesCreated) return;
-  if (c.MODE === "theDenied") c._deniedFortGatesCreated = true;
-
   let gridWidth = room.width / room.xgrid;
   let gridHeight = room.height / room.ygrid;
 
@@ -3011,7 +3017,97 @@ class io_nearestDifferentMaster extends IO {
     this.lead = 0;
     this.validTargets = this.buildList(body.fov / 2);
     this.oldHealth = body.health.display();
+    // Damage-response targeting is independent of the normal target refresh cadence.
+    this.lastObservedHealth = (body.bond == null ? body : body.bond).health.display();
+    this.lastObservedDurability = this.getDurabilityRatio(body.bond == null ? body : body.bond);
+    this.damageHistory = new Map();
+    this.damageFocusTarget = undefined;
+    this.damageFocusUntil = 0;
     this.body.facing = 0;
+  }
+
+  getDurabilityRatio(entity) {
+    const health = entity.health;
+    const shield = entity.shield;
+    const current = Math.max(0, health?.amount || 0) + Math.max(0, shield?.amount || 0);
+    const maximum = Math.max(0, health?.max || 0) + Math.max(0, shield?.max || 0);
+    return maximum > 0 ? current / maximum : 1;
+  }
+
+  resolveDamageSource(hit) {
+    if (!hit) return undefined;
+    // Projectiles normally expose their owner through master; preserve the
+    // existing engine convention for entities whose master is the world.
+    let source = hit;
+    if (hit.master) {
+      source = hit.master.id === -1 && hit.source ? hit.source : hit.master;
+    }
+    if (!source || source === this.body || source === this.body.master) return undefined;
+    if (typeof source.valid === "function" && !source.valid()) return undefined;
+    if (source.isWall || source.isGate || source.isDominator || source.type === "tile") return undefined;
+    if (source.team === this.body.team) return undefined;
+    return source;
+  }
+
+  updateDamageFocus(now) {
+    const damageRef = this.body.bond == null ? this.body : this.body.bond;
+    const currentHealth = damageRef.health.display();
+    const currentDurability = this.getDurabilityRatio(damageRef);
+
+    // While focused, do not collect or evaluate aggro triggers. Keep both
+    // baselines current so damage during the focus window cannot trigger later.
+    if (this.damageFocusTarget && now < this.damageFocusUntil) {
+      this.lastObservedHealth = currentHealth;
+      this.lastObservedDurability = currentDurability;
+      return this.damageFocusTarget;
+    }
+
+    if (this.damageFocusTarget && now >= this.damageFocusUntil) {
+      this.damageFocusTarget = undefined;
+      this.damageFocusUntil = 0;
+      this.targetLock = undefined;
+      this.damageHistory.clear();
+    }
+
+    const durabilityLost = this.lastObservedDurability - currentDurability;
+    this.lastObservedHealth = currentHealth;
+    this.lastObservedDurability = currentDurability;
+
+    // Durability is normalized across maximum health plus shield, so a loss of
+    // 0.10 represents ten percent of the entity's combined defensive pool.
+    if (durabilityLost > 0) {
+      const collisions = damageRef.collisionArray || [];
+      let attacker;
+      for (let i = collisions.length - 1; i >= 0; i--) {
+        attacker = this.resolveDamageSource(collisions[i]);
+        if (attacker) break;
+      }
+
+      if (attacker) {
+        const previousHits = (this.damageHistory.get(attacker) || [])
+          .filter((timestamp) => now - timestamp <= 5000);
+        previousHits.push(now);
+        this.damageHistory.set(attacker, previousHits);
+
+        if (durabilityLost >= 0.20 || previousHits.length >= 5 || currentHealth <= 0.20) {
+          this.damageFocusTarget = attacker;
+          this.damageFocusUntil = now + 5000;
+          this.targetLock = attacker.master;
+          // The triggering hit starts a clean focus window. No further damage
+          // criteria are accumulated until the five seconds expire.
+          this.damageHistory.clear();
+          return attacker;
+        }
+      }
+    }
+
+    // Keep the history bounded to attackers that have hit in the last five seconds.
+    for (const [attacker, timestamps] of this.damageHistory) {
+      const recent = timestamps.filter((timestamp) => now - timestamp <= 5000);
+      if (recent.length) this.damageHistory.set(attacker, recent);
+      else this.damageHistory.delete(attacker);
+    }
+    return undefined;
   }
 
   /* buildList(range) {
@@ -3601,11 +3697,18 @@ class io_nearestDifferentMaster extends IO {
     // Targets behind solid walls or rocks should not be visible to this AI.
     // Keep this check after the normal target filters so rays are only cast for
     // plausible targets, rather than every active entity in the room.
-    out = out.filter((target) =>
-      hasClearLineOfSight(this.body, target, (midpoint, searchRadius) =>
-        getEntitiesFromRange(midpoint, searchRadius)
-      )
-    );
+    const canIgnoreWallOcclusion =
+      this.body.specialEffect === "dieWall" ||
+      this.body.specialEffect === "crusherFortWall" ||
+      this.body.ignoreCollision === true ||
+      this.body.canDestroyWalls === true;
+    if (!canIgnoreWallOcclusion) {
+      out = out.filter((target) =>
+        hasClearLineOfSight(this.body, target, (midpoint, searchRadius) =>
+          getEntitiesFromRange(midpoint, searchRadius)
+        )
+      );
+    }
 
     // If there are no valid targets, return an empty array
     if (!out.length) return [];
@@ -3676,6 +3779,41 @@ class io_nearestDifferentMaster extends IO {
         break;
       }
     }
+    // Prioritize an attacker that triggered the damage-response rule. While
+    // the five-second focus is active, do not run normal target selection.
+    const now = Date.now();
+    const focusedAttacker = this.updateDamageFocus(now);
+    if (focusedAttacker && now < this.damageFocusUntil) {
+      this.targetLock = focusedAttacker;
+      if (focusedAttacker.health.amount > 0 && (typeof focusedAttacker.valid !== "function" || focusedAttacker.valid())) {
+        const radial = focusedAttacker.velocity || { x: 0, y: 0 };
+        const diff = {
+          x: focusedAttacker.x - this.body.x,
+          y: focusedAttacker.y - this.body.y,
+        };
+        if (this.tick % 4 === 0) {
+          this.lead = 0;
+          if (!this.body.aiSettings.chase) {
+            this.lead = timeOfImpact(diff, radial, tracking);
+          }
+        }
+        if (!this.body.isWall) {
+          return {
+            target: {
+              x: diff.x + this.lead * radial.x,
+              y: diff.y + this.lead * radial.y,
+            },
+            fire: true,
+            main: true,
+          };
+        }
+        return { fire: true, main: true };
+      }
+      // If the attacker dies during the lock, keep the focus window but do not
+      // opportunistically switch to another target until it expires.
+      return {};
+    }
+
     // Check if my target's alive
     if (this.targetLock) {
       if (
@@ -3741,19 +3879,9 @@ class io_nearestDifferentMaster extends IO {
         break;
       case "general":
       default:
-        let damageRef = this.body.bond == null ? this.body : this.body.bond;
-        if (
-          damageRef.collisionArray.length &&
-          damageRef.health.display() < this.oldHealth
-        ) {
-          this.oldHealth = damageRef.health.display();
-          if (this.validTargets.indexOf(damageRef.collisionArray[0]) === -1) {
-            this.targetLock =
-              damageRef.collisionArray[0].master.id === -1
-                ? damageRef.collisionArray[0].source
-                : damageRef.collisionArray[0].master;
-          }
-        }
+        // Damage-response focus is handled centrally above for every targeting
+        // mode. Do not let the old one-hit retaliation logic override its lock.
+        break;
     }
     // Consider how fast it's moving and shoot at it
     if (this.targetLock != null && this.targetLock.valid()) {
@@ -7343,7 +7471,6 @@ class Entity {
             break;
           case "theDenied":
             this.define(Class.deniedLegendaryClasses);
-            if(this.skill.score < 1000000) this.skill.score = 1000000;
             break;
         }
         this.skill.points += 15;
@@ -9209,7 +9336,10 @@ class Entity {
         this.shield.amount /= 2;
       }
 
-      if (c.initiateHELL) {
+      // This event is checked from the entity update loop, so it must be
+      // latched before scheduling announcements/spawns or it repeats per entity.
+      if (c.initiateHELL && !c.initiateHELLStarted) {
+        c.initiateHELLStarted = true;
         sockets.broadcast(
           "Twilight: Um, I am sensing alot of powerful forces coming!"
         );
@@ -10739,6 +10869,8 @@ class Entity {
                     ]
                   );
                 }
+                o.accel.x + Math.random * 0.1 - 0.2;
+                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -10838,6 +10970,8 @@ class Entity {
                     ])
                   ]
                 );
+                o.accel.x + Math.random * 0.1 - 0.2;
+                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -11047,7 +11181,7 @@ class Entity {
                   case 2:
                     o.color = 13;
                     o.define(Class.sardonyxPower1);
-                    c.SPAWN_CRASHER = true;
+                    c.SPAWN_CRASHERS = true;
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
@@ -11436,6 +11570,8 @@ class Entity {
                     ]
                   );
                 }
+                o.accel.x + Math.random * 0.1 - 0.2;
+                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -11534,6 +11670,8 @@ class Entity {
                     ])
                   ]
                 );
+                o.accel.x + Math.random * 0.1 - 0.2;
+                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -11746,9 +11884,7 @@ class Entity {
                   case 2:
                     o.color = 13;
                     o.define(Class.ranarPower1);
-                    // Keep The Denied's ambient crasher spawner disabled; the
-                    // boss's scripted attack already provides its own minions.
-                    c.SPAWN_CRASHER = false;
+                    c.SPAWN_CRASHERS = true;
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
@@ -12109,6 +12245,8 @@ class Entity {
                     ]
                   );
                 }
+                o.accel.x + Math.random * 0.1 - 0.2;
+                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -13400,49 +13538,38 @@ console.log('Lore mode sequence advanced.');*/
           this.trulyDead = false;
           this.health.amount = 1;
           this.REGEN = 7.5;
-
-          // This code runs every simulation tick; use elapsed time so dialogue
-          // lines are spaced out instead of all being broadcast in a burst.
-          const now = Date.now();
-          if (this.twiDialog === undefined) {
-            this.twiDialog = 0;
-            this.twiDialogNextAt = now + 6000;
-          }
-          if (now >= this.twiDialogNextAt) {
-            this.twiDialog += 1;
-            this.twiDialogNextAt = now + 6000;
-            switch (this.twiDialog) {
-              case 1:
-                sockets.broadcast("Twilight: ...");
-                break;
-              case 2:
-                sockets.broadcast(
-                  "Twilight: ...Some help would be nice, yah know."
-                );
-                break;
-              case 3:
-                sockets.broadcast("Twilight: UGH!!!!!!");
-                break;
-              case 4:
-                sockets.broadcast(
-                  "Twilight: wait.... ARE YOU MAKING ME SOLO RANAR!?"
-                );
-                break;
-              case 5:
-                sockets.broadcast(
-                  "Twilight: Don't tell me you're doing the kill ranar with basic challenge....."
-                );
-                break;
-              case 6:
-                sockets.broadcast(
-                  "Twilight: F*** YOU, I AM OUTTA HERE! I'MA WATCH YOU FIGHT RANAR INSTEAD!"
-                );
-                this.destroy();
-                break;
-            }
+          if (this.twiDialog === undefined) this.twiDialog = 0;
+          else this.twiDialog += 1;
+          switch (this.twiDialog) {
+            case 2:
+              sockets.broadcast("Twilight: ...");
+              break;
+            case 4:
+              sockets.broadcast(
+                "Twilight: ...Some help would be nice, yah know."
+              );
+              break;
+            case 6:
+              sockets.broadcast("Twilight: UGH!!!!!!");
+              break;
+            case 8:
+              sockets.broadcast(
+                "Twilight: wait.... ARE YOU MAKING ME SOLO RANAR!?"
+              );
+              break;
+            case 9:
+              sockets.broadcast(
+                "Twilight: Don't tell me you're doing the kill ranar with basic challenge....."
+              );
+              break;
+            case 10:
+              sockets.broadcast(
+                "Twilight: F*** YOU, I AM OUTTA HERE! I'MA WATCH YOU FIGHT RANAR INSTEAD!"
+              );
+              this.destroy();
+              break;
           }
         }
-
         if (
           this.team === -101 ||
           (this.team === -100 &&
@@ -22005,6 +22132,8 @@ var maintainloop = (() => {
           Class[ran.choose(["commanderKeeper", "directorKeeper", "overKeeper"])]
         );
       }
+      o.accel.x + Math.random * 0.1 - 0.2;
+      o.accel.y + Math.random * 0.1 - 0.2;
       o.facing = ran.randomAngle();
       o.team = -100;
       o._loadProtectionNaturalSpawn = true;
@@ -22055,6 +22184,8 @@ var maintainloop = (() => {
             o.define(Class[ran.choose(["doYouUnderStand?"])]);
             sockets.broadcast("Maybe anounce it if its a rare spawn?");
           }
+          o.accel.x + Math.random * 0.1 - 0.2;
+          o.accel.y + Math.random * 0.1 - 0.2;
           o.facing = ran.randomAngle();
           o.team = -100;
           break;
@@ -22063,6 +22194,8 @@ var maintainloop = (() => {
             Class[ran.choose(["Unawakened1", "Unawakened2", "Unawakened3"])]
           );
 
+          o.accel.x + Math.random * 0.1 - 0.2;
+          o.accel.y + Math.random * 0.1 - 0.2;
           o.facing = ran.randomAngle();
           o.team = -5;
           break;
@@ -22094,6 +22227,8 @@ var maintainloop = (() => {
           ])
         ]
       );
+      o.accel.x + Math.random * 0.1 - 0.2;
+      o.accel.y + Math.random * 0.1 - 0.2;
       o.facing = ran.randomAngle();
       o.team = -100;
       o._loadProtectionNaturalSpawn = true;

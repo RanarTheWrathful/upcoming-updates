@@ -102,18 +102,9 @@ module.exports =
     },
   "SPAWN_CRASHER": true,
   "SPAWN_SENTINEL": true,
-  "SPAWN_PENTAGON_SENTINELS": false,
   "SPAWN_GUARDIAN_BOSSES": false,
   "SPAWN_FALLEN_BOSSES": false,
-  "SPAWN_FALLEN_ENEMIES": false,
   "SPAWN_VOIDLORD_ENEMIES": false,
-  "SPAWN_VOIDLORD_BOSSES_AND_ENEMIES": false,
-  "SPAWN_DESCENDED_ENEMIES": false,
-  "SPAWN_SPARKS": false,
-  "SPAWN_SPECIAL_BOSSES": false,
-  "SPAWN_SPECIAL_ENEMIES": false,
-  "SPAWN_REAPER": false,
-  "SPAWN_THRASHERS": false,
   "REDUCE_BOTS_PER_PLAYER": 1,
   "ACTIVATION_MODE": "normal"
 }
