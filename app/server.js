@@ -69,7 +69,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "The Denied";
+if (serverType === "testing") chosenMode = "The Expanse";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -134,20 +134,7 @@ else if (serverType === "normal") {
 //serverState.advanceLoreSequence();
 let config = require("./config.js"),
   gameMode = require("./Game Modes/" + chosenMode),
-  c = {
-    ...config,
-    ...gameMode,
-    // Mode-specific overrides should replace individual nested settings, not
-    // silently discard unrelated defaults when only one key is supplied.
-    ENEMY_INTENSITY: {
-      ...(config.ENEMY_INTENSITY || {}),
-      ...(gameMode.ENEMY_INTENSITY || {}),
-    },
-    BOSS_LIMIT: {
-      ...(config.BOSS_LIMIT || {}),
-      ...(gameMode.BOSS_LIMIT || {}),
-    },
-  };
+  c = { ...config, ...gameMode };
 //util.log(JSON.stringify(c, null, 2));
 const decodeHTML = require("html-entities").decode;
 // Set up room
@@ -3017,97 +3004,7 @@ class io_nearestDifferentMaster extends IO {
     this.lead = 0;
     this.validTargets = this.buildList(body.fov / 2);
     this.oldHealth = body.health.display();
-    // Damage-response targeting is independent of the normal target refresh cadence.
-    this.lastObservedHealth = (body.bond == null ? body : body.bond).health.display();
-    this.lastObservedDurability = this.getDurabilityRatio(body.bond == null ? body : body.bond);
-    this.damageHistory = new Map();
-    this.damageFocusTarget = undefined;
-    this.damageFocusUntil = 0;
     this.body.facing = 0;
-  }
-
-  getDurabilityRatio(entity) {
-    const health = entity.health;
-    const shield = entity.shield;
-    const current = Math.max(0, health?.amount || 0) + Math.max(0, shield?.amount || 0);
-    const maximum = Math.max(0, health?.max || 0) + Math.max(0, shield?.max || 0);
-    return maximum > 0 ? current / maximum : 1;
-  }
-
-  resolveDamageSource(hit) {
-    if (!hit) return undefined;
-    // Projectiles normally expose their owner through master; preserve the
-    // existing engine convention for entities whose master is the world.
-    let source = hit;
-    if (hit.master) {
-      source = hit.master.id === -1 && hit.source ? hit.source : hit.master;
-    }
-    if (!source || source === this.body || source === this.body.master) return undefined;
-    if (typeof source.valid === "function" && !source.valid()) return undefined;
-    if (source.isWall || source.isGate || source.isDominator || source.type === "tile") return undefined;
-    if (source.team === this.body.team) return undefined;
-    return source;
-  }
-
-  updateDamageFocus(now) {
-    const damageRef = this.body.bond == null ? this.body : this.body.bond;
-    const currentHealth = damageRef.health.display();
-    const currentDurability = this.getDurabilityRatio(damageRef);
-
-    // While focused, do not collect or evaluate aggro triggers. Keep both
-    // baselines current so damage during the focus window cannot trigger later.
-    if (this.damageFocusTarget && now < this.damageFocusUntil) {
-      this.lastObservedHealth = currentHealth;
-      this.lastObservedDurability = currentDurability;
-      return this.damageFocusTarget;
-    }
-
-    if (this.damageFocusTarget && now >= this.damageFocusUntil) {
-      this.damageFocusTarget = undefined;
-      this.damageFocusUntil = 0;
-      this.targetLock = undefined;
-      this.damageHistory.clear();
-    }
-
-    const durabilityLost = this.lastObservedDurability - currentDurability;
-    this.lastObservedHealth = currentHealth;
-    this.lastObservedDurability = currentDurability;
-
-    // Durability is normalized across maximum health plus shield, so a loss of
-    // 0.10 represents ten percent of the entity's combined defensive pool.
-    if (durabilityLost > 0) {
-      const collisions = damageRef.collisionArray || [];
-      let attacker;
-      for (let i = collisions.length - 1; i >= 0; i--) {
-        attacker = this.resolveDamageSource(collisions[i]);
-        if (attacker) break;
-      }
-
-      if (attacker) {
-        const previousHits = (this.damageHistory.get(attacker) || [])
-          .filter((timestamp) => now - timestamp <= 5000);
-        previousHits.push(now);
-        this.damageHistory.set(attacker, previousHits);
-
-        if (durabilityLost >= 0.20 || previousHits.length >= 10 || currentHealth <= 0.20) {
-          this.damageFocusTarget = attacker;
-          this.damageFocusUntil = now + 5000;
-          this.targetLock = attacker.master;
-          // The triggering hit starts a clean focus window. No further damage
-          // criteria are accumulated until the five seconds expire.
-          this.damageHistory.clear();
-          return attacker;
-        }
-      }
-    }
-
-    // Keep the history bounded to attackers that have hit in the last five seconds.
-    for (const [attacker, timestamps] of this.damageHistory) {
-      const recent = timestamps.filter((timestamp) => now - timestamp <= 5000);
-      if (recent.length) this.damageHistory.set(attacker, recent);
-      else this.damageHistory.delete(attacker);
-    }
-    return undefined;
   }
 
   /* buildList(range) {
@@ -3697,18 +3594,11 @@ class io_nearestDifferentMaster extends IO {
     // Targets behind solid walls or rocks should not be visible to this AI.
     // Keep this check after the normal target filters so rays are only cast for
     // plausible targets, rather than every active entity in the room.
-    const canIgnoreWallOcclusion =
-      this.body.specialEffect === "dieWall" ||
-      this.body.specialEffect === "crusherFortWall" ||
-      this.body.ignoreCollision === true ||
-      this.body.canDestroyWalls === true;
-    if (!canIgnoreWallOcclusion) {
-      out = out.filter((target) =>
-        hasClearLineOfSight(this.body, target, (midpoint, searchRadius) =>
-          getEntitiesFromRange(midpoint, searchRadius)
-        )
-      );
-    }
+    out = out.filter((target) =>
+      hasClearLineOfSight(this.body, target, (midpoint, searchRadius) =>
+        getEntitiesFromRange(midpoint, searchRadius)
+      )
+    );
 
     // If there are no valid targets, return an empty array
     if (!out.length) return [];
@@ -3779,41 +3669,6 @@ class io_nearestDifferentMaster extends IO {
         break;
       }
     }
-    // Prioritize an attacker that triggered the damage-response rule. While
-    // the five-second focus is active, do not run normal target selection.
-    const now = Date.now();
-    const focusedAttacker = this.updateDamageFocus(now);
-    if (focusedAttacker && now < this.damageFocusUntil) {
-      this.targetLock = focusedAttacker;
-      if (focusedAttacker.health.amount > 0 && (typeof focusedAttacker.valid !== "function" || focusedAttacker.valid())) {
-        const radial = focusedAttacker.velocity || { x: 0, y: 0 };
-        const diff = {
-          x: focusedAttacker.x - this.body.x,
-          y: focusedAttacker.y - this.body.y,
-        };
-        if (this.tick % 4 === 0) {
-          this.lead = 0;
-          if (!this.body.aiSettings.chase) {
-            this.lead = timeOfImpact(diff, radial, tracking);
-          }
-        }
-        if (!this.body.isWall) {
-          return {
-            target: {
-              x: diff.x + this.lead * radial.x,
-              y: diff.y + this.lead * radial.y,
-            },
-            fire: true,
-            main: true,
-          };
-        }
-        return { fire: true, main: true };
-      }
-      // If the attacker dies during the lock, keep the focus window but do not
-      // opportunistically switch to another target until it expires.
-      return {};
-    }
-
     // Check if my target's alive
     if (this.targetLock) {
       if (
@@ -3879,9 +3734,19 @@ class io_nearestDifferentMaster extends IO {
         break;
       case "general":
       default:
-        // Damage-response focus is handled centrally above for every targeting
-        // mode. Do not let the old one-hit retaliation logic override its lock.
-        break;
+        let damageRef = this.body.bond == null ? this.body : this.body.bond;
+        if (
+          damageRef.collisionArray.length &&
+          damageRef.health.display() < this.oldHealth
+        ) {
+          this.oldHealth = damageRef.health.display();
+          if (this.validTargets.indexOf(damageRef.collisionArray[0]) === -1) {
+            this.targetLock =
+              damageRef.collisionArray[0].master.id === -1
+                ? damageRef.collisionArray[0].source
+                : damageRef.collisionArray[0].master;
+          }
+        }
     }
     // Consider how fast it's moving and shoot at it
     if (this.targetLock != null && this.targetLock.valid()) {
@@ -6236,27 +6101,18 @@ class Entity {
         }
         this.refreshBodyAttributes();
       }
-      // TURRETS is an explicit replacement field: [] or null clears existing
-      // turrets. Destroy a snapshot because turret.destroy() removes itself from
-      // this.turrets, which would otherwise make forEach skip entries.
-      if (Object.prototype.hasOwnProperty.call(set, "TURRETS")) {
-        const oldTurrets = Array.isArray(this.turrets) ? this.turrets.slice() : [];
-        for (const turret of oldTurrets) {
-          if (turret && keyManager.hasKey(turret.key)) turret.destroy();
-        }
+      if (set.TURRETS != null) {
+        let o;
+        this.turrets.forEach((o) => o.destroy());
         this.turrets = [];
-
-        if (Array.isArray(set.TURRETS)) {
-          for (const def of set.TURRETS) {
-            if (!def || def.TYPE == null || !Array.isArray(def.POSITION)) continue;
-            const turret = new Entity(this, this.master);
-            (Array.isArray(def.TYPE) ? def.TYPE : [def.TYPE]).forEach((type) =>
-              turret.define(type)
-            );
-            turret.bindToMaster(def.POSITION, this);
-            turret.syncsSkills = true;
-          }
-        }
+        set.TURRETS.forEach((def) => {
+          o = new Entity(this, this.master);
+          (Array.isArray(def.TYPE) ? def.TYPE : [def.TYPE]).forEach((type) =>
+            o.define(type)
+          );
+          o.bindToMaster(def.POSITION, this);
+          o.syncsSkills = true;
+        });
       }
 
       if (set.mockup != null) {
@@ -7480,7 +7336,6 @@ class Entity {
             break;
           case "theDenied":
             this.define(Class.deniedLegendaryClasses);
-            if (this.skill.score < 1000000) this.skill.score = 1000000;
             break;
         }
         this.skill.points += 15;
@@ -9346,10 +9201,7 @@ class Entity {
         this.shield.amount /= 2;
       }
 
-      // This event is checked from the entity update loop, so it must be
-      // latched before scheduling announcements/spawns or it repeats per entity.
-      if (c.initiateHELL && !c.initiateHELLStarted) {
-        c.initiateHELLStarted = true;
+      if (c.initiateHELL) {
         sockets.broadcast(
           "Twilight: Um, I am sensing alot of powerful forces coming!"
         );
@@ -11351,13 +11203,13 @@ class Entity {
         if (this.isTwilight) {
           if (
             c.wave >= 6 &&
-            this.health.amount === this.health.max && this.lastDowndate
+            this.health.amount === this.health.max && !this.join
           ) {
             sockets.broadcast("Twilight has rejoined the fight!");
             this.invuln = false;
             this.intangibility = false;
-            this.down = false;
             this.REGEN = 0;
+          this.join = true;
           }
           if (c.wave < 6) {
             this.invuln = true;
@@ -13544,11 +13396,11 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (c.MODE === "theDenied" && !this.godMode) {
         if (c.wave >= 6 && this.isTwilight) {
-          this.down = true;
           this.invuln = true;
           this.trulyDead = false;
           this.health.amount = 1;
           this.REGEN = 7.5;
+          this.join = false;
           if (this.twiDialog === undefined) this.twiDialog = 0;
           else this.twiDialog += 1;
           switch (this.twiDialog) {
@@ -19568,12 +19420,13 @@ var gameloop = (() => {
                 if (n.healEffect) {
                   //console.log("Be healed!");
                   let heal;
-                  // The heal effect belongs to n; my is the entity being affected.
-                  // Heal allies, damage only opposing -2/-4 teams, and ignore other enemies.
-                  if (my.team === -4 && n.team !== my.team) heal = 1.5;
-                  else if (my.team === -2 && n.team !== my.team) heal = 1.25;
+                  if (my.team === -4 && n.team !== -4) heal = 1.5;
+                  else if (my.team === -2 && n.team !== -2) heal = 1.25;
                   else if (my.team === n.team) heal = -1;
-                  else heal = 0;
+                  else {
+                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
+                    else heal = 0;
+                  }
                   if (heal < 0 && !n.isProjectile) heal /= 4;
                   if (
                     ((my.health.amount < my.health.max ||
@@ -19603,11 +19456,10 @@ var gameloop = (() => {
                   let heal;
                   if (
                     (my.team === -3 &&
-                      n.team !== my.team &&
+                      n.team !== -3 &&
                       !my.isDominator &&
                       !my.isWall &&
                       !my.isGate) ||
-                    (n.isProjectile && n.team !== my.team) ||
                     my.type === "food"
                   )
                     heal = 1.5;
@@ -19644,7 +19496,7 @@ var gameloop = (() => {
                       my.type === "minion" ||
                       my.type === "food" ||
                       (my.team !== n.team && my.team === -3) ||
-                      (n.team !== my.team && (!n.isProjectile || n.repairEffect))
+                      (n.team !== my.team && !n.isProjectile)
                     ) {
                       if (my.type === "atmosphere" && n.isProjectile) return;
                       // my.damageRecieved += damage._n * deathFactor._n*heal;
@@ -19676,12 +19528,15 @@ var gameloop = (() => {
                 if (my.healEffect) {
                   //console.log("Be healed!");
                   let heal;
-                  // The heal effect belongs to my; n is the entity being affected.
-                  // Heal allies, damage only opposing -2/-4 teams, and ignore other enemies.
-                  if (n.team === -4 && my.team !== n.team) heal = 1.5;
-                  else if (n.team === -2 && my.team !== n.team) heal = 1.25;
-                  else if (n.team === my.team) heal = -1;
-                  else heal = 0;
+                  if (n.team === -4 && my.team !== -4) heal = 1.5;
+                  if (n.team === -2 && my.team !== -2) heal = 1.25;
+                  else if (n.team === my.team) {
+                    // if (n.type === "atmosphere") heal = -0.5;
+                    heal = -1;
+                  } else {
+                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
+                    else heal = 0;
+                  }
                   if (heal < 0 && !my.isProjectile) heal /= 4;
                   if (
                     ((n.health.amount < n.health.max ||
@@ -19695,7 +19550,7 @@ var gameloop = (() => {
                       n.isPlayer ||
                       n.isBot ||
                       n.type === "food" ||
-                      (n.team !== my.team && (!my.isProjectile || n.repairEffect))
+                      (n.team !== my.team && !my.isProjectile)
                     ) {
                       if (n.type === "atmosphere" && my.isProjectile) return;
                       // n.damageRecieved += damage._me * deathFactor._me*heal;
@@ -19711,11 +19566,11 @@ var gameloop = (() => {
                   let heal;
                   if (
                     (n.team === -3 &&
-                      my.team !== n.team &&
+                      my.team !== -3 &&
+                      !n.isProjectile &&
                       !n.isDominator &&
                       !n.isWall &&
                       !n.isGate) ||
-                    (my.isProjectile && my.team !== n.team) ||
                     n.type === "food"
                   )
                     heal = 1.5;
@@ -22601,7 +22456,7 @@ var maintainloop = (() => {
     makecubedrifts();
     makeDummies();
     makeTeamedWalls();
-   if (c.MODE !== "theDenied") makeFortGates();
+    makeFortGates();
     makepentFortWalls();
     makeFortWalls();
     makeTrapFortWalls();

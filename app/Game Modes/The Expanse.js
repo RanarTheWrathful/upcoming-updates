@@ -31,7 +31,7 @@ module.exports =
   "TEAMS": [3],
   "FOOD_AMOUNT": 20, 
   ENEMY_INTENSITY: {
-    THRASHERS: 250,
+    THRASHERS: 1500,
     },
   "BOTS": 5,
   "PLAYER_SPAWN_LOCATION": "bas",
