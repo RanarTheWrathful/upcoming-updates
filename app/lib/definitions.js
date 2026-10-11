@@ -12109,6 +12109,20 @@ exports.c4turret = {
   LABEL: "Deployed Plastic Explosive",
   DEATH_THROES: "plasticExplosion",
   GROWTH_FACTOR: 1.25,
+  BODY: {
+    FOV: 1.75,
+    SPEED: 0,
+    ACCELERATION: 0,
+    HEALTH: 2.5,
+    SHIELD: 0,
+    DAMAGE: 0.75,
+    RESIST: 1,
+    PENETRATION: 1,
+    RANGE: 100,
+    DENSITY: 0.4,
+    REGEN: 0,
+    PUSHABILITY: 0,
+  },
   GUNS: [],
   TURRETS: [
     {
