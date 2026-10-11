@@ -79405,7 +79405,7 @@ exports.ranarShrine = {
     SPEED: 0,
   },
   SKILL: skillSet({
-    rld: 99,
+    rld: -1,
     dam: 0.2, //bullet damage
     pen: 0.1, //bullet penetration
     str: 0.2, //bullet health
@@ -79421,7 +79421,7 @@ exports.ranarShrine = {
           INDEPENDENT: true,
           HAS_NO_RECOIL: true,
           CONTROLLERS: ["onlyAcceptInArc"],
-          MAX_CHILDREN: 0.1
+          MAX_CHILDREN: 1
         },
       ],
     },
