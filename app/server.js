@@ -63,7 +63,8 @@ function resolveModeName(requestedName) {
   return match;
 }
 
-let chosenMode;
+let chosenMode,
+modeList = [];
 const serverType = String(process.env.SERVER_TYPE || "testing").trim().toLowerCase();
 const requestedMode = process.env.GAME_MODE;
 
@@ -74,7 +75,7 @@ if (requestedMode && requestedMode.trim()) {
 } else if (serverType === "testing") {
   chosenMode = resolveModeName("The Denied");
 } else if (serverType === "normal") {
-  const modeList = [
+  modeList = [
     "Open Execution",
     "Maze Execution",
     "4TDM Growth",
@@ -105,7 +106,7 @@ if (requestedMode && requestedMode.trim()) {
     currentState.modeVotes = ["Siege", "Siege", "Siege"];
   }
 } else if (serverType === "lore") {
-  const modeList = [
+ modeList = [
     "The Expanse",
     "The Infestation",
     "The Controlled",
