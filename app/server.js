@@ -15031,23 +15031,52 @@ console.log('Lore mode sequence advanced.');*/
       }
     }
 
-    // Kill all of its children. Use a snapshot because setters mutate the Set.
+    // Detach or remove children safely. Use a snapshot because the ownership
+    // setters mutate possiblyChildren while this loop is running.
+    // Previously, master-owned children were only sent through kill() and then
+    // made standalone. If kill() could not reduce health to zero (for example,
+    // malformed/zero/NaN health state), the child survived as an orphan at its
+    // last position. Those orphans could look like tiny, invisible, unteamed
+    // entities and could no longer be killed normally. Destroy non-persistent
+    // master-owned children directly; explicitly preserve only definitions that
+    // opt into PERSISTS_AFTER_DEATH.
     const children = Array.from(this.possiblyChildren);
     for (let cIndex = 0; cIndex < children.length; cIndex++) {
       const instance = children[cIndex];
       if (!instance || instance === this || !keyManager.hasKey(instance.key)) continue;
 
-      if (instance.source === this) {
-        if (instance.settings.persistsAfterDeath) {
+      const isMasterOwned = instance.master === this;
+      const isSourceOwned = instance.source === this;
+      const persists = !!(instance.settings && instance.settings.persistsAfterDeath);
+
+      if (isMasterOwned) {
+        if (persists) {
+          if (isSourceOwned) instance.source = instance;
+          instance.master = instance;
+          if (instance.parent === this) instance.parent = null;
+        } else {
+          instance.destroy();
+        }
+        continue;
+      }
+
+      if (isSourceOwned) {
+        if (persists) {
           instance.source = instance;
         } else {
           instance.kill();
+          // kill() is health-based and can fail to kill malformed entities.
+          // Do not let a child of a destroyed source remain as an orphan.
+          if (
+            keyManager.hasKey(instance.key) &&
+            (!Number.isFinite(instance.health.amount) || instance.health.amount > 0)
+          ) {
+            instance.destroy();
+          }
         }
       }
-      if (instance.parent === this) instance.parent = null;
-      if (instance.master === this) {
-        instance.kill();
-        instance.master = instance;
+      if (keyManager.hasKey(instance.key) && instance.parent === this) {
+        instance.parent = null;
       }
     }
     this.possiblyChildren.clear();
