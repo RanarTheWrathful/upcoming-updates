@@ -28138,6 +28138,7 @@ exports.Dad = {
 exports.healersphere = {
   PARENT: [exports.smash],
   LABEL: "Healersphere",
+  RESET_UPGRADES: true,
   HEAL_EFFECT: true,
   TURRETS: [
     {
@@ -28252,6 +28253,7 @@ exports.healersphere = {
 exports.truehealersphere = {
   PARENT: [exports.healersphere],
   LABEL: "True Healersphere",
+  RESET_UPGRADES: true,
   TURRETS: [
     {
       /** SIZE     X       Y     ANGLE    ARC */
