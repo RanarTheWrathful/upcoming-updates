@@ -33,4 +33,16 @@ assert.strictEqual(
   "the target entity itself must not occlude its own ray"
 );
 
+
+assert.strictEqual(
+  hasClearLineOfSight(source, target, candidates([{ x: 50, y: 0, realSize: 10, isGate: true, label: "Gate" }])),
+  true,
+  "gates should not block targeting because projectiles pass through them"
+);
+assert.strictEqual(
+  hasClearLineOfSight(source, target, candidates([{ x: 50, y: 0, realSize: 10, type: "fortWall", label: "Fort Wall", isWall: true }])),
+  true,
+  "fort walls should not block targeting because projectiles pass through them"
+);
+
 console.log("aiLineOfSight tests passed");
