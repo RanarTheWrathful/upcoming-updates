@@ -6236,18 +6236,27 @@ class Entity {
         }
         this.refreshBodyAttributes();
       }
-      if (set.TURRETS != null) {
-        let o;
-        this.turrets.forEach((o) => o.destroy());
+      // TURRETS is an explicit replacement field: [] or null clears existing
+      // turrets. Destroy a snapshot because turret.destroy() removes itself from
+      // this.turrets, which would otherwise make forEach skip entries.
+      if (Object.prototype.hasOwnProperty.call(set, "TURRETS")) {
+        const oldTurrets = Array.isArray(this.turrets) ? this.turrets.slice() : [];
+        for (const turret of oldTurrets) {
+          if (turret && keyManager.hasKey(turret.key)) turret.destroy();
+        }
         this.turrets = [];
-        set.TURRETS.forEach((def) => {
-          o = new Entity(this, this.master);
-          (Array.isArray(def.TYPE) ? def.TYPE : [def.TYPE]).forEach((type) =>
-            o.define(type)
-          );
-          o.bindToMaster(def.POSITION, this);
-          o.syncsSkills = true;
-        });
+
+        if (Array.isArray(set.TURRETS)) {
+          for (const def of set.TURRETS) {
+            if (!def || def.TYPE == null || !Array.isArray(def.POSITION)) continue;
+            const turret = new Entity(this, this.master);
+            (Array.isArray(def.TYPE) ? def.TYPE : [def.TYPE]).forEach((type) =>
+              turret.define(type)
+            );
+            turret.bindToMaster(def.POSITION, this);
+            turret.syncsSkills = true;
+          }
+        }
       }
 
       if (set.mockup != null) {
@@ -19559,13 +19568,12 @@ var gameloop = (() => {
                 if (n.healEffect) {
                   //console.log("Be healed!");
                   let heal;
-                  if (my.team === -4 && n.team !== -4) heal = 1.5;
-                  else if (my.team === -2 && n.team !== -2) heal = 1.25;
+                  // The heal effect belongs to n; my is the entity being affected.
+                  // Heal allies, damage only opposing -2/-4 teams, and ignore other enemies.
+                  if (my.team === -4 && n.team !== my.team) heal = 1.5;
+                  else if (my.team === -2 && n.team !== my.team) heal = 1.25;
                   else if (my.team === n.team) heal = -1;
-                  else {
-                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
-                    else heal = 0;
-                  }
+                  else heal = 0;
                   if (heal < 0 && !n.isProjectile) heal /= 4;
                   if (
                     ((my.health.amount < my.health.max ||
@@ -19595,10 +19603,11 @@ var gameloop = (() => {
                   let heal;
                   if (
                     (my.team === -3 &&
-                      n.team !== -3 &&
+                      n.team !== my.team &&
                       !my.isDominator &&
                       !my.isWall &&
                       !my.isGate) ||
+                    (n.isProjectile && n.team !== my.team) ||
                     my.type === "food"
                   )
                     heal = 1.5;
@@ -19635,7 +19644,7 @@ var gameloop = (() => {
                       my.type === "minion" ||
                       my.type === "food" ||
                       (my.team !== n.team && my.team === -3) ||
-                      (n.team !== my.team && !n.isProjectile)
+                      (n.team !== my.team && (!n.isProjectile || n.repairEffect))
                     ) {
                       if (my.type === "atmosphere" && n.isProjectile) return;
                       // my.damageRecieved += damage._n * deathFactor._n*heal;
@@ -19667,15 +19676,12 @@ var gameloop = (() => {
                 if (my.healEffect) {
                   //console.log("Be healed!");
                   let heal;
-                  if (n.team === -4 && my.team !== -4) heal = 1.5;
-                  if (n.team === -2 && my.team !== -2) heal = 1.25;
-                  else if (n.team === my.team) {
-                    // if (n.type === "atmosphere") heal = -0.5;
-                    heal = -1;
-                  } else {
-                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
-                    else heal = 0;
-                  }
+                  // The heal effect belongs to my; n is the entity being affected.
+                  // Heal allies, damage only opposing -2/-4 teams, and ignore other enemies.
+                  if (n.team === -4 && my.team !== n.team) heal = 1.5;
+                  else if (n.team === -2 && my.team !== n.team) heal = 1.25;
+                  else if (n.team === my.team) heal = -1;
+                  else heal = 0;
                   if (heal < 0 && !my.isProjectile) heal /= 4;
                   if (
                     ((n.health.amount < n.health.max ||
@@ -19689,7 +19695,7 @@ var gameloop = (() => {
                       n.isPlayer ||
                       n.isBot ||
                       n.type === "food" ||
-                      (n.team !== my.team && !my.isProjectile)
+                      (n.team !== my.team && (!my.isProjectile || n.repairEffect))
                     ) {
                       if (n.type === "atmosphere" && my.isProjectile) return;
                       // n.damageRecieved += damage._me * deathFactor._me*heal;
@@ -19705,11 +19711,11 @@ var gameloop = (() => {
                   let heal;
                   if (
                     (n.team === -3 &&
-                      my.team !== -3 &&
-                      !n.isProjectile &&
+                      my.team !== n.team &&
                       !n.isDominator &&
                       !n.isWall &&
                       !n.isGate) ||
+                    (my.isProjectile && my.team !== n.team) ||
                     n.type === "food"
                   )
                     heal = 1.5;
