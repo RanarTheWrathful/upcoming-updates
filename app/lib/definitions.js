@@ -12123,6 +12123,7 @@ exports.c4turret = {
     REGEN: 0,
     PUSHABILITY: 0,
   },
+  GUNS: [],
 };
 exports.researcherStationedTurret = {
   PARENT: [exports.experimenterStationedTurret],
@@ -40476,12 +40477,17 @@ exports.c4deployer = {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
   },
-  MAX_CHILDREN: 10,
+  MAX_CHILDREN: 7,
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
       POSITION: [9, 0, 0, 0, 360, 1],
       TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
   ],
   GUNS: [
