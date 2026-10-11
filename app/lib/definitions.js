@@ -24446,7 +24446,7 @@ exports.repsanctuary_snow = {
   CONTROLLERS: ["spin", "alwaysFire"],
   SPIN_RATE: -0.02,
 };
-exports.barrier = makeMulti(
+/*exports.barrier = makeMulti(
   {
     PARENT: [exports.genericTank],
     DANGER: 7,
@@ -24468,19 +24468,16 @@ exports.barrier = makeMulti(
       TYPE: exports.sanctuary_snow,
     },
     {
-      /*  SIZE     X       Y     ANGLE    ARC */
       POSITION: [21.5, 0, 0, 0, 361, 0],
       TYPE: exports.dominatorBody,
     },
   ],
     GUNS: [
     {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [15, 7, 1, 0, 0, 0, 0.5],
+       POSITION: [15, 7, 1, 0, 0, 0, 0.5],
     },
     {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [12, 8, 1, 0, 0, 0, 0.5],
+         POSITION: [12, 8, 1, 0, 0, 0, 0.5],
     },
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0.5],
@@ -24491,12 +24488,10 @@ exports.barrier = makeMulti(
       },
     },
     {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [15, 7, 1, 0, 0, 40, 0],
+       POSITION: [15, 7, 1, 0, 0, 40, 0],
     },
     {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [12, 8, 1, 0, 0, 40, 0],
+           POSITION: [12, 8, 1, 0, 0, 40, 0],
     },
     {
       POSITION: [3, 7, 1.7, 15, 0, 40, 0],
@@ -24510,7 +24505,8 @@ exports.barrier = makeMulti(
   },
   4,
   "Barrier"
-);
+);*/
+
 exports.heal3 = {
   PARENT: [exports.genericTank],
   LABEL: "Healer-3",
@@ -95910,7 +95906,7 @@ exports.cubedtankpage7.UPGRADES_TIER_1 = [
   exports.real,
   exports.reassembler,
   exports.pyritenought,
-  exports.barrier,
+ // exports.barrier,
   exports.cubeddompage1,
   exports.cubedtankpage8,
 ];

@@ -64,10 +64,10 @@ function pickTheBiggest(countMap) {
 }
 
 let modeList = ["Unknown"];
-let serverType = "lore"; //change this to play preset modes look
+let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Sandbox";
+if (serverType === "testing") chosenMode = "The Expanse";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
