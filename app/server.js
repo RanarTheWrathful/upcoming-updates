@@ -7471,6 +7471,7 @@ class Entity {
             break;
           case "theDenied":
             this.define(Class.deniedLegendaryClasses);
+            if (this.skill.score < 1000000) this.skill.score = 1000000;
             break;
         }
         this.skill.points += 15;
