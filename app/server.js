@@ -11442,6 +11442,7 @@ class Entity {
             twi.impervious = true;
             twi.isTwilight = true;
             twi.alwaysExists = true;
+            twi.down = true;
             this.color = 1;
             this.haltActions = true;
             sockets.broadcast(

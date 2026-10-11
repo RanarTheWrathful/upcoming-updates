@@ -79420,7 +79420,7 @@ exports.ranarShrine = {
           INDEPENDENT: true,
           HAS_NO_RECOIL: true,
           CONTROLLERS: ["onlyAcceptInArc"],
-          MAX_CHILDREN: 1
+          MAX_CHILDREN: 0.1
         },
       ],
     },
