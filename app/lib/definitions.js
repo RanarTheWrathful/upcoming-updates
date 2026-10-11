@@ -12100,6 +12100,27 @@ exports.inventorStationedTurret = {
     },
   ],
 };
+
+exports.c4turret = {
+  PARENT: [exports.experimenterStationedTurret],
+  LABEL: "Deployed Plastic Explosive",
+  DEATH_THROES: "plasticExplosion",
+  GROWTH_FACTOR: 1.25,
+  BODY: {
+    FOV: 1.75,
+    SPEED: 0,
+    ACCELERATION: 0,
+    HEALTH: 2.5,
+    SHIELD: 0,
+    DAMAGE: 1.35,
+    RESIST: 1,
+    PENETRATION: 1,
+    RANGE: 100,
+    DENSITY: 0.4,
+    REGEN: 0,
+    PUSHABILITY: 0,
+  },
+};
 exports.researcherStationedTurret = {
   PARENT: [exports.experimenterStationedTurret],
   GUNS: [
@@ -14453,6 +14474,41 @@ exports.lesserGrenadierExplosion = makeMulti(
     ],
   },
   5,
+  ""
+);
+
+exports.plasticExplosion = makeMulti(
+  {
+    PARENT: [exports.bullet],
+    ALPHA: 0,
+    FACING_TYPE: "autospin",
+    INDEPENDENT: true,
+    BODY: {
+      RANGE: 5,
+    },
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [15, 5, 1, 0, 0, 0, 0],
+        PROPERTIES: {
+          AUTOFIRE: true,
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.twin,
+            g.gunner,
+            g.cyclone,
+            g.power,
+            g.lesserStats,
+            g.lesserDamage,
+            g.pound,
+            g.greaterSize
+          ]),
+          TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
+        },
+      },
+    ],
+  },
+  7,
   ""
 );
 exports.RealisticExplosion = makeMulti(
@@ -40394,6 +40450,49 @@ exports.inventor = {
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
         TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+
+        ALT_FIRE: true,
+        SYNCS_SKILLS: true,
+      },
+    },
+    {
+      POSITION: [5, 7, -1.8, 6.5, 0, 0, 0],
+    },
+  ],
+};
+
+exports.c4deployer = {
+  PARENT: [exports.genericTank],
+  DANGER: 7,
+  LABEL: "C4 Deployer",
+  STAT_NAMES: statnames.trap,
+  SPECIAL_EFFECT: "experiment",
+  BODY: {
+    SPEED: base.SPEED * 0.75,
+    FOV: base.FOV * 1.15,
+  },
+  MAX_CHILDREN: 10,
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [4, 12, 1, 10.5, 0, 0, 0],
+    },
+
+    {
+      POSITION: [2, 13, 1, 15.5, 0, 0, 0],
+    },
+    {
+      POSITION: [8, 11, 1.3, 18, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
+        TYPE: [exports.c4turret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -95693,6 +95792,7 @@ exports.kristanks4.UPGRADES_TIER_1 = [
   exports.smashdupev2,
   exports.smashdupev3,
   exports.growdupe,
+  exports.c4deployer,
   exports.krispage,
 ];
 exports.cubedtestpage.UPGRADES_TIER_1 = [
