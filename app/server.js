@@ -3089,7 +3089,7 @@ class io_nearestDifferentMaster extends IO {
         previousHits.push(now);
         this.damageHistory.set(attacker, previousHits);
 
-        if (durabilityLost >= 0.20 || previousHits.length >= 5 || currentHealth <= 0.20) {
+        if (durabilityLost >= 0.20 || previousHits.length >= 10 || currentHealth <= 0.20) {
           this.damageFocusTarget = attacker;
           this.damageFocusUntil = now + 5000;
           this.targetLock = attacker.master;
@@ -11341,12 +11341,12 @@ class Entity {
         if (this.isTwilight) {
           if (
             c.wave >= 6 &&
-            this.health.amount === this.health.max &&
-            this.REGEN > -1
+            this.health.amount === this.health.max && this.lastDowndate
           ) {
             sockets.broadcast("Twilight has rejoined the fight!");
             this.invuln = false;
             this.intangibility = false;
+            this.down = false;
             this.REGEN = 0;
           }
           if (c.wave < 6) {
@@ -13534,6 +13534,7 @@ console.log('Lore mode sequence advanced.');*/
       }
       if (c.MODE === "theDenied" && !this.godMode) {
         if (c.wave >= 6 && this.isTwilight) {
+          this.down = true;
           this.invuln = true;
           this.trulyDead = false;
           this.health.amount = 1;
@@ -22593,7 +22594,7 @@ var maintainloop = (() => {
     makecubedrifts();
     makeDummies();
     makeTeamedWalls();
-    makeFortGates();
+   if (c.MODE !== "theDenied") makeFortGates();
     makepentFortWalls();
     makeFortWalls();
     makeTrapFortWalls();

@@ -3323,8 +3323,20 @@ exports.spikeOrb = {
   ],
 };
 exports.powerOrb = {
-  PARENT: [exports.smasherOrb],
- TURRETS: [],
+  PARENT: [exports.drone],
+  TYPE: "trap",
+  SHAPE: 0,
+  CONTROLLERS: [
+    "nearestDifferentMaster",
+    "mapTargetToGoal",
+    "hangOutNearMaster",
+  ],
+  AI: { FARMER: true },
+  WALL_IMMUNITY: true,
+  INDEPENDENT: false,
+  SPECIAL_EFFECT: "push",
+  REPEL: 0.25,
+  TURRETS: [],
  // CONNECTED_DAMAGE: true,
  // DAMAGE_MULTIPLIER: 0.75,
   };
