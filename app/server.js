@@ -18,6 +18,8 @@ const path = require("path"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
 const createLoadProtection = require("./lib/loadProtection");
 const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
+const siegeWavePlanner = require("./lib/siegeWavePlanner");
+const hasClearLineOfSight = require("./lib/aiLineOfSight");
 const { performance } = require("perf_hooks");
 // Example usage:
 let currentState = serverState.getServerState();
@@ -265,6 +267,24 @@ let t3B = [
   "lesserConstant",
   "fallentyrant",
 ];
+
+
+// Siege enemies retain the original budget costs, but are selected from a
+// random subset of themed pools for each wave instead of one global rarity roll.
+const siegeCostTiers = [
+  { cost: 1, enemies: wE1 },
+  { cost: 2, enemies: wE2 },
+  { cost: 3, enemies: wE3 },
+  { cost: 5, enemies: nE1 },
+  { cost: 7, enemies: nE2 },
+  { cost: 15, enemies: t1B },
+  { cost: 30, enemies: t2B },
+  { cost: 45, enemies: t3B },
+];
+const siegeEnemyCatalog = siegeWavePlanner.createEnemyCatalog(
+  siegeCostTiers,
+  siegeWavePlanner.THEME_DEFINITIONS
+);
 const currentDate = new Date();
 const currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
 
@@ -631,6 +651,108 @@ let Class = (() => {
   }
   return def;
 })();
+
+
+function getSiegeThemesForCurrentWave() {
+  if (c.siegeSelectedWave !== c.bossWave || !Array.isArray(c.siegeSelectedThemes)) {
+    const availableThemes = siegeEnemyCatalog
+      .map((theme) => ({
+        id: theme.id,
+        label: theme.label,
+        enemies: theme.enemies.filter(
+          (enemy) => Class[enemy.name] && typeof Class[enemy.name] === "object"
+        ),
+      }))
+      .filter((theme) => theme.enemies.length > 0);
+
+    c.siegeSelectedWave = c.bossWave;
+    c.siegeSelectedThemes = siegeWavePlanner.chooseRandomThemes(availableThemes);
+    c.siegeSelectedThemeNames = c.siegeSelectedThemes.map((theme) => theme.label);
+    if (c.siegeSelectedThemes.length) {
+      util.log(
+        `[Siege] Wave ${c.bossWave} themes: ${c.siegeSelectedThemeNames.join(", ")}`
+      );
+    }
+  }
+  return c.siegeSelectedThemes || [];
+}
+
+function applySiegeRareEnemyVariant(o) {
+  const rarity = o.rarity;
+  const defineIfAvailable = (name) => {
+    if (Class[name] && typeof Class[name] === "object") o.define(Class[name]);
+  };
+
+  if (o.type === "thrasher" && rarity <= 20) {
+    defineIfAvailable("abyssthrasher");
+  }
+  if ((o.label === "Defender" || o.label === "Enchantress") && rarity <= 20) {
+    defineIfAvailable("epilepticdefender");
+  }
+  if (o.label === "Summoner" && rarity <= 20) {
+    defineIfAvailable("splitsummoner");
+  }
+  if (o.label === "Sorcerer" && rarity <= 20) {
+    defineIfAvailable("raresorcerer");
+  }
+  if (o.label === "Elite Gunner" && rarity <= 20) {
+    defineIfAvailable("elite_Shadowgunner");
+  }
+  if ((o.label === "Nest Keeper" || o.label === "Nest Warden") && rarity <= 20) {
+    defineIfAvailable("legnestkeep");
+  }
+  if (o.type === "crasher" && o.shape === 3) {
+    if (rarity <= 1000 && rarity > 500) {
+      defineIfAvailable("shinyEggCrasher");
+    } else if (rarity <= 500 && rarity > 250) {
+      const variant = ran.choose(["shinySquareCrasher", "shinyTriangleSentry"]);
+      defineIfAvailable(variant);
+    } else if (rarity <= 50 && rarity > 20) {
+      defineIfAvailable("rainbowTriangleCrasher");
+    } else if (rarity <= 20) {
+      defineIfAvailable("abyssalTetraCrasher");
+      sockets.broadcast(
+        "Vile Darkness Cloaks the arena, something terrifying has been summoned!"
+      );
+    }
+  }
+}
+
+function spawnSiegeEnemyFromBudget() {
+  const budget = Number(c.bossCounter);
+  if (!Number.isFinite(budget) || budget <= 0) {
+    c.bossCounter = 0;
+    return;
+  }
+
+  const themes = getSiegeThemesForCurrentWave();
+  const enemy = siegeWavePlanner.chooseEnemy(
+    themes,
+    budget,
+    Math.random,
+    (candidate) => Class[candidate.name] && typeof Class[candidate.name] === "object"
+  );
+
+  if (!enemy) {
+    // The remaining budget is smaller than every available enemy in the
+    // selected themes. End the budget cleanly rather than leaving the wave stuck.
+    c.bossCounter = 0;
+    return;
+  }
+
+  const o = new Entity(room.randomType("spw0"));
+  o.rarity = Math.random() * 10000;
+  o.define(Class[enemy.name]);
+  applySiegeRareEnemyVariant(o);
+  c.bossCounter = Math.max(0, Number(c.bossCounter) - enemy.cost);
+  o.siegeProgress = true;
+  o.impervious = true;
+  o.showOnMap = true;
+  o.team = -100;
+  setTimeout(() => {
+    o.addController(new io_guard1(o));
+  }, 7500);
+}
 
 //Makenpc functions
 
@@ -3469,6 +3591,15 @@ class io_nearestDifferentMaster extends IO {
       })
       .filter((e) => e); // Remove any null or undefined entries
 
+    // Targets behind solid walls or rocks should not be visible to this AI.
+    // Keep this check after the normal target filters so rays are only cast for
+    // plausible targets, rather than every active entity in the room.
+    out = out.filter((target) =>
+      hasClearLineOfSight(this.body, target, (midpoint, searchRadius) =>
+        getEntitiesFromRange(midpoint, searchRadius)
+      )
+    );
+
     // If there are no valid targets, return an empty array
     if (!out.length) return [];
 
@@ -3927,21 +4058,44 @@ class io_minion extends IO {
 class io_wanderAroundMap extends IO {
   constructor(b) {
     super(b);
-
     this.spot = room.random();
+    this.pauseTicks = 0;
   }
-  think(input) {
-    if (!this.body.invuln) {
-      if (
-        new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y)
-          .length < 50 ||
-        this.targetLock != undefined
-      ) {
-        this.spot = room.random();
-      }
+  think() {
+    if (!this.body || this.body.invuln) return;
 
-      return { goal: this.spot };
+    // Hold position while resting at a waypoint instead of immediately picking
+    // another destination and continuously drifting around the arrival point.
+    if (this.pauseTicks > 0) {
+      this.pauseTicks--;
+      return {
+        goal: { x: this.body.x, y: this.body.y },
+        power: 0,
+      };
     }
+
+    if (!this.spot) this.spot = room.random();
+    if (!this.spot) {
+      return { goal: { x: this.body.x, y: this.body.y }, power: 0 };
+    }
+
+    const distance = new Vector(
+      this.body.x - this.spot.x,
+      this.body.y - this.spot.y
+    ).length;
+
+    if (distance < 50) {
+      // Clear the old waypoint so it isn't treated as a new arrival when the
+      // pause expires. Wanderers rest for roughly 0.5–1.5 seconds at 60 ticks/s.
+      this.spot = undefined;
+      this.pauseTicks = ran.irandomRange(30, 90);
+      return {
+        goal: { x: this.body.x, y: this.body.y },
+        power: 0,
+      };
+    }
+
+    return { goal: this.spot };
   }
 }
 class io_pathFinder extends IO {
@@ -3998,17 +4152,40 @@ class io_guard1 extends IO {
       this.spot = room.randomType("dom0");
     }
   }
-  think(input) {
-    if (this.body) {
-      if (
-        new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y)
-          .length < 50 ||
-        this.targetLock != undefined ||
-        this.body.invuln
-      ) {
-        if (c.MODE === "theAwakening") this.spot = room.type(c.npcMove);
-      }
+  think() {
+    if (!this.body) return;
+    if (!this.spot) {
+      return { goal: { x: this.body.x, y: this.body.y }, power: 0 };
     }
+
+    const distance = new Vector(
+      this.body.x - this.spot.x,
+      this.body.y - this.spot.y
+    ).length;
+
+    if (distance < 50) {
+      // Guard controllers hold their assigned post once they arrive. In
+      // The Awakening, retain the existing patrol behavior by choosing a new
+      // waypoint only after arriving, and only when it differs meaningfully.
+      if (c.MODE === "theAwakening") {
+        const nextSpot = room.type(c.npcMove);
+        if (
+          nextSpot &&
+          new Vector(nextSpot.x - this.body.x, nextSpot.y - this.body.y).length >= 50
+        ) {
+          this.spot = nextSpot;
+          return { goal: this.spot };
+        }
+      }
+
+      return {
+        goal: { x: this.body.x, y: this.body.y },
+        power: 0,
+        main: false,
+        alt: false,
+      };
+    }
+
     return { goal: this.spot };
   }
 }
@@ -5101,36 +5278,64 @@ class HealthType {
     }
   }
 
-  regenerate(boost = false) {
-    // if (this.regen <= 0||this.damageRecieved > 0) return;
-    boost /= 2;
-    let cons = 5;
-    switch (this.type) {
-      case "static":
-        if (this.amount >= this.max || !this.amount) break;
-        this.amount += cons * (this.max / 10 / 60 / 2.5 + boost);
-        break;
-      case "dynamic":
-        let r = util.clamp(this.amount / this.max, 0, 1);
-        if (!r) {
-          this.amount = 0.0001;
-        }
-        if (r === 1) {
-          this.amount = this.max;
-        } else {
-          this.amount +=
-            cons *
-            ((this.regen *
-              Math.exp(-50 * Math.pow(Math.sqrt(0.5 * r) - 0.4, 2))) /
-              3 +
-              (r * this.max) / 10 / 15 +
-              boost);
-        }
-        break;
+  regenerate(boost = false, regenValue = this.regen) {
+    // Positive REGEN keeps the existing balance. Negative REGEN drains the
+    // resource; zero means no regeneration or drain.
+    const max = Number(this.max);
+    const amount = Number(this.amount);
+    const regen = Number(regenValue);
+    if (
+      !Number.isFinite(max) ||
+      max <= 0 ||
+      !Number.isFinite(amount) ||
+      !Number.isFinite(regen) ||
+      regen === 0
+    ) {
+      return;
     }
-    if (this.amount < this.max)
-      this.amount = util.clamp(this.amount, 0, this.max);
+
+    const cons = 5;
+    const isDecay = regen < 0;
+    const magnitude = Math.abs(regen);
+    const boostAmount = Number(boost) / 2;
+
+    switch (this.type) {
+      case "static": {
+        if (amount <= 0) break;
+        if (isDecay) {
+          // Match baseline static-health regeneration, scaled by |REGEN|.
+          // A positive shield-full bonus never offsets health decay.
+          this.amount -= cons * magnitude * (max / 10 / 60 / 2.5);
+        } else if (amount < max) {
+          this.amount += cons * (max / 10 / 60 / 2.5 + boostAmount);
+        }
+        break;
+      }
+      case "dynamic": {
+        const r = util.clamp(amount / max, 0, 1);
+        const regenCurve = Math.exp(-50 * Math.pow(Math.sqrt(0.5 * r) - 0.4, 2));
+        if (isDecay) {
+          // Reverse the baseline shield-recovery term as well. Scale by the
+          // magnitude of entity REGEN; this.regen retains the skill multiplier.
+          const baseRate = (r * max) / 10 / 15;
+          const scaledRegenTerm = (Math.abs(this.regen) * regenCurve) / 3;
+          this.amount -= cons * (magnitude * baseRate + scaledRegenTerm);
+        } else if (r === 0) {
+          this.amount = 0.0001;
+          this.amount += cons * ((this.regen * regenCurve) / 3 + boostAmount);
+        } else if (r === 1) {
+          this.amount = max;
+        } else {
+          this.amount += cons * ((this.regen * regenCurve) / 3 + (r * max) / 10 / 15 + boostAmount);
+        }
+        break;
+      }
+    }
+
+    // Clamp both ends so the resource cannot exceed its cap or become negative.
+    this.amount = util.clamp(Number(this.amount) || 0, 0, max);
   }
+
   get permeability() {
     switch (this.type) {
       case "static":
@@ -5480,8 +5685,8 @@ class Entity {
       if (set.INDEPENDENT != null) {
         this.settings.independent = set.INDEPENDENT;
       }
-      if (set.INDEPENDENT != null) {
-        this.settings.cantRegen = set.NO_REGEN;
+      if (set.NO_REGEN != null) {
+        this.settings.cantRegen = set.NO_REGEN === true;
       }
       if (set.PERSISTS_AFTER_DEATH != null) {
         this.settings.persistsAfterDeath = set.PERSISTS_AFTER_DEATH;
@@ -6060,7 +6265,8 @@ class Entity {
       (((this.settings.healthWithLevel ? 2 * this.skill.growthCap : 0) +
         this.HEALTH) *
         this.skill.hlt) /
-        2
+        2,
+      this.REGEN
     );
 
     this.health.resist = 1 - 1 / Math.max(1, this.RESIST + this.skill.brst);
@@ -6069,14 +6275,11 @@ class Entity {
       ((this.settings.healthWithLevel ? 0.6 * this.skill.growthCap : 0) +
         this.SHIELD) *
         this.skill.shi,
-      Math.max(
-        0,
-        (((this.settings.healthWithLevel ? 0.006 * this.skill.growthCap : 0) +
-          1) *
-          this.REGEN *
-          this.skill.rgn) /
-          1.5
-      )
+      (((this.settings.healthWithLevel ? 0.006 * this.skill.growthCap : 0) +
+        1) *
+        this.REGEN *
+        this.skill.rgn) /
+        1.5
     );
 
     this.damage = this.DAMAGE * this.skill.atk;
@@ -8155,7 +8358,9 @@ class Entity {
               break;
           } //just let* me cook
         } //wdym unsystactic break
-        if (c.bossCounter > 0) {
+        if (c.bossCounter > 0 && c.MODE === "siege") {
+          spawnSiegeEnemyFromBudget();
+        } else if (c.bossCounter > 0) {
           let o = new Entity(room.randomType("spw0"));
           // o.bossTier = ran.choose(bt);
           o.rarity = Math.random() * 10000;
@@ -10531,7 +10736,7 @@ class Entity {
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
-                o.REGEN = -1;
+                o.REGEN = 0;
                 o.invuln = false;
                 o.FOV *= 2;
                 o.addController(new io_guard1(o));
@@ -11004,7 +11209,7 @@ class Entity {
             sockets.broadcast("Twilight has rejoined the fight!");
             this.invuln = false;
             this.intangibility = false;
-            this.REGEN = -1;
+            this.REGEN = 0;
           }
           if (c.wave < 6) {
             this.invuln = true;
@@ -11232,7 +11437,7 @@ class Entity {
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
-                o.REGEN = -1;
+                o.REGEN = 0;
                 o.invuln = false;
                 o.FOV *= 2;
                 o.addController(new io_guard1(o));
@@ -11907,7 +12112,7 @@ class Entity {
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
-                //o.REGEN = -1;
+                //o.REGEN = 0;
                 o.invuln = false;
                 o.FOV *= 2;
                 o.addController(new io_guard1(o));
@@ -13659,7 +13864,7 @@ console.log('Lore mode sequence advanced.');*/
             // this.id *= -1;
             this.health.max *= 1.25;
             this.health.amount *= 1.25;
-            this.REGEN = -1;
+            this.REGEN = 0;
             this.spd /= 2;
             this.aiTarget = "general";
             this.health.amount = this.health.max;
@@ -13722,7 +13927,7 @@ console.log('Lore mode sequence advanced.');*/
             this.team = -2;
             this.color = 18;
             this.health.max *= 2;
-            this.REGEN = -1;
+            this.REGEN = 0;
             this.health.amount = this.health.max;
 
             this.addController(new io_nearestDifferentMaster(this));
@@ -14173,7 +14378,7 @@ console.log('Lore mode sequence advanced.');*/
               this.team = -2;
               this.color = 18;
               this.health.max *= 2;
-              this.REGEN = -1;
+              this.REGEN = 0;
               this.health.amount = this.health.max;
 
               this.addController(new io_nearestDifferentMaster(this));
@@ -14250,7 +14455,7 @@ console.log('Lore mode sequence advanced.');*/
               this.died = true;
               this.health.max *= 1.25;
               this.health.amount *= 1.25;
-              this.REGEN = -1;
+              this.REGEN = 0;
               this.spd /= 2;
               this.aiTarget = "general";
               this.health.amount = this.health.max;
@@ -14334,7 +14539,7 @@ console.log('Lore mode sequence advanced.');*/
               this.died = true;
               this.health.max *= 1.25;
               this.health.amount *= 1.25;
-              this.REGEN = -1;
+              this.REGEN = 0;
               this.spd /= 2;
               this.aiTarget = "general";
               this.health.amount = this.health.max;
@@ -23411,31 +23616,30 @@ var maintainloop = (() => {
     // Do stuff
     makenpcs();
     if (c.SPAWN_FOOD !== false && room.maxFood > 0) makefood(loadProtection.shouldSpawnFood());
-    // Regen health and update the grid
+    // Regen health and update the grid. Positive REGEN restores resources;
+    // negative REGEN drains them. Existing no-regen sentinels are normalized
+    // to zero, and NO_REGEN remains an explicit override.
     entities.forEach((instance) => {
       if (instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;
       if (instance.health.amount > 0 || instance.health.max > 0) {
         if (instance.valid()) {
+          const regenValue = Number(instance.REGEN);
           if (
-            instance.shield.max &&
+            instance.settings.cantRegen !== true &&
+            Number.isFinite(regenValue) &&
+            regenValue !== 0 &&
             !instance.isProjectile &&
-            instance.type !== "food" &&
-            instance.REGEN > 0 &&
-            instance.regenType !== "healthOnly"
+            instance.type !== "food"
           ) {
-            instance.shield.regenerate();
-          }
-          if (
-            instance.health.amount &&
-            !instance.isProjectile &&
-            instance.type !== "food" &&
-            instance.REGEN > 0 &&
-            instance.regenType !== "shieldOnly"
-          ) {
-            instance.health.regenerate(
-              instance.shield.max &&
-                instance.shield.max === instance.shield.amount
-            );
+            if (instance.shield.max > 0 && instance.regenType !== "healthOnly") {
+              instance.shield.regenerate(false, regenValue);
+            }
+            if (instance.health.amount > 0 && instance.regenType !== "shieldOnly") {
+              instance.health.regenerate(
+                instance.shield.max > 0 && instance.shield.amount >= instance.shield.max,
+                regenValue
+              );
+            }
           }
         }
       }
