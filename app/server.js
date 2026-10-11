@@ -5223,8 +5223,10 @@ class Entity {
     this.invisible = [0, 0];
     // Get a new unique id
     this.id = entitiesIdLog++;
-    this.team = this.id;
-    this.team = master.team;
+    // Standalone entities must keep their own team. The old unconditional
+    // master.team assignment overwrote this with undefined when master === this,
+    // leaving otherwise valid entities unteamed and breaking combat/lifecycle logic.
+    this.team = master === this ? this.id : master.team;
     entities[this.key.i] = this;
     views.forEach((v) => v.add(this));
   }
@@ -15900,32 +15902,38 @@ const sockets = (() => {
       // Define shared functions
       // Closing the socket
       function close(socket) {
+        // ws can report an error and then close; cleanup must only run once.
+        if (socket._serverCleanupComplete) return;
+        socket._serverCleanupComplete = true;
         // Figure out who the player was
         let player = socket.player,
           index = players.indexOf(player);
         // Remove the player if one was created
         if (index != -1) {
           // Kill the body if it exists
+          const departingBody = player.body;
           if (
-            player.body != null &&
-            player.body.isDominator !== true &&
-            !player.body.trueDev
+            departingBody != null &&
+            departingBody.isDominator !== true &&
+            !departingBody.trueDev
           ) {
-            player.body.invuln = false;
-            setTimeout(() => {
-              if (player.body.skill.score >= 500000 && c.MODE !== "siege") {
-                let o = new Entity(player.body);
+            departingBody.invuln = false;
+            const departureCleanup = setTimeout(() => {
+              // The player object may be reused or its body replaced before this
+              // grace period expires. Never kill/destroy a different body.
+              if (!departingBody || !keyManager.hasKey(departingBody.key)) return;
+              if (departingBody.skill.score >= 500000 && c.MODE !== "siege") {
+                let o = new Entity(departingBody);
                 o.define(Class.goldenEgg);
-                o.name = player.body.name;
-                o.scoreSave = player.body.skill.score;
-                o.ip = player.body.ip;
+                o.name = departingBody.name;
+                o.scoreSave = departingBody.skill.score;
+                o.ip = departingBody.ip;
                 o.impervious = true;
               }
-              player.body.kill();
-              if (!player.body.plagued) {
-                player.body.destroy();
-              }
+              departingBody.kill();
+              if (!departingBody.plagued) departingBody.destroy();
             }, 10000);
+            if (departureCleanup && typeof departureCleanup.unref === "function") departureCleanup.unref();
           }
           if (player.body != null && player.body.isDominator) {
             if (player.body.isTaken) {
@@ -15978,9 +15986,12 @@ const sockets = (() => {
       // Being kicked
       function kick(socket, reason = "No reason given.") {
         let player = socket.player;
-        if (!player.trueDev) {
+        if (!player || !player.trueDev) {
           util.log(reason + " Kicking.");
-          socket.lastWords("K");
+          if (socket.readyState === socket.OPEN) socket.lastWords("K");
+          else {
+            try { socket.terminate(); } catch (_) {}
+          }
         }
       }
       // Handle incoming messages
@@ -18563,6 +18574,9 @@ player.color = easy;
         socket.on("error", (e) => {
           util.log("[ERROR]:");
           util.error(e);
+          // A failed transport can otherwise linger until heartbeat timeout.
+          // terminate() causes ws to emit close, where shared cleanup runs.
+          try { socket.terminate(); } catch (_) {}
         });
         // Put the player functions in the socket
         socket.spawn = (name) => {

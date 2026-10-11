@@ -65,6 +65,9 @@ function createLoadProtection(options = {}) {
   const naturalSpawnPauseMs = positiveNumber(env.RANAR_LAG_100_DURATION_MS, 10000);
   const offscreenCleanupDelayMs = positiveNumber(env.RANAR_LAG_150_DURATION_MS, 15000);
   const onScreenCleanupDelayMs = positiveNumber(env.RANAR_LAG_200_DURATION_MS, 15000);
+  // Heavy emergency mitigation must not react to a single long frame. Start
+  // suspending entities only after critical lag has remained sustained.
+  const criticalLagPersistenceMs = positiveNumber(env.RANAR_LAG_CRITICAL_DURATION_MS, 15000);
   const cleanupIntervalMs = positiveNumber(env.RANAR_LAG_CLEANUP_INTERVAL_MS, 2500);
   const policyRecoveryMs = positiveNumber(env.RANAR_LAG_POLICY_RECOVERY_MS, 10000);
   const warningGrowthMb = positiveNumber(env.RANAR_LOAD_WARNING_GROWTH_MB, 64);
@@ -93,6 +96,7 @@ function createLoadProtection(options = {}) {
   // The episode is bounded to one minute and invalid entities are pruned each cycle.
   const suspendedEntities = new Map();
   let suspensionEpisodeStartedAt = null;
+  let criticalLagSince = null;
   let lastEntitySuspensionAt = null;
   let suspensionLockout = false;
   let lastObservedLagMs = 0;
@@ -169,6 +173,8 @@ function createLoadProtection(options = {}) {
     loadDisabledEntityCount: 0,
     loadSuspensionLockout: false,
     loadSuspensionElapsedMs: 0,
+    criticalLagPersistenceMs,
+    criticalLagConfirmed: false,
     naturalSpawnsPaused: false,
     lagPolicy100Triggered: false,
     lagPolicy150Triggered: false,
@@ -732,18 +738,18 @@ function createLoadProtection(options = {}) {
     const lag150 = sustainedPolicies[150];
     const lag200 = sustainedPolicies[200];
 
-    // Trigger a single incremental unknown-entity sweep immediately on the
-    // transition from below 100ms to >=100ms. It rearms only after lag dips
-    // below 100ms, preventing repeated scans while lag remains high.
+    // Unknown-entity cleanup is potentially destructive, so it must wait for
+    // the same sustained-lag confirmation as the 100ms spawn-pause policy.
+    // It still runs only once per sustained episode and rearms after recovery.
     if (finiteLag >= 100) {
-      if (!unknownCleanupLatched) {
-        unknownCleanupLatched = true;
-        unknownCleanupPending = true;
-        unknownCleanupGeneration++;
-      }
       below100Since = null;
       if (lag100.since === null) lag100.since = now;
       if (now - lag100.since >= lag100.durationMs) {
+        if (!unknownCleanupLatched) {
+          unknownCleanupLatched = true;
+          unknownCleanupPending = true;
+          unknownCleanupGeneration++;
+        }
         lag100.triggered = true;
         if (!naturalSpawnsPaused) {
           naturalSpawnsPaused = true;
@@ -800,6 +806,7 @@ function createLoadProtection(options = {}) {
     lastObservedLagMs = Number.isFinite(lagMs) ? lagMs : 0;
 
     if (lastObservedLagMs < criticalDelayMs) {
+      criticalLagSince = null;
       if (suspensionLockout) {
         suspensionLockout = false;
         callEntityChange(null, false, {
@@ -816,6 +823,9 @@ function createLoadProtection(options = {}) {
     }
 
     if (suspensionLockout) return;
+
+    if (criticalLagSince === null) criticalLagSince = now;
+    if (now - criticalLagSince < criticalLagPersistenceMs) return;
 
     if (suspensionEpisodeStartedAt === null) {
       suspensionEpisodeStartedAt = now;
@@ -875,6 +885,9 @@ function createLoadProtection(options = {}) {
     target.loadSuspensionElapsedMs = suspensionEpisodeStartedAt === null
       ? 0
       : Math.max(0, nowProvider() - suspensionEpisodeStartedAt);
+    target.criticalLagPersistenceMs = criticalLagPersistenceMs;
+    target.criticalLagConfirmed = criticalLagSince !== null &&
+      nowProvider() - criticalLagSince >= criticalLagPersistenceMs;
     target.loadObservedLagMs = lastObservedLagMs;
   }
 
