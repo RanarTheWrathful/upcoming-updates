@@ -12113,9 +12113,9 @@ exports.c4turret = {
     FOV: 1.75,
     SPEED: 0,
     ACCELERATION: 0,
-    HEALTH: 2.5,
+    HEALTH: 1,
     SHIELD: 0,
-    DAMAGE: 0.75,
+    DAMAGE: 0.25,
     RESIST: 1,
     PENETRATION: 1,
     RANGE: 100,
@@ -12132,13 +12132,13 @@ exports.c4turret = {
     },
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [9, 0, 0, 0, 360, 1],
-      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      POSITION: [11, 0, 0, 0, 360, 1],
+      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [11, 0, 0, 0, 360, 1],
-      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
   ]
 };
@@ -40498,13 +40498,13 @@ exports.c4deployer = {
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [9, 0, 0, 0, 360, 1],
-      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      POSITION: [11, 0, 0, 0, 360, 1],
+      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [11, 0, 0, 0, 360, 1],
-      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
   ],
   GUNS: [
