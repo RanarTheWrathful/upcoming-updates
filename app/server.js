@@ -1503,6 +1503,11 @@ function makeDominators() {
   }
 }
 function makeFortGates() {
+  // The Denied creates gates during initial room setup. Shrine destruction
+  // also calls this function, so don't stack duplicate gates during the event.
+  if (c.MODE === "theDenied" && c._deniedFortGatesCreated) return;
+  if (c.MODE === "theDenied") c._deniedFortGatesCreated = true;
+
   let gridWidth = room.width / room.xgrid;
   let gridHeight = room.height / room.ygrid;
 
@@ -7337,6 +7342,7 @@ class Entity {
             break;
           case "theDenied":
             this.define(Class.deniedLegendaryClasses);
+            if(this.skill.score < 1000000) this.skill.score = 1000000;
             break;
         }
         this.skill.points += 15;
@@ -11739,7 +11745,9 @@ class Entity {
                   case 2:
                     o.color = 13;
                     o.define(Class.ranarPower1);
-                    c.SPAWN_CRASHER = true;
+                    // Keep The Denied's ambient crasher spawner disabled; the
+                    // boss's scripted attack already provides its own minions.
+                    c.SPAWN_CRASHER = false;
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
@@ -13391,38 +13399,49 @@ console.log('Lore mode sequence advanced.');*/
           this.trulyDead = false;
           this.health.amount = 1;
           this.REGEN = 7.5;
-          if (this.twiDialog === undefined) this.twiDialog = 0;
-          else this.twiDialog += 1;
-          switch (this.twiDialog) {
-            case 2:
-              sockets.broadcast("Twilight: ...");
-              break;
-            case 4:
-              sockets.broadcast(
-                "Twilight: ...Some help would be nice, yah know."
-              );
-              break;
-            case 6:
-              sockets.broadcast("Twilight: UGH!!!!!!");
-              break;
-            case 8:
-              sockets.broadcast(
-                "Twilight: wait.... ARE YOU MAKING ME SOLO RANAR!?"
-              );
-              break;
-            case 9:
-              sockets.broadcast(
-                "Twilight: Don't tell me you're doing the kill ranar with basic challenge....."
-              );
-              break;
-            case 10:
-              sockets.broadcast(
-                "Twilight: F*** YOU, I AM OUTTA HERE! I'MA WATCH YOU FIGHT RANAR INSTEAD!"
-              );
-              this.destroy();
-              break;
+
+          // This code runs every simulation tick; use elapsed time so dialogue
+          // lines are spaced out instead of all being broadcast in a burst.
+          const now = Date.now();
+          if (this.twiDialog === undefined) {
+            this.twiDialog = 0;
+            this.twiDialogNextAt = now + 6000;
+          }
+          if (now >= this.twiDialogNextAt) {
+            this.twiDialog += 1;
+            this.twiDialogNextAt = now + 6000;
+            switch (this.twiDialog) {
+              case 1:
+                sockets.broadcast("Twilight: ...");
+                break;
+              case 2:
+                sockets.broadcast(
+                  "Twilight: ...Some help would be nice, yah know."
+                );
+                break;
+              case 3:
+                sockets.broadcast("Twilight: UGH!!!!!!");
+                break;
+              case 4:
+                sockets.broadcast(
+                  "Twilight: wait.... ARE YOU MAKING ME SOLO RANAR!?"
+                );
+                break;
+              case 5:
+                sockets.broadcast(
+                  "Twilight: Don't tell me you're doing the kill ranar with basic challenge....."
+                );
+                break;
+              case 6:
+                sockets.broadcast(
+                  "Twilight: F*** YOU, I AM OUTTA HERE! I'MA WATCH YOU FIGHT RANAR INSTEAD!"
+                );
+                this.destroy();
+                break;
+            }
           }
         }
+
         if (
           this.team === -101 ||
           (this.team === -100 &&

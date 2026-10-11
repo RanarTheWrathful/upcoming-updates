@@ -44,7 +44,9 @@ function canIgnoreWallOcclusion(source) {
   if (!source) return false;
   const effect = String(source.specialEffect || "").toLowerCase();
   return Boolean(
-    source.ignoreCollision === true ||
+    source.isRanar === true ||
+      String(source.name || "").toLowerCase() === "ranar" ||
+      source.ignoreCollision === true ||
       source.canDestroyWalls === true ||
       source.wallDestroyer === true ||
       effect === "diewall" ||

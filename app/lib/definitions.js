@@ -79251,7 +79251,12 @@ exports.ranarShrine = {
       POSITION: [9, 0, 0, 0, 0, 1],
       TYPE: [
         exports.ranarDiscipleForm,
-        { INDEPENDENT: true, HAS_NO_RECOIL: true, CONTROLLERS: [] },
+        {
+          INDEPENDENT: true,
+          HAS_NO_RECOIL: true,
+          CONTROLLERS: ["nearestDifferentMaster"],
+          FACING_TYPE: "smoothToTarget",
+        },
       ],
     },
     {

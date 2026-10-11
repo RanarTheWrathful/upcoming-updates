@@ -22,6 +22,7 @@ assert.strictEqual(hasClearLineOfSight(source,
   "the target entity itself must not occlude its own ray");
 
 for (const capableSource of [
+  { ...source, isRanar: true, name: "Ranar" },
   { ...source, specialEffect: "dieWall" },
   { ...source, specialEffect: "crusherFortWall" },
   { ...source, ignoreCollision: true },
