@@ -9252,7 +9252,7 @@ exports.neutronMissile = {
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
       POSITION: [13.5, 0, 0, 0, 360, 1],
-      TYPE: [exports.acidicFieldaSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      TYPE: [exports.acidicFieldSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -68952,16 +68952,6 @@ exports.palisade = {
       /*  SIZE    X       Y     ANGLE    ARC */
       POSITION: [22, 0, 0, 0, 360, 0],
       TYPE: [exports.smasherBody2,],
-    },
-    {
-      /*  SIZE    X       Y     ANGLE    ARC */
-      POSITION: [17, 17, 17, 15, 220, 1],
-      TYPE: [exports.palisadeHand,],
-    },
-
-    {
-      POSITION: [17, 17, -17, -15, 220, 1],
-      TYPE: [exports.palisadehand,],
     },
   ],
 };
