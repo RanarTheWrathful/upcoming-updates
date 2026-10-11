@@ -11351,7 +11351,7 @@ class Entity {
         if (this.isTwilight) {
           if (
             c.wave >= 6 &&
-            this.health.amount === this.health.max && this.lastDowndate
+            this.health.amount === this.health.max && this.down
           ) {
             sockets.broadcast("Twilight has rejoined the fight!");
             this.invuln = false;
@@ -13543,7 +13543,7 @@ console.log('Lore mode sequence advanced.');*/
         c.cxPowerDrain += 1;
       }
       if (c.MODE === "theDenied" && !this.godMode) {
-        if (c.wave >= 6 && this.isTwilight) {
+        if (c.wave >= 6 && this.isTwilight && !this.down) {
           this.down = true;
           this.invuln = true;
           this.trulyDead = false;

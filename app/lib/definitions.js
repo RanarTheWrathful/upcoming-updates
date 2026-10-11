@@ -79364,7 +79364,7 @@ exports.ranarShrine = {
   // NAME: "Ranar",
   LABEL: "Shrine",
   CONTROLLERS: ["nearestDifferentMaster"],
-  AI_TARGET: "healAllies",
+  //AI_TARGET: "healAllies",
   SIZE: 22,
   VALUE: 100000,
   CAN_BE_ON_LEADERBOARD: false,
@@ -79395,6 +79395,7 @@ exports.ranarShrine = {
           INDEPENDENT: true,
           HAS_NO_RECOIL: true,
           CONTROLLERS: ["onlyAcceptInArc"],
+          MAX_CHILDREN: 1
         },
       ],
     },
