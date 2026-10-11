@@ -1,10 +1,4 @@
 
-# Stability and lifecycle fixes (2026-10-10)
-
-- Fixed standalone entity team initialization: root entities now retain their own team ID instead of inheriting `undefined` from themselves. This addresses an entity-state defect that could leave entities outside normal team/combat handling.
-- Delayed destructive lag contingencies until the configured lag duration is sustained. The unknown-entity cleanup sweep now waits for the 100ms persistence window, and critical entity suspension waits 15 seconds by default (`RANAR_LAG_CRITICAL_DURATION_MS`).
-- Hardened WebSocket cleanup against duplicate close/error events, forced termination after transport errors, and ensured delayed disconnect cleanup only targets the original departing body.
-- Added regression tests for lag persistence and the adaptive game-loop scheduler.
   @Ranar's Prophecy/Arena Updates,
 
 # Prophecy Version 0.0.9

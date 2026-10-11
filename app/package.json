@@ -4,7 +4,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js --port 3000",
-    "test": "node tests/loadProtection.test.js && node tests/adaptiveGameLoop.test.js && node tests/siegeWavePlanner.test.js && node tests/aiLineOfSight.test.js && node tests/regenerationMath.test.js"
+    "test": "node tests/loadProtection.test.js && node tests/adaptiveGameLoop.test.js && node tests/siegeWavePlanner.test.js && node tests/aiLineOfSight.test.js && node tests/regenerationMath.test.js && node tests/modeConfig.test.js && node tests/definitionsAudit.test.js"
   },
   "dependencies": {
     "box-intersect": "^1.0.2",

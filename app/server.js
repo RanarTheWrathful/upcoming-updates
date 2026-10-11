@@ -25,56 +25,56 @@ const { performance } = require("perf_hooks");
 let currentState = serverState.getServerState();
 
 const lockFilePath = path.join(__dirname, "serv.lock");
-// Create lock file
-fs.writeFileSync(lockFilePath, process.pid.toString());
+
+// Select a mode by setting GAME_MODE to a Game Modes/*.js filename (without .js).
+// Otherwise SERVER_TYPE keeps the existing testing/normal/lore selection behavior.
+function countInstances(items) {
+  return items.reduce((counts, item) => {
+    if (typeof item === "string" && item.length) {
+      counts[item] = (counts[item] || 0) + 1;
+    }
+    return counts;
+  }, Object.create(null));
+}
+
+function pickTheBiggest(countMap) {
+  const entries = Object.entries(countMap);
+  if (!entries.length) return null;
+  const maxCount = Math.max(...entries.map(([, count]) => count));
+  const tied = entries.filter(([, count]) => count === maxCount);
+  const [selected, count] = tied[Math.floor(Math.random() * tied.length)];
+  return { selected, count };
+}
+
+const gameModesDirectory = path.join(__dirname, "Game Modes");
+const availableModeNames = fs
+  .readdirSync(gameModesDirectory)
+  .filter((file) => file.endsWith(".js") && file !== "serverStateManager.js")
+  .map((file) => path.basename(file, ".js"));
+
+function resolveModeName(requestedName) {
+  const normalized = String(requestedName || "").trim().toLowerCase();
+  const match = availableModeNames.find((name) => name.toLowerCase() === normalized);
+  if (!match) {
+    throw new Error(
+      `Unknown GAME_MODE "${requestedName}". Available modes: ${availableModeNames.join(", ")}`
+    );
+  }
+  return match;
+}
 
 let chosenMode;
-function countInstances(arr) {
-  const countMap = {}; // Object to store counts
+const serverType = String(process.env.SERVER_TYPE || "testing").trim().toLowerCase();
+const requestedMode = process.env.GAME_MODE;
 
-  // Loop through each element in the array
-  arr.forEach((item) => {
-    if (countMap[item]) {
-      countMap[item]++; // Increment count if item exists
-    } else {
-      countMap[item] = 1; // Initialize count if item does not exist
-    }
-  });
-
-  return countMap; // Return the object containing counts
-}
-function pickTheBiggest(countMap) {
-  // Determine the maximum count
-  let maxCount = -1;
-  let maxItems = [];
-
-  for (let key in countMap) {
-    if (countMap[key] > maxCount) {
-      maxCount = countMap[key];
-      maxItems = [key]; // Reset maxItems with the new maximum count item
-    } else if (countMap[key] === maxCount) {
-      maxItems.push(key); // Add to maxItems if count is equal to maxCount
-    }
-  }
-
-  // Randomly select one item from maxItems
-  const randomIndex = Math.floor(Math.random() * maxItems.length);
-  const selected = maxItems[randomIndex];
-
-  // Return just the selected item (not wrapped in an array)
-  return { selected, count: maxCount };
-}
-
-let modeList = ["Unknown"];
-let serverType = "testing"; //change this to play preset modes look
-if (serverType === "JJ's Reasearch Facility")
-  chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "The Denied";
-//change this to play a specifict mode
-else if (serverType === "normal") {
-  //dont change these - J.J.
-  modeList = [
-    //oh ok - kris
+if (requestedMode && requestedMode.trim()) {
+  chosenMode = resolveModeName(requestedMode);
+} else if (serverType === "jj's reasearch facility") {
+  chosenMode = resolveModeName("JJ's Reasearch Facility");
+} else if (serverType === "testing") {
+  chosenMode = resolveModeName("The Denied");
+} else if (serverType === "normal") {
+  const modeList = [
     "Open Execution",
     "Maze Execution",
     "4TDM Growth",
@@ -96,24 +96,16 @@ else if (serverType === "normal") {
     "Grudge Ball",
     "Siege",
   ];
-  if (currentState.modeVotes.length === 0) {
-    chosenMode = ran.choose(modeList);
-  } else {
-    let votes = countInstances(currentState.modeVotes);
-    let result = pickTheBiggest(votes);
-    chosenMode = result.selected;
-  }
+  const votes = Array.isArray(currentState.modeVotes) ? currentState.modeVotes : [];
+  const validVotes = votes.filter((vote) => typeof vote === "string" && modeList.includes(vote));
+  const result = validVotes.length ? pickTheBiggest(countInstances(validVotes)) : null;
+  chosenMode = result ? result.selected : ran.choose(modeList);
   currentState.modeVotes = [];
-  if (chosenMode === "Siege") {
-    for (let i = 0; i < 3; i++) {
-      currentState.modeVotes.push("Siege");
-    }
-    if (currentState.bossWaves > 50) {
-      currentState.modeVotes = [];
-    }
+  if (chosenMode === "Siege" && !(currentState.bossWaves > 50)) {
+    currentState.modeVotes = ["Siege", "Siege", "Siege"];
   }
 } else if (serverType === "lore") {
-  modeList = [
+  const modeList = [
     "The Expanse",
     "The Infestation",
     "The Controlled",
@@ -121,20 +113,29 @@ else if (serverType === "normal") {
     "The Awakening",
     "The Distance",
   ];
-  let listCount = modeList.length;
-  if (listCount > currentState.loreModeIndex) {
-    chosenMode = modeList[currentState.loreModeIndex];
+  const index = Number.isInteger(currentState.loreModeIndex)
+    ? currentState.loreModeIndex
+    : 0;
+  if (index >= 0 && index < modeList.length) {
+    chosenMode = modeList[index];
   } else {
     chosenMode = modeList[0];
     serverState.resetLoreIndex();
   }
+} else {
+  throw new Error(
+    `Unknown SERVER_TYPE "${serverType}". Use testing, normal, lore, or set GAME_MODE explicitly.`
+  );
 }
 
 //serverState.resetLoreIndex();
 //serverState.advanceLoreSequence();
-let config = require("./config.js"),
-  gameMode = require("./Game Modes/" + chosenMode),
-  c = { ...config, ...gameMode };
+const config = require("./config.js");
+const gameMode = require("./Game Modes/" + chosenMode);
+const resolveModeConfig = require("./lib/modeConfig");
+const c = resolveModeConfig(config, gameMode, chosenMode);
+// Write the lock only after mode selection and config validation succeed.
+fs.writeFileSync(lockFilePath, process.pid.toString());
 //util.log(JSON.stringify(c, null, 2));
 const decodeHTML = require("html-entities").decode;
 // Set up room
@@ -10731,8 +10732,6 @@ class Entity {
                     ]
                   );
                 }
-                o.accel.x + Math.random * 0.1 - 0.2;
-                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -10832,8 +10831,6 @@ class Entity {
                     ])
                   ]
                 );
-                o.accel.x + Math.random * 0.1 - 0.2;
-                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -11043,7 +11040,7 @@ class Entity {
                   case 2:
                     o.color = 13;
                     o.define(Class.sardonyxPower1);
-                    c.SPAWN_CRASHERS = true;
+                    c.SPAWN_CRASHER = true;
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
@@ -11432,8 +11429,6 @@ class Entity {
                     ]
                   );
                 }
-                o.accel.x + Math.random * 0.1 - 0.2;
-                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -11532,8 +11527,6 @@ class Entity {
                     ])
                   ]
                 );
-                o.accel.x + Math.random * 0.1 - 0.2;
-                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -11746,7 +11739,7 @@ class Entity {
                   case 2:
                     o.color = 13;
                     o.define(Class.ranarPower1);
-                    c.SPAWN_CRASHERS = true;
+                    c.SPAWN_CRASHER = true;
                     o.team = -100;
                     o.SIZE = this.SIZE;
                     o.invuln = false;
@@ -12107,8 +12100,6 @@ class Entity {
                     ]
                   );
                 }
-                o.accel.x + Math.random * 0.1 - 0.2;
-                o.accel.y + Math.random * 0.1 - 0.2;
                 o.facing = ran.randomAngle();
                 o.team = -100;
                 o.enemy = true;
@@ -21994,8 +21985,6 @@ var maintainloop = (() => {
           Class[ran.choose(["commanderKeeper", "directorKeeper", "overKeeper"])]
         );
       }
-      o.accel.x + Math.random * 0.1 - 0.2;
-      o.accel.y + Math.random * 0.1 - 0.2;
       o.facing = ran.randomAngle();
       o.team = -100;
       o._loadProtectionNaturalSpawn = true;
@@ -22046,8 +22035,6 @@ var maintainloop = (() => {
             o.define(Class[ran.choose(["doYouUnderStand?"])]);
             sockets.broadcast("Maybe anounce it if its a rare spawn?");
           }
-          o.accel.x + Math.random * 0.1 - 0.2;
-          o.accel.y + Math.random * 0.1 - 0.2;
           o.facing = ran.randomAngle();
           o.team = -100;
           break;
@@ -22056,8 +22043,6 @@ var maintainloop = (() => {
             Class[ran.choose(["Unawakened1", "Unawakened2", "Unawakened3"])]
           );
 
-          o.accel.x + Math.random * 0.1 - 0.2;
-          o.accel.y + Math.random * 0.1 - 0.2;
           o.facing = ran.randomAngle();
           o.team = -5;
           break;
@@ -22089,8 +22074,6 @@ var maintainloop = (() => {
           ])
         ]
       );
-      o.accel.x + Math.random * 0.1 - 0.2;
-      o.accel.y + Math.random * 0.1 - 0.2;
       o.facing = ran.randomAngle();
       o.team = -100;
       o._loadProtectionNaturalSpawn = true;

@@ -513,6 +513,7 @@ exports.genericEntity = {
 };
 const base = {
   ACCEL: 1.75,
+  RELOAD: 1,
   SPEED: 5,
   HEALTH: 25,
   DAMAGE: 2,
@@ -1655,12 +1656,6 @@ exports.pentagonBody2 = {
   LABEL: "",
   COLOR: 9,
   SHAPE: 5,
-  INDEPENDENT: true,
-};
-exports.pentagonBody3 = {
-  LABEL: "",
-  COLOR: 9,
-  SHAPE: -5,
   INDEPENDENT: true,
 };
 exports.pentagonBody3 = {
@@ -12326,6 +12321,18 @@ function makeSwarmSpawner(guntype) {
   };
 }
 exports.cruiserGun = makeSwarmSpawner(combineStats([g.swarm]));
+function inheritedDanger(type, seen = new Set()) {
+  if (!type || typeof type !== "object" || seen.has(type)) return null;
+  if (Number.isFinite(type.DANGER)) return type.DANGER;
+  seen.add(type);
+  const parents = Array.isArray(type.PARENT) ? type.PARENT : [];
+  for (const parent of parents) {
+    const danger = inheritedDanger(parent, seen);
+    if (danger !== null) return danger;
+  }
+  return null;
+}
+
 function makeAuto(type, name = -1, options = {}) {
   let turret = { type: exports.autoTurret, size: 10, independent: true };
   if (options.type != null) {
@@ -12363,7 +12370,7 @@ function makeAuto(type, name = -1, options = {}) {
   } else {
     output.LABEL = name;
   }
-  output.DANGER = type.DANGER + 1;
+  output.DANGER = (inheritedDanger(type) ?? 0) + 1;
   return output;
 }
 function makeHybrid(type, name = -1) {
@@ -14329,37 +14336,7 @@ exports.ogbursterBurst = makeMulti(
   10,
   "Bursting"
 );
-exports.grenadierExplosion = makeMulti(
-  {
-    PARENT: [exports.bullet],
-    ALPHA: 0,
-    FACING_TYPE: "autospin",
-    INDEPENDENT: true,
-    BODY: {
-      RANGE: 5,
-    },
-    GUNS: [
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [15, 5, 1, 0, 0, 0, 0],
-        PROPERTIES: {
-          AUTOFIRE: true,
-          SHOOT_SETTINGS: combineStats([
-            g.basic,
-            g.twin,
-            g.gunner,
-            g.cyclone,
-            g.power,
-            g.lesserStats,
-          ]),
-          TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
-        },
-      },
-    ],
-  },
-  10,
-  ""
-);
+
 exports.grenadierExplosion = makeMulti(
   {
     PARENT: [exports.bullet],
@@ -17588,7 +17565,8 @@ exports.roguestrapnelgunTurret2 = {
           g.doubleSpray,
           g.superSpeed,
           g.bitmoreSpeed,
-          g
+          g.halfReload,
+          g.bitmoreSize,
         ]),
         TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
       },
@@ -19231,7 +19209,7 @@ exports.racer = {
   PARENT: [exports.genericTank],
   LABEL: "Racer",
   BODY: {
-    ACCELERATION: base.ACCELERATION,
+    ACCELERATION: base.ACCEL,
     HEALTH: base.HEALTH * 1.8,
     SHIELD: base.SHIELD * 1.8,
     SPEED: 6,
@@ -19286,7 +19264,7 @@ exports.bolter = {
   PARENT: [exports.genericTank],
   LABEL: "Bolter",
   BODY: {
-    ACCELERATION: base.ACCELERATION,
+    ACCELERATION: base.ACCEL,
     HEALTH: base.HEALTH * 2,
     SHIELD: base.SHIELD * 2,
     SPEED: 6,
@@ -19357,7 +19335,7 @@ exports.speedDemon = {
   PARENT: [exports.genericTank],
   LABEL: "Speed Demon",
   BODY: {
-    ACCELERATION: base.ACCELERATION,
+    ACCELERATION: base.ACCEL,
     HEALTH: base.HEALTH * 2.25,
     SHIELD: base.SHIELD * 2.25,
     SPEED: 6,
@@ -19445,7 +19423,7 @@ exports.zipper = {
   PARENT: [exports.genericTank],
   LABEL: "Zipper",
   BODY: {
-    ACCELERATION: base.ACCELERATION * 0.1,
+    ACCELERATION: base.ACCEL * 0.1,
     HEALTH: base.HEALTH * 1.8,
     SHIELD: base.SHIELD * 1.8,
     SPEED: base.SPEED * 3,
@@ -19485,7 +19463,7 @@ exports.Accelerator = {
   PARENT: [exports.genericTank],
   LABEL: "Accelerator",
   BODY: {
-    ACCELERATION: base.ACCELERATION * 0.1,
+    ACCELERATION: base.ACCEL * 0.1,
     HEALTH: base.HEALTH * 1.8,
     SHIELD: base.SHIELD * 1.8,
     SPEED: base.SPEED * 3,
@@ -21462,20 +21440,20 @@ exports.dummyelite = {
 exports.wtf = {
   PARENT: [exports.genericTank],
   LABEL: "Physical Manifestation of 'WTF!?'",
-  NAME: undefined,
+  NAME: "WTF!?",
   BODY: {
-    DENSITY: Infinity,
-    DAMAGE: true,
-    HEALTH: NaN,
-    SPEED: false,
-    ACCELERATION: null,
-    PENETRATION: "Yes Daddy",
+    DENSITY: 1e6,
+    DAMAGE: 1,
+    HEALTH: 1e12,
+    SPEED: 0,
+    ACCELERATION: 0,
+    PENETRATION: 1e6,
   },
 };
 exports.IDAT = {
   PARENT: [exports.genericTank],
   LABEL: "physical Manifestation of 'WTH' ",
-  DANGER: false,
+  DANGER: 10,
   FOV: 30,
   SHAPE: [
     [-0.4, 1],
@@ -21496,12 +21474,12 @@ exports.IDAT = {
     [0, 0.5],
   ],
   BODY: {
-    HEALTH: NaN,
-    DENSITY: Infinity,
-    DAMAGE: true,
+    HEALTH: 1e12,
+    DENSITY: 1e6,
+    DAMAGE: 1,
     SPEED: 54,
     FOV: 30,
-    ACCELERATION: undefined,
+    ACCELERATION: base.ACCEL,
     PENETRATION: 13624315637485,
   },
   GUNS: [
@@ -24457,7 +24435,7 @@ exports.repsanctuary_snow = {
     },
       {
       POSITION: [14.5, 0, 0, 0, 360, 1],
-      TYPE: [exports.healSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      TYPE: [exports.healerSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
     {
       POSITION: [8.5, 0, 0, 30, 360, 1],
@@ -34216,7 +34194,7 @@ exports.assort = {
           g.superSize,
           g.greaterHealth,
         ]),
-        TYPE: exports.boomrang,
+        TYPE: exports.boomerang,
       },
     },
     {
@@ -39277,7 +39255,7 @@ exports.duodecitank = {
   SPECIAL_EFFECT: "Legend",
   BODY: {
     HEALTH: base.HEALTH * 3,
-    SHEILD: base.SHEILD * 2,
+    SHIELD: base.SHIELD * 2,
     DAMAGE: base.DAMAGE * 1.75,
     PENETRATION: base.PENETRATION * 1.5,
   },
@@ -43525,7 +43503,7 @@ exports.creation = makeMulti({
   POSITION: [18, 8, 1, 0, 0, 0, 0],
   PROPERTIES: {
     SHOOT_SETTINGS: combineStats([g.basic]),
-    TYPE: exports.Missile,
+    TYPE: exports.missile,
       },
     },
       {
@@ -47513,7 +47491,7 @@ exports.nesterTwisterTurret = {
           g.missile,
           g.doubleReload,
         ]),
-        TYPE: exports.tisterMissile,
+        TYPE: exports.twisterMissile,
       },
     },
   ],
@@ -52617,7 +52595,7 @@ exports.zombieStreamliner = {
 exports.zombieBigCheese = {
   PARENT: [exports.zombie, exports.cheese],
   TYPE: "zombie",
-  CONTROLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
+  CONTROLLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
   FACING_TYPE: "looseToTarget",
   COLOR: 41,
   LEVEL: 45,
@@ -52638,7 +52616,7 @@ exports.zombieBigCheese = {
 exports.zombieRifle = {
   PARENT: [exports.zombie, exports.rifle],
   TYPE: "zombie",
-  CONTROLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
+  CONTROLLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
   FACING_TYPE: "looseToTarget",
   COLOR: 41,
   LEVEL: 45,
@@ -52667,7 +52645,7 @@ exports.zombieRifle = {
 exports.zombieCruiser = {
   PARENT: [exports.zombie, exports.cruiser],
   TYPE: "zombie",
-  CONTROLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
+  CONTROLLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
   FACING_TYPE: "looseToTarget",
   COLOR: 41,
   LEVEL: 45,
@@ -52695,7 +52673,7 @@ exports.zombieOverlord = makeMulti(
   {
     PARENT: [exports.zombie, exports.overlord],
     TYPE: "zombie",
-    CONTROLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
+    CONTROLLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
     FACING_TYPE: "looseToTarget",
     COLOR: 41,
     LEVEL: 45,
@@ -52720,7 +52698,7 @@ exports.zombieOverlord = makeMulti(
 exports.zombieSwarmer = {
   PARENT: [exports.zombie, exports.swarmer],
   TYPE: "zombie",
-  CONTROLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
+  CONTROLLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
   FACING_TYPE: "looseToTarget",
   COLOR: 41,
   LEVEL: 45,
@@ -52747,7 +52725,7 @@ exports.zombieSwarmer = {
 exports.zombieRocketeer = {
   PARENT: [exports.zombie, exports.rocketeer],
   TYPE: "zombie",
-  CONTROLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
+  CONTROLLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
   FACING_TYPE: "looseToTarget",
   COLOR: 41,
   LEVEL: 45,
@@ -52775,7 +52753,7 @@ exports.zombieRocketeer = {
 exports.zombieAnimator = {
   PARENT: [exports.zombie, exports.animator],
   TYPE: "zombie",
-  CONTROLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
+  CONTROLLERS: ["nearestDifferentMaster", "mapTargetToGoal"],
   FACING_TYPE: "looseToTarget",
   COLOR: 41,
   LEVEL: 45,
@@ -54424,7 +54402,7 @@ for (let i = 0; i < 11; i++) {
     POSITION: [6, 9, 0, i * (360 / 11) + 360 / 11 / 2, 0, 0],
     TYPE: [
       exports.celestialTrapTurret,
-      { CONTROLERS: ["nearestDifferentMaster"] },
+      { CONTROLLERS: ["nearestDifferentMaster"] },
     ],
   });
 }
@@ -54434,7 +54412,7 @@ for (let i = 0; i < 11; i++) {
     POSITION: [4, 9, 0, i * (360 / 11) + 360 / 11 / 2, 0, 0],
     TYPE: [
       exports.celestialTrapTurret,
-      { CONTROLERS: ["nearestDifferentMaster"] },
+      { CONTROLLERS: ["nearestDifferentMaster"] },
     ],
   });
 }
@@ -55235,7 +55213,7 @@ exports.LeliteMachineTurret = {
       POSITION: [12, 10, 1.4, 8, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.basic, g.machgun, g.greaterHealth]),
-        TYPE: exports.autoullet,
+        TYPE: exports.autoBullet,
       },
     },
   ],
@@ -61212,12 +61190,6 @@ for (let i = 0; i < 3; i++) {
     TYPE: [exports.miniseleneTwisterTurret],
   });
 }
-exports.seleneTopLayer = {
-  PARENT: [exports.aresTopLayer],
-  COLOR: 13,
-  SHAPE: 3,
-  TURRETS: [...seleneTopLayer],
-};
 exports.miniseleneTopLayer = {
   PARENT: [exports.aresTopLayer],
   COLOR: 13,
@@ -74353,6 +74325,17 @@ exports.swarmeggsenti12b = {
     },
   ],
 };
+exports.swarmeggsenti1minion = {
+  PARENT: [exports.minion],
+  LABEL: "Void Egg Minion",
+  COLOR: 19,
+  BODY: {
+    HEALTH: 1.5,
+    DAMAGE: 1.25,
+    SPEED: 3.8,
+    REGEN: 0,
+  },
+};
 exports.swarmeggsenti22b = {
   PARENT: [exports.voidlordMeleeBoss],
   LABEL: "Delta Auto Void Egg",
@@ -75774,20 +75757,6 @@ exports.Vbaltylahandsaw1 = {
   COLOR: 9,
   FACING_TYPE: "locksFacing",
   SHAPE: [
-    [-1.75, 0],
-    [1, -1],
-    [1, 1],
-  ],
-};
-exports.Vbaltylahandsaw1 = {
-  PARENT: [exports.genericTank],
-  LABEL: "",
-  BODY: {
-    FOV: 0,
-  },
-  COLOR: 9,
-  FACING_TYPE: "locksFacing",
-  SHAPE: [
     [1.75, 0],
     [-1, -1],
     [-1, 1],
@@ -75836,7 +75805,7 @@ exports.Vbaltylahandsaw4 = {
   ],
 };
 exports.baltylaeye = {
-  PARET: [exports.genericTank],
+  PARENT: [exports.genericTank],
   LABEL: "",
   CONTROLLERS: ["dontTurn"],
   BODY: {
@@ -75851,7 +75820,7 @@ exports.baltylaeye = {
   ],
 };
 exports.Vbaltylaeyeholder = {
-  PARET: [exports.genericTank],
+  PARENT: [exports.genericTank],
   LABEL: "",
   SHAPE: 1,
   CONTROLLERS: ["dontTurn"],
@@ -75859,7 +75828,6 @@ exports.Vbaltylaeyeholder = {
     FOV: 0,
   },
   COLOR: 9,
-  SHAPE: 1,
   TURRETS: [
     {
       POSITION: [17, 0, 0, 0, 0, 0, 1],
@@ -76151,6 +76119,34 @@ exports.Vbaltylahand2 = {
     },
   ],
 };
+exports.nulltype = {
+  PARENT: [exports.voidlordRangedBoss],
+  //  NAME: "Alhazred",
+  LABEL: "Ancient",
+  SPECIAL_EFFECT: "randomShit",
+  SIZE: 30,
+  VALUE: 250000,
+  SKILL: skillSet({
+    rld: 0.4, //reload
+    dam: 0.6, //bullet damage
+    pen: 0.6, //bullet penetration
+    str: 0.6, //bullet health
+    atk: 0, //bullet speed
+    spd: 0.2, //body damage
+    hlt: 0, //max health
+    shi: 0, //shield capacity
+    rgn: 0, //shield regeneration
+    mob: 0, //movement speed
+  }),
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.breakerSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
+};
+
 exports.Vbaltyla = {
   PARENT: [exports.voidlordRangedBoss],
   NAME: "Baltyla",
@@ -76159,8 +76155,6 @@ exports.Vbaltyla = {
   VALUE: 6500000,
   SIZE: 35,
   COLOR: 19,
-  MAX_CHILDREN: 10,
-  HAS_NO_RECOIL: true,
   MAX_CHILDREN: 30,
   BODY: {
     PENETRATION: 5.9,
@@ -79951,7 +79945,7 @@ exports.bossnulltype = {
         exports.autoSmasherTurret,
         {
           INDEPENDENT: true,
-          CONTROLERS: ["nearestDifferentMaster"],
+          CONTROLLERS: ["nearestDifferentMaster"],
           COLOR: 16,
         },
       ],
@@ -79962,7 +79956,7 @@ exports.bossnulltype = {
         exports.autoSmasherTurret,
         {
           INDEPENDENT: true,
-          CONTROLERS: ["nearestDifferentMaster"],
+          CONTROLLERS: ["nearestDifferentMaster"],
           COLOR: 16,
         },
       ],
@@ -79973,7 +79967,7 @@ exports.bossnulltype = {
         exports.autoSmasherTurret,
         {
           INDEPENDENT: true,
-          CONTROLERS: ["nearestDifferentMaster"],
+          CONTROLLERS: ["nearestDifferentMaster"],
           COLOR: 16,
         },
       ],
@@ -79984,7 +79978,7 @@ exports.bossnulltype = {
         exports.oldAutoSmasherTurret,
         {
           INDEPENDENT: true,
-          CONTROLERS: ["nearestDifferentMaster"],
+          CONTROLLERS: ["nearestDifferentMaster"],
           COLOR: 16,
         },
       ],
@@ -79995,33 +79989,6 @@ exports.bossnulltype = {
     },
   ],
   GUNS: [],
-};
-exports.nulltype = {
-  PARENT: [exports.voidlordRangedBoss],
-  //  NAME: "Alhazred",
-  LABEL: "Ancient",
-  SPECIAL_EFFECT: "randomShit",
-  SIZE: 30,
-  VALUE: 250000,
-  SKILL: skillSet({
-    rld: 0.4, //reload
-    dam: 0.6, //bullet damage
-    pen: 0.6, //bullet penetration
-    str: 0.6, //bullet health
-    atk: 0, //bullet speed
-    spd: 0.2, //body damage
-    hlt: 0, //max health
-    shi: 0, //shield capacity
-    rgn: 0, //shield regeneration
-    mob: 0, //movement speed
-  }),
-  TURRETS: [
-    {
-      /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [9, 0, 0, 0, 360, 1],
-      TYPE: [exports.breakerSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-  ],
 };
 exports.lurkerBelow = {
   PARENT: [exports.voidlordRangedBoss],
@@ -82920,7 +82887,7 @@ exports.cubedhandsaw4 = {
   ],
 };
 exports.cubedeye = {
-  PARET: [exports.genericTank],
+  PARENT: [exports.genericTank],
   LABEL: "",
   CONTROLLERS: ["dontTurn"],
   SHAPE: 4,
@@ -82936,7 +82903,7 @@ exports.cubedeye = {
   ],
 };
 exports.cubedeyeholder = {
-  PARET: [exports.genericTank],
+  PARENT: [exports.genericTank],
   LABEL: "",
   SHAPE: 1,
   CONTROLLERS: ["dontTurn"],
@@ -84517,6 +84484,17 @@ exports.constructon = {
       TYPE: [exports.oldAutoSmasherTurret],
     },
   ],
+};
+exports.conductminion = {
+  PARENT: [exports.minion],
+  LABEL: "Conduct Minion",
+  COLOR: 16,
+  BODY: {
+    HEALTH: 3,
+    DAMAGE: 1.25,
+    SPEED: 3.8,
+    REGEN: 0,
+  },
 };
 exports.enabler = {
   PARENT: [exports.highlordRangedBoss],
@@ -89655,7 +89633,7 @@ exports.anti_tank2 = {
 exports.mechagod = {
   PARENT: [exports.genericTank],
   LABEL: "Arena Originator",
-  DANGER: NaN,
+  DANGER: 10,
   TYPE: "deity",
   TARGETABLE: true,
   VALUE: 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999,
@@ -89684,7 +89662,6 @@ exports.mechagod = {
     rgn: 100000000000000000000000000000000000000000000.4, //damn
     mob: 0,
   }),
-  DANGER: NaN,
   SPECIAL_EFFECT: "dieWall",
   LEVEL: Infinity,
   SIZE: 30,
@@ -92730,68 +92707,6 @@ exports.celestialCrasher = {
   ],
 };
 
-  exports.legionaryNesterHelperBody = makeMulti({
-  PARENT: [exports.Legionary],
-  CONTROLLERS: ["nearestDifferentMaster"],
-  COLOR: 14,
-  SHAPE: 5,
-  DANGER: 7,
-  INDEPENDENT: false,
-  STAT_NAMES: statnames.swarm,
-  FACING_TYPE: "autospin",
-  BODY: {
-    ACCELERATION: base.ACCEL,
-    FOV: base.FOV * 1.2,
-  },
-  TURRETS: [
-      {//GUARDIAN
-        POSITION: [6, 9.5, 0, 72, 110, 0],
-        TYPE: [exports.nesterConstructorTurret],
-      },
-      {
-        POSITION: [6, 9.5, 0, 144, 110, 0],
-        TYPE: [exports.nesterConstructorTurret],
-      },
-      {
-        POSITION: [6, 9.5, 0, 216, 110, 0],
-        TYPE: [exports.nesterConstructorTurret],
-      },
-      {
-        POSITION: [6, 9.5, 0, 288, 110, 0],
-        TYPE: [exports.nesterConstructorTurret],
-      },
-      {
-        POSITION: [6, 9.5, 0, 360, 110, 0],
-        TYPE: [exports.nesterConstructorTurret],
-      },
-
-      {
-        POSITION: [10, 0, 0, 0, 360, 1],
-        TYPE: [exports.legionaryBoomerTurret],
-      },
-  ],
-    GUNS: [
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [3.75, 6.5, 1.4, 8, 0, 35, 0.4],
-        PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([
-            g.drone,
-            g.halfDamage,
-            g.superReload,
-          ]),
-          TYPE: exports.sterilePentagonChip,
-          AUTOFIRE: true,
-          MAX_CHILDREN: 2,
-          SYNCS_SKILLS: true,
-          STAT_CALCULATOR: gunCalcNames.necro,
-        },
-      },
-    ],
-  },
-  5,
-  ""
-);
 exports.legionaryQuintuplet = {
   PARENT: [exports.autoTurret],//this isnt a crossbow, this is a quintuplet
   LABEL: "Quin-Sniper",
@@ -92988,8 +92903,8 @@ exports.nesterConstructorTurret = {
       },
     },
   ],
-},
-  exports.legionaryNesterHelperBody = makeMulti({
+};
+exports.legionaryNesterHelperBody = makeMulti({
   PARENT: [exports.Legionary],
   CONTROLLERS: ["nearestDifferentMaster"],
   COLOR: 14,
@@ -93943,12 +93858,6 @@ exports.cubedtankpage7 = {
   PARENT: [exports.genericTank],
   LABEL: "J.J.'s Tanks Page 7",
   LEVEL: 45,
-  SHAPE: 5,
-};
-exports.cubedtankpage7 = {
-  PARENT: [exports.genericTank],
-  LABEL: "J.J.'s Tanks Page 7",
-  LEVEL: 45,
   SHAPE: 6,
 };
 exports.cubedtankpage8 = {
@@ -93986,12 +93895,6 @@ exports.cubedenemypage2 = {
   LABEL: "J.J.'s Enemy Page 2",
   LEVEL: 45,
   SHAPE: 4,
-};
-exports.cubedenemypage3 = {
-  PARENT: [exports.genericTank],
-  LABEL: "J.J.'s Enemy Page 3",
-  LEVEL: 45,
-  SHAPE: 5,
 };
 exports.cubedenemypage3 = {
   PARENT: [exports.genericTank],
