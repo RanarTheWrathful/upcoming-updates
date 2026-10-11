@@ -5144,7 +5144,26 @@ exports.growCollident = {
        ],
          };
 exports.ascendantCollident = {
-  PARENT: [exports.dualCollident],
+  PARENT: [exports.genericTank],
+  TYPE: "attachment",
+  SHAPE: 1,
+  FACING_TYPE: "autospin",
+  CONTROLLERS: ["teleportToMaster"],
+  ACCEPTS_SCORE: false,
+  GIVE_KILL_MESSAGE: false,
+  CONNECTED_TRAITS: [
+    "skill.score",
+    ],
+  DIE_AT_RANGE: true,
+  SPIN_RATE: 0.075,
+  BODY: {
+    HEALTH: 99999,
+    RANGE: 1000,
+    DAMAGE: 0,
+    PENETRATION: 999,//deadly amount of penetration this baby has in it
+    },
+    DRAW_HEALTH: false,
+  CLEAR_ON_MASTER_UPGRADE: true,
   SHAPE: 0,
   TURRETS: [
     {
@@ -79242,7 +79261,7 @@ exports.ranarShrine = {
   PARENT: [exports.damagedArenaCloser],
   // NAME: "Ranar",
   LABEL: "Shrine",
-  //CONTROLLERS: ["Dominator"],
+  CONTROLLERS: ["nearestDifferentMaster"],
   AI_TARGET: "healAllies",
   SIZE: 22,
   VALUE: 100000,
@@ -79273,7 +79292,7 @@ exports.ranarShrine = {
         {
           INDEPENDENT: true,
           HAS_NO_RECOIL: true,
-          CONTROLLERS: ["nearestDifferentMaster"],
+          CONTROLLERS: ["onlyAcceptInArc"],
         },
       ],
     },
