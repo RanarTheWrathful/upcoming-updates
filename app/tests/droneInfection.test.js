@@ -171,4 +171,81 @@ const atCapFood = {
 assert.strictEqual(fakeGun.infect(atCapFood, cappedOwner), false,
   "infection must stop at the owning tank's total drone cap");
 
+// The real class definition stores STAT_CALCULATOR as numeric ID 7. When
+// normalized, its four 5-drone spawners share one reload-scaled limit with
+// infected squares rather than allowing infection to bypass the stat.
+const calculatorTools = require("../lib/gunCalculator");
+const necromancerDef = definitions.necromancer;
+function makeNecromancer(reloadScale) {
+  const owner = {
+    type: "tank", label: "Necromancer", maxChildren: necromancerDef.MAX_CHILDREN,
+    settings: { skillNames: necromancerDef.STAT_NAMES },
+    skill: { rld: reloadScale },
+    master: null, source: null, children: [], possiblyChildren: new Set(), turrets: [],
+    guns: necromancerDef.GUNS.map((definition) => ({
+      calculator: calculatorTools.normalizeStatCalculator(definition.PROPERTIES.STAT_CALCULATOR),
+      countsOwnKids: definition.PROPERTIES.MAX_CHILDREN,
+      bulletTypes: definition.PROPERTIES.TYPE,
+      spawnedEntityType: infection.getSpawnedEntityType(definition.PROPERTIES.TYPE),
+    })),
+  };
+  owner.master = owner;
+  owner.source = owner;
+  return owner;
+}
+const baseStatNecro = makeNecromancer(1);
+assert.strictEqual(infection.getTankDroneLimit(baseStatNecro), 20,
+  "zero Max Drone Limit stat should respect the sum of four 5-drone spawner caps");
+assert.strictEqual(infection.canGunSpawnDrone(baseStatNecro, baseStatNecro.guns[0]), true);
+for (let i = 0; i < 20; i++) baseStatNecro.possiblyChildren.add({ type: "drone" });
+assert.strictEqual(infection.hasDroneCapacity(baseStatNecro), false,
+  "infected/normal drones collectively use the base Max Drone Limit");
+assert.strictEqual(infection.canGunSpawnDrone(baseStatNecro, baseStatNecro.guns[0]), false,
+  "normal spawners must stop when infected drones have filled the shared limit");
+
+const maxStatNecro = makeNecromancer(0.5);
+assert.strictEqual(infection.getTankDroneLimit(maxStatNecro), 40,
+  "investing in the Max Drone Limit stat doubles the necromantic cap, up to MAX_CHILDREN");
+for (let i = 0; i < 39; i++) maxStatNecro.possiblyChildren.add({ type: "drone" });
+assert.strictEqual(infection.canGunSpawnDrone(maxStatNecro, maxStatNecro.guns[0]), true,
+  "the stat-scaled capacity remains available just below the upgraded cap");
+maxStatNecro.possiblyChildren.add({ type: "drone" });
+assert.strictEqual(infection.canGunSpawnDrone(maxStatNecro, maxStatNecro.guns[0]), false,
+  "both spawners and infection stop at the upgraded cap");
+
+// Exercise Gun.live itself: numeric calculator ID 7 must behave as "necro",
+// and ordinary spawning must stop when infected drones fill the shared limit.
+function makeLiveNecroGun(owner, cycle) {
+  const gun = Object.create(Gun.prototype);
+  Object.assign(gun, {
+    body: owner, canShoot: true, bulletStats: "master", calculator: calculatorTools.normalizeStatCalculator(7),
+    spawnedEntityType: "drone", countsOwnKids: 5, children: [], waitToCycle: false, cycle, delay: 0,
+    settings: { reload: 1, size: 1 }, autofire: true, altFire: false,
+    offset: 0, length: 1, width: 1,
+    recoil() {},
+  });
+  gun.shots = 0;
+  gun.fire = () => {
+    gun.shots++;
+    const child = { type: "drone" };
+    gun.children.push(child);
+    owner.possiblyChildren.add(child);
+  };
+  return gun;
+}
+const liveNecro = makeNecromancer(1);
+for (let i = 0; i < 19; i++) liveNecro.possiblyChildren.add({ type: "drone" });
+liveNecro.master = liveNecro;
+liveNecro.invuln = false;
+liveNecro.control = { fire: false, alt: false };
+liveNecro.size = 12;
+liveNecro.facing = 0;
+const lastSlotGun = makeLiveNecroGun(liveNecro, 1);
+lastSlotGun.live();
+assert.strictEqual(lastSlotGun.shots, 1, "a necromantic spawner may fill the final shared drone slot");
+assert.strictEqual(infection.countOwnedDrones(liveNecro), 20);
+const blockedGun = makeLiveNecroGun(liveNecro, 1);
+blockedGun.live();
+assert.strictEqual(blockedGun.shots, 0, "a necromantic spawner may not exceed the shared drone limit");
+
 console.log("Drone infection tests passed");

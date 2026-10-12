@@ -21,6 +21,7 @@ const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
 const droneInfection = require("./lib/droneInfection");
+const { normalizeStatCalculator } = require("./lib/gunCalculator");
 const { performance } = require("perf_hooks");
 
 function applyFoodInfectionEffects(food, infector) {
@@ -4861,10 +4862,10 @@ class Gun {
         info.PROPERTIES.SHOOT_SETTINGS == null
           ? []
           : info.PROPERTIES.SHOOT_SETTINGS;
-      this.calculator =
-        info.PROPERTIES.STAT_CALCULATOR == null
-          ? "default"
-          : info.PROPERTIES.STAT_CALCULATOR;
+      // Definitions encode STAT_CALCULATOR as numeric IDs, but the branches
+      // below intentionally use readable names ("necro", "drone", etc.).
+      // Normalize here so stat variants and projectile stat calculations run.
+      this.calculator = normalizeStatCalculator(info.PROPERTIES.STAT_CALCULATOR);
       this.waitToCycle =
         info.PROPERTIES.WAIT_TO_CYCLE == null
           ? false
@@ -5012,14 +5013,19 @@ class Gun {
       // Find the proper skillset for shooting
       let sk =
         this.bulletStats === "master" ? this.body.skill : this.bulletStats;
-      // Decides what to do based on child-counting settings
-      let shootPermission = this.countsOwnKids
-        ? this.countsOwnKids >
-          this.children.length * (this.calculator == "necro" ? sk.rld : 1)
+      // Max Drone Limit uses the reload stat for necromantic spawners. These
+      // guns also share a tank-wide cap with infected food, so neither route
+      // can exceed the same total drone allowance.
+      const necroReloadScale = this.calculator === "necro" ? sk.rld : 1;
+      const owner = droneInfection.getTankOwner(this.body);
+      const hasLocalCapacity = () => this.countsOwnKids
+        ? this.countsOwnKids > this.children.length * necroReloadScale
         : this.body.maxChildren
-        ? this.body.maxChildren >
-          this.body.children.length * (this.calculator == "necro" ? sk.rld : 1)
+        ? this.body.maxChildren > this.body.children.length * necroReloadScale
         : true;
+      const hasSharedDroneCapacity = () =>
+        droneInfection.canGunSpawnDrone(owner, this);
+      let shootPermission = hasLocalCapacity() && hasSharedDroneCapacity();
       // Override in invuln
       if (this.body.master.invuln && this.body.INVULNERABLE !== true) {
         shootPermission = false;
@@ -5058,12 +5064,9 @@ class Gun {
           // Shoot, multiple times in a tick if needed
           while (shootPermission && this.cycle >= 1) {
             this.fire(gx, gy, sk);
-            // Figure out if we may still shoot
-            shootPermission = this.countsOwnKids
-              ? this.countsOwnKids > this.children.length
-              : this.body.maxChildren
-              ? this.body.maxChildren > this.body.children.length
-              : true;
+            // Recheck both local gun capacity and the tank-wide drone cap
+            // after every shot; bulletInit registers spawned drones immediately.
+            shootPermission = hasLocalCapacity() && hasSharedDroneCapacity();
 
             // Cycle down
             this.cycle -= 1;
