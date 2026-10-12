@@ -3,23 +3,12 @@
 function isSolidOccluder(entity) {
   if (!entity) return false;
   const label = String(entity.label || "");
-  const type = String(entity.type || "");
-
-  // Gates and fort walls do not block projectiles, so they must never occlude
-  // target selection. Maze/room walls and solid rocks do.
-  if (
-    entity.isGate ||
-    type === "fortWall" ||
-    type === "fortGate" ||
-    /^fort wall$/i.test(label) ||
-    /^fort gate$/i.test(label)
-  ) return false;
-
   return Boolean(
-    entity.isMazeWall ||
-      entity.isWall ||
-      type === "wall" ||
-      type === "squareWall" ||
+    entity.isWall ||
+      entity.isMazeWall ||
+      entity.isGate ||
+      entity.type === "wall" ||
+      entity.type === "squareWall" ||
       /^(rock|gravel|rubble|boulder|abyssal stonecage)$/i.test(label)
   );
 }

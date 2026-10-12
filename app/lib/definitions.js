@@ -3323,20 +3323,8 @@ exports.spikeOrb = {
   ],
 };
 exports.powerOrb = {
-  PARENT: [exports.drone],
-  TYPE: "trap",
-  SHAPE: 0,
-  CONTROLLERS: [
-    "nearestDifferentMaster",
-    "mapTargetToGoal",
-    "hangOutNearMaster",
-  ],
-  AI: { FARMER: true },
-  WALL_IMMUNITY: true,
-  INDEPENDENT: false,
-  SPECIAL_EFFECT: "push",
-  REPEL: 0.25,
-  TURRETS: [],
+  PARENT: [exports.smasherOrb],
+ TURRETS: [],
  // CONNECTED_DAMAGE: true,
  // DAMAGE_MULTIPLIER: 0.75,
   };
@@ -4983,10 +4971,7 @@ PARENT: [exports.smasherOrbGenerator],
                   //g.greaterStats,
                   g.superHealth,
                   g.greaterReload,
-                  g.halfDamage,
-                  g.superHealth,
-                  g.superHealth,
-                  g.superHealth,
+                  g.greaterDamage,
                   g.superHealth,
                   g.superHealth,
                   g.superHealth,
@@ -5147,26 +5132,7 @@ exports.growCollident = {
        ],
          };
 exports.ascendantCollident = {
-  PARENT: [exports.genericTank],
-  TYPE: "attachment",
-  SHAPE: 1,
-  FACING_TYPE: "autospin",
-  CONTROLLERS: ["teleportToMaster"],
-  ACCEPTS_SCORE: false,
-  GIVE_KILL_MESSAGE: false,
-  CONNECTED_TRAITS: [
-    "skill.score",
-    ],
-  DIE_AT_RANGE: true,
-  SPIN_RATE: 0.075,
-  BODY: {
-    HEALTH: 99999,
-    RANGE: 1000,
-    DAMAGE: 0,
-    PENETRATION: 999,//deadly amount of penetration this baby has in it
-    },
-    DRAW_HEALTH: false,
-  CLEAR_ON_MASTER_UPGRADE: true,
+  PARENT: [exports.dualCollident],
   SHAPE: 0,
   TURRETS: [
     {
@@ -12103,45 +12069,6 @@ exports.inventorStationedTurret = {
     },
   ],
 };
-
-exports.c4turret = {
-  PARENT: [exports.experimenterStationedTurret],
-  LABEL: "Deployed Plastic Explosive",
-  DEATH_THROES: "plasticExplosion",
-  GROWTH_FACTOR: 1.25,
-  BODY: {
-    FOV: 1.75,
-    SPEED: 0,
-    ACCELERATION: 0,
-    HEALTH: 1,
-    SHIELD: 0,
-    DAMAGE: 0.25,
-    RESIST: 1,
-    PENETRATION: 1,
-    RANGE: 100,
-    DENSITY: 0.4,
-    REGEN: 0,
-    PUSHABILITY: 0,
-  },
-  GUNS: [],
-  TURRETS: [
-    {
-      /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [21.5, 0, 0, 0, 361, 0],
-      TYPE: exports.dominatorBody,
-    },
-    {
-      /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [11, 0, 0, 0, 360, 1],
-      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-    {
-      /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [9, 0, 0, 0, 360, 1],
-      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-  ]
-};
 exports.researcherStationedTurret = {
   PARENT: [exports.experimenterStationedTurret],
   GUNS: [
@@ -12436,8 +12363,7 @@ function makeAuto(type, name = -1, options = {}) {
   } else {
     output.LABEL = name;
   }
-  const sourceDanger = Number(type.DANGER);
-  output.DANGER = Number.isFinite(sourceDanger) ? sourceDanger + 1 : 1;
+  output.DANGER = type.DANGER + 1;
   return output;
 }
 function makeHybrid(type, name = -1) {
@@ -14495,41 +14421,6 @@ exports.lesserGrenadierExplosion = makeMulti(
     ],
   },
   5,
-  ""
-);
-
-exports.plasticExplosion = makeMulti(
-  {
-    PARENT: [exports.bullet],
-    ALPHA: 0,
-    FACING_TYPE: "autospin",
-    INDEPENDENT: true,
-    BODY: {
-      RANGE: 5,
-    },
-    GUNS: [
-      {
-        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-        POSITION: [15, 5, 1, 0, 0, 0, 0],
-        PROPERTIES: {
-          AUTOFIRE: true,
-          SHOOT_SETTINGS: combineStats([
-            g.basic,
-            g.twin,
-            g.gunner,
-            g.cyclone,
-            g.power,
-            g.lesserStats,
-            g.lesserDamage,
-            g.pound,
-            g.greaterSize
-          ]),
-          TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
-        },
-      },
-    ],
-  },
-  7,
   ""
 );
 exports.RealisticExplosion = makeMulti(
@@ -28156,7 +28047,6 @@ exports.Dad = {
 exports.healersphere = {
   PARENT: [exports.smash],
   LABEL: "Healersphere",
-  RESET_UPGRADES: true,
   HEAL_EFFECT: true,
   TURRETS: [
     {
@@ -28271,7 +28161,6 @@ exports.healersphere = {
 exports.truehealersphere = {
   PARENT: [exports.healersphere],
   LABEL: "True Healersphere",
-  RESET_UPGRADES: true,
   TURRETS: [
     {
       /** SIZE     X       Y     ANGLE    ARC */
@@ -40343,7 +40232,7 @@ exports.experimenter = {
           g.greaterHealth,
           g.greaterReload,
         ]),
-        TYPE: [exports.experimenterStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.experimenterStationedTurret, { PERSISTS_AFTER_DEATH: true }],
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
       },
@@ -40384,7 +40273,7 @@ exports.scientist = {
           g.greaterHealth,
           g.greaterReload,
         ]),
-        TYPE: [exports.scientistStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.scientistStationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40430,7 +40319,7 @@ exports.researcher = {
           g.greaterHealth,
           g.greaterReload,
         ]),
-        TYPE: [exports.researcherStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.researcherStationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40472,55 +40361,7 @@ exports.inventor = {
       POSITION: [8, 11, 1.3, 18, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
-        TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: false }],
-
-        ALT_FIRE: true,
-        SYNCS_SKILLS: true,
-      },
-    },
-    {
-      POSITION: [5, 7, -1.8, 6.5, 0, 0, 0],
-    },
-  ],
-};
-
-exports.c4deployer = {
-  PARENT: [exports.genericTank],
-  DANGER: 7,
-  LABEL: "C4 Deployer",
-  STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
-  BODY: {
-    SPEED: base.SPEED * 0.75,
-    FOV: base.FOV * 1.15,
-  },
-  MAX_CHILDREN: 7,
-  TURRETS: [
-    {
-      /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [11, 0, 0, 0, 360, 1],
-      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-    {
-      /*********  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [9, 0, 0, 0, 360, 1],
-      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
-    },
-  ],
-  GUNS: [
-    {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [4, 12, 1, 10.5, 0, 0, 0],
-    },
-
-    {
-      POSITION: [2, 13, 1, 15.5, 0, 0, 0],
-    },
-    {
-      POSITION: [8, 11, 1.3, 18, 0, 0, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize, g.lesserHealth]),
-        TYPE: [exports.c4turret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40566,7 +40407,7 @@ exports.physicist = {
           g.greaterHealth,
           g.greaterReload,
         ]),
-        TYPE: [exports.physicistStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.physicistStationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40610,7 +40451,7 @@ exports.betascientist = {
           g.greaterHealth,
           g.superReload,
         ]),
-        TYPE: [exports.betaScientistStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.betaScientistStationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40658,7 +40499,7 @@ exports.betaresearcher = {
           g.greaterHealth,
           g.superReload,
         ]),
-        TYPE: [exports.betaResearcherStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.betaResearcherStationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40707,7 +40548,7 @@ exports.betainventor = {
           g.lesserReload,
           g.greaterSize,
         ]),
-        TYPE: [exports.betaInventorStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.betaInventorStationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40756,7 +40597,7 @@ exports.betaphysicist = {
           g.greaterHealth,
           g.superReload,
         ]),
-        TYPE: [exports.betaPhysicistStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.betaPhysicistStationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -54473,7 +54314,7 @@ exports.Stronghold = makeMulti(
       POSITION: [8, 11, 1.3, 18, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
-        TYPE: [exports.experimenterStationedTurretNOGROWTH, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.experimenterStationedTurretNOGROWTH, { PERSISTS_AFTER_DEATH: true }],
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
       },
@@ -54535,7 +54376,7 @@ exports.Stationaryexperimenter = makeMulti(
       POSITION: [8, 11, 1.3, 10, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
-        TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+        TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: true }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -79388,8 +79229,8 @@ exports.ranarShrine = {
   PARENT: [exports.damagedArenaCloser],
   // NAME: "Ranar",
   LABEL: "Shrine",
-  CONTROLLERS: ["nearestDifferentMaster"],
-  //AI_TARGET: "healAllies",
+  //CONTROLLERS: ["Dominator"],
+  AI_TARGET: "healAllies",
   SIZE: 22,
   VALUE: 100000,
   CAN_BE_ON_LEADERBOARD: false,
@@ -79405,7 +79246,6 @@ exports.ranarShrine = {
     SPEED: 0,
   },
   SKILL: skillSet({
-    rld: -1,
     dam: 0.2, //bullet damage
     pen: 0.1, //bullet penetration
     str: 0.2, //bullet health
@@ -79417,12 +79257,7 @@ exports.ranarShrine = {
       POSITION: [9, 0, 0, 0, 0, 1],
       TYPE: [
         exports.ranarDiscipleForm,
-        {
-          INDEPENDENT: true,
-          HAS_NO_RECOIL: true,
-          CONTROLLERS: ["onlyAcceptInArc"],
-          MAX_CHILDREN: 1
-        },
+        { INDEPENDENT: true, HAS_NO_RECOIL: true, CONTROLLERS: [] },
       ],
     },
     {
@@ -80187,11 +80022,7 @@ exports.nulltype = {
       TYPE: [exports.breakerSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
   ],
- };
-// Vbaltyla is defined before nulltype; resolve this gun's class after the export exists.
-if (exports.Vbaltyla && exports.Vbaltyla.GUNS && exports.Vbaltyla.GUNS[2]) {
-  exports.Vbaltyla.GUNS[2].PROPERTIES.TYPE = exports.nulltype;
-}
+};
 exports.lurkerBelow = {
   PARENT: [exports.voidlordRangedBoss],
   NAME: "Alhazred",
@@ -95822,7 +95653,6 @@ exports.kristanks4.UPGRADES_TIER_1 = [
   exports.smashdupev2,
   exports.smashdupev3,
   exports.growdupe,
-  exports.c4deployer,
   exports.krispage,
 ];
 exports.cubedtestpage.UPGRADES_TIER_1 = [
