@@ -79,10 +79,35 @@ assert.strictEqual(infection.getTankDroneLimit(tank), 4,
 assert.strictEqual(infection.hasDroneCapacity(tank), true,
   "capacity remains available below the total limit");
 tank.possiblyChildren.add({ type: "drone" });
-tank.possiblyChildren.add({ type: "drone" });
+const doomedDrone = { type: "drone", master: tank, source: tank, parent: tank };
+tank.possiblyChildren.add(doomedDrone);
 assert.strictEqual(infection.countOwnedDrones(tank), 4);
 assert.strictEqual(infection.hasDroneCapacity(tank), false,
   "all guns should share the same tank-wide drone limit");
+infection.detachOwnedEntity(doomedDrone);
+assert.strictEqual(infection.countOwnedDrones(tank), 3,
+  "destroying a drone must unregister it from the tank-wide count");
+assert.strictEqual(infection.hasDroneCapacity(tank), true,
+  "a freed drone slot should allow replacement drones or infections");
+
+// Destruction must detach from every independent ownership registry, not only
+// the parent.children array, because master/source/parent may differ.
+const masterOwner = { possiblyChildren: new Set() };
+const sourceOwner = { possiblyChildren: new Set() };
+const parentOwner = { possiblyChildren: new Set() };
+const multiOwnedEntity = {
+  master: masterOwner,
+  source: sourceOwner,
+  parent: parentOwner,
+};
+for (const owner of [masterOwner, sourceOwner, parentOwner]) {
+  owner.possiblyChildren.add(multiOwnedEntity);
+}
+infection.detachOwnedEntity(multiOwnedEntity);
+for (const owner of [masterOwner, sourceOwner, parentOwner]) {
+  assert.strictEqual(owner.possiblyChildren.has(multiOwnedEntity), false,
+    "destroyed entities must be removed from every owning set");
+}
 
 const legacyTank = {
   type: "tank",
@@ -112,14 +137,23 @@ deniedTank.master = deniedTank;
 deniedTank.source = deniedTank;
 assert.strictEqual(
   infection.findInfectingGun(deniedTank, { type: "food", shape: 3, foodLevel: 2 }),
+  null,
+  "Necro Tyrant must use the same shape-matching infection rules as every class"
+);
+assert.strictEqual(
+  infection.findInfectingGun(deniedTank, { type: "food", shape: 4, foodLevel: 2 }),
   localGun,
-  "Necro Tyrant's legacy lower-tier food exception should remain available"
+  "Necro Tyrant can still infect food matching its drone's produced shape"
 );
 
 
 // Exercise the actual Gun infection method from server.js without booting the
 // full server, so the tank-wide cap and gun-cap bypass are regression-tested.
 const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
+assert(serverSource.includes("droneInfection.detachOwnedEntity(this)"),
+  "Entity.destroy must unregister itself from drone ownership tracking");
+assert(!serverSource.includes("allowMismatch"),
+  "all class-specific infection shape-mismatch bypasses should be removed");
 const gunStart = serverSource.indexOf("class Gun {");
 const gunEnd = serverSource.indexOf("\nclass KeyManager {", gunStart);
 assert(gunStart !== -1 && gunEnd > gunStart, "Gun class source should be available");
@@ -142,6 +176,8 @@ cappedOwner.possiblyChildren.add(existingOwnedDrone);
 const fakeGun = Object.create(Gun.prototype);
 fakeGun.body = cappedOwner;
 fakeGun.infectiousShape = 4;
+assert.strictEqual(fakeGun.canInfectFood({ type: "food", shape: 3 }), false,
+  "infection guns must reject food with a mismatched shape");
 fakeGun.countsOwnKids = 1; // This local gun cap must not limit infections.
 fakeGun.children = [existingOwnedDrone]; // This gun is already at its local cap.
 let bulletInitOptions = null;
@@ -170,82 +206,5 @@ const atCapFood = {
 };
 assert.strictEqual(fakeGun.infect(atCapFood, cappedOwner), false,
   "infection must stop at the owning tank's total drone cap");
-
-// The real class definition stores STAT_CALCULATOR as numeric ID 7. When
-// normalized, its four 5-drone spawners share one reload-scaled limit with
-// infected squares rather than allowing infection to bypass the stat.
-const calculatorTools = require("../lib/gunCalculator");
-const necromancerDef = definitions.necromancer;
-function makeNecromancer(reloadScale) {
-  const owner = {
-    type: "tank", label: "Necromancer", maxChildren: necromancerDef.MAX_CHILDREN,
-    settings: { skillNames: necromancerDef.STAT_NAMES },
-    skill: { rld: reloadScale },
-    master: null, source: null, children: [], possiblyChildren: new Set(), turrets: [],
-    guns: necromancerDef.GUNS.map((definition) => ({
-      calculator: calculatorTools.normalizeStatCalculator(definition.PROPERTIES.STAT_CALCULATOR),
-      countsOwnKids: definition.PROPERTIES.MAX_CHILDREN,
-      bulletTypes: definition.PROPERTIES.TYPE,
-      spawnedEntityType: infection.getSpawnedEntityType(definition.PROPERTIES.TYPE),
-    })),
-  };
-  owner.master = owner;
-  owner.source = owner;
-  return owner;
-}
-const baseStatNecro = makeNecromancer(1);
-assert.strictEqual(infection.getTankDroneLimit(baseStatNecro), 20,
-  "zero Max Drone Limit stat should respect the sum of four 5-drone spawner caps");
-assert.strictEqual(infection.canGunSpawnDrone(baseStatNecro, baseStatNecro.guns[0]), true);
-for (let i = 0; i < 20; i++) baseStatNecro.possiblyChildren.add({ type: "drone" });
-assert.strictEqual(infection.hasDroneCapacity(baseStatNecro), false,
-  "infected/normal drones collectively use the base Max Drone Limit");
-assert.strictEqual(infection.canGunSpawnDrone(baseStatNecro, baseStatNecro.guns[0]), false,
-  "normal spawners must stop when infected drones have filled the shared limit");
-
-const maxStatNecro = makeNecromancer(0.5);
-assert.strictEqual(infection.getTankDroneLimit(maxStatNecro), 40,
-  "investing in the Max Drone Limit stat doubles the necromantic cap, up to MAX_CHILDREN");
-for (let i = 0; i < 39; i++) maxStatNecro.possiblyChildren.add({ type: "drone" });
-assert.strictEqual(infection.canGunSpawnDrone(maxStatNecro, maxStatNecro.guns[0]), true,
-  "the stat-scaled capacity remains available just below the upgraded cap");
-maxStatNecro.possiblyChildren.add({ type: "drone" });
-assert.strictEqual(infection.canGunSpawnDrone(maxStatNecro, maxStatNecro.guns[0]), false,
-  "both spawners and infection stop at the upgraded cap");
-
-// Exercise Gun.live itself: numeric calculator ID 7 must behave as "necro",
-// and ordinary spawning must stop when infected drones fill the shared limit.
-function makeLiveNecroGun(owner, cycle) {
-  const gun = Object.create(Gun.prototype);
-  Object.assign(gun, {
-    body: owner, canShoot: true, bulletStats: "master", calculator: calculatorTools.normalizeStatCalculator(7),
-    spawnedEntityType: "drone", countsOwnKids: 5, children: [], waitToCycle: false, cycle, delay: 0,
-    settings: { reload: 1, size: 1 }, autofire: true, altFire: false,
-    offset: 0, length: 1, width: 1,
-    recoil() {},
-  });
-  gun.shots = 0;
-  gun.fire = () => {
-    gun.shots++;
-    const child = { type: "drone" };
-    gun.children.push(child);
-    owner.possiblyChildren.add(child);
-  };
-  return gun;
-}
-const liveNecro = makeNecromancer(1);
-for (let i = 0; i < 19; i++) liveNecro.possiblyChildren.add({ type: "drone" });
-liveNecro.master = liveNecro;
-liveNecro.invuln = false;
-liveNecro.control = { fire: false, alt: false };
-liveNecro.size = 12;
-liveNecro.facing = 0;
-const lastSlotGun = makeLiveNecroGun(liveNecro, 1);
-lastSlotGun.live();
-assert.strictEqual(lastSlotGun.shots, 1, "a necromantic spawner may fill the final shared drone slot");
-assert.strictEqual(infection.countOwnedDrones(liveNecro), 20);
-const blockedGun = makeLiveNecroGun(liveNecro, 1);
-blockedGun.live();
-assert.strictEqual(blockedGun.shots, 0, "a necromantic spawner may not exceed the shared drone limit");
 
 console.log("Drone infection tests passed");

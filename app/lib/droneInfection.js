@@ -1,7 +1,5 @@
 "use strict";
 
-const { isNecroCalculator } = require("./gunCalculator");
-
 /**
  * Resolve definition inheritance in the same order used by Entity.define():
  * parents first, then the definition itself. TYPE arrays can contain a class
@@ -96,19 +94,32 @@ function findInfectingGun(entity, target) {
     return null;
   }
 
-  const owner = getTankOwner(entity);
-  const necroTyrantOverride =
-    owner && owner.label === "Necro Tyrant" && Number(target.foodLevel) < 4;
-
   for (const gun of getAllGuns(entity)) {
     const shape = Object.prototype.hasOwnProperty.call(gun, "infectiousShape")
       ? gun.infectiousShape
       : getInfectiousShape(gun.bulletTypes);
-    if (Number.isFinite(shape) && (shape === target.shape || necroTyrantOverride)) {
-      return gun;
-    }
+    // Infection is always shape-matched. No class gets a special mismatch
+    // bypass: the produced drone definition determines what it can infect.
+    if (Number.isFinite(shape) && shape === target.shape) return gun;
   }
   return null;
+}
+
+/**
+ * Unregister a destroyed entity from every ownership set that can track it.
+ * Entities may be tracked simultaneously as master, source, and/or parent;
+ * ordinary reassignment preserves overlapping relationships, but destruction
+ * ends all of them. Without this cleanup dead drones remain in possiblyChildren
+ * and can permanently consume the owner's tank-wide drone/infection capacity.
+ */
+function detachOwnedEntity(entity) {
+  if (!entity || typeof entity !== "object") return;
+  const owners = new Set([entity.master, entity.source, entity.parent]);
+  for (const owner of owners) {
+    if (owner && owner.possiblyChildren && typeof owner.possiblyChildren.delete === "function") {
+      owner.possiblyChildren.delete(entity);
+    }
+  }
 }
 
 function countOwnedDrones(owner) {
@@ -125,67 +136,27 @@ function countOwnedDrones(owner) {
 }
 
 /**
- * Necro-calculated guns use the reload stat as the Max Drone Limit stat.
- * Include both normal drone guns and converted food in one tank-wide budget.
- */
-function usesMaxDroneLimitStat(owner) {
-  if (!owner) return false;
-  if (Number(owner.settings && owner.settings.skillNames) === 3) return true;
-  return getAllGuns(owner).some((gun) => isNecroCalculator(gun.calculator));
-}
-
-function isDroneProducingGun(gun) {
-  if (!gun) return false;
-  const type = Object.prototype.hasOwnProperty.call(gun, "spawnedEntityType")
-    ? gun.spawnedEntityType
-    : getSpawnedEntityType(gun.bulletTypes);
-  return type === "drone" || type === "minion";
-}
-
-function getReloadLimitScale(owner) {
-  const value = Number(owner && owner.skill && owner.skill.rld);
-  return Number.isFinite(value) && value > 0 ? value : 1;
-}
-
-/**
- * Use the same strict child-cap math as Gun.live(): a necro gun with a cap of
- * N can own ceil(N / skill.rld) drones. When per-gun caps exist, aggregate those
- * caps and respect a positive tank MAX_CHILDREN ceiling. If no per-gun caps exist,
- * scale the body cap itself, matching guns that rely on body.maxChildren.
+ * Prefer the tank's explicit MAX_CHILDREN. Legacy entities that set it to 0
+ * rely on their guns' individual child caps, so use the sum of configured
+ * drone/minion gun caps as a tank-wide fallback for infections only.
  */
 function getTankDroneLimit(owner) {
   if (!owner) return 0;
   const bodyLimit = Number(owner.maxChildren);
-  const hasBodyLimit = Number.isFinite(bodyLimit) && bodyLimit > 0;
-  const maxDroneVariant = usesMaxDroneLimitStat(owner);
-  const allGuns = getAllGuns(owner);
-  const reloadScale = maxDroneVariant ? getReloadLimitScale(owner) : 1;
+  if (Number.isFinite(bodyLimit) && bodyLimit > 0) return bodyLimit;
 
-  let gunLimit = 0;
-  let hasConfiguredDroneGunCap = false;
-  for (const gun of allGuns) {
-    if (!isDroneProducingGun(gun)) continue;
+  let fallbackLimit = 0;
+  for (const gun of getAllGuns(owner)) {
     const cap = Number(gun.countsOwnKids);
     if (!Number.isFinite(cap) || cap <= 0) continue;
-
-    hasConfiguredDroneGunCap = true;
-    const perGunScale = maxDroneVariant && isNecroCalculator(gun.calculator)
-      ? reloadScale
-      : 1;
-    gunLimit += Math.ceil(cap / perGunScale);
-  }
-
-  if (maxDroneVariant) {
-    if (hasConfiguredDroneGunCap) {
-      return hasBodyLimit ? Math.min(bodyLimit, gunLimit) : gunLimit;
+    const projectileType = Object.prototype.hasOwnProperty.call(gun, "spawnedEntityType")
+      ? gun.spawnedEntityType
+      : getSpawnedEntityType(gun.bulletTypes);
+    if (projectileType === "drone" || projectileType === "minion") {
+      fallbackLimit += cap;
     }
-    if (hasBodyLimit) return Math.ceil(bodyLimit / reloadScale);
   }
-
-  // Preserve the previous behavior for ordinary drone classes.
-  if (hasBodyLimit) return bodyLimit;
-  if (gunLimit > 0) return gunLimit;
-  return 0;
+  return fallbackLimit;
 }
 
 function hasDroneCapacity(owner) {
@@ -195,14 +166,6 @@ function hasDroneCapacity(owner) {
   return limit <= 0 || countOwnedDrones(owner) < limit;
 }
 
-function canGunSpawnDrone(owner, gun) {
-  return (
-    !usesMaxDroneLimitStat(owner) ||
-    !isDroneProducingGun(gun) ||
-    hasDroneCapacity(owner)
-  );
-}
-
 module.exports = {
   mergeDefinitions,
   getInfectiousShape,
@@ -210,10 +173,8 @@ module.exports = {
   getTankOwner,
   getAllGuns,
   findInfectingGun,
+  detachOwnedEntity,
   countOwnedDrones,
-  usesMaxDroneLimitStat,
-  isDroneProducingGun,
   getTankDroneLimit,
   hasDroneCapacity,
-  canGunSpawnDrone,
 };
