@@ -20,7 +20,19 @@ const createLoadProtection = require("./lib/loadProtection");
 const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
+const droneInfection = require("./lib/droneInfection");
 const { performance } = require("perf_hooks");
+
+function applyFoodInfectionEffects(food, infector) {
+  food.layer = infector.layer;
+  food.growthFactor = 0;
+  if (food.passiveEffect === "uniqueFood" && food.noMore !== true) {
+    food.health.max *= 2;
+    food.health.amount *= 2;
+    food.noMore = true;
+  }
+}
+
 // Example usage:
 let currentState = serverState.getServerState();
 
@@ -4883,6 +4895,11 @@ class Gun {
           ? false
           : info.PROPERTIES.SHOOT_ON_DEATH;
     }
+    // Cache the shape produced by this gun when its projectile definition is
+    // necromantic. This allows the owning tank itself to infect compatible food
+    // by ramming it, not only by sending a drone into it.
+    this.infectiousShape = droneInfection.getInfectiousShape(this.bulletTypes);
+    this.spawnedEntityType = droneInfection.getSpawnedEntityType(this.bulletTypes);
     let position = info.POSITION;
     this.length = position[0] / 10;
     this.width = position[1] / 10;
@@ -4948,6 +4965,43 @@ class Gun {
 
   getLastShot() {
     return this.lastShot;
+  }
+
+  canInfectFood(host, allowMismatch = false) {
+    if (!host || host.type !== "food" || !Number.isFinite(host.shape)) return false;
+    if (Number.isFinite(this.infectiousShape) && this.infectiousShape === host.shape) {
+      return true;
+    }
+    const owner = droneInfection.getTankOwner(this.body);
+    return Boolean(
+      allowMismatch &&
+      owner &&
+      owner.label === "Necro Tyrant" &&
+      Number(host.foodLevel) < 4 &&
+      Number.isFinite(this.infectiousShape)
+    );
+  }
+
+  infect(host, sourceEntity = null, options = {}) {
+    const owner = droneInfection.getTankOwner(this.body);
+    if (!this.canInfectFood(host, options.allowMismatch === true)) return false;
+    if (!droneInfection.hasDroneCapacity(owner)) return false;
+
+    const saved = {
+      facing: host.facing,
+      size: host.SIZE,
+    };
+    // Infected food becomes a child of the tank-wide owner. It must not consume
+    // this particular gun's MAX_CHILDREN allowance.
+    host.foodLevel = -1;
+    this.bulletInit(host, { countTowardTank: true, owner });
+    host.master = owner;
+    host.team = owner && owner.team != null ? owner.team : host.team;
+    host.color = owner && owner.color != null ? owner.color : host.color;
+    host.facing = saved.facing;
+    host.SIZE = saved.size;
+    if (host.health) host.health.amount = host.health.max;
+    return true;
   }
 
   live() {
@@ -5093,7 +5147,7 @@ class Gun {
     o.coreSize = o.SIZE;
   }
 
-  bulletInit(o) {
+  bulletInit(o, options = {}) {
     // Define it by its natural properties
     this.bulletTypes.forEach((type) => o.define(type));
     // Pass the gun attributes
@@ -5120,8 +5174,21 @@ class Gun {
     }
 
     o.color = this.body.master.color;
-    // Keep track of it and give it the function it needs to deutil.log itself upon death
-    if (this.countsOwnKids) {
+    // Keep track of children. Infected food is tracked against the tank-wide
+    // drone cap instead of being counted against the individual gun's cap.
+    if (options.countTowardTank) {
+      const owner = options.owner || droneInfection.getTankOwner(this.body);
+      if (o.parent && Array.isArray(o.parent.children)) {
+        let childIndex;
+        while ((childIndex = o.parent.children.indexOf(o)) !== -1) {
+          util.remove(o.parent.children, childIndex);
+        }
+      }
+      o.parent = owner;
+      if (owner && Array.isArray(owner.children) && !owner.children.includes(o)) {
+        owner.children.push(o);
+      }
+    } else if (this.countsOwnKids) {
       o.parent = this;
       this.children.push(o);
     } else if (this.body.maxChildren) {
@@ -5131,39 +5198,18 @@ class Gun {
     }
     o.source = this.body;
     o.facing = o.velocity.direction;
-    // Necromancers.
-    o.necro = (host) => {
-      let shootPermission = this.countsOwnKids
-        ? this.countsOwnKids >
-          this.children.length *
-            (this.bulletStats === "master"
-              ? this.body.skill.rld
-              : this.bulletStats.rld)
-        : this.body.maxChildren
-        ? this.body.maxChildren >
-          this.body.children.length *
-            (this.bulletStats === "master"
-              ? this.body.skill.rld
-              : this.bulletStats.rld)
-        : true;
-      if (shootPermission) {
-        let save = {
-          facing: host.facing,
-          size: host.SIZE,
-        };
-        (this.foodLevel = -1), this.bulletInit(host);
-        host.team = o.master.master.team;
-        host.master = o.master;
-        host.color = o.color;
-        host.facing = save.facing;
-        host.SIZE = save.size;
-
-        host.health.amount = host.health.max;
-
-        return true;
-      }
-      return false;
-    };
+    // Necromancers and related infection-capable drone types.
+    o.necro = (host) =>
+      this.infect(host, o, {
+        // Preserve the Necro Tyrant's special ability to infect lower-tier food.
+        allowMismatch:
+          o.master &&
+          o.master.label === "Necro Tyrant" &&
+          o.type === "drone" &&
+          host &&
+          host.type === "food" &&
+          Number(host.foodLevel) < 4,
+      });
     // Otherwise
     o.refreshBodyAttributes();
     o.life();
@@ -19316,39 +19362,41 @@ var gameloop = (() => {
             /********** DO DAMAGE *********/
             let bail = false;
             if (
-              (my.shape === n.shape &&
-                my.settings.isNecromancer &&
-                n.type === "food") ||
-              (my.master.label === "Necro Tyrant" &&
-                my.type === "drone" &&
-                n.type === "food" &&
-                n.foodLevel < 4)
+              ((my.shape === n.shape && my.settings.isNecromancer) ||
+                (my.master.label === "Necro Tyrant" &&
+                  my.type === "drone" &&
+                  n.foodLevel < 4)) &&
+              n.type === "food" &&
+              typeof my.necro === "function"
             ) {
               bail = my.necro(n);
-              n.layer = my.layer;
-              n.growthFactor = 0;
-              if (n.passiveEffect === "uniqueFood" && n.noMore !== true) {
-                n.health.max *= 2;
-                n.health.amount *= 2;
-                n.noMore = true;
-              }
+              if (bail) applyFoodInfectionEffects(n, my);
             } else if (
-              (my.shape === n.shape &&
-                n.settings.isNecromancer &&
-                my.type === "food") ||
-              (n.master.label === "Necro Tyrant" &&
-                n.type === "drone" &&
-                my.type === "food" &&
-                my.foodLevel < 4)
+              ((my.shape === n.shape && n.settings.isNecromancer) ||
+                (n.master.label === "Necro Tyrant" &&
+                  n.type === "drone" &&
+                  my.foodLevel < 4)) &&
+              my.type === "food" &&
+              typeof n.necro === "function"
             ) {
               bail = n.necro(my);
-              my.layer = n.layer;
-              my.growthFactor = 0;
+              if (bail) applyFoodInfectionEffects(my, n);
+            }
 
-              if (my.passiveEffect === "uniqueFood" && my.noMore !== true) {
-                my.health.max *= 2;
-                my.health.amount *= 2;
-                my.noMore = true;
+            // Ramming a polygon can infect it when one of the tank's own guns
+            // can produce a necromantic drone of that polygon's shape.
+            if (!bail && n.type === "food") {
+              const infectionGun = droneInfection.findInfectingGun(my, n);
+              if (infectionGun) {
+                bail = infectionGun.infect(n, my, { allowMismatch: true });
+                if (bail) applyFoodInfectionEffects(n, my);
+              }
+            }
+            if (!bail && my.type === "food") {
+              const infectionGun = droneInfection.findInfectingGun(n, my);
+              if (infectionGun) {
+                bail = infectionGun.infect(my, n, { allowMismatch: true });
+                if (bail) applyFoodInfectionEffects(my, n);
               }
             }
             if (!bail) {
