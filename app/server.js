@@ -132,9 +132,13 @@ else if (serverType === "normal") {
 
 //serverState.resetLoreIndex();
 //serverState.advanceLoreSequence();
-let config = require("./config.js"),
-  gameMode = require("./Game Modes/" + chosenMode),
-  c = { ...config, ...gameMode };
+const { mergeModeSettings, validateModeSettings } = require("./lib/modeSettings");
+const config = require("./config.js");
+const gameMode = require("./Game Modes/" + chosenMode);
+const c = validateModeSettings(
+  mergeModeSettings(config, gameMode),
+  chosenMode
+);
 //util.log(JSON.stringify(c, null, 2));
 const decodeHTML = require("html-entities").decode;
 // Set up room
@@ -651,27 +655,6 @@ let Class = (() => {
   }
   return def;
 })();
-
-const droneMechanics = require("./lib/droneMechanics");
-const twilightRecovery = require("./lib/twilightRecovery");
-const gunCalculatorNames = {
-  0: "default",
-  1: "bullet",
-  2: "drone",
-  3: "swarm",
-  4: "fixed reload",
-  5: "thruster",
-  6: "sustained",
-  7: "necro",
-  8: "trap",
-};
-
-function normalizeGunCalculator(value) {
-  if (typeof value === "number") return gunCalculatorNames[value] || "default";
-  if (value === "fixedReload") return "fixed reload";
-  return value == null || value === "" ? "default" : value;
-}
-
 
 
 function getSiegeThemesForCurrentWave() {
@@ -1523,6 +1506,10 @@ function makeDominators() {
   }
 }
 function makeFortGates() {
+  // The Denied builds gates when its Shrine falls. That event may be reached
+  // through multiple death/update paths, so make the map structure idempotent.
+  if (c.MODE === "theDenied" && c.deniedFortGatesCreated) return;
+
   let gridWidth = room.width / room.xgrid;
   let gridHeight = room.height / room.ygrid;
 
@@ -1600,18 +1587,9 @@ function makeFortGates() {
         //util.log("ruh");
       });
     }
-    if (c.MODE === "theDenied") {
-      if (room["bad" + i]) {
-        room["bad" + i].forEach((loc) => {
-          placegate(loc, i, {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          });
-          //util.log("ruh");
-        });
-      }
-    }
   }
+
+  if (c.MODE === "theDenied") c.deniedFortGatesCreated = true;
 }
 
 function makeFortWalls() {
@@ -3025,7 +3003,97 @@ class io_nearestDifferentMaster extends IO {
     this.lead = 0;
     this.validTargets = this.buildList(body.fov / 2);
     this.oldHealth = body.health.display();
+    // Damage-response targeting is independent of the normal target refresh cadence.
+    this.lastObservedHealth = (body.bond == null ? body : body.bond).health.display();
+    this.lastObservedDurability = this.getDurabilityRatio(body.bond == null ? body : body.bond);
+    this.damageHistory = new Map();
+    this.damageFocusTarget = undefined;
+    this.damageFocusUntil = 0;
     this.body.facing = 0;
+  }
+
+  getDurabilityRatio(entity) {
+    const health = entity.health;
+    const shield = entity.shield;
+    const current = Math.max(0, health?.amount || 0) + Math.max(0, shield?.amount || 0);
+    const maximum = Math.max(0, health?.max || 0) + Math.max(0, shield?.max || 0);
+    return maximum > 0 ? current / maximum : 1;
+  }
+
+  resolveDamageSource(hit) {
+    if (!hit) return undefined;
+    // Projectiles normally expose their owner through master; preserve the
+    // existing engine convention for entities whose master is the world.
+    let source = hit;
+    if (hit.master) {
+      source = hit.master.id === -1 && hit.source ? hit.source : hit.master;
+    }
+    if (!source || source === this.body || source === this.body.master) return undefined;
+    if (typeof source.valid === "function" && !source.valid()) return undefined;
+    if (source.isWall || source.isGate || source.isDominator || source.type === "tile") return undefined;
+    if (source.team === this.body.team) return undefined;
+    return source;
+  }
+
+  updateDamageFocus(now) {
+    const damageRef = this.body.bond == null ? this.body : this.body.bond;
+    const currentHealth = damageRef.health.display();
+    const currentDurability = this.getDurabilityRatio(damageRef);
+
+    // While focused, do not collect or evaluate aggro triggers. Keep both
+    // baselines current so damage during the focus window cannot trigger later.
+    if (this.damageFocusTarget && now < this.damageFocusUntil) {
+      this.lastObservedHealth = currentHealth;
+      this.lastObservedDurability = currentDurability;
+      return this.damageFocusTarget;
+    }
+
+    if (this.damageFocusTarget && now >= this.damageFocusUntil) {
+      this.damageFocusTarget = undefined;
+      this.damageFocusUntil = 0;
+      this.targetLock = undefined;
+      this.damageHistory.clear();
+    }
+
+    const durabilityLost = this.lastObservedDurability - currentDurability;
+    this.lastObservedHealth = currentHealth;
+    this.lastObservedDurability = currentDurability;
+
+    // Durability is normalized across maximum health plus shield, so a loss of
+    // 0.10 represents ten percent of the entity's combined defensive pool.
+    if (durabilityLost > 0) {
+      const collisions = damageRef.collisionArray || [];
+      let attacker;
+      for (let i = collisions.length - 1; i >= 0; i--) {
+        attacker = this.resolveDamageSource(collisions[i]);
+        if (attacker) break;
+      }
+
+      if (attacker) {
+        const previousHits = (this.damageHistory.get(attacker) || [])
+          .filter((timestamp) => now - timestamp <= 5000);
+        previousHits.push(now);
+        this.damageHistory.set(attacker, previousHits);
+
+        if (durabilityLost >= 0.20 || previousHits.length >= 10 || currentHealth <= 0.20) {
+          this.damageFocusTarget = attacker;
+          this.damageFocusUntil = now + 5000;
+          this.targetLock = attacker.master;
+          // The triggering hit starts a clean focus window. No further damage
+          // criteria are accumulated until the five seconds expire.
+          this.damageHistory.clear();
+          return attacker;
+        }
+      }
+    }
+
+    // Keep the history bounded to attackers that have hit in the last five seconds.
+    for (const [attacker, timestamps] of this.damageHistory) {
+      const recent = timestamps.filter((timestamp) => now - timestamp <= 5000);
+      if (recent.length) this.damageHistory.set(attacker, recent);
+      else this.damageHistory.delete(attacker);
+    }
+    return undefined;
   }
 
   /* buildList(range) {
@@ -3615,11 +3683,23 @@ class io_nearestDifferentMaster extends IO {
     // Targets behind solid walls or rocks should not be visible to this AI.
     // Keep this check after the normal target filters so rays are only cast for
     // plausible targets, rather than every active entity in the room.
-    out = out.filter((target) =>
-      hasClearLineOfSight(this.body, target, (midpoint, searchRadius) =>
-        getEntitiesFromRange(midpoint, searchRadius)
-      )
-    );
+    const canIgnoreWallOcclusion =
+      this.body.isRanar === true ||
+      this.body.specialEffect === "dieWall" ||
+      this.body.specialEffect === "crusherFortWall" ||
+      this.body.ignoreCollision === true ||
+      this.body.canDestroyWalls === true ||
+      this.body.canPassWalls === true ||
+      this.body.wallImmunity === true ||
+      this.body.phase === true ||
+      this.body.intangibility === true;
+    if (!canIgnoreWallOcclusion) {
+      out = out.filter((target) =>
+        hasClearLineOfSight(this.body, target, (midpoint, searchRadius) =>
+          getEntitiesFromRange(midpoint, searchRadius)
+        )
+      );
+    }
 
     // If there are no valid targets, return an empty array
     if (!out.length) return [];
@@ -3690,6 +3770,41 @@ class io_nearestDifferentMaster extends IO {
         break;
       }
     }
+    // Prioritize an attacker that triggered the damage-response rule. While
+    // the five-second focus is active, do not run normal target selection.
+    const now = Date.now();
+    const focusedAttacker = this.updateDamageFocus(now);
+    if (focusedAttacker && now < this.damageFocusUntil) {
+      this.targetLock = focusedAttacker;
+      if (focusedAttacker.health.amount > 0 && (typeof focusedAttacker.valid !== "function" || focusedAttacker.valid())) {
+        const radial = focusedAttacker.velocity || { x: 0, y: 0 };
+        const diff = {
+          x: focusedAttacker.x - this.body.x,
+          y: focusedAttacker.y - this.body.y,
+        };
+        if (this.tick % 4 === 0) {
+          this.lead = 0;
+          if (!this.body.aiSettings.chase) {
+            this.lead = timeOfImpact(diff, radial, tracking);
+          }
+        }
+        if (!this.body.isWall) {
+          return {
+            target: {
+              x: diff.x + this.lead * radial.x,
+              y: diff.y + this.lead * radial.y,
+            },
+            fire: true,
+            main: true,
+          };
+        }
+        return { fire: true, main: true };
+      }
+      // If the attacker dies during the lock, keep the focus window but do not
+      // opportunistically switch to another target until it expires.
+      return {};
+    }
+
     // Check if my target's alive
     if (this.targetLock) {
       if (
@@ -3755,19 +3870,9 @@ class io_nearestDifferentMaster extends IO {
         break;
       case "general":
       default:
-        let damageRef = this.body.bond == null ? this.body : this.body.bond;
-        if (
-          damageRef.collisionArray.length &&
-          damageRef.health.display() < this.oldHealth
-        ) {
-          this.oldHealth = damageRef.health.display();
-          if (this.validTargets.indexOf(damageRef.collisionArray[0]) === -1) {
-            this.targetLock =
-              damageRef.collisionArray[0].master.id === -1
-                ? damageRef.collisionArray[0].source
-                : damageRef.collisionArray[0].master;
-          }
-        }
+        // Damage-response focus is handled centrally above for every targeting
+        // mode. Do not let the old one-hit retaliation logic override its lock.
+        break;
     }
     // Consider how fast it's moving and shoot at it
     if (this.targetLock != null && this.targetLock.valid()) {
@@ -4744,9 +4849,10 @@ class Gun {
         info.PROPERTIES.SHOOT_SETTINGS == null
           ? []
           : info.PROPERTIES.SHOOT_SETTINGS;
-      this.calculator = normalizeGunCalculator(
-        info.PROPERTIES.STAT_CALCULATOR
-      );
+      this.calculator =
+        info.PROPERTIES.STAT_CALCULATOR == null
+          ? "default"
+          : info.PROPERTIES.STAT_CALCULATOR;
       this.waitToCycle =
         info.PROPERTIES.WAIT_TO_CYCLE == null
           ? false
@@ -4844,90 +4950,6 @@ class Gun {
     return this.lastShot;
   }
 
-  getDroneShapes() {
-    if (!this.canShoot || !Array.isArray(this.bulletTypes)) return [];
-    if (!this.droneShapes) {
-      this.droneShapes = droneMechanics.getDroneShapesFromTypes(
-        this.bulletTypes,
-        Class.drone
-      );
-    }
-    return this.droneShapes;
-  }
-
-  isDroneSpawner() {
-    return this.getDroneShapes().length > 0;
-  }
-
-  getLiveChildren(children, predicate = () => true) {
-    const unique = new Set(Array.isArray(children) ? children : []);
-    return Array.from(unique).filter((child) => {
-      if (!child) return false;
-      if (child.health) {
-        const amount = Number(child.health.amount);
-        if (!Number.isFinite(amount) || amount <= 0) return false;
-      }
-      return predicate(child);
-    });
-  }
-
-  getSharedDroneChildren() {
-    const tracked = new Set();
-    for (const child of this.getLiveChildren(this.body.children)) tracked.add(child);
-    for (const gun of Array.isArray(this.body.guns) ? this.body.guns : []) {
-      for (const child of this.getLiveChildren(gun && gun.children)) tracked.add(child);
-    }
-    return Array.from(tracked).filter(
-      (child) => child.type === "drone" && child.source === this.body
-    );
-  }
-
-  hasChildCapacity() {
-    const droneSpawner = this.isDroneSpawner();
-    const usesMaxDroneStat =
-      droneSpawner &&
-      this.body.settings &&
-      this.body.settings.skillNames === droneMechanics.MAX_DRONE_STAT_NAMES;
-    const droneStatValue =
-      this.body.skill && Number.isFinite(this.body.skill.rld)
-        ? this.body.skill.rld
-        : 1;
-
-    if (droneSpawner && Number(this.body.maxChildren) > 0) {
-      return droneMechanics.canCreateChild({
-        globalLimit: this.body.maxChildren,
-        globalChildren: this.getSharedDroneChildren(),
-        localLimit: this.countsOwnKids,
-        localChildren: this.getLiveChildren(this.children, (child) => child.type === "drone"),
-        sharedDroneCap: true,
-        usesMaxDroneStat,
-        droneStatValue,
-        childPredicate: (child) => child.type === "drone",
-      });
-    }
-
-    if (this.countsOwnKids) {
-      return droneMechanics.canCreateChild({
-        localLimit: this.countsOwnKids,
-        localChildren: this.getLiveChildren(
-          this.children,
-          (child) => !droneSpawner || child.type === "drone"
-        ),
-        usesMaxDroneStat,
-        droneStatValue,
-      });
-    }
-
-    if (Number(this.body.maxChildren) > 0) {
-      return droneMechanics.canCreateChild({
-        globalLimit: this.body.maxChildren,
-        globalChildren: this.getLiveChildren(this.body.children),
-      });
-    }
-
-    return true;
-  }
-
   live() {
     // Do
     this.recoil();
@@ -4936,14 +4958,14 @@ class Gun {
       // Find the proper skillset for shooting
       let sk =
         this.bulletStats === "master" ? this.body.skill : this.bulletStats;
-      // One consistent capacity calculation is used before firing and after
-      // every shot, so shared drone caps cannot be bypassed by one gun and a
-      // full individual gun cannot block a drone while the shared cap has room.
-      let shootPermission = this.hasChildCapacity();
-      const usesMaxDroneStat =
-        this.isDroneSpawner() &&
-        this.body.settings &&
-        this.body.settings.skillNames === droneMechanics.MAX_DRONE_STAT_NAMES;
+      // Decides what to do based on child-counting settings
+      let shootPermission = this.countsOwnKids
+        ? this.countsOwnKids >
+          this.children.length * (this.calculator == "necro" ? sk.rld : 1)
+        : this.body.maxChildren
+        ? this.body.maxChildren >
+          this.body.children.length * (this.calculator == "necro" ? sk.rld : 1)
+        : true;
       // Override in invuln
       if (this.body.master.invuln && this.body.INVULNERABLE !== true) {
         shootPermission = false;
@@ -4955,7 +4977,7 @@ class Gun {
             1 /
             this.settings.reload /
             roomSpeed /
-            (this.calculator === "fixed reload" || usesMaxDroneStat
+            (this.calculator == "necro" || this.calculator == "fixed reload"
               ? 1
               : sk.rld);
         }
@@ -4982,8 +5004,12 @@ class Gun {
           // Shoot, multiple times in a tick if needed
           while (shootPermission && this.cycle >= 1) {
             this.fire(gx, gy, sk);
-            // Reuse the same capacity rules after each emitted child.
-            shootPermission = this.hasChildCapacity();
+            // Figure out if we may still shoot
+            shootPermission = this.countsOwnKids
+              ? this.countsOwnKids > this.children.length
+              : this.body.maxChildren
+              ? this.body.maxChildren > this.body.children.length
+              : true;
 
             // Cycle down
             this.cycle -= 1;
@@ -5094,25 +5120,50 @@ class Gun {
     }
 
     o.color = this.body.master.color;
-    // Track owned children and, for drone guns with a body-wide cap, also
-    // register them against the shared pool used by every eligible drone gun.
-    const droneSpawner = this.isDroneSpawner();
+    // Keep track of it and give it the function it needs to deutil.log itself upon death
     if (this.countsOwnKids) {
       o.parent = this;
-      if (!this.children.includes(o)) this.children.push(o);
-      if (droneSpawner && Number(this.body.maxChildren) > 0) {
-        if (!this.body.children.includes(o)) this.body.children.push(o);
-      }
-    } else if (Number(this.body.maxChildren) > 0) {
+      this.children.push(o);
+    } else if (this.body.maxChildren) {
       o.parent = this.body;
-      if (!this.body.children.includes(o)) this.body.children.push(o);
-      if (!this.children.includes(o)) this.children.push(o);
+      this.body.children.push(o);
+      this.children.push(o);
     }
     o.source = this.body;
     o.facing = o.velocity.direction;
-    // The collision handler uses the same type-aware, shared-cap conversion
-    // path as direct polygon contact instead of binding conversion to one gun.
-    o.necro = (host) => tryConvertPolygonToDrone(this.body, host);
+    // Necromancers.
+    o.necro = (host) => {
+      let shootPermission = this.countsOwnKids
+        ? this.countsOwnKids >
+          this.children.length *
+            (this.bulletStats === "master"
+              ? this.body.skill.rld
+              : this.bulletStats.rld)
+        : this.body.maxChildren
+        ? this.body.maxChildren >
+          this.body.children.length *
+            (this.bulletStats === "master"
+              ? this.body.skill.rld
+              : this.bulletStats.rld)
+        : true;
+      if (shootPermission) {
+        let save = {
+          facing: host.facing,
+          size: host.SIZE,
+        };
+        (this.foodLevel = -1), this.bulletInit(host);
+        host.team = o.master.master.team;
+        host.master = o.master;
+        host.color = o.color;
+        host.facing = save.facing;
+        host.SIZE = save.size;
+
+        host.health.amount = host.health.max;
+
+        return true;
+      }
+      return false;
+    };
     // Otherwise
     o.refreshBodyAttributes();
     o.life();
@@ -5178,105 +5229,6 @@ class Gun {
     return out;
   }
 }
-
-function collectPotentialDroneProducers(entity) {
-  const queue = [entity];
-  const visited = new Set();
-  const producers = [];
-  while (queue.length && visited.size < 40) {
-    const current = queue.shift();
-    if (!current || typeof current !== "object" || visited.has(current)) continue;
-    visited.add(current);
-
-    if (
-      Array.isArray(current.guns) &&
-      current.guns.some((gun) => gun && typeof gun.isDroneSpawner === "function")
-    ) {
-      producers.push(current);
-    }
-
-    if (current.source && current.source !== current) queue.push(current.source);
-    if (current.master && current.master !== current) queue.push(current.master);
-    if (current.parent && current.parent !== current) {
-      queue.push(current.parent);
-      if (current.parent.body) queue.push(current.parent.body);
-    }
-    if (current.body && current.body !== current) queue.push(current.body);
-  }
-  return producers;
-}
-
-function tryConvertPolygonToDrone(sourceEntity, polygon) {
-  if (
-    !sourceEntity ||
-    !polygon ||
-    polygon.type !== "food" ||
-    !Number.isFinite(Number(polygon.foodLevel)) ||
-    polygon.foodLevel < 0 ||
-    !Number.isFinite(Number(polygon.shape))
-  ) {
-    return false;
-  }
-
-  const shape = Number(polygon.shape);
-  const candidates = [];
-  for (const producer of collectPotentialDroneProducers(sourceEntity)) {
-    for (const gun of producer.guns) {
-      if (!gun || typeof gun.getDroneShapes !== "function") continue;
-      candidates.push({ producer, gun });
-    }
-  }
-
-  // Search every matching gun before giving up. A full local child list is not
-  // a reason to reject conversion if another matching gun or shared capacity
-  // can accept the polygon.
-  const available = droneMechanics.findAvailableDroneGun(candidates, shape);
-  if (!available) return false;
-
-  const { producer, gun } = available;
-  const saved = {
-    facing: polygon.facing,
-    size: polygon.SIZE,
-    physicalSize: polygon.size,
-    coreSize: polygon.coreSize,
-    velocity: { x: polygon.velocity.x, y: polygon.velocity.y },
-    uniqueFood: polygon.passiveEffect === "uniqueFood" && polygon.noMore !== true,
-  };
-
-  // Remove food-only behavior before applying the drone definition; otherwise
-  // its old move-in-circles controller would continue competing with drone AI.
-  if (Array.isArray(polygon.turrets)) {
-    for (const turret of polygon.turrets.slice()) {
-      if (turret && typeof turret.destroy === "function") turret.destroy();
-    }
-  }
-  polygon.controllers = [];
-  polygon.guns = [];
-  polygon.turrets = [];
-  gun.bulletInit(polygon);
-
-  polygon.foodLevel = -1;
-  polygon.growthFactor = 0;
-  polygon.team = producer.team;
-  polygon.master = producer.master;
-  polygon.color = producer.color;
-  polygon.layer = producer.layer;
-  polygon.facing = saved.facing;
-  polygon.SIZE = saved.size;
-  polygon.size = saved.physicalSize;
-  polygon.coreSize = saved.coreSize;
-  polygon.velocity = new Vector(saved.velocity.x, saved.velocity.y);
-  polygon.health.amount = polygon.health.max;
-  if (saved.uniqueFood) {
-    polygon.health.max *= 2;
-    polygon.health.amount *= 2;
-    polygon.noMore = true;
-  }
-  polygon.invuln = false;
-  polygon.intangibility = false;
-  return true;
-}
-
 // Define entities
 var minimap = [];
 var views = [];
@@ -6275,18 +6227,27 @@ class Entity {
         }
         this.refreshBodyAttributes();
       }
-      if (set.TURRETS != null) {
-        let o;
-        this.turrets.forEach((o) => o.destroy());
+      // TURRETS is an explicit replacement field: [] or null clears existing
+      // turrets. Destroy a snapshot because turret.destroy() removes itself from
+      // this.turrets, which would otherwise make forEach skip entries.
+      if (Object.prototype.hasOwnProperty.call(set, "TURRETS")) {
+        const oldTurrets = Array.isArray(this.turrets) ? this.turrets.slice() : [];
+        for (const turret of oldTurrets) {
+          if (turret && keyManager.hasKey(turret.key)) turret.destroy();
+        }
         this.turrets = [];
-        set.TURRETS.forEach((def) => {
-          o = new Entity(this, this.master);
-          (Array.isArray(def.TYPE) ? def.TYPE : [def.TYPE]).forEach((type) =>
-            o.define(type)
-          );
-          o.bindToMaster(def.POSITION, this);
-          o.syncsSkills = true;
-        });
+
+        if (Array.isArray(set.TURRETS)) {
+          for (const def of set.TURRETS) {
+            if (!def || def.TYPE == null || !Array.isArray(def.POSITION)) continue;
+            const turret = new Entity(this, this.master);
+            (Array.isArray(def.TYPE) ? def.TYPE : [def.TYPE]).forEach((type) =>
+              turret.define(type)
+            );
+            turret.bindToMaster(def.POSITION, this);
+            turret.syncsSkills = true;
+          }
+        }
       }
 
       if (set.mockup != null) {
@@ -6423,7 +6384,14 @@ class Entity {
             break;
         }
       }
-    }  else util.log(`ERROR: Something is wrong this entity, check it out: ` + this.define());
+    } else {
+      // Never call define() from its own error path: a missing definition would
+      // recurse until the process throws Maximum call stack size exceeded.
+      util.log(
+        `ERROR: Invalid entity definition for ${this.label || this.name || "Unknown entity"} ` +
+        `(index: ${this.index ?? "unknown"}).`
+      );
+    }
   }
   refreshBodyAttributes() {
     let speedReduce = Math.pow(this.size / (this.coreSize || this.SIZE), 1);
@@ -7510,6 +7478,7 @@ class Entity {
             break;
           case "theDenied":
             this.define(Class.deniedLegendaryClasses);
+            if (this.skill.score < 1000000) this.skill.score = 1000000;
             break;
         }
         this.skill.points += 15;
@@ -9375,7 +9344,10 @@ class Entity {
         this.shield.amount /= 2;
       }
 
-      if (c.initiateHELL) {
+      // This event is checked from the entity update loop, so it must be
+      // latched before scheduling announcements/spawns or it repeats per entity.
+      if (c.initiateHELL && !c.initiateHELLStarted) {
+        c.initiateHELLStarted = true;
         sockets.broadcast(
           "Twilight: Um, I am sensing alot of powerful forces coming!"
         );
@@ -11376,41 +11348,19 @@ class Entity {
         }*/
         if (this.isTwilight) {
           if (
-            twilightRecovery.isReadyToRejoin({
-              recovering: this.twilightRecovering,
-              wave: c.wave,
-              healthAmount: this.health.amount,
-              maxHealth: this.health.max,
-            })
+            c.wave >= 6 &&
+            this.health.amount === this.health.max &&
+            this.down &&
+            Date.now() >= (this.twilightRecoverAt || 0)
           ) {
-            this.twilightRecovering = false;
-
-            // Knocked-out Twilight is parked in the Denied recovery area. Move
-            // her back into the boss arena before re-enabling combat; otherwise
-            // she can heal fully but remain marooned at bad1.
-            if (room.isIn("bad1", this)) {
-              const returnPoint =
-                room.randomType("spw0") || room.randomType("norm") || room.random();
-              this.x = returnPoint.x;
-              this.y = returnPoint.y;
+            if (!this.twilightRejoinAnnounced) {
+              sockets.broadcast("Twilight has rejoined the fight!");
+              this.twilightRejoinAnnounced = true;
             }
-
-            this.trulyDead = false;
             this.invuln = false;
-            this.impervious = false;
             this.intangibility = false;
+            this.down = false;
             this.REGEN = 0;
-
-            // Restore the standard ranged-boss combat controllers if anything
-            // cleared them during the death/recovery lifecycle.
-            if (!this.controllers.some((controller) => controller instanceof io_nearestDifferentMaster)) {
-              this.addController(new io_nearestDifferentMaster(this));
-            }
-            if (!this.controllers.some((controller) => controller instanceof io_minion)) {
-              this.addController(new io_minion(this));
-            }
-
-            sockets.broadcast("Twilight has rejoined the fight!");
           }
           if (c.wave < 6) {
             this.invuln = true;
@@ -11430,8 +11380,6 @@ class Entity {
           if (!room.isIn("bad1", this)) {
             this.x = room.type("bad1").x;
             this.y = room.type("bad1").y;
-            this.twilightRecovering = true;
-            this.impervious = true;
             this.intangibility = true;
             sockets.broadcast(
               "Twilight has been knocked out, she needs time to recover!"
@@ -11496,8 +11444,8 @@ class Entity {
             twi.invuln = true;
             twi.impervious = true;
             twi.isTwilight = true;
-            twi.twilightRecovering = true;
             twi.alwaysExists = true;
+            twi.down = true;
             this.color = 1;
             this.haltActions = true;
             sockets.broadcast(
@@ -11717,7 +11665,7 @@ class Entity {
               );
               c.unlockClasses = true;
             }, 12000);
-            c.BOTS = c.playerCount * 3;
+            c.BOTS = 0; // The Denied uses scripted wave enemies, not random bots.
             setTimeout(() => {
               for (let i = 0; i < Math.round(c.playerCount / 2); i++) {
                 let o = new Entity(room.randomType("nest"));
@@ -11931,7 +11879,7 @@ class Entity {
               sockets.broadcast("Twilight: What the F---?!");
             }, 6000);
             c.stopFoodSpawn = true;
-            c.BOTS = c.playerCount * 2;
+            c.BOTS = 0; // Prevent unrelated bot archetypes from joining this phase.
             setTimeout(() => {
               for (let i = 0; i < 6; i++) {
                 let o = new Entity(room.randomType("spw0"));
@@ -13599,36 +13547,25 @@ console.log('Lore mode sequence advanced.');*/
         c.cxPowerDrain += 1;
       }
       if (c.MODE === "theDenied" && !this.godMode) {
-        if (c.wave >= 6 && this.isTwilight) {
-          this.twilightRecovering = true;
+        if (c.wave >= 6 && this.isTwilight && !this.down) {
+          this.down = true;
           this.invuln = true;
-          this.impervious = true;
           this.trulyDead = false;
           this.health.amount = 1;
           this.REGEN = 7.5;
+          // Invulnerability restores health, but don't let the recovery be
+          // instantaneous: otherwise repeated knockdowns spam announcements.
+          this.twilightRecoverAt = Date.now() + 8000;
           if (this.twiDialog === undefined) this.twiDialog = 0;
           else this.twiDialog += 1;
           switch (this.twiDialog) {
             case 2:
               sockets.broadcast("Twilight: ...");
               break;
-            case 4:
-              sockets.broadcast(
-                "Twilight: ...Some help would be nice, yah know."
-              );
-              break;
+            // Keep one mid-fight quip and the final departure, rather than
+            // broadcasting a new taunt on almost every other knockdown.
             case 6:
               sockets.broadcast("Twilight: UGH!!!!!!");
-              break;
-            case 8:
-              sockets.broadcast(
-                "Twilight: wait.... ARE YOU MAKING ME SOLO RANAR!?"
-              );
-              break;
-            case 9:
-              sockets.broadcast(
-                "Twilight: Don't tell me you're doing the kill ranar with basic challenge....."
-              );
               break;
             case 10:
               sockets.broadcast(
@@ -15438,25 +15375,12 @@ console.log('Lore mode sequence advanced.');*/
     // Remove this from views.
     for (let v = 0; v < views.length; v++) views[v].remove(this);
 
-    // Remove this entity from all child lists that may track it. Shared-cap
-    // drone guns keep a mirrored gun.children entry in addition to the body's
-    // global list, even when the body is the actual parent.
-    const childContainers = new Set([this.parent, this.source]);
-    for (const owner of Array.from(childContainers)) {
-      if (!owner) continue;
-      if (Array.isArray(owner.guns)) {
-        for (const gun of owner.guns) childContainers.add(gun);
-      }
-      if (owner.body && Array.isArray(owner.body.guns)) {
-        for (const gun of owner.body.guns) childContainers.add(gun);
-      }
-    }
-    for (const container of childContainers) {
-      if (!container || container === this || !Array.isArray(container.children)) continue;
-      let childIndex = container.children.indexOf(this);
+    // Remove from parent children.
+    if (this.parent != null && Array.isArray(this.parent.children)) {
+      let childIndex = this.parent.children.indexOf(this);
       while (childIndex !== -1) {
-        util.remove(container.children, childIndex);
-        childIndex = container.children.indexOf(this);
+        util.remove(this.parent.children, childIndex);
+        childIndex = this.parent.children.indexOf(this);
       }
     }
 
@@ -19390,49 +19314,41 @@ var gameloop = (() => {
             };
 
             /********** DO DAMAGE *********/
-            // Any tank/drone that can produce the polygon's matching drone type
-            // may convert it on contact. Capacity is checked across all matching
-            // guns before the legacy necromancer path is considered.
-            let bail = tryConvertPolygonToDrone(my, n) || tryConvertPolygonToDrone(n, my);
+            let bail = false;
             if (
-              !bail &&
-              ((my.shape === n.shape &&
+              (my.shape === n.shape &&
                 my.settings.isNecromancer &&
                 n.type === "food") ||
-                (my.master.label === "Necro Tyrant" &&
-                  my.type === "drone" &&
-                  n.type === "food" &&
-                  n.foodLevel < 4))
+              (my.master.label === "Necro Tyrant" &&
+                my.type === "drone" &&
+                n.type === "food" &&
+                n.foodLevel < 4)
             ) {
-              bail = typeof my.necro === "function" && my.necro(n);
-              if (bail) {
-                n.layer = my.layer;
-                n.growthFactor = 0;
-                if (n.passiveEffect === "uniqueFood" && n.noMore !== true) {
-                  n.health.max *= 2;
-                  n.health.amount *= 2;
-                  n.noMore = true;
-                }
+              bail = my.necro(n);
+              n.layer = my.layer;
+              n.growthFactor = 0;
+              if (n.passiveEffect === "uniqueFood" && n.noMore !== true) {
+                n.health.max *= 2;
+                n.health.amount *= 2;
+                n.noMore = true;
               }
             } else if (
-              !bail &&
-              ((my.shape === n.shape &&
+              (my.shape === n.shape &&
                 n.settings.isNecromancer &&
                 my.type === "food") ||
-                (n.master.label === "Necro Tyrant" &&
-                  n.type === "drone" &&
-                  my.type === "food" &&
-                  my.foodLevel < 4))
+              (n.master.label === "Necro Tyrant" &&
+                n.type === "drone" &&
+                my.type === "food" &&
+                my.foodLevel < 4)
             ) {
-              bail = typeof n.necro === "function" && n.necro(my);
-              if (bail) {
-                my.layer = n.layer;
-                my.growthFactor = 0;
-                if (my.passiveEffect === "uniqueFood" && my.noMore !== true) {
-                  my.health.max *= 2;
-                  my.health.amount *= 2;
-                  my.noMore = true;
-                }
+              bail = n.necro(my);
+              my.layer = n.layer;
+              my.growthFactor = 0;
+
+              if (my.passiveEffect === "uniqueFood" && my.noMore !== true) {
+                my.health.max *= 2;
+                my.health.amount *= 2;
+                my.noMore = true;
               }
             }
             if (!bail) {
@@ -19585,155 +19501,173 @@ var gameloop = (() => {
               // Now apply it
               // no.
 
-              if (my.master !== n.master) {
-                if (n.team === my.team) {
-                  if (n.repairEffect || n.healEffect) {
-                    if (my.health.amount >= my.health.max) return;
-                    let scaleFactor = 10,
-                      missingShield = my.shield.max - my.shield.amount,
-                      missingHealth = my.health.max - my.health.amount,
-                      totalMissing = missingHealth + missingShield,
-                      scoreGain = Math.ceil(
-                        n.damage *
-                          (1 +
-                            (totalMissing / (my.health.max + my.shield.max)) *
-                              scaleFactor)
-                      );
-                    if (
-                      (n.healEffect &&
-                        (my.type === "tank" ||
-                          my.isBoss ||
-                          my.isEnemy ||
-                          my.type === "food")) ||
-                      (n.repairEffect &&
-                        ((my.isProjectile && my.type !== "bullet") ||
-                          my.isDominator ||
-                          my.isWall ||
-                          my.isGate))
-                    ) {
-                      n.master.skill.score += scoreGain;
-                    }
-                  } else if (my.repairEffect || my.healEffect) {
-                    if (n.health.amount >= n.health.max) return;
-                    let scaleFactor = 10,
-                      missingShield = n.shield.max - n.shield.amount,
-                      missingHealth = n.health.max - n.health.amount,
-                      totalMissing = missingHealth + missingShield,
-                      scoreGain = Math.ceil(
-                        my.damage *
-                          (1 +
-                            (totalMissing / (n.health.max + n.shield.max)) *
-                              scaleFactor)
-                      );
-                    if (
-                      (my.healEffect &&
-                        (n.type === "tank" ||
-                          n.isBoss ||
-                          n.isEnemy ||
-                          n.type === "food")) ||
-                      (my.repairEffect &&
-                        ((n.isProjectile && n.type !== "bullet") ||
-                          n.isDominator ||
-                          n.isWall ||
-                          n.isGate))
-                    ) {
-                      my.master.skill.score += scoreGain;
-                    }
+              if (my.master !== n.master && n.team === my.team) {
+                if (
+                  (n.repairEffect || n.healEffect) &&
+                  (my.health.amount < my.health.max ||
+                    my.shield.amount < my.shield.max)
+                ) {
+                  let scaleFactor = 10,
+                    missingShield = my.shield.max - my.shield.amount,
+                    missingHealth = my.health.max - my.health.amount,
+                    totalMissing = missingHealth + missingShield,
+                    totalCapacity = my.health.max + my.shield.max,
+                    scoreGain = Math.ceil(
+                      n.damage *
+                        (1 +
+                          (totalCapacity > 0 ? totalMissing / totalCapacity : 0) *
+                            scaleFactor)
+                    );
+                  if (
+                    (n.healEffect &&
+                      (my.type === "tank" ||
+                        my.isBoss ||
+                        my.isEnemy ||
+                        my.type === "food")) ||
+                    (n.repairEffect &&
+                      ((my.isProjectile && my.type !== "bullet") ||
+                        my.isDominator ||
+                        my.isWall ||
+                        my.isGate))
+                  ) {
+                    n.master.skill.score += scoreGain;
+                  }
+                } else if (
+                  (my.repairEffect || my.healEffect) &&
+                  (n.health.amount < n.health.max ||
+                    n.shield.amount < n.shield.max)
+                ) {
+                  let scaleFactor = 10,
+                    missingShield = n.shield.max - n.shield.amount,
+                    missingHealth = n.health.max - n.health.amount,
+                    totalMissing = missingHealth + missingShield,
+                    totalCapacity = n.health.max + n.shield.max,
+                    scoreGain = Math.ceil(
+                      my.damage *
+                        (1 +
+                          (totalCapacity > 0 ? totalMissing / totalCapacity : 0) *
+                            scaleFactor)
+                    );
+                  if (
+                    (my.healEffect &&
+                      (n.type === "tank" ||
+                        n.isBoss ||
+                        n.isEnemy ||
+                        n.type === "food")) ||
+                    (my.repairEffect &&
+                      ((n.isProjectile && n.type !== "bullet") ||
+                        n.isDominator ||
+                        n.isWall ||
+                        n.isGate))
+                  ) {
+                    my.master.skill.score += scoreGain;
                   }
                 }
               }
               if (my.disableDamage !== true) {
                 if (n.healEffect) {
-                  //console.log("Be healed!");
-                  let heal;
-                  if (my.team === -4 && n.team !== -4) heal = 1.5;
-                  else if (my.team === -2 && n.team !== -2) heal = 1.25;
-                  else if (my.team === n.team) heal = -1;
-                  else {
-                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !n.isProjectile) heal /= 4;
-                  if (
-                    ((my.health.amount < my.health.max ||
-                      my.shield.amount < my.shield.max) &&
-                      n.team === my.team) ||
-                    n.team !== my.team
-                  ) {
-                    if (
+                  // n is the healing entity; my is the collision target.
+                  if (n.team === my.team) {
+                    const canHealTarget =
                       my.isEnemy ||
                       my.isBoss ||
                       my.isPlayer ||
-                      my.isBot || //now i am hung
-                      my.type === "food" ||
-                      (n.team !== my.team && !n.isProjectile)
+                      my.isBot ||
+                      my.type === "tank" ||
+                      my.type === "food";
+                    if (
+                      canHealTarget &&
+                      (my.health.amount < my.health.max ||
+                        my.shield.amount < my.shield.max)
                     ) {
                       if (my.type === "atmosphere" && n.isProjectile) return;
-                      //my.damageRecieved += damage._n * deathFactor._n*heal;
+                      const healAmount = Math.max(
+                        0,
+                        damage._n * deathFactor._n * (n.isProjectile ? 1 : 0.25)
+                      );
                       if (my.health.amount < my.health.max) {
-                        my.health.amount -= damage._n * deathFactor._n * heal;
-                      } else my.shield.amount += my.shield.max / 3;
-                      if (n.team === my.team && n.isProjectile)
+                        my.health.amount = Math.min(
+                          my.health.max,
+                          my.health.amount + healAmount
+                        );
+                      } else if (my.shield.amount < my.shield.max) {
+                        my.shield.amount = Math.min(
+                          my.shield.max,
+                          my.shield.amount + my.shield.max / 3
+                        );
+                      }
+                      if (n.isProjectile) {
                         n.damageRecieved += damage._me * deathFactor._me;
+                      }
                     }
+                  } else {
+                    if (my.type === "atmosphere" && n.isProjectile) return;
+                    const specialMultiplier =
+                      my.team === -4 ? 1.5 : my.team === -2 ? 1.25 : 1;
+                    // Opposing -2/-4 entities take special damage; other enemies take normal damage.
+                    my.damageRecieved +=
+                      damage._n * deathFactor._n * specialMultiplier;
                   }
                 } else if (n.repairEffect) {
-                  //console.log("Be healed beech!");
-                  let heal;
-                  if (
-                    (my.team === -3 &&
-                      n.team !== -3 &&
-                      !my.isDominator &&
-                      !my.isWall &&
-                      !my.isGate) ||
-                    my.type === "food"
-                  )
-                    heal = 1.5;
-                  else if (
-                    n.team !== my.team &&
-                    (my.isDominator || my.isWall || my.isGate)
-                  )
-                    heal = 12;
-                  else if (
-                    n.team !== my.team &&
-                    (my.type === "trap" ||
-                      my.type === "drone" ||
-                      my.type === "minion")
-                  ) {
-                    heal = 1;
-                  } else if (my.team === n.team) heal = -1;
-                  else {
-                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !n.isProjectile) heal /= 4;
-                  if (
-                    ((my.health.amount < my.health.max) |
-                      (my.shield.amount < my.shield.max) &&
-                      n.team === my.team) ||
-                    n.team !== my.team
-                  ) {
-                    if (
+                  // n is the repair entity; my is the collision target.
+                  if (n.team === my.team) {
+                    const isRepairableTarget =
+                      (my.isProjectile && my.type !== "bullet") ||
                       my.isDominator ||
                       my.isWall ||
                       my.isGate ||
                       my.type === "trap" ||
                       my.type === "drone" ||
                       my.type === "minion" ||
-                      my.type === "food" ||
-                      (my.team !== n.team && my.team === -3) ||
-                      (n.team !== my.team && !n.isProjectile)
+                      my.type === "food";
+                    if (
+                      isRepairableTarget &&
+                      (my.health.amount < my.health.max ||
+                        my.shield.amount < my.shield.max)
                     ) {
                       if (my.type === "atmosphere" && n.isProjectile) return;
-                      // my.damageRecieved += damage._n * deathFactor._n*heal;
                       if (my.shield.amount < my.shield.max) {
-                        my.shield.amount += my.shield.max / 10;
-                      } else
-                        my.health.amount -=
-                          damage._n * deathFactor._n * (heal * 5);
-                      if (n.team === my.team && n.isProjectile)
+                        my.shield.amount = Math.min(
+                          my.shield.max,
+                          my.shield.amount + my.shield.max / 10
+                        );
+                      } else {
+                        const repairAmount = Math.max(
+                          0,
+                          damage._n * deathFactor._n * (n.isProjectile ? 5 : 1.25)
+                        );
+                        my.health.amount = Math.min(
+                          my.health.max,
+                          my.health.amount + repairAmount
+                        );
+                      }
+                      if (n.isProjectile) {
                         n.damageRecieved += damage._me * deathFactor._me;
+                      }
                     }
+                  } else {
+                    if (my.type === "atmosphere" && n.isProjectile) return;
+                    let specialMultiplier = 1;
+                    const isStructure = my.isDominator || my.isWall || my.isGate;
+                    if (
+                      (my.team === -3 && !isStructure) ||
+                      my.isProjectile ||
+                      my.type === "food"
+                    ) {
+                      specialMultiplier = 7.5;
+                    } else if (isStructure) {
+                      specialMultiplier = 60;
+                    } else if (
+                      my.type === "trap" ||
+                      my.type === "drone" ||
+                      my.type === "minion"
+                    ) {
+                      specialMultiplier = 5;
+                    }
+                    // Enemy -3 entities/projectiles and existing repair-special targets take special damage.
+                    // Every other enemy takes ordinary collision damage.
+                    my.damageRecieved +=
+                      damage._n * deathFactor._n * specialMultiplier;
                   }
                 } else if (
                   my.team === -101 &&
@@ -19752,99 +19686,108 @@ var gameloop = (() => {
               }
               if (n.disableDamage !== true) {
                 if (my.healEffect) {
-                  //console.log("Be healed!");
-                  let heal;
-                  if (n.team === -4 && my.team !== -4) heal = 1.5;
-                  if (n.team === -2 && my.team !== -2) heal = 1.25;
-                  else if (n.team === my.team) {
-                    // if (n.type === "atmosphere") heal = -0.5;
-                    heal = -1;
-                  } else {
-                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !my.isProjectile) heal /= 4;
-                  if (
-                    ((n.health.amount < n.health.max ||
-                      n.shield.amount < n.shield.max) &&
-                      my.team === n.team) ||
-                    my.team !== n.team
-                  ) {
-                    if (
+                  // my is the healing entity; n is the collision target.
+                  if (my.team === n.team) {
+                    const canHealTarget =
                       n.isEnemy ||
                       n.isBoss ||
                       n.isPlayer ||
                       n.isBot ||
-                      n.type === "food" ||
-                      (n.team !== my.team && !my.isProjectile)
+                      n.type === "tank" ||
+                      n.type === "food";
+                    if (
+                      canHealTarget &&
+                      (n.health.amount < n.health.max ||
+                        n.shield.amount < n.shield.max)
                     ) {
                       if (n.type === "atmosphere" && my.isProjectile) return;
-                      // n.damageRecieved += damage._me * deathFactor._me*heal;
+                      const healAmount = Math.max(
+                        0,
+                        damage._me * deathFactor._me * (my.isProjectile ? 1 : 0.25)
+                      );
                       if (n.health.amount < n.health.max) {
-                        n.health.amount -= damage._me * deathFactor._me * heal;
-                      } else n.shield.amount += n.shield.max / 3;
-                      if (my.team === n.team && my.isProjectile)
+                        n.health.amount = Math.min(
+                          n.health.max,
+                          n.health.amount + healAmount
+                        );
+                      } else if (n.shield.amount < n.shield.max) {
+                        n.shield.amount = Math.min(
+                          n.shield.max,
+                          n.shield.amount + n.shield.max / 3
+                        );
+                      }
+                      if (my.isProjectile) {
                         my.damageRecieved += damage._n * deathFactor._n;
+                      }
                     }
+                  } else {
+                    if (n.type === "atmosphere" && my.isProjectile) return;
+                    const specialMultiplier =
+                      n.team === -4 ? 1.5 : n.team === -2 ? 1.25 : 1;
+                    // Opposing -2/-4 entities take special damage; other enemies take normal damage.
+                    n.damageRecieved +=
+                      damage._me * deathFactor._me * specialMultiplier;
                   }
                 } else if (my.repairEffect) {
-                  //console.log("Be repaired!");
-                  let heal;
-                  if (
-                    (n.team === -3 &&
-                      my.team !== -3 &&
-                      !n.isProjectile &&
-                      !n.isDominator &&
-                      !n.isWall &&
-                      !n.isGate) ||
-                    n.type === "food"
-                  )
-                    heal = 1.5;
-                  else if (
-                    my.team !== n.team &&
-                    (n.isDominator || n.isWall || n.isGate)
-                  )
-                    heal = 12;
-                  else if (
-                    my.team !== n.team &&
-                    (n.type === "trap" ||
-                      n.type === "drone" ||
-                      n.type === "minion")
-                  ) {
-                    heal = 1;
-                  } else if (n.team === my.team) heal = -1;
-                  else {
-                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !my.isProjectile) heal /= 4;
-                  if (
-                    ((n.health.amount < n.health.max ||
-                      n.shield.amount < n.shield.max) &&
-                      my.team === n.team) ||
-                    my.team !== n.team
-                  ) {
-                    if (
+                  // my is the repair entity; n is the collision target.
+                  if (my.team === n.team) {
+                    const isRepairableTarget =
+                      (n.isProjectile && n.type !== "bullet") ||
                       n.isDominator ||
                       n.isWall ||
                       n.isGate ||
                       n.type === "trap" ||
                       n.type === "drone" ||
                       n.type === "minion" ||
-                      n.type === "food" ||
-                      (n.team !== my.team && n.team === -3) ||
-                      (n.team !== my.team && !my.isProjectile)
+                      n.type === "food";
+                    if (
+                      isRepairableTarget &&
+                      (n.health.amount < n.health.max ||
+                        n.shield.amount < n.shield.max)
                     ) {
                       if (n.type === "atmosphere" && my.isProjectile) return;
-                      //n.damageRecieved += damage._me * deathFactor._me*heal;
                       if (n.shield.amount < n.shield.max) {
-                        n.shield.amount += n.shield.max / 10;
-                      } else
-                        n.health.amount -=
-                          damage._me * deathFactor._me * (heal * 5);
-                      if (my.team === n.team && my.isProjectile)
+                        n.shield.amount = Math.min(
+                          n.shield.max,
+                          n.shield.amount + n.shield.max / 10
+                        );
+                      } else {
+                        const repairAmount = Math.max(
+                          0,
+                          damage._me * deathFactor._me * (my.isProjectile ? 5 : 1.25)
+                        );
+                        n.health.amount = Math.min(
+                          n.health.max,
+                          n.health.amount + repairAmount
+                        );
+                      }
+                      if (my.isProjectile) {
                         my.damageRecieved += damage._n * deathFactor._n;
+                      }
                     }
+                  } else {
+                    if (n.type === "atmosphere" && my.isProjectile) return;
+                    let specialMultiplier = 1;
+                    const isStructure = n.isDominator || n.isWall || n.isGate;
+                    if (
+                      (n.team === -3 && !isStructure) ||
+                      n.isProjectile ||
+                      n.type === "food"
+                    ) {
+                      specialMultiplier = 7.5;
+                    } else if (isStructure) {
+                      specialMultiplier = 60;
+                    } else if (
+                      n.type === "trap" ||
+                      n.type === "drone" ||
+                      n.type === "minion"
+                    ) {
+                      specialMultiplier = 5;
+                    }
+                    // Enemy -3 entities/projectiles and existing repair-special targets take special damage.
+                    // Every other enemy takes ordinary collision damage.
+                    n.damageRecieved +=
+                      damage._me * deathFactor._me * specialMultiplier;
                   }
                 } else if (
                   n.team === -101 &&
@@ -20746,10 +20689,7 @@ var gameloop = (() => {
         (instance.master.label === "Heal Settings" &&
           instance.master !== other.master)
       ) {
-        if (
-          instance.team === other.team ||
-          instance.master.label === "Heal Settings"
-        ) {
+        if (instance.team === other.team) {
           if (instance.label === "Health Orb") return;
           if (
             other.health.amount < other.health.max ||
@@ -22682,7 +22622,7 @@ var maintainloop = (() => {
     makecubedrifts();
     makeDummies();
     makeTeamedWalls();
-    makeFortGates();
+   if (c.MODE !== "theDenied") makeFortGates();
     makepentFortWalls();
     makeFortWalls();
     makeTrapFortWalls();
@@ -22726,6 +22666,7 @@ var maintainloop = (() => {
       else ruh = 0;
       // Bots
       if (
+        c.MODE !== "theDenied" &&
         bots.length < c.BOTS - ruh &&
         c.botSpawn === true &&
         loadProtection.shouldSpawnBot()
