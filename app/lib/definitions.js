@@ -3326,6 +3326,7 @@ exports.spikeOrb = {
 };
 exports.powerOrb = {
   PARENT: [exports.drone],
+  LABEL: "Orb",
   TYPE: "trap",
   SHAPE: 0,
   CONTROLLERS: [
@@ -4888,7 +4889,7 @@ exports.breakerAutoTurret = {
 };
 exports.smasherOrbGenerator = {
 PARENT: [exports.genericTank],
-  LABEL: "",
+  LABEL: "Generator",
   CONTROLLERS: ["spin"],
   //SPIN_RATE: -0.5555,
   COLOR: 9,
@@ -4992,6 +4993,10 @@ PARENT: [exports.smasherOrbGenerator],
                   g.superHealth,
                   g.superHealth,
                   g.superHealth,
+                  g.superDensity,
+                  g.superDensity,
+                  g.superDensity,
+                  g.superDensity,
                   /***************** RELOAD RECOIL SHUDDER  SIZE   HEALTH  DAMAGE   PEN    SPEED    MAX    RANGE  DENSITY  SPRAY   RESIST  */
                 ]),
                 TYPE: [
@@ -44812,7 +44817,7 @@ exports.necrotyrant = makeMulti(
   {
     PARENT: [exports.underseer],
     DANGER: 7,
-    STAT_NAMES: statnames.drone,
+  STAT_NAMES: statnames.necro,
     SPECIAL_EFFECT: "Legend",
     BODY: {
       SPEED: base.SPEED * 1.5,
@@ -88539,7 +88544,7 @@ exports.arenaCloser = {
 exports.repPod = {
   PARENT: [exports.genericTank],
   TYPE: "voidlordBoss",
-  LABEL: "Void Pod",
+  LABEL: "Pod",
   SPECIAL_EFFECT: "rep",
   LEVEL: 45,
   SIZE: 12,
@@ -88554,9 +88559,9 @@ exports.repPod = {
   FACING_TYPE: "turnWithSpeed",
   MOTION_TYPE: "drift",
   BODY: {
-    HEALTH: 10000,
+    HEALTH: 50,
     DAMAGE: 0,
-    SHIELD: 10000,
+    SHIELD: 25,
     REGEN: base.REGEN * 0,
     PUSHABILITY: 0,
     ACCELERATION: 0,
