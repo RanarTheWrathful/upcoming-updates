@@ -21,6 +21,7 @@ const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
 const droneInfection = require("./lib/droneInfection");
+const gunCalculator = require("./lib/gunCalculator");
 const { performance } = require("perf_hooks");
 
 function applyFoodInfectionEffects(food, infector) {
@@ -4861,10 +4862,11 @@ class Gun {
         info.PROPERTIES.SHOOT_SETTINGS == null
           ? []
           : info.PROPERTIES.SHOOT_SETTINGS;
-      this.calculator =
-        info.PROPERTIES.STAT_CALCULATOR == null
-          ? "default"
-          : info.PROPERTIES.STAT_CALCULATOR;
+      // Definitions store calculator types as numeric IDs. Normalize them to
+      // the names used by the calculation branches below (e.g. 7 -> "necro").
+      this.calculator = gunCalculator.normalizeCalculator(
+        info.PROPERTIES.STAT_CALCULATOR
+      );
       this.waitToCycle =
         info.PROPERTIES.WAIT_TO_CYCLE == null
           ? false
@@ -5007,14 +5009,10 @@ class Gun {
       // Find the proper skillset for shooting
       let sk =
         this.bulletStats === "master" ? this.body.skill : this.bulletStats;
-      // Decides what to do based on child-counting settings
-      let shootPermission = this.countsOwnKids
-        ? this.countsOwnKids >
-          this.children.length * (this.calculator == "necro" ? sk.rld : 1)
-        : this.body.maxChildren
-        ? this.body.maxChildren >
-          this.body.children.length * (this.calculator == "necro" ? sk.rld : 1)
-        : true;
+      // One capacity check is shared by the initial firing decision and the
+      // multi-shot loop. Necro's Reload-slot stat reduces the count multiplier,
+      // effectively increasing the permitted number of drones/minions.
+      let shootPermission = this.hasChildCapacity(sk);
       // Override in invuln
       if (this.body.master.invuln && this.body.INVULNERABLE !== true) {
         shootPermission = false;
@@ -5054,11 +5052,7 @@ class Gun {
           while (shootPermission && this.cycle >= 1) {
             this.fire(gx, gy, sk);
             // Figure out if we may still shoot
-            shootPermission = this.countsOwnKids
-              ? this.countsOwnKids > this.children.length
-              : this.body.maxChildren
-              ? this.body.maxChildren > this.body.children.length
-              : true;
+            shootPermission = this.hasChildCapacity(sk);
 
             // Cycle down
             this.cycle -= 1;
@@ -5068,6 +5062,17 @@ class Gun {
         this.cycle = !this.waitToCycle - this.delay;
       }
     }
+  }
+
+  hasChildCapacity(sk) {
+    return gunCalculator.hasChildCapacity({
+      calculator: this.calculator,
+      skill: sk,
+      gunLimit: this.countsOwnKids,
+      gunChildren: this.children.length,
+      bodyLimit: this.body.maxChildren,
+      bodyChildren: this.body.children.length,
+    });
   }
 
   syncChildren() {
