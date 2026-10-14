@@ -28,10 +28,38 @@ function normalizeCalculator(value) {
 }
 
 /**
+ * STAT_NAMES value used by definitions.statnames.necro. The client labels the
+ * Reload slot as "Max Drone Count" for this variant; the raw investment in
+ * skill slot 0 is therefore capacity investment, not a reload multiplier.
+ */
+const MAX_DRONE_COUNT_STAT_NAMES = 3;
+
+function getMaxDroneCountMultiplier(skill) {
+  const raw = Number(skill && Array.isArray(skill.raw) ? skill.raw[0] : NaN);
+  const configuredCap = Number(skill && Array.isArray(skill.caps) ? skill.caps[0] : NaN);
+  const cap = Number.isFinite(configuredCap) && configuredCap > 0 ? configuredCap : 10;
+  if (!Number.isFinite(raw)) return 1;
+
+  // Scale linearly from 1x at zero points to 2x at the slot's current cap.
+  const investment = Math.max(0, Math.min(1, raw / cap));
+  return 1 + investment;
+}
+
+function scaleChildLimit(limit, multiplier) {
+  const value = Number(limit);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  // Child counts are integers. Rounding gives partial investments a gradual,
+  // useful effect while ensuring the fully-upgraded limit is exactly doubled.
+  return Math.max(1, Math.round(value * multiplier));
+}
+
+/**
  * Return whether a gun may spawn another child under its configured cap.
- * Necromancer-style calculators use the Reload skill as a count multiplier:
- * because Skill.rld decreases as that stat increases, the effective child cap
- * rises while all other calculator types retain their configured cap.
+ * Classes using the Max Drone Count stat variant scale drone/minion capacity
+ * from the points actually invested in the former Reload slot. That rule is
+ * independent of STAT_CALCULATOR, and both local and tank-wide limits apply.
+ * The legacy necro calculator behavior remains for older definitions that do
+ * not use the stat-name variant.
  */
 function hasChildCapacity({
   calculator,
@@ -40,7 +68,21 @@ function hasChildCapacity({
   gunChildren = 0,
   bodyLimit,
   bodyChildren = 0,
+  maxDroneCountVariant = false,
+  producesDrones = false,
 }) {
+  if (maxDroneCountVariant && producesDrones) {
+    const multiplier = getMaxDroneCountMultiplier(skill);
+    const effectiveGunLimit = scaleChildLimit(gunLimit, multiplier);
+    const effectiveBodyLimit = scaleChildLimit(bodyLimit, multiplier);
+
+    if (effectiveGunLimit > 0 && gunChildren >= effectiveGunLimit) return false;
+    if (effectiveBodyLimit > 0 && bodyChildren >= effectiveBodyLimit) return false;
+    return true;
+  }
+
+  // Compatibility path for old necro-calculator definitions. Reload's
+  // multiplier falls from 1 to 0.5, which historically doubled their cap.
   const childCountMultiplier =
     calculator === "necro" && skill && Number.isFinite(skill.rld)
       ? skill.rld
@@ -51,4 +93,9 @@ function hasChildCapacity({
   return true;
 }
 
-module.exports = { normalizeCalculator, hasChildCapacity };
+module.exports = {
+  MAX_DRONE_COUNT_STAT_NAMES,
+  normalizeCalculator,
+  getMaxDroneCountMultiplier,
+  hasChildCapacity,
+};

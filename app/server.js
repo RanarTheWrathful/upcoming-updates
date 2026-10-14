@@ -5065,13 +5065,31 @@ class Gun {
   }
 
   hasChildCapacity(sk) {
+    // STAT_NAMES === 3 is definitions.statnames.necro: the UI replaces Reload
+    // with Max Drone Count. Resolve the root tank because guns mounted on a
+    // turret still need to use the owning class's stat variant and shared cap.
+    const owner = droneInfection.getTankOwner(this.body);
+    const maxDroneCountVariant =
+      !!owner && owner.settings &&
+      owner.settings.skillNames === gunCalculator.MAX_DRONE_COUNT_STAT_NAMES;
+    const producesDrones =
+      this.spawnedEntityType === "drone" || this.spawnedEntityType === "minion";
+    // For turret-mounted guns, use the owning tank's investment rather than a
+    // turret's potentially copied/stale skill object.
+    const capacitySkill =
+      maxDroneCountVariant && owner.skill ? owner.skill : sk;
+
     return gunCalculator.hasChildCapacity({
       calculator: this.calculator,
-      skill: sk,
+      skill: capacitySkill,
       gunLimit: this.countsOwnKids,
       gunChildren: this.children.length,
-      bodyLimit: this.body.maxChildren,
-      bodyChildren: this.body.children.length,
+      bodyLimit: maxDroneCountVariant ? owner.maxChildren : this.body.maxChildren,
+      bodyChildren: maxDroneCountVariant
+        ? droneInfection.countOwnedDrones(owner)
+        : this.body.children.length,
+      maxDroneCountVariant,
+      producesDrones,
     });
   }
 
