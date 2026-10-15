@@ -69,9 +69,80 @@ function makeProtection(overrides = {}) {
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
 }
 
-// Critical entity suspension is deferred until critical lag has persisted.
+// Extreme lag bypasses every grace timer and triggers all protocols immediately.
 {
   const test = makeProtection();
+  test.protection.reportCycle(260, []);
+  const snapshot = test.protection.getSnapshot();
+  assert.strictEqual(snapshot.criticalLagConfirmed, true);
+  assert.strictEqual(snapshot.loadSuspensionElapsedMs, 0);
+  assert.strictEqual(snapshot.naturalSpawnsPaused, true);
+  assert.strictEqual(snapshot.lagPolicy100Triggered, true);
+  assert.strictEqual(snapshot.lagPolicy150Triggered, true);
+  assert.strictEqual(snapshot.lagPolicy200Triggered, true);
+  assert.strictEqual(snapshot.emergencyMitigation, true);
+  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), false);
+}
+
+// Emergency mode immediately starts suspension and the full cleanup sweep.
+{
+  const makeEntity = (overrides = {}) => Object.assign({
+    type: "tank",
+    label: "Enemy",
+    name: "Enemy",
+    alpha: 1,
+    health: { amount: 100, max: 100 },
+    size: 10,
+    alive: true,
+    destroyed: false,
+    valid() { return this.alive; },
+    isDead() { return false; },
+    destroy() { this.destroyed = true; this.alive = false; },
+  }, overrides);
+  const candidate = makeEntity();
+  const unknown = makeEntity({ label: "Unknown Class", name: "Unknown Class" });
+  const projectile = makeEntity({ type: "bullet", isProjectile: true, label: "Bullet" });
+  const offscreenFood = makeEntity({ type: "food", label: "Food", foodLevel: 1 });
+  const onscreenFood = makeEntity({ type: "food", label: "Food", foodLevel: 1 });
+  const all = [candidate, unknown, projectile, offscreenFood, onscreenFood];
+  const test = makeProtection({ options: { isEntityOnScreen: (entity) => entity === onscreenFood } });
+  test.protection.reportCycle(260, all);
+  assert.strictEqual(candidate._loadDisabled, true, "emergency should suspend an eligible entity immediately");
+  assert.strictEqual(unknown.destroyed, true, "emergency should trigger unknown-entity cleanup immediately");
+  assert.strictEqual(projectile.destroyed, true, "emergency should trigger projectile cleanup immediately");
+  assert.strictEqual(offscreenFood.destroyed, true, "emergency should trigger off-screen cleanup immediately");
+  assert.strictEqual(onscreenFood.destroyed, true, "emergency should trigger on-screen natural-entity cleanup immediately");
+}
+
+// Critical memory pressure can also force all protocols without waiting for the lag timer.
+{
+  const test = makeProtection({
+    options: {
+      sampleProvider: () => ({
+        memoryRatio: 0.95,
+        rssMb: 900,
+        heapUsedMb: 500,
+        heapLimitMb: 512,
+        externalMb: 0,
+        eventLoopP95Ms: 0,
+        eventLoopMaxMs: 0,
+        memoryGrowthMb: 0,
+        memoryTrendReady: false,
+      }),
+    },
+  });
+  test.protection.sample();
+  const snapshot = test.protection.getSnapshot();
+  assert.strictEqual(snapshot.naturalSpawnsPaused, true);
+  assert.strictEqual(snapshot.lagPolicy100Triggered, true);
+  assert.strictEqual(snapshot.lagPolicy150Triggered, true);
+  assert.strictEqual(snapshot.lagPolicy200Triggered, true);
+  assert.strictEqual(snapshot.criticalLagConfirmed, true);
+}
+
+// A severe-but-not-extreme lag incident still observes the critical persistence window.
+{
+  const test = makeProtection({ env: { RANAR_LOAD_EXTREME_LAG_MS: "500" } });
   test.protection.reportCycle(260, []);
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
   assert.strictEqual(test.protection.getSnapshot().loadSuspensionElapsedMs, 0);
@@ -85,7 +156,7 @@ function makeProtection(overrides = {}) {
 
 // Recovery before the persistence window cancels the pending critical episode.
 {
-  const test = makeProtection();
+  const test = makeProtection({ env: { RANAR_LOAD_EXTREME_LAG_MS: "500" } });
   test.protection.reportCycle(260, []);
   test.setNow(50);
   test.protection.reportCycle(20, []);
@@ -93,7 +164,9 @@ function makeProtection(overrides = {}) {
   test.protection.reportCycle(5, []);
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
   test.setNow(20000);
-  test.protection.reportCycle(260, []);
+  // Pass a normal start-to-start interval; the long test-clock jump is not a real
+  // simulation gap in this recovery-window scenario.
+  test.protection.reportCycle(260, [], 114);
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
 }
 

@@ -17,6 +17,7 @@ const fs = require("fs");
 const path = require("path"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
 const createLoadProtection = require("./lib/loadProtection");
+const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup");
 const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
@@ -15560,6 +15561,34 @@ let speedcheckLoopTimer = null;
 let shutdownExitTimer = null;
 let cleanupStarted = false;
 
+const offscreenTransientCleanup = createOffscreenTransientCleanup({
+  delayMs: Number(process.env.RANAR_OFFSCREEN_TRANSIENT_TTL_MS) > 0
+    ? Number(process.env.RANAR_OFFSCREEN_TRANSIENT_TTL_MS)
+    : 5000,
+  isVisibleToAnyClient(entity) {
+    if (!entity) return false;
+    return views.some((view) => {
+      if (!view) return false;
+      if (view.socket && view.socket.status && !view.socket.status.hasSpawned) return false;
+      const fov = Number(view.fov);
+      const x = Number(view.x);
+      const y = Number(view.y);
+      const entityX = Number(entity.x);
+      const entityY = Number(entity.y);
+      const size = Number(entity.size);
+      if (![fov, x, y, entityX, entityY].every(Number.isFinite)) {
+        try { return typeof view.isInView === "function" && view.isInView(entity); }
+        catch (_) { return false; }
+      }
+      const safeSize = Number.isFinite(size) && size > 0 ? size : 0;
+      // Match View.gazeUpon()'s actual draw window rather than its wider
+      // prefetch window, so a client only counts when the effect can be shown.
+      return Math.abs(entityX - x) < fov / 2 + 1.5 * safeSize &&
+        Math.abs(entityY - y) < (fov / 2) * (9 / 16) + 1.5 * safeSize;
+    });
+  },
+});
+
 const loadProtection = createLoadProtection({
   targetCycleIntervalMs: room.cycleSpeed,
   getEntities: () => entities,
@@ -23606,8 +23635,12 @@ var maintainloop = (() => {
     // Regen health and update the grid. Positive REGEN restores resources;
     // negative REGEN drains them. Existing no-regen sentinels are normalized
     // to zero, and NO_REGEN remains an explicit override.
+    const transientCleanupNow = performance.now();
     entities.forEach((instance) => {
-      if (instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;
+      // This lifecycle cleanup is independent of load-protection thresholds:
+      // any projectile/aura unseen by every client for five seconds is retired.
+      offscreenTransientCleanup.check(instance, transientCleanupNow);
+      if (!instance || instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;
       if (instance.health.amount > 0 || instance.health.max > 0) {
         if (instance.valid()) {
           const regenValue = Number(instance.REGEN);

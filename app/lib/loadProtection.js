@@ -65,14 +65,16 @@ function createLoadProtection(options = {}) {
   const warningDelayMs = positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 75);
   const highDelayMs = positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 150);
   const criticalDelayMs = positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 250);
+  // Crossing this extreme-lag threshold bypasses every policy persistence timer.
+  const emergencyLagMs = positiveNumber(env.RANAR_LOAD_EXTREME_LAG_MS, 250);
   const suspensionIntervalMs = positiveNumber(env.RANAR_LOAD_SUSPEND_INTERVAL_MS, 2500);
   const suspensionWindowMs = positiveNumber(env.RANAR_LOAD_SUSPEND_WINDOW_MS, 60000);
   const entityFadeMs = positiveNumber(env.RANAR_LOAD_ENTITY_FADE_MS, 2500);
   const naturalSpawnPauseMs = positiveNumber(env.RANAR_LAG_100_DURATION_MS, 10000);
   const offscreenCleanupDelayMs = positiveNumber(env.RANAR_LAG_150_DURATION_MS, 15000);
   const onScreenCleanupDelayMs = positiveNumber(env.RANAR_LAG_200_DURATION_MS, 15000);
-  // Heavy emergency mitigation must not react to a single long frame. Start
-  // suspending entities only after critical lag has remained sustained.
+  // Normal critical suspension waits for persistence; an explicit extreme-load
+  // condition below bypasses this delay and activates all mitigation policies.
   const criticalLagPersistenceMs = positiveNumber(env.RANAR_LAG_CRITICAL_DURATION_MS, 15000);
   const cleanupIntervalMs = positiveNumber(env.RANAR_LAG_CLEANUP_INTERVAL_MS, 2500);
   const speedPercentForMs = (milliseconds) => Math.max(
@@ -206,6 +208,8 @@ function createLoadProtection(options = {}) {
     loadSuspensionLockout: false,
     loadSuspensionElapsedMs: 0,
     criticalLagPersistenceMs,
+    emergencyLagMs,
+    emergencyMitigation: false,
     criticalLagConfirmed: false,
     targetCycleIntervalMs,
     observedCycleIntervalMs,
@@ -834,7 +838,7 @@ function createLoadProtection(options = {}) {
   }
 
 
-  function updateSustainedLagPolicies(runSpeedPercent) {
+  function updateSustainedLagPolicies(runSpeedPercent, forceAll = false) {
     const now = nowProvider();
     const finiteSpeed = Number.isFinite(runSpeedPercent)
       ? Math.max(0, Math.min(100, runSpeedPercent))
@@ -843,9 +847,33 @@ function createLoadProtection(options = {}) {
     const lag150 = sustainedPolicies[150];
     const lag200 = sustainedPolicies[200];
 
-    // Unknown-entity cleanup is potentially destructive, so it must wait for
-    // the same sustained low-speed confirmation as the spawn-pause policy.
-    // It still runs only once per sustained episode and rearms after recovery.
+    if (forceAll) {
+      // At extreme load, bypass the normal 10s/15s grace periods and activate
+      // every policy in the same simulation cycle.
+      if (!unknownCleanupLatched) {
+        unknownCleanupLatched = true;
+        unknownCleanupPending = true;
+        unknownCleanupGeneration++;
+      }
+      for (const policy of [lag100, lag150, lag200]) {
+        if (policy.since === null) policy.since = now - policy.durationMs;
+        policy.triggered = true;
+      }
+      naturalSpawnsPaused = true;
+      below100Since = null;
+      lastMetrics.naturalSpawnsPaused = true;
+      lastMetrics.lagPolicy100Triggered = true;
+      lastMetrics.lagPolicy150Triggered = true;
+      lastMetrics.lagPolicy200Triggered = true;
+      lastMetrics.emergencyMitigation = true;
+      return;
+    }
+
+    lastMetrics.emergencyMitigation = false;
+
+    // Unknown-entity cleanup normally waits for sustained low speed. The
+    // extreme-load branch above is the explicit exception, and it still runs
+    // only once per sustained episode.
     if (finiteSpeed <= speedThresholds[100]) {
       below100Since = null;
       if (lag100.since === null) lag100.since = now;
@@ -908,13 +936,13 @@ function createLoadProtection(options = {}) {
     lastMetrics.lagPolicy200Triggered = lag200.triggered;
   }
 
-  function handleCriticalLag(runSpeedPercent, entityList, reason) {
+  function handleCriticalLag(runSpeedPercent, entityList, reason, forceImmediate = false) {
     const now = nowProvider();
     lastObservedRunSpeedPercent = Number.isFinite(runSpeedPercent)
       ? Math.max(0, Math.min(100, runSpeedPercent))
       : 100;
 
-    if (lastObservedRunSpeedPercent > speedThresholds.critical) {
+    if (!forceImmediate && lastObservedRunSpeedPercent > speedThresholds.critical) {
       criticalLagSince = null;
       if (suspensionLockout) {
         suspensionLockout = false;
@@ -932,10 +960,17 @@ function createLoadProtection(options = {}) {
       return;
     }
 
-    if (suspensionLockout) return;
+    if (suspensionLockout && !forceImmediate) return;
 
-    if (criticalLagSince === null) criticalLagSince = now;
-    if (now - criticalLagSince < criticalLagPersistenceMs) return;
+    if (forceImmediate) {
+      // Treat the persistence window as satisfied immediately. This also makes
+      // the emergency visible in the status snapshot without another sample.
+      criticalLagSince = now - criticalLagPersistenceMs;
+      suspensionLockout = false;
+    } else if (criticalLagSince === null) {
+      criticalLagSince = now;
+    }
+    if (!forceImmediate && now - criticalLagSince < criticalLagPersistenceMs) return;
 
     if (suspensionEpisodeStartedAt === null) {
       suspensionEpisodeStartedAt = now;
@@ -1064,6 +1099,19 @@ function createLoadProtection(options = {}) {
     return base * getRunSpeedMultiplier();
   }
 
+  function isExtremeLoad(observedLagMs, metrics = lastMetrics) {
+    const safeMetrics = metrics || {};
+    const memoryAtCriticalLimit = Number.isFinite(safeMetrics.memoryRatio) &&
+      safeMetrics.memoryRatio >= criticalMemory;
+    const growthAtCriticalLimit = safeMetrics.memoryTrendReady === true &&
+      Number.isFinite(safeMetrics.memoryGrowthMb) &&
+      safeMetrics.memoryGrowthMb >= criticalGrowthMb;
+    const extremeCycleCadence = Number.isFinite(observedCycleIntervalMs) &&
+      observedCycleIntervalMs >= emergencyLagMs;
+    return (Number.isFinite(observedLagMs) && observedLagMs >= emergencyLagMs) ||
+      extremeCycleCadence || memoryAtCriticalLimit || growthAtCriticalLimit;
+  }
+
   function reportCycle(durationMs, entityList, cycleStartedAt) {
     const cycleMs = Number(durationMs);
     if (!Number.isFinite(cycleMs) || cycleMs < 0) return getSnapshot();
@@ -1081,12 +1129,13 @@ function createLoadProtection(options = {}) {
     updateCycleStage(runSpeedPercent, true);
 
     const reason = "server run speed fell to " + Math.round(runSpeedPercent) + "% of target";
+    const emergency = isExtremeLoad(observedLagMs, lastMetrics);
     // Advance existing fades before episode transitions. In particular, the
     // 60-second cutoff must see the latest opacity of a just-disabled entity.
     advanceEntityTransitions(nowProvider());
     const liveEntities = entityList || getEntities();
-    updateSustainedLagPolicies(runSpeedPercent);
-    handleCriticalLag(runSpeedPercent, liveEntities, reason);
+    updateSustainedLagPolicies(runSpeedPercent, emergency);
+    handleCriticalLag(runSpeedPercent, liveEntities, reason, emergency);
     processCleanupSweep(liveEntities, nowProvider());
     advanceEntityTransitions(nowProvider());
 
@@ -1182,10 +1231,11 @@ function createLoadProtection(options = {}) {
     // spawn policies are driven by the latest measured simulation throughput.
     updateCycleStage(currentRunSpeedPercent, false);
     const reason = "server run speed stayed at " + Math.round(currentRunSpeedPercent) + "% of target";
+    const emergency = isExtremeLoad(observedLagMs, metrics);
     advanceEntityTransitions(nowProvider());
     const liveEntities = getEntities();
-    updateSustainedLagPolicies(currentRunSpeedPercent);
-    handleCriticalLag(currentRunSpeedPercent, liveEntities, reason);
+    updateSustainedLagPolicies(currentRunSpeedPercent, emergency);
+    handleCriticalLag(currentRunSpeedPercent, liveEntities, reason, emergency);
     advanceEntityTransitions(nowProvider());
     lastMetrics.cycleStage = cycleStage;
     lastMetrics.stageName = STAGE_NAMES[effectiveStage()];
@@ -1256,6 +1306,7 @@ function createLoadProtection(options = {}) {
     snapshot.runSpeedDeficitPercent = 100 - currentRunSpeedPercent;
     snapshot.runSpeedThresholds = Object.assign({}, speedThresholds);
     snapshot.runSpeedLevel = runSpeedLevel;
+    snapshot.emergencyLagMs = emergencyLagMs;
     snapshot.runSpeedMultiplier = getRunSpeedMultiplier();
     snapshot.targetTickRatePercent = Math.round(100 / getRunSpeedMultiplier());
     snapshot.cycleStage = cycleStage;
