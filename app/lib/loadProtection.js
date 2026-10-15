@@ -3,6 +3,7 @@
 const fs = require("fs");
 const v8 = require("v8");
 const { monitorEventLoopDelay, performance } = require("perf_hooks");
+const isTransientEffect = require("./offscreenTransientCleanup").isTransientEffect;
 
 const STAGE_NAMES = ["normal", "elevated", "high", "critical"];
 const RUN_SPEED_THRESHOLDS_MS = [75, 100, 150, 200, 250];
@@ -173,7 +174,7 @@ function createLoadProtection(options = {}) {
   const cleanupBatchSize = Math.max(1, Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_BATCH_SIZE, 8)));
   const CLEAN_UNKNOWN = 1;
   const CLEAN_OFFSCREEN = 2;
-  const CLEAN_ONSCREEN_AND_PROJECTILES = 4;
+  const CLEAN_ONSCREEN_NATURAL = 4;
   const cleanupSweep = {
     active: false,
     cursor: 0,
@@ -185,7 +186,6 @@ function createLoadProtection(options = {}) {
     destroyedUnknown: 0,
     destroyedOffscreen: 0,
     destroyedOnscreen: 0,
-    destroyedProjectiles: 0,
   };
   let lastMetrics = {
     stage: 0,
@@ -433,10 +433,6 @@ function createLoadProtection(options = {}) {
     return !!(state && isUnknownLabel(state.originalName));
   }
 
-  function isProjectile(entity) {
-    return !!(entity && (entity.isProjectile === true || entity.type === "bullet"));
-  }
-
   function isNaturalSpawnEntity(entity) {
     if (!entity) return false;
     if (entity._loadProtectionNaturalSpawn === true) return true;
@@ -451,11 +447,12 @@ function createLoadProtection(options = {}) {
     if (
       entity._loadProtectionSpecialSpawn === true || entity.keep === true ||
       entity.KEEP === true || settings.KEEP === true || entity.isProtected === true ||
+      // Bots are candidates for temporary suspension, not permanent removal.
+      entity.isBot === true ||
       entity.alwaysExists === true || entity.isPlayer === true || entity.isBoss === true ||
       entity.boss === true || entity.isDominator === true || entity.isGate === true ||
       entity.isWall === true || entity.bond != null || entity.type === "base" ||
       entity.type === "wall" || entity.type === "fortWall" || entity.type === "fortGate" ||
-      (entity.isBot === true && entity.skill && Number(entity.skill.score) >= 1000000) ||
       (typeof entity.name === "string" && entity.name.startsWith("[LORD]_"))
     ) return true;
     return false;
@@ -479,24 +476,21 @@ function createLoadProtection(options = {}) {
     let mode = 0;
     if (unknownCleanupPending) mode |= CLEAN_UNKNOWN;
     if (sustainedPolicies[150].triggered) mode |= CLEAN_OFFSCREEN;
-    if (sustainedPolicies[200].triggered) mode |= CLEAN_ONSCREEN_AND_PROJECTILES;
+    if (sustainedPolicies[200].triggered) mode |= CLEAN_ONSCREEN_NATURAL;
     return mode;
-  }
-
-  function destroyProjectileForLoadProtection(entity) {
-    if (!entity || !isEntityLive(entity)) return false;
-    try {
-      if (typeof entity.destroy !== "function") return false;
-      suspendedEntities.delete(entity);
-      entity.destroy();
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 
   function inspectCleanupEntity(entity, mode) {
     if (!entity || !isEntityLive(entity)) return;
+
+    // Projectiles and auras have their own visibility-aware five-second TTL.
+    // Never let an emergency lag sweep bypass that rule by destroying them
+    // immediately, including when they inherit a natural-spawn source.
+    if (isTransientEffect(entity)) return;
+
+    // An entity selected for suspension must remain alive so it can be restored
+    // when the simulation becomes healthy again.
+    if (suspendedEntities.has(entity)) return;
 
     // The first sustained low-run-speed policy destroys unknown classes instead
     // of suspending them. KEEP/protected entities remain protected.
@@ -505,18 +499,13 @@ function createLoadProtection(options = {}) {
       return;
     }
 
-    if ((mode & CLEAN_ONSCREEN_AND_PROJECTILES) && isProjectile(entity)) {
-      if (destroyProjectileForLoadProtection(entity)) cleanupSweep.destroyedProjectiles++;
-      return;
-    }
-
     if (!isNaturalSpawnEntity(entity) || shouldProtectFromNaturalCleanup(entity)) return;
     // Visibility is calculated only for natural entities that passed protection
-    // checks; unknown cleanup and projectile cleanup never pay this cost.
+    // checks; transient projectile/aura cleanup is handled separately.
     let onScreen = false;
     try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
 
-    if ((mode & CLEAN_ONSCREEN_AND_PROJECTILES) && onScreen) {
+    if ((mode & CLEAN_ONSCREEN_NATURAL) && onScreen) {
       if (destroyForLoadProtection(entity)) cleanupSweep.destroyedOnscreen++;
     } else if ((mode & CLEAN_OFFSCREEN) && !onScreen) {
       if (destroyForLoadProtection(entity)) cleanupSweep.destroyedOffscreen++;
@@ -525,14 +514,12 @@ function createLoadProtection(options = {}) {
 
   function finishCleanupSweep(now) {
     const counts = cleanupSweep;
-    const total = counts.destroyedUnknown + counts.destroyedOffscreen +
-      counts.destroyedOnscreen + counts.destroyedProjectiles;
+    const total = counts.destroyedUnknown + counts.destroyedOffscreen + counts.destroyedOnscreen;
     if (total > 0) {
       const parts = [];
       if (counts.destroyedUnknown) parts.push(counts.destroyedUnknown + " unknown");
       if (counts.destroyedOffscreen) parts.push(counts.destroyedOffscreen + " off-screen natural");
       if (counts.destroyedOnscreen) parts.push(counts.destroyedOnscreen + " on-screen natural");
-      if (counts.destroyedProjectiles) parts.push(counts.destroyedProjectiles + " projectiles");
       callEntityChange(null, false, {
         reason: "load protection cleanup removed " + parts.join(", "),
         destroyedCount: total,
@@ -551,7 +538,6 @@ function createLoadProtection(options = {}) {
     cleanupSweep.destroyedUnknown = 0;
     cleanupSweep.destroyedOffscreen = 0;
     cleanupSweep.destroyedOnscreen = 0;
-    cleanupSweep.destroyedProjectiles = 0;
   }
 
   function processCleanupSweep(entityList, now = nowProvider()) {
@@ -570,7 +556,6 @@ function createLoadProtection(options = {}) {
         cleanupSweep.destroyedUnknown = 0;
         cleanupSweep.destroyedOffscreen = 0;
         cleanupSweep.destroyedOnscreen = 0;
-        cleanupSweep.destroyedProjectiles = 0;
       }
     } else if (requestedMode && (
       (requestedMode & CLEAN_UNKNOWN) !== 0 ||
@@ -584,7 +569,6 @@ function createLoadProtection(options = {}) {
       cleanupSweep.destroyedUnknown = 0;
       cleanupSweep.destroyedOffscreen = 0;
       cleanupSweep.destroyedOnscreen = 0;
-      cleanupSweep.destroyedProjectiles = 0;
     }
 
     if (!cleanupSweep.active) return;
@@ -943,6 +927,8 @@ function createLoadProtection(options = {}) {
       : 100;
 
     if (!forceImmediate && lastObservedRunSpeedPercent > speedThresholds.critical) {
+      // Resume managed entities when throughput has recovered and no emergency
+      // condition remains. Spawn/cleanup policies recover on their own hysteresis.
       criticalLagSince = null;
       if (suspensionLockout) {
         suspensionLockout = false;
@@ -955,7 +941,11 @@ function createLoadProtection(options = {}) {
       if (suspensionEpisodeStartedAt !== null) {
         suspensionEpisodeStartedAt = null;
         lastEntitySuspensionAt = null;
-        restoreSuspendedEntities("server run speed recovered above " + Math.round(speedThresholds.critical) + "% of target", "critical");
+      }
+      // Restore every managed entity, not only entities carrying the current
+      // critical-policy tag. This prevents orphaned suspensions after transitions.
+      if (suspendedEntities.size) {
+        restoreAllSuspendedEntities("server run speed recovered above " + Math.round(speedThresholds.critical) + "% of target");
       }
       return;
     }

@@ -18,6 +18,7 @@ const path = require("path"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
 const createLoadProtection = require("./lib/loadProtection");
 const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup");
+const isEntityVisibleToAnyClient = require("./lib/clientVisibility");
 const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
@@ -15566,26 +15567,9 @@ const offscreenTransientCleanup = createOffscreenTransientCleanup({
     ? Number(process.env.RANAR_OFFSCREEN_TRANSIENT_TTL_MS)
     : 5000,
   isVisibleToAnyClient(entity) {
-    if (!entity) return false;
-    return views.some((view) => {
-      if (!view) return false;
-      if (view.socket && view.socket.status && !view.socket.status.hasSpawned) return false;
-      const fov = Number(view.fov);
-      const x = Number(view.x);
-      const y = Number(view.y);
-      const entityX = Number(entity.x);
-      const entityY = Number(entity.y);
-      const size = Number(entity.size);
-      if (![fov, x, y, entityX, entityY].every(Number.isFinite)) {
-        try { return typeof view.isInView === "function" && view.isInView(entity); }
-        catch (_) { return false; }
-      }
-      const safeSize = Number.isFinite(size) && size > 0 ? size : 0;
-      // Match View.gazeUpon()'s actual draw window rather than its wider
-      // prefetch window, so a client only counts when the effect can be shown.
-      return Math.abs(entityX - x) < fov / 2 + 1.5 * safeSize &&
-        Math.abs(entityY - y) < (fov / 2) * (9 / 16) + 1.5 * safeSize;
-    });
+    // Use the same drawn-view geometry the renderer uses. In particular, do not
+    // treat a missing hasSpawned flag as proof that no client can see an entity.
+    return isEntityVisibleToAnyClient(entity, views);
   },
 });
 

@@ -101,15 +101,26 @@ function makeProtection(overrides = {}) {
   }, overrides);
   const candidate = makeEntity();
   const unknown = makeEntity({ label: "Unknown Class", name: "Unknown Class" });
-  const projectile = makeEntity({ type: "bullet", isProjectile: true, label: "Bullet" });
+  const naturalBot = makeEntity({
+    label: "Bot", name: "Bot", type: "tank", isBot: true,
+    _loadProtectionNaturalSpawn: true,
+  });
+  const projectile = makeEntity({
+    type: "bullet", isProjectile: true, label: "Bullet", source: naturalBot,
+  });
+  const aura = makeEntity({
+    type: "atmosphere", isProjectile: false, label: "Aura", source: naturalBot,
+  });
   const offscreenFood = makeEntity({ type: "food", label: "Food", foodLevel: 1 });
   const onscreenFood = makeEntity({ type: "food", label: "Food", foodLevel: 1 });
-  const all = [candidate, unknown, projectile, offscreenFood, onscreenFood];
+  const all = [candidate, unknown, projectile, aura, naturalBot, offscreenFood, onscreenFood];
   const test = makeProtection({ options: { isEntityOnScreen: (entity) => entity === onscreenFood } });
   test.protection.reportCycle(260, all);
   assert.strictEqual(candidate._loadDisabled, true, "emergency should suspend an eligible entity immediately");
   assert.strictEqual(unknown.destroyed, true, "emergency should trigger unknown-entity cleanup immediately");
-  assert.strictEqual(projectile.destroyed, true, "emergency should trigger projectile cleanup immediately");
+  assert.strictEqual(projectile.destroyed, false, "lag cleanup must leave transient lifetime decisions to the visibility-aware timer");
+  assert.strictEqual(aura.destroyed, false, "lag cleanup must not destroy auras directly");
+  assert.strictEqual(naturalBot.destroyed, false, "bots must not be permanently removed by natural-entity cleanup");
   assert.strictEqual(offscreenFood.destroyed, true, "emergency should trigger off-screen cleanup immediately");
   assert.strictEqual(onscreenFood.destroyed, true, "emergency should trigger on-screen natural-entity cleanup immediately");
 }
@@ -195,6 +206,87 @@ function makeProtection(overrides = {}) {
   test.setNow(52.7);
   test.protection.reportCycle(5, [], 47.7);
   assert(test.protection.getSnapshot().runSpeedPercent > 50);
+}
+
+// A bot suspended during extreme lag is not culled by the cleanup sweep and returns after recovery.
+{
+  const bot = {
+    type: "tank", label: "Bot", name: "Test Bot", isBot: true,
+    _loadProtectionNaturalSpawn: true, alpha: 1, size: 10,
+    health: { amount: 100, max: 100 }, alive: true, destroyed: false,
+    valid() { return this.alive; }, isDead() { return false; },
+    destroy() { this.destroyed = true; this.alive = false; },
+  };
+  const test = makeProtection({
+    env: {
+      RANAR_LOAD_EXTREME_LAG_MS: "250",
+      RANAR_LOAD_ENTITY_FADE_MS: "30",
+      RANAR_LAG_CRITICAL_DURATION_MS: "1",
+      RANAR_LAG_150_DURATION_MS: "1",
+      RANAR_LAG_200_DURATION_MS: "1",
+    },
+    options: { getEntities: () => [bot] },
+  });
+  test.setNow(260);
+  test.protection.reportCycle(260, [bot], 0);
+  assert.strictEqual(bot._loadDisabled, true, "severe lag can temporarily suspend a bot");
+  assert.strictEqual(bot.destroyed, false, "cleanup must keep suspended bots alive for restoration");
+  let start = 260;
+  for (let i = 0; i < 8; i++) {
+    test.setNow(start + 33);
+    test.protection.reportCycle(5, [bot], start);
+    start += 33;
+  }
+  assert.strictEqual(bot._loadDisabled, undefined, "a recovered simulation must re-enable the bot");
+  assert.strictEqual(bot.name, "Test Bot", "the original bot name must be restored");
+  assert.strictEqual(bot.destroyed, false);
+}
+
+// Once both run speed and memory pressure recover, suspended bots are restored.
+{
+  let memoryRatio = 0.95;
+  let now = 0;
+  const bot = {
+    type: "tank", label: "Bot", name: "Memory Test Bot", isBot: true,
+    alpha: 1, size: 10, health: { amount: 100, max: 100 }, alive: true,
+    valid() { return this.alive; }, isDead() { return false; }, destroy() { this.alive = false; },
+  };
+  const protection = createLoadProtection({
+    env: {
+      RANAR_LOAD_EXTREME_LAG_MS: "250",
+      RANAR_LOAD_ENTITY_FADE_MS: "30",
+      RANAR_LAG_CRITICAL_DURATION_MS: "1",
+    },
+    nowProvider: () => now,
+    sampleProvider: () => ({
+      memoryRatio, rssMb: 100, heapUsedMb: 50, heapLimitMb: 512, externalMb: 0,
+      eventLoopP95Ms: 0, eventLoopMaxMs: 0, memoryGrowthMb: 0, memoryTrendReady: false,
+    }),
+    getEntities: () => [bot],
+    delayMonitor: { enable() {}, disable() {}, percentile() { return 0; }, reset() {} },
+  });
+  now = 260;
+  protection.reportCycle(260, [bot], 0);
+  assert.strictEqual(bot._loadDisabled, true);
+  // A healthy tick alone should not defeat an ongoing critical memory emergency.
+  let start = 260;
+  for (let i = 0; i < 8; i++) {
+    now = start + 33;
+    protection.reportCycle(5, [bot], start);
+    start += 33;
+  }
+  memoryRatio = 0.5;
+  now = start + 33;
+  protection.sample();
+  protection.reportCycle(5, [bot], start);
+  start += 33;
+  for (let i = 0; i < 8; i++) {
+    now = start + 33;
+    protection.reportCycle(5, [bot], start);
+    start += 33;
+  }
+  assert.strictEqual(bot._loadDisabled, undefined, "bots restore once the actual load is healthy");
+  assert.strictEqual(bot.name, "Memory Test Bot");
 }
 
 console.log("loadProtection tests passed");

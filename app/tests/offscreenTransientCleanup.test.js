@@ -2,6 +2,7 @@
 
 const assert = require("assert");
 const createOffscreenTransientCleanup = require("../lib/offscreenTransientCleanup");
+const isVisibleToAnyClient = require("../lib/clientVisibility");
 
 function makeEntity(overrides = {}) {
   const entity = Object.assign({
@@ -42,7 +43,7 @@ function makeEntity(overrides = {}) {
   assert.strictEqual(cleaner.check(projectile, 9500), true);
 }
 
-// Aura labels and atmosphere entities are also cleaned, while ordinary tanks are untouched.
+// Projectiles and explicitly labelled auras are cleaned; unrelated atmosphere entities are untouched.
 {
   const cleaner = createOffscreenTransientCleanup({ isVisibleToAnyClient: () => false, delayMs: 5000 });
   const aura = makeEntity({ type: "atmosphere", isProjectile: false, label: "Aura" });
@@ -50,7 +51,8 @@ function makeEntity(overrides = {}) {
   const tank = makeEntity({ type: "tank", isProjectile: false, label: "Tank" });
   for (const entity of [aura, atmosphericEffect, tank]) cleaner.check(entity, 0);
   assert.strictEqual(cleaner.check(aura, 5000), true);
-  assert.strictEqual(cleaner.check(atmosphericEffect, 5000), true);
+  assert.strictEqual(cleaner.check(atmosphericEffect, 5000), false, "non-aura atmosphere entities are not transient cleanup targets");
+  assert.strictEqual(atmosphericEffect.destroyed, false);
   assert.strictEqual(cleaner.check(tank, 5000), false);
   assert.strictEqual(tank.destroyed, false);
 }
@@ -65,6 +67,52 @@ function makeEntity(overrides = {}) {
   cleaner.check(retry, 0);
   assert.strictEqual(cleaner.check(retry, 5000), false);
   assert.strictEqual(cleaner.check(retry, 10000), true);
+}
+
+
+// An indeterminate visibility result or visibility exception resets the timer rather than causing deletion.
+{
+  let visibility = false;
+  const cleaner = createOffscreenTransientCleanup({
+    isVisibleToAnyClient: () => {
+      if (visibility === "throw") throw new Error("view unavailable");
+      return visibility;
+    },
+    delayMs: 5000,
+  });
+  const projectile = makeEntity();
+  cleaner.check(projectile, 0);
+  visibility = null;
+  cleaner.check(projectile, 4000);
+  visibility = false;
+  assert.strictEqual(cleaner.check(projectile, 8999), false, "unknown visibility must restart the unseen timer");
+  visibility = "throw";
+  cleaner.check(projectile, 9000);
+  visibility = false;
+  assert.strictEqual(cleaner.check(projectile, 13999), false, "visibility errors must restart the unseen timer");
+  assert.strictEqual(cleaner.check(projectile, 18998), false);
+  assert.strictEqual(cleaner.check(projectile, 18999), true);
+}
+
+// Client visibility uses the drawn view, includes valid views without hasSpawned, and ignores closed sockets.
+{
+  const entity = { x: 40, y: 0, size: 10, settings: { drawShape: true } };
+  const activeView = {
+    x: 0, y: 0, fov: 100,
+    socket: { readyState: 1, status: { hasSpawned: false } },
+    visibleEntity: new Set(),
+  };
+  assert.strictEqual(isVisibleToAnyClient(entity, [activeView]), true, "currently drawable entities count as visible even before hasSpawned is set");
+  assert.strictEqual(isVisibleToAnyClient({ x: 500, y: 500, size: 1, settings: { drawShape: true } }, [activeView]), false);
+  assert.strictEqual(isVisibleToAnyClient({ x: 40, y: 0, size: 10, settings: { drawShape: false } }, [activeView]), false,
+    "entities the renderer does not draw are not considered visible");
+  activeView.visibleEntity.add(entity);
+  assert.strictEqual(isVisibleToAnyClient({ x: 500, y: 500, size: 1 }, [activeView]), false, "unrelated visible-set entries do not affect another entity");
+  activeView.visibleEntity.add({ x: 500, y: 500 });
+  assert.strictEqual(isVisibleToAnyClient(entity, [Object.assign({}, activeView, { socket: { readyState: 3 } })]), false, "closed client views do not count");
+  assert.strictEqual(isVisibleToAnyClient(entity, []), false, "no connected clients means no client can see the entity");
+  const malformedView = { x: NaN, y: 0, fov: 100, isInView() { return false; } };
+  assert.strictEqual(isVisibleToAnyClient(entity, [malformedView]), null, "malformed view geometry must be treated as indeterminate");
 }
 
 console.log("Offscreen transient cleanup tests passed");

@@ -4,11 +4,12 @@ const { performance } = require("perf_hooks");
 
 function isTransientEffect(entity) {
   if (!entity) return false;
-  if (entity.isProjectile === true || entity.type === "bullet" || entity.type === "atmosphere") {
-    return true;
-  }
+  // An atmosphere type alone does not make an entity transient. Airason has
+  // non-aura atmosphere entities too (for example, Hollow Digon). Only actual
+  // projectiles and explicitly labelled aura entities use this TTL cleanup.
+  if (entity.isProjectile === true || entity.type === "bullet") return true;
   const label = typeof entity.label === "string" ? entity.label.trim().toLowerCase() : "";
-  return label === "aura";
+  return label === "aura" || entity.isAura === true;
 }
 
 function createOffscreenTransientCleanup(options = {}) {
@@ -38,9 +39,12 @@ function createOffscreenTransientCleanup(options = {}) {
       return false;
     }
 
-    let visible = false;
-    try { visible = !!isVisibleToAnyClient(entity); } catch (_) { visible = false; }
-    if (visible) {
+    // Only a confirmed `false` means that the entity is unseen by every client.
+    // If visibility throws or is indeterminate, reset the timer instead of
+    // treating a visibility-system hiccup as permission to destroy the entity.
+    let visibility;
+    try { visibility = isVisibleToAnyClient(entity); } catch (_) { visibility = null; }
+    if (visibility !== false) {
       unseenSince.delete(entity);
       return false;
     }
