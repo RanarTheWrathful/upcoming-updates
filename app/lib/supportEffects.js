@@ -39,7 +39,7 @@ function isRepairTarget(entity) {
 function isHealTarget(entity) {
   return Boolean(
     entity &&
-    (entity.type === "tank" || entity.isPlayer === true || entity.isBot === true)
+    (entity.type === "tank" || entity.isPlayer === true || entity.isBot === true||entity.type === "food")
   );
 }
 
@@ -94,6 +94,10 @@ function resolveSupportInteraction(source, target) {
       isCombatEntity(target) &&
       (isCombatEntity(source) || hasSupportEffect(target))
     ) multiplier = 1;
+    
+    if (multiplier > 0 && projectile && source.type === "atmosphere") {
+      multiplier *= 0.1;
+    }
   }
 
   return multiplier > 0
