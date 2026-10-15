@@ -3088,7 +3088,7 @@ class io_nearestDifferentMaster extends IO {
         previousHits.push(now);
         this.damageHistory.set(attacker, previousHits);
 
-        if (durabilityLost >= 0.20 || previousHits.length >= 10 || currentHealth <= 0.20) {
+        if (durabilityLost >= 0.20 || previousHits.length >= 10 || previousHits.length >= 4 && attacker.alpha < 0.3 || currentHealth <= 0.20) {
           this.damageFocusTarget = attacker;
           this.damageFocusUntil = now + 5000;
           this.targetLock = attacker.master;
