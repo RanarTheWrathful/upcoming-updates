@@ -38,19 +38,35 @@ function makeProtection(overrides = {}) {
   };
 }
 
-// A short 100ms spike must not pause spawns or trigger the unknown-entity sweep.
+// Sustained low measured run speed pauses spawns only after its duration expires.
 {
   const test = makeProtection();
   test.protection.reportCycle(110, []);
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
   assert.strictEqual(test.protection.getSnapshot().lagPolicy100Triggered, false);
   test.setNow(9999);
-  test.protection.reportCycle(110, []);
+  test.protection.sample();
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
   test.setNow(10000);
-  test.protection.reportCycle(110, []);
+  test.protection.sample();
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), false);
   assert.strictEqual(test.protection.getSnapshot().lagPolicy100Triggered, true);
+}
+
+// A brief low-speed interval is cancelled when the server resumes a healthy cadence.
+{
+  const test = makeProtection();
+  test.protection.reportCycle(110, []);
+  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
+  test.setNow(50);
+  test.protection.reportCycle(20, []);
+  test.setNow(84);
+  test.protection.reportCycle(5, []);
+  assert(test.protection.getSnapshot().runSpeedPercent > 50);
+  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
+  test.setNow(10000);
+  test.protection.sample();
+  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
 }
 
 // Critical entity suspension is deferred until critical lag has persisted.
@@ -60,10 +76,10 @@ function makeProtection(overrides = {}) {
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
   assert.strictEqual(test.protection.getSnapshot().loadSuspensionElapsedMs, 0);
   test.setNow(14999);
-  test.protection.reportCycle(260, []);
+  test.protection.sample();
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
   test.setNow(15000);
-  test.protection.reportCycle(260, []);
+  test.protection.sample();
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, true);
 }
 
@@ -71,11 +87,41 @@ function makeProtection(overrides = {}) {
 {
   const test = makeProtection();
   test.protection.reportCycle(260, []);
-  test.setNow(5000);
+  test.setNow(50);
   test.protection.reportCycle(20, []);
+  test.setNow(84);
+  test.protection.reportCycle(5, []);
+  assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
   test.setNow(20000);
   test.protection.reportCycle(260, []);
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
+}
+
+// Run speed reflects cycle cadence, not just the duration of the latest callback.
+{
+  const test = makeProtection();
+  test.protection.reportCycle(5, []);
+  assert.strictEqual(test.protection.getSnapshot().runSpeedPercent, 100);
+  test.setNow(34);
+  test.protection.reportCycle(5, []);
+  assert(test.protection.getSnapshot().runSpeedPercent >= 95);
+  assert.strictEqual(test.protection.getSnapshot().observedCycleIntervalMs, 34);
+}
+
+// The legacy millisecond-based scheduler slowdown remains independent.
+{
+  const test = makeProtection();
+  test.protection.reportCycle(110, []);
+  assert(test.protection.getRunSpeedMultiplier() > 1);
+  assert(test.protection.getSnapshot().runSpeedPercent < 40);
+  // The following tick begins after the slower scheduler's added wait.
+  test.setNow(16);
+  test.protection.reportCycle(5, [], 11);
+  assert(test.protection.getSnapshot().runSpeedPercent < 40);
+  // Once a few subsequent cycles return to cadence, measured speed recovers.
+  test.setNow(52.7);
+  test.protection.reportCycle(5, [], 47.7);
+  assert(test.protection.getSnapshot().runSpeedPercent > 50);
 }
 
 console.log("loadProtection tests passed");

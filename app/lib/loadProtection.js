@@ -52,6 +52,12 @@ function createLoadProtection(options = {}) {
   const onEntityChange = options.onEntityChange || (() => {});
   const nowProvider = options.nowProvider || (() => performance.now());
   const intervalMs = positiveNumber(env.RANAR_LOAD_SAMPLE_MS, 2000);
+  // Nominal interval between completed simulation cycles. Anti-lag policies use
+  // observed throughput relative to this target; automatic pacing still uses ms.
+  const targetCycleIntervalMs = positiveNumber(
+    options.targetCycleIntervalMs,
+    positiveNumber(env.RANAR_LOAD_TARGET_CYCLE_MS, 1000 / 30)
+  );
   const warningMemory = positiveNumber(env.RANAR_LOAD_WARNING_MEMORY, 0.75);
   const highMemory = positiveNumber(env.RANAR_LOAD_HIGH_MEMORY, 0.86);
   const criticalMemory = positiveNumber(env.RANAR_LOAD_CRITICAL_MEMORY, 0.94);
@@ -69,6 +75,26 @@ function createLoadProtection(options = {}) {
   // suspending entities only after critical lag has remained sustained.
   const criticalLagPersistenceMs = positiveNumber(env.RANAR_LAG_CRITICAL_DURATION_MS, 15000);
   const cleanupIntervalMs = positiveNumber(env.RANAR_LAG_CLEANUP_INTERVAL_MS, 2500);
+  const speedPercentForMs = (milliseconds) => Math.max(
+    1,
+    Math.min(99.9, (targetCycleIntervalMs / Math.max(targetCycleIntervalMs, milliseconds)) * 100)
+  );
+  const configuredSpeedThreshold = (envName, fallbackMs) => {
+    const configured = Number(env[envName]);
+    return Number.isFinite(configured) && configured > 0
+      ? Math.max(1, Math.min(100, configured))
+      : speedPercentForMs(fallbackMs);
+  };
+  // Defaults preserve the severity of the old thresholds, but express them as
+  // percent of target tick throughput. Override them directly with *_SPEED_PERCENT.
+  const speedThresholds = {
+    warning: configuredSpeedThreshold("RANAR_LOAD_WARNING_SPEED_PERCENT", warningDelayMs),
+    high: configuredSpeedThreshold("RANAR_LOAD_HIGH_SPEED_PERCENT", highDelayMs),
+    critical: configuredSpeedThreshold("RANAR_LOAD_CRITICAL_SPEED_PERCENT", criticalDelayMs),
+    100: configuredSpeedThreshold("RANAR_LAG_100_SPEED_PERCENT", 100),
+    150: configuredSpeedThreshold("RANAR_LAG_150_SPEED_PERCENT", 150),
+    200: configuredSpeedThreshold("RANAR_LAG_200_SPEED_PERCENT", 200),
+  };
   const policyRecoveryMs = positiveNumber(env.RANAR_LAG_POLICY_RECOVERY_MS, 10000);
   const warningGrowthMb = positiveNumber(env.RANAR_LOAD_WARNING_GROWTH_MB, 64);
   const highGrowthMb = positiveNumber(env.RANAR_LOAD_HIGH_GROWTH_MB, 128);
@@ -92,6 +118,12 @@ function createLoadProtection(options = {}) {
   let lastCycleMs = 0;
   let lowCycleSamples = 0;
   let cycleIndex = 0;
+  let lastCycleStartedAt = null;
+  // Observed interval is start-to-start cadence, guarded by the current cycle's
+  // measured cost so a single expensive tick is reflected immediately.
+  let observedCycleIntervalMs = targetCycleIntervalMs;
+  let currentRunSpeedPercent = 100;
+  let lastObservedRunSpeedPercent = 100;
   // Entity references are held only while they are visibly suspended/fading.
   // The episode is bounded to one minute and invalid entities are pruned each cycle.
   const suspendedEntities = new Map();
@@ -175,6 +207,10 @@ function createLoadProtection(options = {}) {
     loadSuspensionElapsedMs: 0,
     criticalLagPersistenceMs,
     criticalLagConfirmed: false,
+    targetCycleIntervalMs,
+    observedCycleIntervalMs,
+    runSpeedPercent: currentRunSpeedPercent,
+    runSpeedDeficitPercent: 0,
     naturalSpawnsPaused: false,
     lagPolicy100Triggered: false,
     lagPolicy150Triggered: false,
@@ -197,6 +233,10 @@ function createLoadProtection(options = {}) {
         memoryGrowthMb: 0,
         memoryTrendReady: false,
         cycleMs: lastCycleMs,
+        targetCycleIntervalMs,
+        observedCycleIntervalMs,
+        runSpeedPercent: currentRunSpeedPercent,
+        runSpeedDeficitPercent: 100 - currentRunSpeedPercent,
       }, provided);
     }
 
@@ -227,6 +267,10 @@ function createLoadProtection(options = {}) {
       eventLoopP95Ms: p95,
       eventLoopMaxMs: max,
       cycleMs: lastCycleMs,
+      targetCycleIntervalMs,
+      observedCycleIntervalMs,
+      runSpeedPercent: currentRunSpeedPercent,
+      runSpeedDeficitPercent: 100 - currentRunSpeedPercent,
     };
   }
 
@@ -246,20 +290,79 @@ function createLoadProtection(options = {}) {
 
   function classify(metrics) {
     const memoryRatio = Number.isFinite(metrics.memoryRatio) ? metrics.memoryRatio : 0;
-    const p95 = Number.isFinite(metrics.eventLoopP95Ms) ? metrics.eventLoopP95Ms : 0;
-    const cycleMs = Number.isFinite(metrics.cycleMs) ? metrics.cycleMs : lastCycleMs;
-    const lagMs = Math.max(p95, cycleMs);
+    const runSpeedPercent = Number.isFinite(metrics.runSpeedPercent)
+      ? metrics.runSpeedPercent
+      : currentRunSpeedPercent;
     const growth = metrics.memoryTrendReady && Number.isFinite(metrics.memoryGrowthMb)
       ? metrics.memoryGrowthMb
       : 0;
     if (
       memoryRatio >= criticalMemory ||
-      lagMs >= criticalDelayMs ||
+      runSpeedPercent <= speedThresholds.critical ||
       growth >= criticalGrowthMb
     ) return 3;
-    if (memoryRatio >= highMemory || lagMs >= highDelayMs || growth >= highGrowthMb) return 2;
-    if (memoryRatio >= warningMemory || lagMs >= warningDelayMs || growth >= warningGrowthMb) return 1;
+    if (
+      memoryRatio >= highMemory ||
+      runSpeedPercent <= speedThresholds.high ||
+      growth >= highGrowthMb
+    ) return 2;
+    if (
+      memoryRatio >= warningMemory ||
+      runSpeedPercent <= speedThresholds.warning ||
+      growth >= warningGrowthMb
+    ) return 1;
     return 0;
+  }
+
+  function updateObservedRunSpeed(cycleMs, cycleStartedAt) {
+    const completedAt = nowProvider();
+    const startAt = Number.isFinite(cycleStartedAt) ? cycleStartedAt : completedAt - cycleMs;
+    if (lastCycleStartedAt === null) {
+      // Until there are two start timestamps, use this cycle's cost as a safe
+      // initial estimate rather than assuming a slow first tick was healthy.
+      observedCycleIntervalMs = Math.max(targetCycleIntervalMs, cycleMs);
+    } else {
+      const startInterval = Math.max(0, startAt - lastCycleStartedAt);
+      // Start-to-start cadence accounts for the previous cycle and its wait;
+      // current cycle cost catches an overload before another tick can finish.
+      observedCycleIntervalMs = startInterval > 0
+        ? Math.max(cycleMs, startInterval)
+        : Math.max(targetCycleIntervalMs, cycleMs);
+    }
+    lastCycleStartedAt = startAt;
+    currentRunSpeedPercent = Math.max(
+      0,
+      Math.min(100, (targetCycleIntervalMs / Math.max(targetCycleIntervalMs, observedCycleIntervalMs)) * 100)
+    );
+    lastObservedRunSpeedPercent = currentRunSpeedPercent;
+    lastMetrics.targetCycleIntervalMs = targetCycleIntervalMs;
+    lastMetrics.observedCycleIntervalMs = observedCycleIntervalMs;
+    lastMetrics.runSpeedPercent = currentRunSpeedPercent;
+    lastMetrics.runSpeedDeficitPercent = 100 - currentRunSpeedPercent;
+    return currentRunSpeedPercent;
+  }
+
+  function desiredCycleStage(speedPercent) {
+    if (speedPercent <= speedThresholds.critical) return 3;
+    if (speedPercent <= speedThresholds.high) return 2;
+    if (speedPercent <= speedThresholds.warning) return 1;
+    return 0;
+  }
+
+  function updateCycleStage(speedPercent, allowRecovery) {
+    const desired = desiredCycleStage(speedPercent);
+    if (desired > cycleStage) {
+      cycleStage = desired;
+      lowCycleSamples = 0;
+    } else if (desired < cycleStage && allowRecovery) {
+      lowCycleSamples++;
+      if (lowCycleSamples >= 10) {
+        lowCycleSamples = 0;
+        cycleStage = Math.max(desired, cycleStage - 1);
+      }
+    } else if (desired >= cycleStage) {
+      lowCycleSamples = 0;
+    }
   }
 
   function effectiveStage() {
@@ -391,8 +494,8 @@ function createLoadProtection(options = {}) {
   function inspectCleanupEntity(entity, mode) {
     if (!entity || !isEntityLive(entity)) return;
 
-    // The 100ms sustained-lag policy destroys unknown classes instead of
-    // suspending them. KEEP/protected entities remain protected.
+    // The first sustained low-run-speed policy destroys unknown classes instead
+    // of suspending them. KEEP/protected entities remain protected.
     if ((mode & CLEAN_UNKNOWN) && isUnknownEntity(entity)) {
       if (destroyForLoadProtection(entity)) cleanupSweep.destroyedUnknown++;
       return;
@@ -731,17 +834,19 @@ function createLoadProtection(options = {}) {
   }
 
 
-  function updateSustainedLagPolicies(lagMs) {
+  function updateSustainedLagPolicies(runSpeedPercent) {
     const now = nowProvider();
-    const finiteLag = Number.isFinite(lagMs) ? lagMs : 0;
+    const finiteSpeed = Number.isFinite(runSpeedPercent)
+      ? Math.max(0, Math.min(100, runSpeedPercent))
+      : 100;
     const lag100 = sustainedPolicies[100];
     const lag150 = sustainedPolicies[150];
     const lag200 = sustainedPolicies[200];
 
     // Unknown-entity cleanup is potentially destructive, so it must wait for
-    // the same sustained-lag confirmation as the 100ms spawn-pause policy.
+    // the same sustained low-speed confirmation as the spawn-pause policy.
     // It still runs only once per sustained episode and rearms after recovery.
-    if (finiteLag >= 100) {
+    if (finiteSpeed <= speedThresholds[100]) {
       below100Since = null;
       if (lag100.since === null) lag100.since = now;
       if (now - lag100.since >= lag100.durationMs) {
@@ -754,8 +859,9 @@ function createLoadProtection(options = {}) {
         if (!naturalSpawnsPaused) {
           naturalSpawnsPaused = true;
           callEntityChange(null, false, {
-            reason: "lag >= 100ms for " + Math.round(naturalSpawnPauseMs / 1000) + "s; natural bot/entity spawning and food paused",
+            reason: "server run speed stayed at or below " + Math.round(speedThresholds[100]) + "% of target for " + Math.round(naturalSpawnPauseMs / 1000) + "s; natural spawning and food paused",
             cycleMs: lastCycleMs,
+            runSpeedPercent: currentRunSpeedPercent,
           });
         }
       }
@@ -768,10 +874,11 @@ function createLoadProtection(options = {}) {
         if (now - below100Since >= policyRecoveryMs) {
           naturalSpawnsPaused = false;
           below100Since = null;
-          restoreSuspendedEntities("lag stayed below 100ms for " + Math.round(policyRecoveryMs / 1000) + "s", "unknown");
+          restoreSuspendedEntities("server run speed recovered above " + Math.round(speedThresholds[100]) + "% for " + Math.round(policyRecoveryMs / 1000) + "s", "unknown");
           callEntityChange(null, false, {
-            reason: "lag recovered below 100ms; natural bot/entity spawning and food resumed",
+            reason: "server run speed recovered; natural bot/entity spawning and food resumed",
             cycleMs: lastCycleMs,
+            runSpeedPercent: currentRunSpeedPercent,
           });
         }
       } else {
@@ -779,7 +886,7 @@ function createLoadProtection(options = {}) {
       }
     }
 
-    if (finiteLag >= 150) {
+    if (finiteSpeed <= speedThresholds[150]) {
       if (lag150.since === null) lag150.since = now;
       if (now - lag150.since >= lag150.durationMs) lag150.triggered = true;
     } else {
@@ -787,7 +894,7 @@ function createLoadProtection(options = {}) {
       lag150.triggered = false;
     }
 
-    if (finiteLag >= 200) {
+    if (finiteSpeed <= speedThresholds[200]) {
       if (lag200.since === null) lag200.since = now;
       if (now - lag200.since >= lag200.durationMs) lag200.triggered = true;
     } else {
@@ -801,23 +908,26 @@ function createLoadProtection(options = {}) {
     lastMetrics.lagPolicy200Triggered = lag200.triggered;
   }
 
-  function handleCriticalLag(lagMs, entityList, reason) {
+  function handleCriticalLag(runSpeedPercent, entityList, reason) {
     const now = nowProvider();
-    lastObservedLagMs = Number.isFinite(lagMs) ? lagMs : 0;
+    lastObservedRunSpeedPercent = Number.isFinite(runSpeedPercent)
+      ? Math.max(0, Math.min(100, runSpeedPercent))
+      : 100;
 
-    if (lastObservedLagMs < criticalDelayMs) {
+    if (lastObservedRunSpeedPercent > speedThresholds.critical) {
       criticalLagSince = null;
       if (suspensionLockout) {
         suspensionLockout = false;
         callEntityChange(null, false, {
-          reason: "lag fell below " + criticalDelayMs + "ms; entity-suspension lockout cleared",
+          reason: "server run speed recovered above " + Math.round(speedThresholds.critical) + "% of target; entity-suspension lockout cleared",
           cycleMs: lastCycleMs,
+          runSpeedPercent: lastObservedRunSpeedPercent,
         });
       }
       if (suspensionEpisodeStartedAt !== null) {
         suspensionEpisodeStartedAt = null;
         lastEntitySuspensionAt = null;
-        restoreSuspendedEntities("lag fell below " + criticalDelayMs + "ms", "critical");
+        restoreSuspendedEntities("server run speed recovered above " + Math.round(speedThresholds.critical) + "% of target", "critical");
       }
       return;
     }
@@ -843,17 +953,18 @@ function createLoadProtection(options = {}) {
     const episodeElapsed = Math.max(0, now - suspensionEpisodeStartedAt);
     if (episodeElapsed >= suspensionWindowMs) {
       restoreSuspendedEntities(
-        "lag stayed at or above " + criticalDelayMs + "ms for " + Math.round(suspensionWindowMs / 1000) + " seconds",
+        "server run speed stayed at or below " + Math.round(speedThresholds.critical) + "% of target for " + Math.round(suspensionWindowMs / 1000) + " seconds",
         "critical"
       );
       suspensionEpisodeStartedAt = null;
       lastEntitySuspensionAt = null;
       suspensionLockout = true;
       callEntityChange(null, false, {
-        reason: "critical lag persisted for " + Math.round(suspensionWindowMs / 1000) +
-          " seconds; restoring all entities and locking out further suspensions until lag falls below " +
-          criticalDelayMs + "ms",
+        reason: "server run speed stayed at or below " + Math.round(speedThresholds.critical) + "% of target for " +
+          Math.round(suspensionWindowMs / 1000) +
+          " seconds; restoring all entities and locking out further suspensions until speed recovers",
         cycleMs: lastCycleMs,
+        runSpeedPercent: lastObservedRunSpeedPercent,
       });
       return;
     }
@@ -889,6 +1000,10 @@ function createLoadProtection(options = {}) {
     target.criticalLagConfirmed = criticalLagSince !== null &&
       nowProvider() - criticalLagSince >= criticalLagPersistenceMs;
     target.loadObservedLagMs = lastObservedLagMs;
+    target.targetCycleIntervalMs = targetCycleIntervalMs;
+    target.observedCycleIntervalMs = observedCycleIntervalMs;
+    target.runSpeedPercent = lastObservedRunSpeedPercent;
+    target.runSpeedDeficitPercent = 100 - lastObservedRunSpeedPercent;
   }
 
   function transition(nextStage, metrics) {
@@ -949,45 +1064,29 @@ function createLoadProtection(options = {}) {
     return base * getRunSpeedMultiplier();
   }
 
-  function reportCycle(durationMs, entityList) {
+  function reportCycle(durationMs, entityList, cycleStartedAt) {
     const cycleMs = Number(durationMs);
     if (!Number.isFinite(cycleMs) || cycleMs < 0) return getSnapshot();
     const previousEffective = effectiveStage();
     lastCycleMs = cycleMs;
     cycleIndex++;
 
+    // Run-speed protection uses actual completed-cycle cadence. The separate
+    // automatic scheduler still reacts immediately to cycle/event-loop ms.
+    const runSpeedPercent = updateObservedRunSpeed(cycleMs, cycleStartedAt);
     const sampledP95 = Number(lastMetrics.eventLoopP95Ms) || 0;
     const observedLagMs = Math.max(cycleMs, sampledP95);
     lastObservedLagMs = observedLagMs;
     updateRunSpeed(observedLagMs, true);
-    if (observedLagMs >= criticalDelayMs) {
-      cycleStage = 3;
-      lowCycleSamples = 0;
-    } else if (observedLagMs >= highDelayMs) {
-      cycleStage = Math.max(cycleStage, 2);
-      lowCycleSamples = 0;
-    } else if (observedLagMs >= warningDelayMs) {
-      cycleStage = Math.max(cycleStage, 1);
-      lowCycleSamples = 0;
-    } else {
-      lowCycleSamples++;
-      if (lowCycleSamples >= 10) {
-        lowCycleSamples = 0;
-        if (cycleStage > 0) cycleStage--;
-      }
-    }
+    updateCycleStage(runSpeedPercent, true);
 
-    const reason = cycleMs >= criticalDelayMs
-      ? "simulation cycle reached " + Math.round(cycleMs) + "ms"
-      : sampledP95 >= criticalDelayMs
-        ? "event-loop p95 reached " + Math.round(sampledP95) + "ms"
-        : "simulation lag reached emergency threshold";
+    const reason = "server run speed fell to " + Math.round(runSpeedPercent) + "% of target";
     // Advance existing fades before episode transitions. In particular, the
     // 60-second cutoff must see the latest opacity of a just-disabled entity.
     advanceEntityTransitions(nowProvider());
     const liveEntities = entityList || getEntities();
-    updateSustainedLagPolicies(observedLagMs);
-    handleCriticalLag(observedLagMs, liveEntities, reason);
+    updateSustainedLagPolicies(runSpeedPercent);
+    handleCriticalLag(runSpeedPercent, liveEntities, reason);
     processCleanupSweep(liveEntities, nowProvider());
     advanceEntityTransitions(nowProvider());
 
@@ -997,6 +1096,10 @@ function createLoadProtection(options = {}) {
       cycleStage,
       stage,
       stageName: STAGE_NAMES[effectiveStage()],
+      targetCycleIntervalMs,
+      observedCycleIntervalMs,
+      runSpeedPercent: currentRunSpeedPercent,
+      runSpeedDeficitPercent: 100 - currentRunSpeedPercent,
     });
     updateSuspensionSnapshot(lastMetrics);
     notifyStageChange(previousEffective, lastMetrics);
@@ -1066,8 +1169,8 @@ function createLoadProtection(options = {}) {
       sampledAt: Date.now(),
     });
 
-    // Event-loop delay can be high even when the measured simulation body is
-    // short. Treat either measurement as lag for emergency entity suspension.
+    // Event-loop delay remains an input to automatic scheduler pacing. Entity
+    // suspension and other mitigation policies use the measured run-speed below.
     const sampledP95 = Number.isFinite(metrics.eventLoopP95Ms) ? metrics.eventLoopP95Ms : 0;
     const observedLagMs = Math.max(sampledP95, lastCycleMs);
     lastObservedLagMs = observedLagMs;
@@ -1075,23 +1178,14 @@ function createLoadProtection(options = {}) {
     // back up: recovery is counted only on completed simulation cycles.
     updateRunSpeed(observedLagMs, false);
     const previousDelayEffective = effectiveStage();
-    if (observedLagMs >= criticalDelayMs) {
-      cycleStage = 3;
-      lowCycleSamples = 0;
-    } else if (observedLagMs >= highDelayMs) {
-      cycleStage = Math.max(cycleStage, 2);
-      lowCycleSamples = 0;
-    } else if (observedLagMs >= warningDelayMs) {
-      cycleStage = Math.max(cycleStage, 1);
-      lowCycleSamples = 0;
-    }
-    const reason = sampledP95 >= criticalDelayMs
-      ? "event-loop p95 reached " + Math.round(sampledP95) + "ms"
-      : "simulation lag reached emergency threshold";
+    // The sample timer may observe memory/event-loop stress, but destructive and
+    // spawn policies are driven by the latest measured simulation throughput.
+    updateCycleStage(currentRunSpeedPercent, false);
+    const reason = "server run speed stayed at " + Math.round(currentRunSpeedPercent) + "% of target";
     advanceEntityTransitions(nowProvider());
     const liveEntities = getEntities();
-    updateSustainedLagPolicies(observedLagMs);
-    handleCriticalLag(observedLagMs, liveEntities, reason);
+    updateSustainedLagPolicies(currentRunSpeedPercent);
+    handleCriticalLag(currentRunSpeedPercent, liveEntities, reason);
     advanceEntityTransitions(nowProvider());
     lastMetrics.cycleStage = cycleStage;
     lastMetrics.stageName = STAGE_NAMES[effectiveStage()];
@@ -1156,6 +1250,11 @@ function createLoadProtection(options = {}) {
     snapshot.stage = currentStage;
     snapshot.stageName = STAGE_NAMES[currentStage];
     snapshot.cycleMs = lastCycleMs;
+    snapshot.targetCycleIntervalMs = targetCycleIntervalMs;
+    snapshot.observedCycleIntervalMs = observedCycleIntervalMs;
+    snapshot.runSpeedPercent = currentRunSpeedPercent;
+    snapshot.runSpeedDeficitPercent = 100 - currentRunSpeedPercent;
+    snapshot.runSpeedThresholds = Object.assign({}, speedThresholds);
     snapshot.runSpeedLevel = runSpeedLevel;
     snapshot.runSpeedMultiplier = getRunSpeedMultiplier();
     snapshot.targetTickRatePercent = Math.round(100 / getRunSpeedMultiplier());

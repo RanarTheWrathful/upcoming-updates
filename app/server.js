@@ -15561,6 +15561,7 @@ let shutdownExitTimer = null;
 let cleanupStarted = false;
 
 const loadProtection = createLoadProtection({
+  targetCycleIntervalMs: room.cycleSpeed,
   getEntities: () => entities,
   isEntityOnScreen(entity) {
     if (!entity) return false;
@@ -21146,7 +21147,7 @@ var gameloop = (() => {
 
     logs.master.mark();
     room.lastCycle = util.time();
-    loadProtection.reportCycle(performance.now() - cycleStartedAt, entities);
+    loadProtection.reportCycle(performance.now() - cycleStartedAt, entities, cycleStartedAt);
   };
   //let expected = 1000 / c.gameSpeed / 30;
   //let alphaFactor = (delta > expected) ? expected / delta : 1;
