@@ -54,6 +54,12 @@ const localGun = { bulletTypes: [sunchip], countsOwnKids: 1 };
 tank.guns.push(localGun);
 assert.strictEqual(infection.findInfectingGun(tank, square), localGun,
   "the tank should find a gun that can produce a drone for this food shape");
+const ordinaryBullet = { type: "bullet", master: tank, source: tank, guns: [], turrets: [] };
+assert.strictEqual(infection.findInfectingGun(ordinaryBullet, square), localGun,
+  "ordinary bullets should inherit infection capability from their owning tank's matching drone gun");
+const unrelatedDrone = { type: "drone", master: tank, source: tank, guns: [], turrets: [] };
+assert.strictEqual(infection.findInfectingGun(unrelatedDrone, square), localGun,
+  "a non-infectious drone should convert food when its owner can produce the matching infected type");
 assert.strictEqual(infection.findInfectingGun(tank, triangle), null,
   "uninfectable shapes should not be selected for conversion");
 
@@ -154,6 +160,10 @@ assert(serverSource.includes("droneInfection.detachOwnedEntity(this)"),
   "Entity.destroy must unregister itself from drone ownership tracking");
 assert(!serverSource.includes("allowMismatch"),
   "all class-specific infection shape-mismatch bypasses should be removed");
+assert(serverSource.includes("droneInfection.findInfectingGun(my, n)"),
+  "food collisions should consult the owning tank's infectious guns for any attacker type");
+assert(!serverSource.includes("my.settings.isNecromancer"),
+  "infection should use the shared gun capability lookup rather than ram-only class checks");
 const gunStart = serverSource.indexOf("class Gun {");
 const gunEnd = serverSource.indexOf("\nclass KeyManager {", gunStart);
 assert(gunStart !== -1 && gunEnd > gunStart, "Gun class source should be available");

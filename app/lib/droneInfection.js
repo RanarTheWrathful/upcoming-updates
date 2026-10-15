@@ -94,13 +94,39 @@ function findInfectingGun(entity, target) {
     return null;
   }
 
-  for (const gun of getAllGuns(entity)) {
-    const shape = Object.prototype.hasOwnProperty.call(gun, "infectiousShape")
-      ? gun.infectiousShape
-      : getInfectiousShape(gun.bulletTypes);
-    // Infection is always shape-matched. No class gets a special mismatch
-    // bypass: the produced drone definition determines what it can infect.
-    if (Number.isFinite(shape) && shape === target.shape) return gun;
+  // A collision may be caused by the tank itself, a bullet, a trap, or a drone.
+  // Resolve its controlling tank as well as checking the colliding entity so
+  // every weapon can trigger the same shape-matched infection rule.
+  const candidates = [];
+  const seenEntities = new Set();
+  const addCandidate = (candidate) => {
+    if (candidate && typeof candidate === "object" && !seenEntities.has(candidate)) {
+      seenEntities.add(candidate);
+      candidates.push(candidate);
+    }
+  };
+  addCandidate(entity);
+  addCandidate(getTankOwner(entity));
+
+  // Some independent/turret-created projectiles have no direct tank in their
+  // master chain, but retain the firing body as source. Check that path too.
+  addCandidate(entity.source);
+  addCandidate(getTankOwner(entity.source));
+  addCandidate(entity.master);
+  addCandidate(getTankOwner(entity.master));
+
+  const seenGuns = new Set();
+  for (const candidate of candidates) {
+    for (const gun of getAllGuns(candidate)) {
+      if (seenGuns.has(gun)) continue;
+      seenGuns.add(gun);
+      const shape = Object.prototype.hasOwnProperty.call(gun, "infectiousShape")
+        ? gun.infectiousShape
+        : getInfectiousShape(gun.bulletTypes);
+      // Infection is always shape-matched. The gun selected here is the one
+      // that produces the matching infected type, even if another weapon hit.
+      if (Number.isFinite(shape) && shape === target.shape) return gun;
+    }
   }
   return null;
 }

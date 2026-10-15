@@ -21,6 +21,8 @@ const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
 const droneInfection = require("./lib/droneInfection");
+const supportEffects = require("./lib/supportEffects");
+const modeBranches = require("./lib/modeBranches");
 const gunCalculator = require("./lib/gunCalculator");
 const { performance } = require("perf_hooks");
 
@@ -32,6 +34,24 @@ function applyFoodInfectionEffects(food, infector) {
     food.health.amount *= 2;
     food.noMore = true;
   }
+}
+
+function awardSupportScore(source, target, decision) {
+  if (
+    decision.action !== "heal" ||
+    !source.master ||
+    !source.master.skill ||
+    source.master === target.master ||
+    !target.health ||
+    !target.shield ||
+    (target.health.amount >= target.health.max && target.shield.amount >= target.shield.max)
+  ) return;
+
+  const missing = Math.max(0, target.health.max - target.health.amount) +
+    Math.max(0, target.shield.max - target.shield.amount);
+  const capacity = Math.max(0, target.health.max) + Math.max(0, target.shield.max);
+  const gain = Math.ceil((Number(source.damage) || 0) * (1 + (capacity > 0 ? missing / capacity : 0) * 10));
+  source.master.skill.score += gain;
 }
 
 // Example usage:
@@ -668,6 +688,8 @@ let Class = (() => {
   }
   return def;
 })();
+// Append optional upgrade branches supplied by the selected game-mode config.
+modeBranches.applyModeBranches(Class, c.TANK_BRANCHES, chosenMode);
 
 
 function getSiegeThemesForCurrentWave() {
@@ -19373,38 +19395,21 @@ var gameloop = (() => {
 
             /********** DO DAMAGE *********/
             let bail = false;
-            if (
-              my.shape === n.shape &&
-              my.settings.isNecromancer &&
-              n.type === "food" &&
-              typeof my.necro === "function"
-            ) {
-              bail = my.necro(n);
-              if (bail) applyFoodInfectionEffects(n, my);
-            } else if (
-              n.shape === my.shape &&
-              n.settings.isNecromancer &&
-              my.type === "food" &&
-              typeof n.necro === "function"
-            ) {
-              bail = n.necro(my);
-              if (bail) applyFoodInfectionEffects(my, n);
-            }
-
-            // Ramming a polygon can infect it when one of the tank's own guns
-            // can produce a necromantic drone of that polygon's shape.
-            if (!bail && n.type === "food") {
+            // Any collision source can infect food, not just the tank body or a
+            // projectile whose own definition is necromantic. The lookup resolves
+            // the source's tank owner and uses its shape-matched infectious guns.
+            if (n.type === "food") {
               const infectionGun = droneInfection.findInfectingGun(my, n);
               if (infectionGun) {
                 bail = infectionGun.infect(n, my);
-                if (bail) applyFoodInfectionEffects(n, my);
+                if (bail) applyFoodInfectionEffects(n, droneInfection.getTankOwner(my) || my);
               }
             }
             if (!bail && my.type === "food") {
               const infectionGun = droneInfection.findInfectingGun(n, my);
               if (infectionGun) {
                 bail = infectionGun.infect(my, n);
-                if (bail) applyFoodInfectionEffects(my, n);
+                if (bail) applyFoodInfectionEffects(my, droneInfection.getTankOwner(n) || n);
               }
             }
             if (!bail) {
@@ -19557,310 +19562,67 @@ var gameloop = (() => {
               // Now apply it
               // no.
 
-              if (my.master !== n.master && n.team === my.team) {
-                if (
-                  (n.repairEffect || n.healEffect) &&
-                  (my.health.amount < my.health.max ||
-                    my.shield.amount < my.shield.max)
-                ) {
-                  let scaleFactor = 10,
-                    missingShield = my.shield.max - my.shield.amount,
-                    missingHealth = my.health.max - my.health.amount,
-                    totalMissing = missingHealth + missingShield,
-                    totalCapacity = my.health.max + my.shield.max,
-                    scoreGain = Math.ceil(
-                      n.damage *
-                        (1 +
-                          (totalCapacity > 0 ? totalMissing / totalCapacity : 0) *
-                            scaleFactor)
-                    );
-                  if (
-                    (n.healEffect &&
-                      (my.type === "tank" ||
-                        my.isBoss ||
-                        my.isEnemy ||
-                        my.type === "food")) ||
-                    (n.repairEffect &&
-                      ((my.isProjectile && my.type !== "bullet") ||
-                        my.isDominator ||
-                        my.isWall ||
-                        my.isGate))
-                  ) {
-                    n.master.skill.score += scoreGain;
-                  }
-                } else if (
-                  (my.repairEffect || my.healEffect) &&
-                  (n.health.amount < n.health.max ||
-                    n.shield.amount < n.shield.max)
-                ) {
-                  let scaleFactor = 10,
-                    missingShield = n.shield.max - n.shield.amount,
-                    missingHealth = n.health.max - n.health.amount,
-                    totalMissing = missingHealth + missingShield,
-                    totalCapacity = n.health.max + n.shield.max,
-                    scoreGain = Math.ceil(
-                      my.damage *
-                        (1 +
-                          (totalCapacity > 0 ? totalMissing / totalCapacity : 0) *
-                            scaleFactor)
-                    );
-                  if (
-                    (my.healEffect &&
-                      (n.type === "tank" ||
-                        n.isBoss ||
-                        n.isEnemy ||
-                        n.type === "food")) ||
-                    (my.repairEffect &&
-                      ((n.isProjectile && n.type !== "bullet") ||
-                        n.isDominator ||
-                        n.isWall ||
-                        n.isGate))
-                  ) {
-                    my.master.skill.score += scoreGain;
-                  }
-                }
+              const supportFromN = supportEffects.hasSupportEffect(n)
+                ? supportEffects.resolveSupportInteraction(n, my)
+                : null;
+              const supportFromMy = supportEffects.hasSupportEffect(my)
+                ? supportEffects.resolveSupportInteraction(my, n)
+                : null;
+
+              if (my.master !== n.master && my.team === n.team) {
+                if (supportFromN) awardSupportScore(n, my, supportFromN);
+                if (supportFromMy) awardSupportScore(my, n, supportFromMy);
               }
+
+              // Damage/healing from n toward my.
               if (my.disableDamage !== true) {
-                if (n.healEffect) {
-                  // n is the healing entity; my is the collision target.
-                  if (n.team === my.team) {
-                    const canHealTarget =
-                      my.isEnemy ||
-                      my.isBoss ||
-                      my.isPlayer ||
-                      my.isBot ||
-                      my.type === "tank" ||
-                      my.type === "food";
-                    if (
-                      canHealTarget &&
-                      (my.health.amount < my.health.max ||
-                        my.shield.amount < my.shield.max)
-                    ) {
-                      if (my.type === "atmosphere" && n.isProjectile) return;
-                      const healAmount = Math.max(
-                        0,
-                        damage._n * deathFactor._n * (n.isProjectile ? 1 : 0.25)
-                      );
-                      if (my.health.amount < my.health.max) {
-                        my.health.amount = Math.min(
-                          my.health.max,
-                          my.health.amount + healAmount
-                        );
-                      } else if (my.shield.amount < my.shield.max) {
-                        my.shield.amount = Math.min(
-                          my.shield.max,
-                          my.shield.amount + my.shield.max / 3
-                        );
-                      }
-                      if (n.isProjectile) {
-                        n.damageRecieved += damage._me * deathFactor._me;
-                      }
-                    }
-                  } else {
-                    if (my.type === "atmosphere" && n.isProjectile) return;
-                    const specialMultiplier =
-                      my.team === -4 ? 1.5 : my.team === -2 ? 1.25 : 1;
-                    // Opposing -2/-4 entities take special damage; other enemies take normal damage.
-                    my.damageRecieved +=
-                      damage._n * deathFactor._n * specialMultiplier;
-                  }
-                } else if (n.repairEffect) {
-                  // n is the repair entity; my is the collision target.
-                  if (n.team === my.team) {
-                    const isRepairableTarget =
-                      (my.isProjectile && my.type !== "bullet") ||
-                      my.isDominator ||
-                      my.isWall ||
-                      my.isGate ||
-                      my.type === "trap" ||
-                      my.type === "drone" ||
-                      my.type === "minion" ||
-                      my.type === "food";
-                    if (
-                      isRepairableTarget &&
-                      (my.health.amount < my.health.max ||
-                        my.shield.amount < my.shield.max)
-                    ) {
-                      if (my.type === "atmosphere" && n.isProjectile) return;
-                      if (my.shield.amount < my.shield.max) {
-                        my.shield.amount = Math.min(
-                          my.shield.max,
-                          my.shield.amount + my.shield.max / 10
-                        );
-                      } else {
-                        const repairAmount = Math.max(
-                          0,
-                          damage._n * deathFactor._n * (n.isProjectile ? 5 : 1.25)
-                        );
-                        my.health.amount = Math.min(
-                          my.health.max,
-                          my.health.amount + repairAmount
-                        );
-                      }
-                      if (n.isProjectile) {
-                        n.damageRecieved += damage._me * deathFactor._me;
-                      }
-                    }
-                  } else {
-                    if (my.type === "atmosphere" && n.isProjectile) return;
-                    let specialMultiplier = 1;
-                    const isStructure = my.isDominator || my.isWall || my.isGate;
-                    if (
-                      (my.team === -3 && !isStructure) ||
-                      my.isProjectile ||
-                      my.type === "food"
-                    ) {
-                      specialMultiplier = 7.5;
-                    } else if (isStructure) {
-                      specialMultiplier = 60;
-                    } else if (
-                      my.type === "trap" ||
-                      my.type === "drone" ||
-                      my.type === "minion"
-                    ) {
-                      specialMultiplier = 5;
-                    }
-                    // Enemy -3 entities/projectiles and existing repair-special targets take special damage.
-                    // Every other enemy takes ordinary collision damage.
-                    my.damageRecieved +=
-                      damage._n * deathFactor._n * specialMultiplier;
-                  }
+                if (supportEffects.hasSupportEffect(n)) {
+                  supportEffects.applyInteraction(
+                    n,
+                    my,
+                    damage._n * deathFactor._n,
+                    damage._me * deathFactor._me
+                  );
                 } else if (
                   my.team === -101 &&
                   n.type === "tank" &&
                   n.ignoreCollision
-                )
+                ) {
                   n.damageRecieved += n.health.max / 350;
-                else {
-                  if (
-                    (n.type === "atmosphere" && my.isProjectile) ||
-                    ((my.healEffect || my.repairEffect) && my.team === n.team)
-                  )
-                    return;
+                } else if (
+                  (n.type === "atmosphere" && my.isProjectile) ||
+                  (supportEffects.hasSupportEffect(my) && my.team === n.team)
+                ) {
+                  // Friendly support entities do not damage one another.
+                } else {
                   my.damageRecieved += damage._n * deathFactor._n;
                 }
               }
+
+              // Damage/healing from my toward n.
               if (n.disableDamage !== true) {
-                if (my.healEffect) {
-                  // my is the healing entity; n is the collision target.
-                  if (my.team === n.team) {
-                    const canHealTarget =
-                      n.isEnemy ||
-                      n.isBoss ||
-                      n.isPlayer ||
-                      n.isBot ||
-                      n.type === "tank" ||
-                      n.type === "food";
-                    if (
-                      canHealTarget &&
-                      (n.health.amount < n.health.max ||
-                        n.shield.amount < n.shield.max)
-                    ) {
-                      if (n.type === "atmosphere" && my.isProjectile) return;
-                      const healAmount = Math.max(
-                        0,
-                        damage._me * deathFactor._me * (my.isProjectile ? 1 : 0.25)
-                      );
-                      if (n.health.amount < n.health.max) {
-                        n.health.amount = Math.min(
-                          n.health.max,
-                          n.health.amount + healAmount
-                        );
-                      } else if (n.shield.amount < n.shield.max) {
-                        n.shield.amount = Math.min(
-                          n.shield.max,
-                          n.shield.amount + n.shield.max / 3
-                        );
-                      }
-                      if (my.isProjectile) {
-                        my.damageRecieved += damage._n * deathFactor._n;
-                      }
-                    }
-                  } else {
-                    if (n.type === "atmosphere" && my.isProjectile) return;
-                    const specialMultiplier =
-                      n.team === -4 ? 1.5 : n.team === -2 ? 1.25 : 1;
-                    // Opposing -2/-4 entities take special damage; other enemies take normal damage.
-                    n.damageRecieved +=
-                      damage._me * deathFactor._me * specialMultiplier;
-                  }
-                } else if (my.repairEffect) {
-                  // my is the repair entity; n is the collision target.
-                  if (my.team === n.team) {
-                    const isRepairableTarget =
-                      (n.isProjectile && n.type !== "bullet") ||
-                      n.isDominator ||
-                      n.isWall ||
-                      n.isGate ||
-                      n.type === "trap" ||
-                      n.type === "drone" ||
-                      n.type === "minion" ||
-                      n.type === "food";
-                    if (
-                      isRepairableTarget &&
-                      (n.health.amount < n.health.max ||
-                        n.shield.amount < n.shield.max)
-                    ) {
-                      if (n.type === "atmosphere" && my.isProjectile) return;
-                      if (n.shield.amount < n.shield.max) {
-                        n.shield.amount = Math.min(
-                          n.shield.max,
-                          n.shield.amount + n.shield.max / 10
-                        );
-                      } else {
-                        const repairAmount = Math.max(
-                          0,
-                          damage._me * deathFactor._me * (my.isProjectile ? 5 : 1.25)
-                        );
-                        n.health.amount = Math.min(
-                          n.health.max,
-                          n.health.amount + repairAmount
-                        );
-                      }
-                      if (my.isProjectile) {
-                        my.damageRecieved += damage._n * deathFactor._n;
-                      }
-                    }
-                  } else {
-                    if (n.type === "atmosphere" && my.isProjectile) return;
-                    let specialMultiplier = 1;
-                    const isStructure = n.isDominator || n.isWall || n.isGate;
-                    if (
-                      (n.team === -3 && !isStructure) ||
-                      n.isProjectile ||
-                      n.type === "food"
-                    ) {
-                      specialMultiplier = 7.5;
-                    } else if (isStructure) {
-                      specialMultiplier = 60;
-                    } else if (
-                      n.type === "trap" ||
-                      n.type === "drone" ||
-                      n.type === "minion"
-                    ) {
-                      specialMultiplier = 5;
-                    }
-                    // Enemy -3 entities/projectiles and existing repair-special targets take special damage.
-                    // Every other enemy takes ordinary collision damage.
-                    n.damageRecieved +=
-                      damage._me * deathFactor._me * specialMultiplier;
-                  }
+                if (supportEffects.hasSupportEffect(my)) {
+                  supportEffects.applyInteraction(
+                    my,
+                    n,
+                    damage._me * deathFactor._me,
+                    damage._n * deathFactor._n
+                  );
                 } else if (
                   n.team === -101 &&
                   my.type === "tank" &&
                   my.ignoreCollision
-                )
+                ) {
                   my.damageRecieved += my.health.max / 350;
-                else {
-                  if (
-                    (my.type === "atmosphere" && n.isProjectile) ||
-                    ((n.healEffect || n.repairEffect) && n.team === my.team)
-                  )
-                    return; //yes, if healing works properly. FANCY CODE JUMPSCARE
+                } else if (
+                  (my.type === "atmosphere" && n.isProjectile) ||
+                  (supportEffects.hasSupportEffect(n) && n.team === my.team)
+                ) {
+                  // Friendly support entities do not damage one another.
+                } else {
                   n.damageRecieved += damage._me * deathFactor._me;
                 }
               }
-
               if (my.connectedDamage) {
                 my.master.damageRecieved =
                   my.damageRecieved * (my.damageMultiple * 7.5);
