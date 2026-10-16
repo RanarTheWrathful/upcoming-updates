@@ -3603,7 +3603,7 @@ exports.trap = {
     RESIST: 2.5,
     SPEED: 0,
     PENETRATION: 1.15,
-    PUSHABILITY: 0.5,
+    PUSHABILITY: 0.75,
   },
 };
 exports.repairTrap = {
@@ -3625,7 +3625,7 @@ exports.repairTrap = {
     RESIST: 2.5,
     SPEED: 0,
     PENETRATION: 1.15,
-    PUSHABILITY: 0.5,
+    PUSHABILITY: 0.75,
   },
 };
 exports.healTrap = {
@@ -3647,7 +3647,7 @@ exports.healTrap = {
     RESIST: 2.5,
     SPEED: 0,
     PENETRATION: 1.15,
-    PUSHABILITY: 0.5,
+    PUSHABILITY: 0.75,
   },
 };
 exports.breakerTrap = {
