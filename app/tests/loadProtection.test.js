@@ -38,7 +38,7 @@ function makeProtection(overrides = {}) {
   };
 }
 
-// Sustained low measured run speed pauses spawns only after its duration expires.
+// Sustained low measured run speed activates the reduced population cap rather than globally pausing spawns.
 {
   const test = makeProtection();
   test.protection.reportCycle(110, []);
@@ -49,7 +49,8 @@ function makeProtection(overrides = {}) {
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
   test.setNow(10000);
   test.protection.sample();
-  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), false);
+  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true,
+    "ordinary sustained lag should reduce the cap without globally pausing all natural spawning");
   assert.strictEqual(test.protection.getSnapshot().lagPolicy100Triggered, true);
 }
 
@@ -67,6 +68,61 @@ function makeProtection(overrides = {}) {
   test.setNow(10000);
   test.protection.sample();
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
+}
+
+// Natural population caps use the last healthy population as a stable baseline,
+// destroy only a small batch at a time, and prefer off-screen entities before visible ones.
+{
+  const makeNaturalEntity = (index, onScreen) => ({
+    type: "tank", label: "Natural Enemy " + index, name: "Natural Enemy " + index,
+    _loadProtectionNaturalSpawn: true, onScreen, alpha: 1, size: 10,
+    health: { amount: 100, max: 100 }, alive: true, destroyed: false,
+    valid() { return this.alive; }, isDead() { return false; },
+    destroy() { this.destroyed = true; this.alive = false; },
+  });
+  const naturalEntities = Array.from({ length: 10 }, (_, i) => makeNaturalEntity(i, i >= 2));
+  const boundTurret = makeNaturalEntity(99, false);
+  boundTurret.bond = {};
+  naturalEntities.push(boundTurret);
+  const test = makeProtection({
+    env: { RANAR_LAG_CLEANUP_DESTROY_BATCH_SIZE: "1" },
+    options: {
+      getEntities: () => naturalEntities,
+      isEntityOnScreen: (entity) => entity.onScreen,
+    },
+  });
+
+  // Learn the baseline while healthy.
+  test.protection.reportCycle(5, naturalEntities, 0);
+  assert.strictEqual(test.protection.getSnapshot().naturalPopulationBaseline, 10);
+
+  // Degrade the simulation. Only one entity is destroyed per cycle, starting off-screen.
+  test.setNow(33);
+  test.protection.reportCycle(110, naturalEntities, 33);
+  assert.strictEqual(naturalEntities[0].destroyed, true, "first batch targets an off-screen entity");
+  assert.strictEqual(naturalEntities[1].destroyed, false, "cleanup respects the per-cycle destroy quota");
+  assert.strictEqual(naturalEntities[2].destroyed, false, "visible entities are not chosen while off-screen candidates suffice");
+  assert.strictEqual(boundTurret.destroyed, false, "bonded turrets remain under parent lifecycle control");
+  assert.strictEqual(test.protection.getSnapshot().naturalPopulationCap, 8,
+    "the elevated-lag cap is a ratio of the stable healthy baseline");
+
+  test.setNow(66);
+  test.protection.reportCycle(110, naturalEntities, 66);
+  assert.strictEqual(naturalEntities[1].destroyed, true, "the next cycle continues the active sweep");
+  assert.strictEqual(naturalEntities[2].destroyed, false);
+  assert.strictEqual(test.protection.getSnapshot().naturalPopulationCount, 8);
+  assert.strictEqual(test.protection.canSpawnNaturalEntity(), false,
+    "natural spawning is refused when the reduced cap has been reached");
+
+  // Ten healthy-cadence cycles clear the transient elevated stage; the natural cap restores.
+  let start = 99;
+  for (let i = 0; i < 10; i++) {
+    test.setNow(start);
+    test.protection.reportCycle(5, naturalEntities, start);
+    start += 33;
+  }
+  assert.strictEqual(test.protection.canSpawnNaturalEntity(), true,
+    "natural spawn allowance returns as the simulation recovers");
 }
 
 // Extreme lag bypasses every grace timer and triggers all protocols immediately.
@@ -120,9 +176,9 @@ function makeProtection(overrides = {}) {
   assert.strictEqual(unknown.destroyed, true, "emergency should trigger unknown-entity cleanup immediately");
   assert.strictEqual(projectile.destroyed, false, "lag cleanup must leave transient lifetime decisions to the visibility-aware timer");
   assert.strictEqual(aura.destroyed, false, "lag cleanup must not destroy auras directly");
-  assert.strictEqual(naturalBot.destroyed, false, "bots must not be permanently removed by natural-entity cleanup");
-  assert.strictEqual(offscreenFood.destroyed, true, "emergency should trigger off-screen cleanup immediately");
-  assert.strictEqual(onscreenFood.destroyed, true, "emergency should trigger on-screen natural-entity cleanup immediately");
+  assert.strictEqual(naturalBot.destroyed, true, "naturally spawned bots are eligible when the population exceeds the cap");
+  assert.strictEqual(offscreenFood.destroyed, true, "off-screen natural entities should be cleaned first");
+  assert.strictEqual(onscreenFood.destroyed, false, "on-screen natural entities should be spared while enough off-screen entities can satisfy the cap");
 }
 
 // Critical memory pressure can also force all protocols without waiting for the lag timer.

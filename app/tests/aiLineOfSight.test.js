@@ -45,4 +45,36 @@ assert.strictEqual(
   "fort walls should not block targeting because projectiles pass through them"
 );
 
+
+
+// Wall-passing projectile capability is detected from explicit inherited flags,
+// including turret weapons; penetration values alone are not enough.
+assert.strictEqual(
+  hasClearLineOfSight.hasWallPassingProjectile({
+    guns: [{ canShoot: true, bulletTypes: [{ PARENT: [{ LABEL: "Basic Bullet" }], BODY: { PENETRATION: 999 } }] }],
+    turrets: [],
+  }),
+  false,
+  "high penetration alone does not imply that a projectile passes through walls"
+);
+assert.strictEqual(
+  hasClearLineOfSight.hasWallPassingProjectile({
+    guns: [{ canShoot: true, bulletTypes: [{ PARENT: [{ WALL_IMMUNITY: true }] }] }],
+    turrets: [],
+  }),
+  true,
+  "inherited wall immunity makes a projectile eligible to target through walls"
+);
+assert.strictEqual(
+  hasClearLineOfSight.hasWallPassingProjectile({
+    guns: [],
+    turrets: [{
+      guns: [{ canShoot: true, bulletTypes: [{ WALL_IMMUNITY: true }] }],
+      turrets: [],
+    }],
+  }),
+  true,
+  "a wall-passing weapon mounted on a turret counts for the owning entity"
+);
+
 console.log("aiLineOfSight tests passed");

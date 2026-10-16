@@ -169,20 +169,35 @@ function createLoadProtection(options = {}) {
   let unknownCleanupLatched = false;
   let unknownCleanupGeneration = 0;
   let unknownCleanupPending = false;
-  // Cleanup work is spread across game cycles instead of scanning the entire
-  // entity table in one burst. Higher-severity modes share one scan.
-  const cleanupBatchSize = Math.max(1, Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_BATCH_SIZE, 8)));
+  // Destructive cleanup is rate-limited by entities destroyed per simulation
+  // cycle. Candidates are collected once per sweep and sorted off-screen first.
+  const cleanupDestroyBatchSize = Math.max(
+    1,
+    Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_DESTROY_BATCH_SIZE, 3))
+  );
+  const naturalCapRatios = {
+    warning: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_WARNING_RATIO) || 0.85)),
+    high: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_HIGH_RATIO) || 0.65)),
+    critical: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_CRITICAL_RATIO) || 0.4)),
+    emergency: Math.max(0.05, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_EMERGENCY_RATIO) || 0.25)),
+  };
   const CLEAN_UNKNOWN = 1;
-  const CLEAN_OFFSCREEN = 2;
-  const CLEAN_ONSCREEN_NATURAL = 4;
+  const CLEAN_NATURAL_POPULATION = 2;
+  let naturalPopulationBaseline = 0;
+  let lastNaturalPopulationCount = 0;
+  let naturalPopulationCacheCycle = -1;
+  let naturalPopulationCacheSource = null;
+  let naturalPopulationCachedCount = 0;
+  let naturalPopulationSpawnReservations = 0;
   const cleanupSweep = {
     active: false,
+    candidates: [],
     cursor: 0,
-    end: 0,
     mode: 0,
     lastCompletedMode: 0,
     unknownGeneration: 0,
     nextSweepAt: 0,
+    populationCap: null,
     destroyedUnknown: 0,
     destroyedOffscreen: 0,
     destroyedOnscreen: 0,
@@ -447,8 +462,6 @@ function createLoadProtection(options = {}) {
     if (
       entity._loadProtectionSpecialSpawn === true || entity.keep === true ||
       entity.KEEP === true || settings.KEEP === true || entity.isProtected === true ||
-      // Bots are candidates for temporary suspension, not permanent removal.
-      entity.isBot === true ||
       entity.alwaysExists === true || entity.isPlayer === true || entity.isBoss === true ||
       entity.boss === true || entity.isDominator === true || entity.isGate === true ||
       entity.isWall === true || entity.bond != null || entity.type === "base" ||
@@ -458,12 +471,105 @@ function createLoadProtection(options = {}) {
     return false;
   }
 
+  function isNaturalPopulationEntity(entity) {
+    return !!(
+      entity &&
+      isEntityLive(entity) &&
+      isNaturalSpawnEntity(entity) &&
+      !isTransientEffect(entity) &&
+      !isUnknownEntity(entity) &&
+      !shouldProtectFromNaturalCleanup(entity)
+    );
+  }
+
+  function countNaturalPopulation(entityList) {
+    const list = Array.isArray(entityList) ? entityList : getEntities();
+    let count = 0;
+    for (const entity of list) {
+      if (isNaturalPopulationEntity(entity)) count++;
+    }
+    return count;
+  }
+
+  function refreshNaturalPopulationCache(entityList) {
+    const list = Array.isArray(entityList) ? entityList : getEntities();
+    if (naturalPopulationCacheCycle !== cycleIndex || naturalPopulationCacheSource !== list) {
+      naturalPopulationCacheCycle = cycleIndex;
+      naturalPopulationCacheSource = list;
+      naturalPopulationCachedCount = countNaturalPopulation(list);
+      naturalPopulationSpawnReservations = 0;
+    }
+    return {
+      count: naturalPopulationCachedCount + naturalPopulationSpawnReservations,
+      list,
+    };
+  }
+
+  function getNaturalPopulationState(entityList) {
+    const cached = refreshNaturalPopulationCache(entityList);
+    const count = cached.count;
+    lastNaturalPopulationCount = count;
+
+    const currentStage = effectiveStage();
+    const healthy = currentStage === 0 &&
+      currentRunSpeedPercent >= 90 &&
+      !naturalSpawnsPaused &&
+      !lastMetrics.emergencyMitigation;
+
+    // Learn the current healthy population instead of imposing a hard-coded
+    // world-wide mob count. Freeze this baseline during lag so each cleanup
+    // batch does not lower its own target; update it again after recovery.
+    if (healthy) {
+      naturalPopulationBaseline = count;
+    } else if (naturalPopulationBaseline === 0 && count > 0) {
+      // If the server starts under load before a healthy sample exists, use the
+      // first observed population as the baseline and keep it stable this episode.
+      naturalPopulationBaseline = count;
+    }
+
+    let ratio = 1;
+    if (currentStage === 1) ratio = naturalCapRatios.warning;
+    else if (currentStage === 2) ratio = naturalCapRatios.high;
+    else if (currentStage >= 3) ratio = naturalCapRatios.critical;
+    if (lastMetrics.emergencyMitigation) ratio = Math.min(ratio, naturalCapRatios.emergency);
+
+    const baseline = naturalPopulationBaseline > 0 ? naturalPopulationBaseline : count;
+    const cap = currentStage === 0
+      ? Number.MAX_SAFE_INTEGER
+      : Math.max(1, Math.floor(baseline * ratio));
+
+    return { count, baseline, cap, ratio, stage: currentStage, list: cached.list };
+  }
+
+  function canSpawnNaturalEntity() {
+    if (naturalSpawnsPaused) return false;
+    const state = getNaturalPopulationState(getEntities());
+
+    // While healthy, normal mode-specific spawn limits remain authoritative.
+    if (state.stage === 0) return true;
+    if (state.count >= state.cap) return false;
+
+    // Multiple natural spawners may run in one simulation cycle. Reserve a slot
+    // as soon as one is approved, so a set of spawners cannot all exceed the cap
+    // before the next population recount.
+    naturalPopulationSpawnReservations++;
+    return true;
+  }
+
   function destroyForLoadProtection(entity) {
     if (!entity || !isEntityLive(entity) || shouldProtectFromNaturalCleanup(entity)) return false;
+    const wasNatural = isNaturalPopulationEntity(entity);
     suspendedEntities.delete(entity);
     try {
       if (typeof entity.destroy === "function") {
         entity.destroy();
+        if (
+          wasNatural && naturalPopulationCacheCycle === cycleIndex &&
+          Array.isArray(naturalPopulationCacheSource) &&
+          naturalPopulationCacheSource.includes(entity)
+        ) {
+          naturalPopulationCachedCount = Math.max(0, naturalPopulationCachedCount - 1);
+        }
         return true;
       }
     } catch (_) {
@@ -475,41 +581,55 @@ function createLoadProtection(options = {}) {
   function currentCleanupMode() {
     let mode = 0;
     if (unknownCleanupPending) mode |= CLEAN_UNKNOWN;
-    if (sustainedPolicies[150].triggered) mode |= CLEAN_OFFSCREEN;
-    if (sustainedPolicies[200].triggered) mode |= CLEAN_ONSCREEN_NATURAL;
+    // As soon as load degrades, lower the natural-population cap. Persistently
+    // severe lag still activates the same policy, but never clears everything
+    // in one sweep.
+    if (
+      effectiveStage() > 0 ||
+      sustainedPolicies[150].triggered ||
+      sustainedPolicies[200].triggered ||
+      lastMetrics.emergencyMitigation
+    ) mode |= CLEAN_NATURAL_POPULATION;
     return mode;
   }
 
-  function inspectCleanupEntity(entity, mode) {
-    if (!entity || !isEntityLive(entity)) return;
+  function buildCleanupCandidates(entityList, mode, populationState) {
+    const unknownCandidates = [];
+    const offscreenCandidates = [];
+    const onscreenCandidates = [];
+    const list = Array.isArray(entityList) ? entityList : [];
 
-    // Projectiles and auras have their own visibility-aware five-second TTL.
-    // Never let an emergency lag sweep bypass that rule by destroying them
-    // immediately, including when they inherit a natural-spawn source.
-    if (isTransientEffect(entity)) return;
+    for (const entity of list) {
+      if (!entity || !isEntityLive(entity) || isTransientEffect(entity)) continue;
+      // A temporarily suspended entity must survive for the existing gradual
+      // restore path; don't permanently destroy it in the natural-population sweep.
+      if (suspendedEntities.has(entity)) continue;
 
-    // An entity selected for suspension must remain alive so it can be restored
-    // when the simulation becomes healthy again.
-    if (suspendedEntities.has(entity)) return;
+      if ((mode & CLEAN_UNKNOWN) && isUnknownEntity(entity) &&
+          !shouldProtectFromNaturalCleanup(entity)) {
+        unknownCandidates.push({ entity, kind: "unknown", priority: 1 });
+        continue;
+      }
+      if (!(mode & CLEAN_NATURAL_POPULATION) || !isNaturalPopulationEntity(entity)) continue;
 
-    // The first sustained low-run-speed policy destroys unknown classes instead
-    // of suspending them. KEEP/protected entities remain protected.
-    if ((mode & CLEAN_UNKNOWN) && isUnknownEntity(entity)) {
-      if (destroyForLoadProtection(entity)) cleanupSweep.destroyedUnknown++;
-      return;
+      let onScreen = false;
+      try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
+      (onScreen ? onscreenCandidates : offscreenCandidates).push({
+        entity,
+        kind: onScreen ? "natural-onscreen" : "natural-offscreen",
+        priority: onScreen ? 2 : 0,
+      });
     }
 
-    if (!isNaturalSpawnEntity(entity) || shouldProtectFromNaturalCleanup(entity)) return;
-    // Visibility is calculated only for natural entities that passed protection
-    // checks; transient projectile/aura cleanup is handled separately.
-    let onScreen = false;
-    try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
-
-    if ((mode & CLEAN_ONSCREEN_NATURAL) && onScreen) {
-      if (destroyForLoadProtection(entity)) cleanupSweep.destroyedOnscreen++;
-    } else if ((mode & CLEAN_OFFSCREEN) && !onScreen) {
-      if (destroyForLoadProtection(entity)) cleanupSweep.destroyedOffscreen++;
-    }
+    const excess = Math.max(0, populationState.count - populationState.cap);
+    const naturalCandidates = offscreenCandidates.concat(onscreenCandidates);
+    const selectedNatural = naturalCandidates.slice(0, excess);
+    // Off-screen natural entities are first choice, unknown/malformed classes
+    // are also cleaned when their one-time policy is active, and visible natural
+    // entities are only reached after off-screen candidates.
+    return selectedNatural
+      .concat(unknownCandidates)
+      .sort((a, b) => a.priority - b.priority);
   }
 
   function finishCleanupSweep(now) {
@@ -517,8 +637,8 @@ function createLoadProtection(options = {}) {
     const total = counts.destroyedUnknown + counts.destroyedOffscreen + counts.destroyedOnscreen;
     if (total > 0) {
       const parts = [];
-      if (counts.destroyedUnknown) parts.push(counts.destroyedUnknown + " unknown");
       if (counts.destroyedOffscreen) parts.push(counts.destroyedOffscreen + " off-screen natural");
+      if (counts.destroyedUnknown) parts.push(counts.destroyedUnknown + " unknown");
       if (counts.destroyedOnscreen) parts.push(counts.destroyedOnscreen + " on-screen natural");
       callEntityChange(null, false, {
         reason: "load protection cleanup removed " + parts.join(", "),
@@ -531,8 +651,8 @@ function createLoadProtection(options = {}) {
       unknownCleanupPending = false;
     }
     cleanupSweep.active = false;
+    cleanupSweep.candidates = [];
     cleanupSweep.cursor = 0;
-    cleanupSweep.end = 0;
     cleanupSweep.mode = 0;
     cleanupSweep.nextSweepAt = now + cleanupIntervalMs;
     cleanupSweep.destroyedUnknown = 0;
@@ -540,50 +660,70 @@ function createLoadProtection(options = {}) {
     cleanupSweep.destroyedOnscreen = 0;
   }
 
+  function startCleanupSweep(list, mode, populationState, now) {
+    cleanupSweep.mode = mode;
+    cleanupSweep.unknownGeneration = unknownCleanupGeneration;
+    cleanupSweep.populationCap = populationState.cap;
+    cleanupSweep.candidates = buildCleanupCandidates(list, mode, populationState);
+    cleanupSweep.cursor = 0;
+    cleanupSweep.destroyedUnknown = 0;
+    cleanupSweep.destroyedOffscreen = 0;
+    cleanupSweep.destroyedOnscreen = 0;
+    cleanupSweep.active = cleanupSweep.candidates.length > 0;
+
+    if (!cleanupSweep.active) {
+      cleanupSweep.lastCompletedMode = mode;
+      cleanupSweep.nextSweepAt = now + cleanupIntervalMs;
+    }
+  }
+
   function processCleanupSweep(entityList, now = nowProvider()) {
     const list = Array.isArray(entityList) ? entityList : getEntities();
     const requestedMode = currentCleanupMode();
+    const populationState = getNaturalPopulationState(list);
 
-    if (cleanupSweep.active) {
-      // If a stricter policy activates mid-scan, restart once so entities already
-      // visited by the weaker policy are also checked by the new rule.
-      const expandedMode = cleanupSweep.mode | requestedMode;
-      if (expandedMode !== cleanupSweep.mode) {
-        cleanupSweep.mode = expandedMode;
-        if (expandedMode & CLEAN_UNKNOWN) cleanupSweep.unknownGeneration = unknownCleanupGeneration;
-        cleanupSweep.cursor = 0;
-        cleanupSweep.end = list.length;
-        cleanupSweep.destroyedUnknown = 0;
-        cleanupSweep.destroyedOffscreen = 0;
-        cleanupSweep.destroyedOnscreen = 0;
-      }
-    } else if (requestedMode && (
-      (requestedMode & CLEAN_UNKNOWN) !== 0 ||
-      now >= cleanupSweep.nextSweepAt || (requestedMode & ~cleanupSweep.lastCompletedMode) !== 0
-    )) {
-      cleanupSweep.active = true;
+    if (!requestedMode) {
+      cleanupSweep.active = false;
+      cleanupSweep.candidates = [];
       cleanupSweep.cursor = 0;
-      cleanupSweep.end = list.length;
-      cleanupSweep.mode = requestedMode;
-      cleanupSweep.unknownGeneration = unknownCleanupGeneration;
-      cleanupSweep.destroyedUnknown = 0;
-      cleanupSweep.destroyedOffscreen = 0;
-      cleanupSweep.destroyedOnscreen = 0;
+      cleanupSweep.mode = 0;
+      cleanupSweep.populationCap = populationState.cap;
+      return;
+    }
+
+    const capChanged = cleanupSweep.populationCap !== populationState.cap;
+    if (cleanupSweep.active && (cleanupSweep.mode !== requestedMode || capChanged)) {
+      // Rebuild when severity changes, but keep candidate discovery out of the
+      // per-entity hot path and preserve the per-cycle destruction quota.
+      startCleanupSweep(list, requestedMode, populationState, now);
+    } else if (!cleanupSweep.active && (
+      (requestedMode & CLEAN_UNKNOWN) !== 0 ||
+      now >= cleanupSweep.nextSweepAt ||
+      requestedMode !== cleanupSweep.lastCompletedMode ||
+      capChanged
+    )) {
+      startCleanupSweep(list, requestedMode, populationState, now);
     }
 
     if (!cleanupSweep.active) return;
 
-    let inspected = 0;
-    const end = Math.min(cleanupSweep.end, list.length);
-    while (cleanupSweep.cursor < end && inspected < cleanupBatchSize) {
-      const entity = list[cleanupSweep.cursor++];
-      inspected++;
-      inspectCleanupEntity(entity, cleanupSweep.mode);
+    let destroyedThisCycle = 0;
+    while (
+      cleanupSweep.cursor < cleanupSweep.candidates.length &&
+      destroyedThisCycle < cleanupDestroyBatchSize
+    ) {
+      const candidate = cleanupSweep.candidates[cleanupSweep.cursor++];
+      destroyedThisCycle++;
+      const entity = candidate && candidate.entity;
+      if (!entity || !isEntityLive(entity) || suspendedEntities.has(entity)) continue;
+      if (destroyForLoadProtection(entity)) {
+        if (candidate.kind === "unknown") cleanupSweep.destroyedUnknown++;
+        else if (candidate.kind === "natural-offscreen") cleanupSweep.destroyedOffscreen++;
+        else cleanupSweep.destroyedOnscreen++;
+      }
     }
 
-    if (cleanupSweep.cursor >= cleanupSweep.end || cleanupSweep.cursor >= list.length) {
-      finishCleanupSweep(now);
-    }
+    if (cleanupSweep.cursor >= cleanupSweep.candidates.length) finishCleanupSweep(now);
   }
 
   function callEntityChange(entity, disabled, details) {
@@ -867,11 +1007,13 @@ function createLoadProtection(options = {}) {
           unknownCleanupPending = true;
           unknownCleanupGeneration++;
         }
+        const firstLag100Trigger = !lag100.triggered;
         lag100.triggered = true;
-        if (!naturalSpawnsPaused) {
-          naturalSpawnsPaused = true;
+        if (firstLag100Trigger) {
           callEntityChange(null, false, {
-            reason: "server run speed stayed at or below " + Math.round(speedThresholds[100]) + "% of target for " + Math.round(naturalSpawnPauseMs / 1000) + "s; natural spawning and food paused",
+            reason: "server run speed stayed at or below " + Math.round(speedThresholds[100]) +
+              "% of target for " + Math.round(naturalSpawnPauseMs / 1000) +
+              "s; natural population cap reduced and off-screen entities are culled in small batches",
             cycleMs: lastCycleMs,
             runSpeedPercent: currentRunSpeedPercent,
           });
@@ -1301,6 +1443,11 @@ function createLoadProtection(options = {}) {
     snapshot.targetTickRatePercent = Math.round(100 / getRunSpeedMultiplier());
     snapshot.cycleStage = cycleStage;
     snapshot.naturalSpawnsPaused = naturalSpawnsPaused;
+    const naturalPopulation = getNaturalPopulationState(getEntities());
+    snapshot.naturalPopulationCount = naturalPopulation.count;
+    snapshot.naturalPopulationBaseline = naturalPopulation.baseline;
+    snapshot.naturalPopulationCap = naturalPopulation.cap;
+    snapshot.naturalPopulationCapRatio = naturalPopulation.ratio;
     snapshot.lagPolicy100Triggered = sustainedPolicies[100].triggered;
     snapshot.lagPolicy150Triggered = sustainedPolicies[150].triggered;
     snapshot.lagPolicy200Triggered = sustainedPolicies[200].triggered;
@@ -1335,6 +1482,8 @@ function createLoadProtection(options = {}) {
   }
 
   function shouldSpawnNaturalEntities() {
+    // Individual automatic spawn sites enforce the dynamic population cap just
+    // before creating entities. This method only handles emergency spawn pause.
     return !naturalSpawnsPaused;
   }
 
@@ -1356,6 +1505,8 @@ function createLoadProtection(options = {}) {
     shouldSpawnFood,
     shouldSpawnBot,
     shouldSpawnNaturalEntities,
+    canSpawnNaturalEntity,
+    getNaturalPopulationState: (entityList) => getNaturalPopulationState(entityList),
     isEntityOnScreen: (entity) => {
       try { return !!isEntityOnScreen(entity); } catch (_) { return false; }
     },

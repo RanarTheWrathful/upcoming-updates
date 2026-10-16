@@ -25,6 +25,7 @@ const hasClearLineOfSight = require("./lib/aiLineOfSight");
 const droneInfection = require("./lib/droneInfection");
 const supportEffects = require("./lib/supportEffects");
 const modeBranches = require("./lib/modeBranches");
+const modeVoting = require("./lib/modeVoting");
 const gunCalculator = require("./lib/gunCalculator");
 const { performance } = require("perf_hooks");
 
@@ -64,42 +65,6 @@ const lockFilePath = path.join(__dirname, "serv.lock");
 fs.writeFileSync(lockFilePath, process.pid.toString());
 
 let chosenMode;
-function countInstances(arr) {
-  const countMap = {}; // Object to store counts
-
-  // Loop through each element in the array
-  arr.forEach((item) => {
-    if (countMap[item]) {
-      countMap[item]++; // Increment count if item exists
-    } else {
-      countMap[item] = 1; // Initialize count if item does not exist
-    }
-  });
-
-  return countMap; // Return the object containing counts
-}
-function pickTheBiggest(countMap) {
-  // Determine the maximum count
-  let maxCount = -1;
-  let maxItems = [];
-
-  for (let key in countMap) {
-    if (countMap[key] > maxCount) {
-      maxCount = countMap[key];
-      maxItems = [key]; // Reset maxItems with the new maximum count item
-    } else if (countMap[key] === maxCount) {
-      maxItems.push(key); // Add to maxItems if count is equal to maxCount
-    }
-  }
-
-  // Randomly select one item from maxItems
-  const randomIndex = Math.floor(Math.random() * maxItems.length);
-  const selected = maxItems[randomIndex];
-
-  // Return just the selected item (not wrapped in an array)
-  return { selected, count: maxCount };
-}
-
 let modeList = ["Unknown"];
 let serverType = "normal"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
@@ -131,13 +96,10 @@ else if (serverType === "normal") {
     "Grudge Ball",
     "Siege",
   ];
-  if (currentState.modeVotes.length === 0) {
-    chosenMode = ran.choose(modeList);
-  } else {
-    let votes = countInstances(currentState.modeVotes);
-    let result = pickTheBiggest(votes);
-    chosenMode = result.selected;
-  }
+  // Ignore stale mode names from old configs and use a random valid mode
+  // when there are no valid votes. Ties are resolved randomly.
+  const savedVotes = Array.isArray(currentState.modeVotes) ? currentState.modeVotes : [];
+  chosenMode = modeVoting.chooseMode(savedVotes, modeList, ran.choose) || ran.choose(modeList);
   currentState.modeVotes = [];
   if (chosenMode === "Siege") {
     for (let i = 0; i < 3; i++) {
@@ -368,7 +330,7 @@ c.preparedCounter = 50;
 c.countdown = 60000;
 c.godRole = true; //ran.choose([true, false]);
 //important settings
-c.voteList = ["placeHolder"];
+c.voteList = [];
 c.banList = ["placeHolder"];
 c.muteList = ["placeHolder"];
 c.socketList = [];
@@ -3728,6 +3690,7 @@ class io_nearestDifferentMaster extends IO {
       this.body.canDestroyWalls === true ||
       this.body.canPassWalls === true ||
       this.body.wallImmunity === true ||
+      hasClearLineOfSight.hasWallPassingProjectile(this.body) ||
       this.body.phase === true ||
       this.body.intangibility === true;
     if (!canIgnoreWallOcclusion) {
@@ -15565,7 +15528,7 @@ let cleanupStarted = false;
 const offscreenTransientCleanup = createOffscreenTransientCleanup({
   delayMs: Number(process.env.RANAR_OFFSCREEN_TRANSIENT_TTL_MS) > 0
     ? Number(process.env.RANAR_OFFSCREEN_TRANSIENT_TTL_MS)
-    : 5000,
+    : 2500,
   isVisibleToAnyClient(entity) {
     // Use the same drawn-view geometry the renderer uses. In particular, do not
     // treat a missing hasSpawned flag as proof that no client can see an entity.
@@ -21804,6 +21767,7 @@ var maintainloop = (() => {
         i--;
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 1000000;
       if (c.SHINY_GLORY) {
@@ -21970,6 +21934,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 350;
       if (o.rarity > 96) {
@@ -22031,6 +21996,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       switch (c.MODE) {
         case "theExample":
@@ -22061,6 +22027,7 @@ var maintainloop = (() => {
           o.team = -5;
           break;
       }
+      o._loadProtectionNaturalSpawn = true;
     }
   };
   let spawnpentaSentinels = (census) => {
@@ -22074,6 +22041,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.define(
         Class[
@@ -22121,6 +22089,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 10000;
       if (o.rarity > 3000) {
@@ -22187,6 +22156,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 10000;
       if (o.rarity > 3000) {
@@ -22239,6 +22209,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 10000;
       if (o.rarity > 3000) {
@@ -22294,6 +22265,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 10000;
       if (o.rarity > 1000) {
@@ -22387,6 +22359,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.define(
         Class[
@@ -22524,7 +22497,7 @@ var maintainloop = (() => {
               position = room.randomType(c.BOT_SPAWN_LOCATION);
             }
         }
-        if (!room.isIn("wall", position)) {
+        if (!room.isIn("wall", position) && loadProtection.canSpawnNaturalEntity()) {
           let o = new Entity(position);
           o._loadProtectionNaturalSpawn = true;
 
@@ -23269,6 +23242,7 @@ var maintainloop = (() => {
               x: o.x + o.size * Math.cos(o.facing),
               y: o.y + o.size * Math.sin(o.facing),
             };
+          if (!loadProtection.canSpawnNaturalEntity()) return null;
           let new_o = new Entity(place);
           new_o._loadProtectionNaturalSpawn = true;
           switch (new_o.rarityType) {
@@ -23309,6 +23283,7 @@ var maintainloop = (() => {
         // Brand new
         else if (room.isIn("nest", position) === allowInNest) {
           if (!dirtyCheck(position, 20)) {
+            if (!loadProtection.canSpawnNaturalEntity()) return null;
             o = new Entity(position);
             o._loadProtectionNaturalSpawn = true;
 
@@ -23622,7 +23597,7 @@ var maintainloop = (() => {
     const transientCleanupNow = performance.now();
     entities.forEach((instance) => {
       // This lifecycle cleanup is independent of load-protection thresholds:
-      // any projectile/aura unseen by every client for five seconds is retired.
+      // any projectile/aura unseen by every client for 2.5 seconds is retired.
       offscreenTransientCleanup.check(instance, transientCleanupNow);
       if (!instance || instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;
       if (instance.health.amount > 0 || instance.health.max > 0) {
@@ -24507,26 +24482,41 @@ You must have the chat site and the game site open at the same time for your cha
                         message =
                           `Here is the list of modes, type as they are for voting, if you are allowed to: <br><br>` +
                           modeList.join(`<br><br>`);
-                      } else if (command.includes("vote")) {
+                      } else if (/^vote(?:\s|$)/i.test(command.trim())) {
                         if (serverType === "normal") {
-                          let vote = command.slice(command.indexOf("e") + 2);
-                          if (!c.voteList.includes(socket.ip)) {
-                            let re = 1;
-                            if (socket.trueDev) re = 100;
-                            for (let i = 0; i < re; i++) {
-                              if (modeList.includes(vote)) {
-                                currentState.modeVotes.push(vote);
-                                message =
-                                  "You have successfully voted on " +
-                                  vote +
-                                  "!";
-                              } else
-                                message =
-                                  "That isn't a valid mode, try using /mode list!";
+                          const voteText = command.trim().replace(/^vote\b/i, "").trim();
+                          if (!Array.isArray(currentState.modeVotes)) currentState.modeVotes = [];
+                          // Preserve the original one-vote-per-IP policy.
+                          const voterId = socket.ip != null && String(socket.ip).trim()
+                            ? "ip:" + String(socket.ip)
+                            : socket.ID != null ? "socket:" + String(socket.ID) : null;
+                          const result = modeVoting.registerVote({
+                            voteText,
+                            allowedModes: modeList,
+                            voterId,
+                            voterList: c.voteList,
+                            votes: currentState.modeVotes,
+                            weight: socket.trueDev ? 100 : 1,
+                          });
+                          if (result.ok) {
+                            // Votes select the next startup mode, so persist them as
+                            // they arrive instead of relying only on a graceful shutdown.
+                            try {
+                              serverState.setServerState(currentState);
+                            } catch (error) {
+                              util.warn("Could not persist mode vote: " + (error && error.message || error));
                             }
-                          } else message = "You cannot vote again!";
-                        } else
+                            message = "You have successfully voted on " + result.mode + "!";
+                          } else if (result.reason === "already-voted") {
+                            message = "You cannot vote again!";
+                          } else if (result.reason === "invalid-mode") {
+                            message = "That isn't a valid mode, try using /mode list!";
+                          } else {
+                            message = "Your vote could not be registered. Please try again.";
+                          }
+                        } else {
                           message = "You cannot vote on modes in this server!";
+                        }
                       } else if (command.includes("reset")) {
                         if (player.body) {
                           if (

@@ -16,7 +16,7 @@ function createOffscreenTransientCleanup(options = {}) {
   const isVisibleToAnyClient = options.isVisibleToAnyClient || (() => false);
   const delayMs = Number.isFinite(Number(options.delayMs)) && Number(options.delayMs) >= 0
     ? Number(options.delayMs)
-    : 5000;
+    : 2500;
   const nowProvider = options.nowProvider || (() => performance.now());
   const onDestroy = options.onDestroy || (() => {});
   // Weak keys ensure already-destroyed entities are not kept alive by cleanup bookkeeping.
