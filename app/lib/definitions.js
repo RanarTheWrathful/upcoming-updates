@@ -3600,10 +3600,10 @@ exports.trap = {
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
     DENSITY: 2.5,
-    PENETRATION: 1,
     RESIST: 2.5,
     SPEED: 0,
-    PUSHABILITY: 1,
+    PENETRATION: 1.15,
+    PUSHABILITY: 0.5,
   },
 };
 exports.repairTrap = {
@@ -3622,10 +3622,10 @@ exports.repairTrap = {
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
     DENSITY: 2.5,
-    PENETRATION: 1,
     RESIST: 2.5,
     SPEED: 0,
-    PUSHABILITY: 1,
+    PENETRATION: 1.15,
+    PUSHABILITY: 0.5,
   },
 };
 exports.healTrap = {
@@ -3644,10 +3644,10 @@ exports.healTrap = {
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
     DENSITY: 2.5,
-    PENETRATION: 1,
     RESIST: 2.5,
     SPEED: 0,
-    PUSHABILITY: 1,
+    PENETRATION: 1.15,
+    PUSHABILITY: 0.5,
   },
 };
 exports.breakerTrap = {
@@ -29875,7 +29875,7 @@ exports.musket = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [16, 8, 1, 0, 5.5, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.crossbow, g.minorSize]),
         TYPE: exports.bullet,
         LABEL: "Secondary",
       },
@@ -29883,7 +29883,7 @@ exports.musket = {
     {
       POSITION: [16, 8, 1, 0, -5.5, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.crossbow, g.minorSize]),
         TYPE: exports.bullet,
         LABEL: "Secondary",
       },
