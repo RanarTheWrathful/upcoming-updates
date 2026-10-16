@@ -16530,7 +16530,7 @@ exports.mechflingtrap = {
     {
       /*  SIZE     X       Y     ANGLE    ARC */
       POSITION: [11, 0, 0, 0, 360, 1],
-      TYPE: exports.bounce,
+      TYPE: exports.autobounce,
     },
   ],
 };
