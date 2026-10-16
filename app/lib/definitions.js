@@ -3593,13 +3593,14 @@ exports.trap = {
   SHAPE: -3,
   MOTION_TYPE: "glide", // def
   FACING_TYPE: "turnWithSpeed",
+  SPECIAL_EFFECT: "push",
   HITS_OWN_TYPE: "repel",
   DIE_AT_RANGE: true,
   BODY: {
     HEALTH: 0.5 * wepHealthFactor,
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
-    DENSITY: 5,
+    DENSITY: 50,
     PENETRATION: 1,
     RESIST: 2.5,
     SPEED: 0,
@@ -3613,13 +3614,14 @@ exports.repairTrap = {
   SHAPE: -3,
   MOTION_TYPE: "glide", // def
   FACING_TYPE: "turnWithSpeed",
+  SPECIAL_EFFECT: "push",
   REPAIR_EFFECT: true,
   DIE_AT_RANGE: true,
   BODY: {
     HEALTH: 0.5 * wepHealthFactor,
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
-    DENSITY: 5,
+    DENSITY: 50,
     PENETRATION: 1,
     RESIST: 2.5,
     SPEED: 0,
@@ -3633,6 +3635,7 @@ exports.healTrap = {
   SHAPE: -3,
   MOTION_TYPE: "glide", // def
   FACING_TYPE: "turnWithSpeed",
+  SPECIAL_EFFECT: "push",
   HEAL_EFFECT: true,
   HITS_OWN_TYPE: "repel",
   DIE_AT_RANGE: true,
@@ -3640,7 +3643,7 @@ exports.healTrap = {
     HEALTH: 0.5 * wepHealthFactor,
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
-    DENSITY: 5,
+    DENSITY: 50,
     PENETRATION: 1,
     RESIST: 2.5,
     SPEED: 0,
@@ -3692,7 +3695,7 @@ exports.unsetBlock = {
   BODY: {
     SPEED: 1.2,
     PENETRATION: 0.85,
-    DENSITY: 7.5,
+    DENSITY: 100,
     PENETRATION: 1.15,
   },
 };
@@ -3706,7 +3709,7 @@ exports.setBlock = {
   CONTROLLERS: ["goToMasterTarget"],
   BODY: {
     SPEED: 1.2,
-    DENSITY: 5.5,
+    DENSITY: 100,
     PENETRATION: 1.15,
 
     PUSHABILITY: 1,
@@ -3722,7 +3725,7 @@ exports.assemblent = {
   CONTROLLERS: ["goToMasterTarget"],
   BODY: {
     SPEED: 1.2,
-    DENSITY: 5.5,
+    DENSITY: 100,
     PENETRATION: 1.15,
 
     PUSHABILITY: 1,
@@ -3761,7 +3764,7 @@ exports.boomerang = {
   BODY: {
     SPEED: 1.15,
     RANGE: 260,
-    DENSITY: 5.5,
+    DENSITY: 100,
     PENETRATION: 1.15,
     PUSHABILITY: 1,
   },
