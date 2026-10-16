@@ -3600,10 +3600,11 @@ exports.trap = {
     HEALTH: 0.5 * wepHealthFactor,
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
-    DENSITY: 50,
+    DENSITY: 2.5,
     PENETRATION: 1,
     RESIST: 2.5,
     SPEED: 0,
+    PUSHABILITY: 1,
   },
 };
 exports.repairTrap = {
@@ -3621,10 +3622,11 @@ exports.repairTrap = {
     HEALTH: 0.5 * wepHealthFactor,
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
-    DENSITY: 50,
+    DENSITY: 2.5,
     PENETRATION: 1,
     RESIST: 2.5,
     SPEED: 0,
+    PUSHABILITY: 1,
   },
 };
 exports.healTrap = {
@@ -3643,10 +3645,11 @@ exports.healTrap = {
     HEALTH: 0.5 * wepHealthFactor,
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
-    DENSITY: 50,
+    DENSITY: 2.5,
     PENETRATION: 1,
     RESIST: 2.5,
     SPEED: 0,
+    PUSHABILITY: 1,
   },
 };
 exports.breakerTrap = {
@@ -3695,8 +3698,9 @@ exports.unsetBlock = {
   BODY: {
     SPEED: 1.2,
     PENETRATION: 0.85,
-    DENSITY: 100,
+    DENSITY: 7.5,
     PENETRATION: 1.15,
+    PUSHABILITY: 0.5,
   },
 };
 exports.setBlock = {
@@ -3709,10 +3713,10 @@ exports.setBlock = {
   CONTROLLERS: ["goToMasterTarget"],
   BODY: {
     SPEED: 1.2,
-    DENSITY: 100,
+    DENSITY: 7.5,
     PENETRATION: 1.15,
 
-    PUSHABILITY: 1,
+    PUSHABILITY: 0.5,
   },
 };
 exports.assemblent = {
@@ -28101,9 +28105,9 @@ exports.mutant = {
       POSITION: [6.5, 10, 1.2, 8, 0, 180, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
-          g.drone,
+        g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -28118,7 +28122,7 @@ exports.mutant = {
     {
       POSITION: [6.5, 10, 1.2, 8, 0, 180, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         ALT_FIRE: true,
         MAX_CHILDREN: 2,
@@ -28473,7 +28477,7 @@ exports.polyTerror = {
         SHOOT_SETTINGS: combineStats([
           g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -28488,7 +28492,7 @@ exports.polyTerror = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         MAX_CHILDREN: 6,
         AUTOFIRE: true,
@@ -28528,7 +28532,7 @@ exports.polyLord = {
         SHOOT_SETTINGS: combineStats([
           g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -28542,7 +28546,7 @@ exports.polyLord = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
@@ -28557,7 +28561,7 @@ exports.polyLord = {
           g.drone,
           g.doubleSize,
           g.greaterSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.greaterHealth,
           g.greaterReload,
         ]),
@@ -28577,6 +28581,7 @@ exports.polyLord = {
           g.greaterSize,
           g.lesserStats,
           g.halfSpeed,
+          g.lesserDamage,
           g.superHealth,
           g.superHealth,
           g.greaterHealth,
@@ -32331,7 +32336,7 @@ exports.polyseer = {
         SHOOT_SETTINGS: combineStats([
           g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -32344,7 +32349,7 @@ exports.polyseer = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
@@ -32381,9 +32386,9 @@ exports.polyFear = {
       POSITION: [4, 8, 1.2, 8, 0, 90, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
-          g.drone,
+         g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -32398,7 +32403,7 @@ exports.polyFear = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         MAX_CHILDREN: 6,
         AUTOFIRE: true,
@@ -32569,9 +32574,9 @@ exports.polymancer = {
       POSITION: [4, 8, 1.2, 8, 0, 90, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
-          g.drone,
+        g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -32584,7 +32589,7 @@ exports.polymancer = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
@@ -32689,7 +32694,7 @@ exports.polyTyrant = {
           g.superHealth,
           g.superReload,
           g.superReload,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserSpeed,
         ]),
         TYPE: exports.septagonDrone,
