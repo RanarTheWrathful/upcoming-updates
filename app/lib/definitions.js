@@ -6364,7 +6364,7 @@ exports.autoBounce = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [1, 1, 1, 0, 0, 180, 1],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.bounce, g.greaterReload]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.bounce, g.greaterReload, g.halfRecoil]),
         TYPE: [exports.bullet, { ALPHA: 0 }],
       },
     },
@@ -35540,7 +35540,7 @@ exports.stinger = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.lesserDamage, g.greaterHealth]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.doubleHealth]),
         TYPE: exports.mechflingtrap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
