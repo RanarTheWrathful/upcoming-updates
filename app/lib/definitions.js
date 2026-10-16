@@ -35441,7 +35441,7 @@ exports.shatterer = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.lesserDamage, g.greaterHealth]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.doubleHealth]),
         TYPE: exports.shattererTrap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -35504,7 +35504,7 @@ exports.flinger = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.lesserDamage, g.greaterHealth]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.doubleHealth]),
         TYPE: exports.flingertrap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -36342,6 +36342,8 @@ exports.megafling = {
           g.greaterSize,
           g.greaterPenetration,
           g.minorMax,
+          g.halfDamage, 
+          g.doubleHealth
         ]),
         TYPE: exports.flingertrap,
         STAT_CALCULATOR: gunCalcNames.trap,
