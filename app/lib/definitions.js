@@ -43212,15 +43212,24 @@ exports.mechanisthand1 = {
           g.basic, 
           g.missile, 
           g.doubleReload,
-          g.doubleReload,
+          g.mediumReload,
           g.greaterDamage,
           g.greaterHealth,
           g.greaterPenetration,
           g.bitmoreSpeed
         ]),
-        TYPE: exports.missile,
+        TYPE: exports.hyperMissile,
         STAT_CALCULATOR: gunCalcNames.sustained,
       },
+    {
+      POSITION: [17, 16, 1, 0, 0, 0, 0],
+    },
+    {
+      POSITION: [10, 10, -0.5, 9, 0, 0, 0],
+    },
+    {
+      POSITION: [17, 11, 1, 0, 0, 0, 0],
+    },
     },
   ],
   TURRETS: [

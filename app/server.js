@@ -69,7 +69,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Siege";
+if (serverType === "testing") chosenMode = "Sandbox";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -16973,7 +16973,7 @@ const sockets = (() => {
                       if (
                         player.body.label === "Auto-5" ||
                         player.body.label === "Hardshell Spawner" ||
-                        player.body.label === "Skimmer"
+                        player.body.label === "Hyper Skimmer"
                       ) {
                         player.body.upgrades = [];
 
