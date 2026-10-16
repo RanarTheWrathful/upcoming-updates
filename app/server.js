@@ -66,7 +66,7 @@ fs.writeFileSync(lockFilePath, process.pid.toString());
 
 let chosenMode;
 let modeList = ["Unknown"];
-let serverType = "lore"; //change this to play preset modes look
+let serverType = "Siege"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
 if (serverType === "testing") chosenMode = "The Denied";
