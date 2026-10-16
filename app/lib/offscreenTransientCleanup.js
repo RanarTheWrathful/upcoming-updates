@@ -25,16 +25,18 @@ function createOffscreenTransientCleanup(options = {}) {
   function check(entity, suppliedNow) {
     if (!entity || typeof entity !== "object") return false;
 
+    // Most world entities are not transient. Filter them before invoking valid(),
+    // avoiding an extra validity check on every tank/food/wall in the 5 Hz loop.
+    if (!isTransientEffect(entity)) {
+      unseenSince.delete(entity);
+      return false;
+    }
+
     let alive = true;
     if (typeof entity.valid === "function") {
       try { alive = entity.valid(); } catch (_) { alive = false; }
     }
     if (!alive) {
-      unseenSince.delete(entity);
-      return false;
-    }
-
-    if (!isTransientEffect(entity)) {
       unseenSince.delete(entity);
       return false;
     }

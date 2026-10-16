@@ -16973,7 +16973,7 @@ const sockets = (() => {
                       if (
                         player.body.label === "Auto-5" ||
                         player.body.label === "Hardshell Spawner" ||
-                        player.body.label === "Hyper Skimmer"
+                        player.body.label === "Skimmer"
                       ) {
                         player.body.upgrades = [];
 
@@ -22450,22 +22450,14 @@ var maintainloop = (() => {
         fallenBoss: 0,
         tank: 0,
       };
-      let npcs = entities
-        .map(function npcCensus(instance) {
-          if (instance.valid()) {
-            if (census[instance.type] != null) {
-              census[instance.type]++;
-              return instance;
-            }
-            if (census[instance.specialEffect] != null) {
-              census[instance.specialEffect]++;
-              return instance;
-            }
-          }
-        })
-        .filter((e) => {
-          return e;
-        });
+      // Only the counts are consumed below; building a mapped array and then
+      // filtering it allocated two full-world arrays every 200 ms for no reason.
+      for (let i = 0; i < entities.length; i++) {
+        const instance = entities[i];
+        if (!instance || typeof instance.valid !== "function" || !instance.valid()) continue;
+        if (census[instance.type] != null) census[instance.type]++;
+        else if (census[instance.specialEffect] != null) census[instance.specialEffect]++;
+      }
       let ruh;
       if (c.REDUCE_BOTS_PER_PLAYER) ruh = c.playerCount;
       else ruh = 0;
@@ -23408,7 +23400,19 @@ var maintainloop = (() => {
     // local food registry (so destroyed food is not retained) but skip new food,
     // spawner rotations, and optional upgrade work.
     return (allowSpawning = true) => {
-      // Find and understand all food
+      if (!allowSpawning) {
+        // Keep the local registry free of dead food while natural spawning is
+        // paused. A full entities census is unnecessary until spawning resumes.
+        food = food.filter((instance) => {
+          if (!instance || !(instance.foodLevel > -1)) return false;
+          if (typeof instance.valid !== "function") return true;
+          try { return instance.valid(); } catch (_) { return false; }
+        });
+        return;
+      }
+
+      // Find and count all food. Use one pass, avoiding map()+filter() full-world
+      // array allocations while the normal spawner is active.
       let census = {
         [0]: 0, // Egg
         [1]: 0, // Square
@@ -23437,36 +23441,32 @@ var maintainloop = (() => {
         [9]: 0, //Nonagon
         sum: 0,
       };
-      // Do the censusNest
-      food = entities
-        .map((instance) => {
-          if (!instance.valid()) {
-            return;
-          }
-          try {
-            if (instance.type === "tank") {
-              census.tank++;
-              c.tankCount = census.tank;
-            } else if (instance.foodLevel > -1) {
-              if (room.isIn("nest", { x: instance.x, y: instance.y })) {
-                censusNest.sum++;
-                censusNest[instance.foodLevel]++;
-              } else {
-                census.sum++;
-                census[instance.foodLevel]++;
-              }
-              return instance;
+      // Do the food census without allocating an intermediate array per entity.
+      const currentFood = [];
+      for (let i = 0; i < entities.length; i++) {
+        const instance = entities[i];
+        if (!instance || typeof instance.valid !== "function" || !instance.valid()) continue;
+        try {
+          if (instance.type === "tank") {
+            census.tank++;
+            c.tankCount = census.tank;
+          } else if (instance.foodLevel > -1) {
+            if (room.isIn("nest", { x: instance.x, y: instance.y })) {
+              censusNest.sum++;
+              censusNest[instance.foodLevel]++;
+            } else {
+              census.sum++;
+              census[instance.foodLevel]++;
             }
-          } catch (err) {
-            util.error(instance.label);
-            util.error(err);
-            instance.kill();
+            currentFood.push(instance);
           }
-        })
-        .filter((e) => {
-          return e;
-        });
-      if (!allowSpawning) return;
+        } catch (err) {
+          util.error(instance.label);
+          util.error(err);
+          instance.kill();
+        }
+      }
+      food = currentFood;
       // Sum it up
       let maxFood = room.maxFood / 7;
       let maxNestFood = room.maxFood / 25;

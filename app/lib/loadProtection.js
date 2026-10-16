@@ -78,6 +78,23 @@ function createLoadProtection(options = {}) {
   // condition below bypasses this delay and activates all mitigation policies.
   const criticalLagPersistenceMs = positiveNumber(env.RANAR_LAG_CRITICAL_DURATION_MS, 15000);
   const cleanupIntervalMs = positiveNumber(env.RANAR_LAG_CLEANUP_INTERVAL_MS, 2500);
+  // Counting all naturally spawned entities every 30 Hz tick added a full-world
+  // scan to the hottest loop. Recount at a bounded cadence; spawn reservations
+  // keep rapid batches from exceeding the cap between completed counts.
+  const naturalPopulationRecountMs = Math.max(
+    100,
+    positiveNumber(env.RANAR_LAG_POPULATION_RECOUNT_MS, 1000)
+  );
+  // Cleanup discovery itself is incremental. Large entity arrays must not be
+  // classified, wrapped, and sorted all at once at the moment lag begins.
+  const cleanupScanBatchSize = Math.max(
+    1,
+    Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_SCAN_BATCH_SIZE, 500))
+  );
+  const entitySelectionScanBatchSize = Math.max(
+    1,
+    Math.floor(positiveNumber(env.RANAR_LOAD_ENTITY_SELECTION_SCAN_BATCH_SIZE, 500))
+  );
   const speedPercentForMs = (milliseconds) => Math.max(
     1,
     Math.min(99.9, (targetCycleIntervalMs / Math.max(targetCycleIntervalMs, milliseconds)) * 100)
@@ -149,6 +166,15 @@ function createLoadProtection(options = {}) {
   let runSpeedLevel = 0;
   let runSpeedRecoveryCycles = 0;
   let lastNoCandidateWarningAt = 0;
+  const suspensionSearch = {
+    active: false,
+    list: null,
+    length: 0,
+    cursor: 0,
+    best: null,
+    bestScore: -1,
+    reason: null,
+  };
   let profileCounter = 0;
   let collisionProfileCounter = 0;
   let candidateStage = 0;
@@ -169,8 +195,8 @@ function createLoadProtection(options = {}) {
   let unknownCleanupLatched = false;
   let unknownCleanupGeneration = 0;
   let unknownCleanupPending = false;
-  // Destructive cleanup is rate-limited by entities destroyed per simulation
-  // cycle. Candidates are collected once per sweep and sorted off-screen first.
+  // Destructive cleanup is rate-limited by entities destroyed per cycle; candidate
+  // discovery is also sliced across cycles and preserves off-screen-first priority.
   const cleanupDestroyBatchSize = Math.max(
     1,
     Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_DESTROY_BATCH_SIZE, 3))
@@ -185,12 +211,22 @@ function createLoadProtection(options = {}) {
   const CLEAN_NATURAL_POPULATION = 2;
   let naturalPopulationBaseline = 0;
   let lastNaturalPopulationCount = 0;
-  let naturalPopulationCacheCycle = -1;
+  let naturalPopulationCacheAt = -Infinity;
   let naturalPopulationCacheSource = null;
+  let naturalPopulationCacheMembers = new WeakSet();
   let naturalPopulationCachedCount = 0;
   let naturalPopulationSpawnReservations = 0;
   const cleanupSweep = {
     active: false,
+    scanning: false,
+    source: null,
+    scanList: null,
+    scanLength: 0,
+    scanCursor: 0,
+    naturalExcess: 0,
+    offscreenCandidates: [],
+    onscreenCandidates: [],
+    unknownCandidates: [],
     candidates: [],
     cursor: 0,
     mode: 0,
@@ -471,32 +507,44 @@ function createLoadProtection(options = {}) {
     return false;
   }
 
-  function isNaturalPopulationEntity(entity) {
-    return !!(
-      entity &&
-      isEntityLive(entity) &&
-      isNaturalSpawnEntity(entity) &&
-      !isTransientEffect(entity) &&
-      !isUnknownEntity(entity) &&
-      !shouldProtectFromNaturalCleanup(entity)
-    );
+  function isNaturalPopulationEntity(entity, alreadyKnownLive = false) {
+    // Most entities are neither natural spawns nor food. Filter them using cheap
+    // flags before calling valid(), and let cleanup scans reuse their live check.
+    if (
+      !entity ||
+      isTransientEffect(entity) ||
+      !isNaturalSpawnEntity(entity) ||
+      isUnknownEntity(entity) ||
+      shouldProtectFromNaturalCleanup(entity)
+    ) return false;
+    return alreadyKnownLive || isEntityLive(entity);
   }
 
-  function countNaturalPopulation(entityList) {
+  function countNaturalPopulation(entityList, members = null) {
     const list = Array.isArray(entityList) ? entityList : getEntities();
     let count = 0;
     for (const entity of list) {
-      if (isNaturalPopulationEntity(entity)) count++;
+      if (isNaturalPopulationEntity(entity)) {
+        count++;
+        if (members) members.add(entity);
+      }
     }
     return count;
   }
 
   function refreshNaturalPopulationCache(entityList) {
     const list = Array.isArray(entityList) ? entityList : getEntities();
-    if (naturalPopulationCacheCycle !== cycleIndex || naturalPopulationCacheSource !== list) {
-      naturalPopulationCacheCycle = cycleIndex;
+    const providedNow = nowProvider();
+    const now = Number.isFinite(providedNow) ? providedNow : 0;
+    const sourceChanged = naturalPopulationCacheSource !== list;
+    const cacheExpired = now - naturalPopulationCacheAt >= naturalPopulationRecountMs;
+
+    if (sourceChanged || cacheExpired || !Number.isFinite(naturalPopulationCacheAt)) {
+      const countedEntities = new WeakSet();
+      naturalPopulationCachedCount = countNaturalPopulation(list, countedEntities);
       naturalPopulationCacheSource = list;
-      naturalPopulationCachedCount = countNaturalPopulation(list);
+      naturalPopulationCacheMembers = countedEntities;
+      naturalPopulationCacheAt = now;
       naturalPopulationSpawnReservations = 0;
     }
     return {
@@ -564,11 +612,11 @@ function createLoadProtection(options = {}) {
       if (typeof entity.destroy === "function") {
         entity.destroy();
         if (
-          wasNatural && naturalPopulationCacheCycle === cycleIndex &&
-          Array.isArray(naturalPopulationCacheSource) &&
-          naturalPopulationCacheSource.includes(entity)
+          wasNatural && Number.isFinite(naturalPopulationCacheAt) &&
+          naturalPopulationCacheMembers.has(entity)
         ) {
           naturalPopulationCachedCount = Math.max(0, naturalPopulationCachedCount - 1);
+          naturalPopulationCacheMembers.delete(entity);
         }
         return true;
       }
@@ -593,43 +641,16 @@ function createLoadProtection(options = {}) {
     return mode;
   }
 
-  function buildCleanupCandidates(entityList, mode, populationState) {
-    const unknownCandidates = [];
-    const offscreenCandidates = [];
-    const onscreenCandidates = [];
-    const list = Array.isArray(entityList) ? entityList : [];
-
-    for (const entity of list) {
-      if (!entity || !isEntityLive(entity) || isTransientEffect(entity)) continue;
-      // A temporarily suspended entity must survive for the existing gradual
-      // restore path; don't permanently destroy it in the natural-population sweep.
-      if (suspendedEntities.has(entity)) continue;
-
-      if ((mode & CLEAN_UNKNOWN) && isUnknownEntity(entity) &&
-          !shouldProtectFromNaturalCleanup(entity)) {
-        unknownCandidates.push({ entity, kind: "unknown", priority: 1 });
-        continue;
-      }
-      if (!(mode & CLEAN_NATURAL_POPULATION) || !isNaturalPopulationEntity(entity)) continue;
-
-      let onScreen = false;
-      try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
-      (onScreen ? onscreenCandidates : offscreenCandidates).push({
-        entity,
-        kind: onScreen ? "natural-onscreen" : "natural-offscreen",
-        priority: onScreen ? 2 : 0,
-      });
-    }
-
-    const excess = Math.max(0, populationState.count - populationState.cap);
-    const naturalCandidates = offscreenCandidates.concat(onscreenCandidates);
-    const selectedNatural = naturalCandidates.slice(0, excess);
-    // Off-screen natural entities are first choice, unknown/malformed classes
-    // are also cleaned when their one-time policy is active, and visible natural
-    // entities are only reached after off-screen candidates.
-    return selectedNatural
-      .concat(unknownCandidates)
-      .sort((a, b) => a.priority - b.priority);
+  function clearCleanupScanState() {
+    cleanupSweep.scanning = false;
+    cleanupSweep.source = null;
+    cleanupSweep.scanList = null;
+    cleanupSweep.scanLength = 0;
+    cleanupSweep.scanCursor = 0;
+    cleanupSweep.naturalExcess = 0;
+    cleanupSweep.offscreenCandidates = [];
+    cleanupSweep.onscreenCandidates = [];
+    cleanupSweep.unknownCandidates = [];
   }
 
   function finishCleanupSweep(now) {
@@ -646,35 +667,118 @@ function createLoadProtection(options = {}) {
         cycleMs: lastCycleMs,
       });
     }
-    cleanupSweep.lastCompletedMode = cleanupSweep.mode;
-    if ((cleanupSweep.mode & CLEAN_UNKNOWN) && cleanupSweep.unknownGeneration === unknownCleanupGeneration) {
+    counts.lastCompletedMode = counts.mode;
+    if ((counts.mode & CLEAN_UNKNOWN) && counts.unknownGeneration === unknownCleanupGeneration) {
+      // Also clear the one-shot request when a completed scan found no Unknown
+      // entities. Previously this stayed latched and rebuilt an empty full-world
+      // candidate list every simulation tick, causing a sustained CPU spike.
       unknownCleanupPending = false;
     }
-    cleanupSweep.active = false;
-    cleanupSweep.candidates = [];
-    cleanupSweep.cursor = 0;
-    cleanupSweep.mode = 0;
-    cleanupSweep.nextSweepAt = now + cleanupIntervalMs;
-    cleanupSweep.destroyedUnknown = 0;
-    cleanupSweep.destroyedOffscreen = 0;
-    cleanupSweep.destroyedOnscreen = 0;
+    counts.active = false;
+    counts.candidates = [];
+    counts.cursor = 0;
+    counts.mode = 0;
+    clearCleanupScanState();
+    counts.nextSweepAt = now + cleanupIntervalMs;
+    counts.destroyedUnknown = 0;
+    counts.destroyedOffscreen = 0;
+    counts.destroyedOnscreen = 0;
   }
 
   function startCleanupSweep(list, mode, populationState, now) {
     cleanupSweep.mode = mode;
     cleanupSweep.unknownGeneration = unknownCleanupGeneration;
     cleanupSweep.populationCap = populationState.cap;
-    cleanupSweep.candidates = buildCleanupCandidates(list, mode, populationState);
+    cleanupSweep.source = list;
+    cleanupSweep.scanList = list;
+    cleanupSweep.scanLength = list.length;
+    cleanupSweep.scanCursor = 0;
+    cleanupSweep.naturalExcess = (mode & CLEAN_NATURAL_POPULATION)
+      ? Math.max(0, Math.floor(populationState.count - populationState.cap))
+      : 0;
+    cleanupSweep.offscreenCandidates = [];
+    cleanupSweep.onscreenCandidates = [];
+    cleanupSweep.unknownCandidates = [];
+    cleanupSweep.candidates = [];
     cleanupSweep.cursor = 0;
     cleanupSweep.destroyedUnknown = 0;
     cleanupSweep.destroyedOffscreen = 0;
     cleanupSweep.destroyedOnscreen = 0;
-    cleanupSweep.active = cleanupSweep.candidates.length > 0;
+    cleanupSweep.scanning = true;
+    cleanupSweep.active = true;
+    cleanupSweep.nextSweepAt = now + cleanupIntervalMs;
+  }
 
-    if (!cleanupSweep.active) {
-      cleanupSweep.lastCompletedMode = mode;
-      cleanupSweep.nextSweepAt = now + cleanupIntervalMs;
+  function scanCleanupCandidatesBatch() {
+    const list = cleanupSweep.scanList;
+    const stopAt = cleanupSweep.scanLength;
+    const mode = cleanupSweep.mode;
+    const naturalExcess = cleanupSweep.naturalExcess;
+    let scanned = 0;
+
+    while (cleanupSweep.scanCursor < stopAt && scanned < cleanupScanBatchSize) {
+      const entity = list[cleanupSweep.scanCursor++];
+      scanned++;
+      if (!entity || isTransientEffect(entity) || !isEntityLive(entity)) continue;
+      // A temporarily suspended entity must survive for the existing gradual
+      // restore path; don't permanently destroy it in the natural-population sweep.
+      if (suspendedEntities.has(entity)) continue;
+
+      if ((mode & CLEAN_UNKNOWN) && isUnknownEntity(entity) &&
+          !shouldProtectFromNaturalCleanup(entity)) {
+        cleanupSweep.unknownCandidates.push(entity);
+        continue;
+      }
+      if (!(mode & CLEAN_NATURAL_POPULATION) || naturalExcess <= 0 ||
+          !isNaturalPopulationEntity(entity, true)) continue;
+
+      // If enough off-screen entities have already been found, no further
+      // visibility tests or on-screen candidate storage are necessary.
+      if (cleanupSweep.offscreenCandidates.length >= naturalExcess) {
+        if (cleanupSweep.onscreenCandidates.length) cleanupSweep.onscreenCandidates.length = 0;
+        continue;
+      }
+
+      let onScreen = false;
+      try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
+      if (onScreen) {
+        if (cleanupSweep.onscreenCandidates.length < naturalExcess) {
+          cleanupSweep.onscreenCandidates.push(entity);
+        }
+      } else {
+        cleanupSweep.offscreenCandidates.push(entity);
+        if (cleanupSweep.offscreenCandidates.length >= naturalExcess) {
+          // Do not retain fallback visible candidates once the off-screen quota
+          // is satisfied. This bounds the temporary candidate memory.
+          cleanupSweep.onscreenCandidates.length = 0;
+        }
+      }
     }
+
+    if (cleanupSweep.scanCursor < stopAt) return false;
+
+    const candidates = [];
+    let remainingNatural = naturalExcess;
+    for (const entity of cleanupSweep.offscreenCandidates) {
+      if (remainingNatural-- <= 0) break;
+      candidates.push({ entity, kind: "natural-offscreen", priority: 0 });
+    }
+    for (const entity of cleanupSweep.unknownCandidates) {
+      candidates.push({ entity, kind: "unknown", priority: 1 });
+    }
+    for (const entity of cleanupSweep.onscreenCandidates) {
+      if (remainingNatural-- <= 0) break;
+      candidates.push({ entity, kind: "natural-onscreen", priority: 2 });
+    }
+
+    cleanupSweep.candidates = candidates;
+    cleanupSweep.cursor = 0;
+    // Keep the source reference until candidate processing completes; otherwise
+    // source-change detection would restart the same sweep on the next tick.
+    const completedSource = cleanupSweep.scanList;
+    clearCleanupScanState();
+    cleanupSweep.source = completedSource;
+    return true;
   }
 
   function processCleanupSweep(entityList, now = nowProvider()) {
@@ -688,13 +792,15 @@ function createLoadProtection(options = {}) {
       cleanupSweep.cursor = 0;
       cleanupSweep.mode = 0;
       cleanupSweep.populationCap = populationState.cap;
+      clearCleanupScanState();
       return;
     }
 
     const capChanged = cleanupSweep.populationCap !== populationState.cap;
-    if (cleanupSweep.active && (cleanupSweep.mode !== requestedMode || capChanged)) {
-      // Rebuild when severity changes, but keep candidate discovery out of the
-      // per-entity hot path and preserve the per-cycle destruction quota.
+    const sourceChanged = cleanupSweep.active && cleanupSweep.source !== list;
+    if (cleanupSweep.active && (
+      cleanupSweep.mode !== requestedMode || capChanged || sourceChanged
+    )) {
       startCleanupSweep(list, requestedMode, populationState, now);
     } else if (!cleanupSweep.active && (
       (requestedMode & CLEAN_UNKNOWN) !== 0 ||
@@ -706,6 +812,15 @@ function createLoadProtection(options = {}) {
     }
 
     if (!cleanupSweep.active) return;
+
+    if (cleanupSweep.scanning) {
+      const scanComplete = scanCleanupCandidatesBatch();
+      if (!scanComplete) return;
+      if (cleanupSweep.candidates.length === 0) {
+        finishCleanupSweep(now);
+        return;
+      }
+    }
 
     let destroyedThisCycle = 0;
     while (
@@ -928,12 +1043,33 @@ function createLoadProtection(options = {}) {
     return entity;
   }
 
-  function suspendNextEntity(entityList, reason) {
-    const list = Array.isArray(entityList) ? entityList : [];
-    let best = null;
-    let bestScore = -1;
-    for (let i = 0; i < list.length; i++) {
-      const entity = list[i];
+  function resetSuspensionSearch() {
+    suspensionSearch.active = false;
+    suspensionSearch.list = null;
+    suspensionSearch.length = 0;
+    suspensionSearch.cursor = 0;
+    suspensionSearch.best = null;
+    suspensionSearch.bestScore = -1;
+    suspensionSearch.reason = null;
+  }
+
+  function advanceSuspensionSearch(entityList, reason) {
+    const list = Array.isArray(entityList) ? entityList : getEntities();
+    if (!suspensionSearch.active || suspensionSearch.list !== list) {
+      resetSuspensionSearch();
+      suspensionSearch.active = true;
+      suspensionSearch.list = list;
+      suspensionSearch.length = list.length;
+      suspensionSearch.reason = reason;
+    }
+
+    let scanned = 0;
+    while (
+      suspensionSearch.cursor < suspensionSearch.length &&
+      scanned < entitySelectionScanBatchSize
+    ) {
+      const entity = list[suspensionSearch.cursor++];
+      scanned++;
       if (!entity || isDisabledOrRespawning(entity) || suspendedEntities.has(entity) || shouldKeepEntity(entity)) continue;
       if (!isEntityLive(entity)) continue;
       if (typeof entity.isDead === "function") {
@@ -942,11 +1078,19 @@ function createLoadProtection(options = {}) {
         if (dead) continue;
       }
       const score = entityCostScore(entity);
-      if (score > bestScore) {
-        best = entity;
-        bestScore = score;
+      if (score > suspensionSearch.bestScore) {
+        suspensionSearch.best = entity;
+        suspensionSearch.bestScore = score;
       }
     }
+
+    if (suspensionSearch.cursor < suspensionSearch.length) return false;
+
+    const best = suspensionSearch.best;
+    const bestScore = suspensionSearch.bestScore;
+    const searchReason = suspensionSearch.reason || reason;
+    resetSuspensionSearch();
+
     if (!best) {
       const now = Date.now();
       if (now - lastNoCandidateWarningAt > 10000) {
@@ -956,9 +1100,17 @@ function createLoadProtection(options = {}) {
           cycleMs: lastCycleMs,
         });
       }
-      return null;
+      return true;
     }
-    return suspendEntity(best, reason, "critical", bestScore);
+
+    suspendEntity(best, searchReason, "critical", bestScore);
+    return true;
+  }
+
+  function suspendNextEntity(entityList, reason) {
+    // Starts a selection scan and processes only one bounded slice. While it is
+    // active, handleCriticalLag advances the scan on following cycles.
+    return advanceSuspensionSearch(entityList, reason);
   }
 
 
@@ -1070,7 +1222,8 @@ function createLoadProtection(options = {}) {
 
     if (!forceImmediate && lastObservedRunSpeedPercent > speedThresholds.critical) {
       // Resume managed entities when throughput has recovered and no emergency
-      // condition remains. Spawn/cleanup policies recover on their own hysteresis.
+      // condition remains. Do not keep scanning a stale selection list off-load.
+      resetSuspensionSearch();
       criticalLagSince = null;
       if (suspensionLockout) {
         suspensionLockout = false;
@@ -1111,14 +1264,12 @@ function createLoadProtection(options = {}) {
         // Existing suspended entities have resumed fading out; wait before
         // selecting another so the response remains one-at-a-time.
         lastEntitySuspensionAt = now;
-      } else {
-        suspendNextEntity(entityList || getEntities(), reason);
-        lastEntitySuspensionAt = now;
       }
     }
 
     const episodeElapsed = Math.max(0, now - suspensionEpisodeStartedAt);
     if (episodeElapsed >= suspensionWindowMs) {
+      resetSuspensionSearch();
       restoreSuspendedEntities(
         "server run speed stayed at or below " + Math.round(speedThresholds.critical) + "% of target for " + Math.round(suspensionWindowMs / 1000) + " seconds",
         "critical"
@@ -1136,14 +1287,19 @@ function createLoadProtection(options = {}) {
       return;
     }
 
-    if (
+    const candidates = entityList || getEntities();
+    if (suspensionSearch.active) {
+      // Continue an expensive entity-selection scan in small slices instead of
+      // synchronously scoring every world entity during an already-lagged tick.
+      if (suspendNextEntity(candidates, reason)) lastEntitySuspensionAt = now;
+    } else if (
       lastEntitySuspensionAt === null ||
       now - lastEntitySuspensionAt >= suspensionIntervalMs
     ) {
-      suspendNextEntity(entityList || getEntities(), reason);
       // Rate-limit attempts as well as successful suspensions when every
-      // remaining candidate is KEEP-protected.
+      // remaining candidate is KEEP-protected. Large worlds continue next tick.
       lastEntitySuspensionAt = now;
+      suspendNextEntity(candidates, reason);
     }
   }
 

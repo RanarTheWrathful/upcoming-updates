@@ -43221,6 +43221,7 @@ exports.mechanisthand1 = {
         TYPE: exports.hyperMissile,
         STAT_CALCULATOR: gunCalcNames.sustained,
       },
+    },
     {
       POSITION: [17, 16, 1, 0, 0, 0, 0],
     },
@@ -43229,7 +43230,6 @@ exports.mechanisthand1 = {
     },
     {
       POSITION: [17, 11, 1, 0, 0, 0, 0],
-    },
     },
   ],
   TURRETS: [
