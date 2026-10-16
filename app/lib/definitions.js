@@ -3593,7 +3593,6 @@ exports.trap = {
   SHAPE: -3,
   MOTION_TYPE: "glide", // def
   FACING_TYPE: "turnWithSpeed",
-  SPECIAL_EFFECT: "push",
   HITS_OWN_TYPE: "repel",
   DIE_AT_RANGE: true,
   BODY: {
@@ -3637,7 +3636,6 @@ exports.healTrap = {
   SHAPE: -3,
   MOTION_TYPE: "glide", // def
   FACING_TYPE: "turnWithSpeed",
-  SPECIAL_EFFECT: "push",
   HEAL_EFFECT: true,
   HITS_OWN_TYPE: "repel",
   DIE_AT_RANGE: true,
@@ -4244,9 +4242,19 @@ exports.creationrifle = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [20, 4.5, 1, 0, 3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [20, 4.5, 1, 0, -3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [24, 7, 1, 0, 0, 0, 0],
@@ -29795,11 +29803,20 @@ exports.rifle = {
   },
   GUNS: [
     {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [20, 4.5, 1, 0, 3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [20, 4.5, 1, 0, -3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [24, 7, 1, 0, 0, 0, 0],
@@ -29822,9 +29839,19 @@ exports.attack = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [20, 6, 1, 0, 6, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [20, 6, 1, 0, -6, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [24, 12, 1, 0, 0, 0, 0],
@@ -29847,9 +29874,19 @@ exports.musket = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [16, 8, 1, 0, 5.5, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [16, 8, 1, 0, -5.5, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [18, 7, 1, 0, 4, 0, 0],
@@ -39832,9 +39869,19 @@ exports.woodpecker = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [16, 9.5, 1, 0, 0, -90, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [16, 9.5, 1, 0, 0, 90, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [18, 7, 1, 0, 0, -90, 0],
@@ -52834,9 +52881,19 @@ exports.zombieRifle = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [20, 4.5, 1, 0, 3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [20, 4.5, 1, 0, -3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [24, 7, 1, 0, 0, 0, 0],
