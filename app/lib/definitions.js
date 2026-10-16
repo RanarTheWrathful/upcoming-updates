@@ -84860,42 +84860,6 @@ exports.contraption = {
       POSITION: [10, 0, 0, 180, 360, 1],
       TYPE: exports.autoTurret,
     },
-    {
-      POSITION: [18, 0, 0, -90, 200, 0],
-      TYPE: [
-        exports.mega3Turret,
-        { AI_TARGET: "projectiles", INDEPENDENT: true },
-      ],
-    },
-    {
-      POSITION: [18, 0, 0, 90, 200, 0],
-      TYPE: [
-        exports.mega3Turret,
-        { AI_TARGET: "projectiles", INDEPENDENT: true },
-      ],
-    },
-    {
-      POSITION: [10, 0, 0, 180, 360, 1],
-      TYPE: exports.autoTurret,
-    },
-    {
-      POSITION: [18, 0, 0, -90, 200, 0],
-      TYPE: [
-        exports.mega3Turret,
-        { AI_TARGET: "projectiles", INDEPENDENT: true },
-      ],
-    },
-    {
-      POSITION: [18, 0, 0, 90, 200, 0],
-      TYPE: [
-        exports.mega3Turret,
-        { AI_TARGET: "projectiles", INDEPENDENT: true },
-      ],
-    },
-    {
-      POSITION: [10, 0, 0, 180, 360, 1],
-      TYPE: exports.autoTurret,
-    },
   ],
   GUNS: [
     {
