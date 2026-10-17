@@ -6421,7 +6421,10 @@ class Entity {
           case "Reaper":
             this.sendMessage("You: (Time to corrupt some souls!)");
             break;
-          case "Embodiment of Destruction":
+          case "Hollow":
+            this.sendMessage("You: (Hunting season has begun.)");
+            break;
+          case "Terror":
             this.sendMessage("You: (Time to harvest some barrels.)");
             break;
         }
@@ -12643,6 +12646,18 @@ class Entity {
         }
       }
       if (this.team === -4 || c.MODE === "siege") {
+        switch (this.laber) {
+          case "Poltergeist":
+          case "Revenant":
+          case "Shade":
+          case "Skulker":
+            this.sendMessage(
+              "You have unlocked the legendary class, Hollow. Press '~' to become it!"
+            );
+            break;
+        }
+      }
+      if (this.team === -4 || c.MODE === "siege") {
         switch (this.label) {
           case "Master":
           case "Hexanomaly":
@@ -16977,7 +16992,7 @@ const sockets = (() => {
                       if (
                         player.body.label === "Auto-5" ||
                         player.body.label === "Hardshell Spawner" ||
-                        player.body.label === "Skimmer"
+                        player.body.label === "Hyper Skimmer"
                       ) {
                         player.body.upgrades = [];
 
@@ -17065,6 +17080,32 @@ const sockets = (() => {
                             ". Be afraid, VERY AFRAID!"
                         );
                         player.body.define(Class.reaper);
+                        player.body.maxChildren = 0;
+                        player.body.intangibility = false;
+                        player.body.invisible = [100, 0];
+                        player.body.alpha = 100;
+                        player.body.ignoreCollision = false;
+                        player.body.skill.setCaps([
+                          9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+                        ]);
+
+                        player.body.skill.points += 10;
+                      }
+                    }
+
+                    if (player.body.team === -4 || c.MODE === "siege") {
+                      if (
+                        player.body.label === "Poltergeist" ||
+                        player.body.label === "Revenant" ||
+                        player.body.label === "Skulker" ||
+                        player.body.label === "Shade"
+                      ) {
+                        player.body.upgrades = [];
+                        sockets.broadcast(
+                            dude +
+                            " Has started haunting the server. Watch your step. Trust nothing."
+                        );
+                        player.body.define(Class.hollow);
                         player.body.maxChildren = 0;
                         player.body.intangibility = false;
                         player.body.invisible = [100, 0];

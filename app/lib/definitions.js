@@ -5443,7 +5443,7 @@ exports.mechanistTurret = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [22, 10, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.flank, g.auto, g.pound, g.destroy, g.doubleDensity, g.doubleDensity, g.doubleSpeed, g.doubleSpeed, g.lesserReload, g.doubleDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.flank, g.auto, g.pound, g.destroy, g.doubleDensity, g.doubleDensity, g.doubleSpeed, g.doubleSpeed, g.halfReload, g.doubleDamage,]),
         TYPE: exports.bullet,
       },
     },
@@ -30565,6 +30565,78 @@ exports.quadbuilder = makeMulti(
   "Quad-Builder"
 );
 
+exports.quadengi = makeMulti(
+  {
+    PARENT: [exports.genericTank],
+    DANGER: 7,
+    STAT_NAMES: statnames.trap,
+    BODY: {
+      SPEED: base.SPEED * 0.8,
+      FOV: base.FOV * 1.15,
+    },
+    GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [5, 11, 1, 10.5, 0, 0, 0],
+    },
+    {
+      POSITION: [3, 14, 1, 15.5, 0, 0, 0],
+    },
+    {
+      POSITION: [2, 14, 1.3, 18, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.trap,
+          g.block,
+          g.greaterHealth,
+          g.greaterReload
+        ]),
+        TYPE: exports.bosspillbox,
+        SYNCS_SKILLS: true,
+      },
+    },
+    {
+      POSITION: [4, 14, 1, 8, 0, 0, 0],
+    },
+    ],
+  },
+  4,
+  "Quad-Engineer"
+);
+
+exports.quadtwinengi = makeMulti(
+  {
+    PARENT: [exports.genericTank],
+    DANGER: 7,
+    STAT_NAMES: statnames.trap,
+    BODY: {
+      SPEED: base.SPEED * 0.8,
+      FOV: base.FOV * 1.15,
+    },
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [18, 12, 1, 0, 0, 0, 0],
+      },
+    {
+  POSITION: [18, 8, 1, 0, 0, 0, 0],
+  PROPERTIES: {
+    SHOOT_SETTINGS: combineStats([g.basic]),
+    TYPE: exports.Missile,
+      },
+    },
+      {
+        POSITION: [2, 12, 1.1, 18, 0, 0, 0],
+        PROPERTIES: {
+          SHOOT_SETTINGS: combineStats([g.trap, g.block, g.halfRange,]),
+          TYPE: exports.tankpillboxTwin,
+        },
+      },
+    ],
+  },
+  4,
+  "Quad-Twin-Engineer"
+);
 exports.overtrap = {
   PARENT: [exports.genericTank],
   LABEL: "Overtrapper",
@@ -41658,7 +41730,7 @@ exports.infestor = makeMulti(
   "Infestor"
 );
 exports.eggento = {
-    LABEL: "???",
+    LABEL: "Begulier",
     PARENT: [exports.genericTank],
     DANGER: 7,
     STAT_NAMES: statnames.necro,
@@ -41892,7 +41964,7 @@ exports.exorcist = makeMulti(
 );
 exports.pentaento = 
   {
-    LABEL: "???",
+    LABEL: "Exorciser",
     PARENT: [exports.genericTank],
     DANGER: 7,
     STAT_NAMES: statnames.necro,
@@ -42141,7 +42213,7 @@ exports.hexaento =
   {
     PARENT: [exports.genericTank],
     DANGER: 7,
-    LABEL: "???",
+    LABEL: "Worshipper",
     STAT_NAMES: statnames.necro,
     BODY: {
       ACCELERATION: base.ACCEL * 0.7,
@@ -42312,7 +42384,7 @@ exports.triento =
   {
     PARENT: [exports.genericTank],
     DANGER: 7,
-    LABEL: "???",
+    LABEL: "Bewitcher",
     STAT_NAMES: statnames.necro,
     BODY: {
       ACCELERATION: base.ACCEL * 0.7,
@@ -43272,6 +43344,7 @@ exports.mechanisthand1 = {
           g.missile, 
           g.doubleReload,
           g.mediumReload,
+          g.lesserReload,
           g.greaterPenetration,
           g.bitmoreSpeed
         ]),
@@ -44835,7 +44908,7 @@ exports.hollow = {
   BODY: {
     SPEED: base.SPEED * 1.75,
     HEALTH: base.HEALTH * 0.85,
-    DAMAGE: base.DAMAGE * 1.3,
+    DAMAGE: base.DAMAGE * 1,
     SHIELD: base.SHIELD * 1.52,
     REGEN: base.REGEN * 2,
   },
@@ -95778,8 +95851,8 @@ exports.pen.UPGRADES_TIER_4 = [
 exports.underpen.UPGRADES_TIER_6 = [exports.eggpen, exports.quadpen, exports.tripen, exports.pentapen, exports.hexapen,]
 exports.outpost.UPGRADES_TIER_5 = [exports.watchtower, exports.rampart]
 exports.watchtower.UPGRADES_TIER_6 = [exports.beacon]
-exports.beacon.UPGRADES_TIER_7 = [exports.lighthouse]
-exports.rampart.UPGRADES_TIER_7 = [exports.lighthouse]
+//exports.beacon.UPGRADES_TIER_7 = [exports.lighthouse]
+//exports.rampart.UPGRADES_TIER_7 = [exports.lighthouse]
 exports.quill.UPGRADES_TIER_5 = [
   exports.trident,
   exports.inkfountain,
@@ -95902,6 +95975,8 @@ exports.kristanks3.UPGRADES_TIER_1 = [
   exports.testersphere,
   exports.mechanisthandtest,
   exports.mechanistringtest,
+  exports.quadengi,
+  exports.quadtwinengi,
   exports.kristanks4,
 ];
 exports.krisbosses1.UPGRADES_TIER_1 = [
@@ -96993,7 +97068,8 @@ exports.knight.UPGRADES_TIER_3 = [exports.warrior];
 exports.battery.UPGRADES_TIER_2 = [exports.generator];
 exports.generator.UPGRADES_TIER_3 = [exports.reactor];
 exports.overtrap.UPGRADES_TIER_5 = [exports.lordtrap];
-exports.quadbuilder.UPGRADES_TIER_5 = [exports.hexabuilder];
+exports.quadbuilder.UPGRADES_TIER_5 = [exports.hexabuilder, exports.quadengi];
+exports.quadengi.UPGRADES_TIER_6 = [exports.quadtwinengi]
 exports.hexabuilder.UPGRADES_TIER_7 = [exports.octobuilder];
 exports.basic.UPGRADES_TIER_1 = [
   exports.twin,
@@ -97568,7 +97644,7 @@ exports.autobuilder.UPGRADES_TIER_4 = [exports.autoconstructer];
 exports.constructer.UPGRADES_TIER_4 = [exports.autoconstructer];
 exports.autoconstructer.UPGRADES_TIER_5 = [exports.roadblock];
 exports.boomer.UPGRADES_TIER_5 = [exports.rebounder];
-exports.engineer.UPGRADES_TIER_5 = [exports.Originator];
+exports.engineer.UPGRADES_TIER_5 = [exports.Originator, exports.quadengi];
 exports.constructer.UPGRADES_TIER_5 = [exports.constructionist];
 exports.architect.UPGRADES_TIER_4 = [
   exports.autoArchitect,
