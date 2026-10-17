@@ -29484,6 +29484,56 @@ exports.bulwark = {
     },
   ],
 };
+
+exports.bulwarkThrasher = {
+  PARENT: [exports.genericTank],
+  DANGER: 7,
+  LABEL: "Thrasher",
+  BODY: {
+    DAMAGE: base.DAMAGE * 1.1,
+    ACCEL: base.ACCEL * 0.8,
+  },
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [25, 8, 1, 0, 5.5, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.sniper]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [25, 8, 1, 0, -5.5, 0, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.sniper]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [15, 8, 1, 0, 5.5, 185, 0],
+    },
+    {
+      POSITION: [3, 8, 1.7, 14, 5.5, 185, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.trap]),
+        TYPE: exports.trap,
+        STAT_CALCULATOR: gunCalcNames.trap,
+      },
+    },
+
+    {
+      POSITION: [15, 8, 1, 0, -5.5, 175, 0.5],
+    },
+    {
+      POSITION: [3, 8, 1.7, 14, -5.5, 175, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.trap]),
+        TYPE: exports.trap,
+        STAT_CALCULATOR: gunCalcNames.trap,
+      },
+    },
+  ],
+};
 exports.triwark = {
   PARENT: [exports.genericTank],
   DANGER: 7,
@@ -97259,6 +97309,7 @@ exports.bulwark.UPGRADES_TIER_4 = [
   exports.bentBulwark,
   exports.hewnBulwark,
   exports.frontier,
+  exports.bulwarkThrasher
 ];
 exports.bent.UPGRADES_TIER_3 = [
   exports.penta,
