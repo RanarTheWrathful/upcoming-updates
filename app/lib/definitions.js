@@ -4094,6 +4094,9 @@ exports.autoTurret = {
           g.gunner,
           g.power,
           g.greaterStats,
+          g.superReload,
+          g.superReload,
+          g.superReload,
         ]),
         TYPE: exports.bullet,
       },
@@ -29870,7 +29873,7 @@ exports.shooter = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [24, 12, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.lesserStats]),
         TYPE: exports.bullet,
       },
     },
@@ -29938,7 +29941,7 @@ exports.attack = {
     {
       POSITION: [24, 12, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.rifle]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.lesserStats]),
         TYPE: exports.bullet,
       },
     },
@@ -30151,7 +30154,7 @@ exports.infiltrate = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [24, 10, -2, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.sniper, g.halfRecoil]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfRecoil, g.lesserStats]),
         TYPE: exports.bullet,
       },
     },
@@ -33592,6 +33595,7 @@ exports.megagun = {
           g.mini,
           g.pound,
           g.lesserDamage,
+          g.greaterHealth,
         ]),
         TYPE: exports.bullet,
       },
@@ -33604,6 +33608,7 @@ exports.megagun = {
           g.mini,
           g.pound,
           g.lesserDamage,
+          g.greaterHealth,
         ]),
         TYPE: exports.bullet,
       },
@@ -33616,6 +33621,7 @@ exports.megagun = {
           g.mini,
           g.pound,
           g.lesserDamage,
+          g.greaterHealth,
         ]),
         TYPE: exports.bullet,
       },
