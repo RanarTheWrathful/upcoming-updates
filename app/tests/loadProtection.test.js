@@ -220,11 +220,89 @@ function makeProtection(overrides = {}) {
   test.protection.reportCycle(260, all);
   assert.strictEqual(candidate._loadDisabled, true, "emergency should suspend an eligible entity immediately");
   assert.strictEqual(unknown.destroyed, true, "emergency should trigger unknown-entity cleanup immediately");
-  assert.strictEqual(projectile.destroyed, false, "lag cleanup must leave transient lifetime decisions to the visibility-aware timer");
-  assert.strictEqual(aura.destroyed, false, "lag cleanup must not destroy auras directly");
-  assert.strictEqual(naturalBot.destroyed, true, "naturally spawned bots are eligible when the population exceeds the cap");
-  assert.strictEqual(offscreenFood.destroyed, true, "off-screen natural entities should be cleaned first");
-  assert.strictEqual(onscreenFood.destroyed, false, "on-screen natural entities should be spared while enough off-screen entities can satisfy the cap");
+  assert.strictEqual(projectile.destroyed, true, "severe lag should immediately cull confirmed off-screen projectiles");
+  assert.strictEqual(aura.destroyed, true, "severe lag should cull confirmed off-screen transient auras");
+  assert.strictEqual(naturalBot.destroyed, true, "severe lag should cull off-screen naturally spawned enemies even when under the population cap");
+  assert.strictEqual(offscreenFood.destroyed, true, "severe lag should cull off-screen food");
+  assert.strictEqual(onscreenFood.destroyed, false, "severe-lag cleanup must spare on-screen natural entities");
+}
+
+
+
+// Severe-lag cleanup removes every confirmed off-screen respawnable entity, but protects
+// visible, uniquely spawned, bonded, boss, wall, and indeterminate-visibility entities.
+{
+  const makeEntity = (overrides = {}) => Object.assign({
+    type: "tank", label: "Entity", name: "Entity", alpha: 1, size: 10,
+    health: { amount: 100, max: 100 }, alive: true, destroyed: false,
+    valid() { return this.alive; }, isDead() { return false; },
+    destroy() { this.destroyed = true; this.alive = false; },
+  }, overrides);
+  const offscreenEnemy = makeEntity({ _loadProtectionNaturalSpawn: true, visibility: false });
+  const offscreenFood = makeEntity({ type: "food", foodLevel: 1, visibility: false });
+  const offscreenFoodNoLevel = makeEntity({ type: "food", visibility: false });
+  const offscreenProjectile = makeEntity({ type: "bullet", isProjectile: true, visibility: false });
+  const visibleEnemy = makeEntity({ _loadProtectionNaturalSpawn: true, visibility: true });
+  const visibleFood = makeEntity({ type: "food", foodLevel: 0, visibility: true });
+  const indeterminateFood = makeEntity({ type: "food", foodLevel: 1, visibility: null });
+  const protectedBoss = makeEntity({ _loadProtectionNaturalSpawn: true, isBoss: true, visibility: false });
+  const protectedWall = makeEntity({ _loadProtectionNaturalSpawn: true, type: "wall", isWall: true, visibility: false });
+  const protectedSpecial = makeEntity({ _loadProtectionNaturalSpawn: true, _loadProtectionSpecialSpawn: true, visibility: false });
+  const boundEntity = makeEntity({ _loadProtectionNaturalSpawn: true, bond: {}, visibility: false });
+  const unrelatedEntity = makeEntity({ visibility: false });
+  const all = [
+    offscreenEnemy, offscreenFood, offscreenFoodNoLevel, offscreenProjectile,
+    visibleEnemy, visibleFood, indeterminateFood, protectedBoss, protectedWall,
+    protectedSpecial, boundEntity, unrelatedEntity,
+  ];
+  const test = makeProtection({
+    env: { RANAR_LAG_CLEANUP_EMERGENCY_DESTROY_BATCH_SIZE: "100" },
+    options: { isEntityVisibleToAnyClient: (entity) => entity.visibility },
+  });
+
+  test.protection.reportCycle(260, all, 0);
+
+  for (const entity of [offscreenEnemy, offscreenFood, offscreenFoodNoLevel, offscreenProjectile]) {
+    assert.strictEqual(entity.destroyed, true, (entity.label || entity.type) + " should be destroyed when confirmed off-screen during severe lag");
+  }
+  for (const entity of [visibleEnemy, visibleFood, indeterminateFood, protectedBoss, protectedWall, protectedSpecial, boundEntity, unrelatedEntity]) {
+    assert.strictEqual(entity.destroyed, false, (entity.label || entity.type) + " should survive severe cleanup");
+  }
+}
+
+// An emergency scan finishes in bounded batches after a one-cycle spike clears,
+// and visibility is checked again immediately before an entity is destroyed.
+{
+  const makeEntity = (overrides = {}) => Object.assign({
+    type: "tank", label: "Entity", name: "Entity", alpha: 1, size: 10,
+    health: { amount: 100, max: 100 }, alive: true, destroyed: false,
+    valid() { return this.alive; }, isDead() { return false; },
+    destroy() { this.destroyed = true; this.alive = false; },
+  }, overrides);
+  const projectile = makeEntity({ type: "bullet", isProjectile: true, visibility: false });
+  const food = makeEntity({ type: "food", foodLevel: 1, visibility: false });
+  const enemy = makeEntity({ _loadProtectionNaturalSpawn: true, visibility: false });
+  const all = [projectile, food, enemy];
+  const test = makeProtection({
+    env: {
+      RANAR_LAG_CLEANUP_SCAN_BATCH_SIZE: "1",
+      RANAR_LAG_CLEANUP_EMERGENCY_DESTROY_BATCH_SIZE: "1",
+    },
+    options: { isEntityVisibleToAnyClient: (entity) => entity.visibility },
+  });
+
+  test.protection.reportCycle(260, all, 0);
+  assert.strictEqual(projectile.destroyed, false, "the initial scan only examines its bounded batch");
+  projectile.visibility = true;
+  let now = 260;
+  for (let i = 0; i < 8; i++) {
+    now += 33;
+    test.setNow(now);
+    test.protection.reportCycle(5, all, now - 33);
+  }
+  assert.strictEqual(projectile.destroyed, false, "an entity that enters view during the scan must not be culled");
+  assert.strictEqual(food.destroyed, true, "the pending cleanup should continue after the original lag spike clears");
+  assert.strictEqual(enemy.destroyed, true, "the pending cleanup should finish the remaining off-screen candidates");
 }
 
 // Critical memory pressure can also force all protocols without waiting for the lag timer.

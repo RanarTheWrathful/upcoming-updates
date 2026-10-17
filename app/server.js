@@ -7519,7 +7519,7 @@ class Entity {
             this.define(Class.infestationLegendaryClasses);
             break;
           case "theDenied":
-            this.define(Class.currentLegendaryClasses);
+            this.define(Class.deniedLegendaryClasses);
             if (this.skill.score < 1000000) this.skill.score = 1000000;
             break;
         }
@@ -15540,6 +15540,9 @@ const offscreenTransientCleanup = createOffscreenTransientCleanup({
 const loadProtection = createLoadProtection({
   targetCycleIntervalMs: room.cycleSpeed,
   getEntities: () => entities,
+  isEntityVisibleToAnyClient(entity) {
+    return isEntityVisibleToAnyClient(entity, views);
+  },
   isEntityOnScreen(entity) {
     if (!entity) return false;
     // Runs only during sustained-lag cleanup, not in the per-entity hot path.

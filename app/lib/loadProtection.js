@@ -50,6 +50,11 @@ function createLoadProtection(options = {}) {
   const sampleProvider = options.sampleProvider || null;
   const getEntities = options.getEntities || (() => []);
   const isEntityOnScreen = options.isEntityOnScreen || (() => false);
+  const hasVisibilityCallback = typeof options.isEntityVisibleToAnyClient === "function" ||
+    typeof options.isEntityOnScreen === "function";
+  // Emergency destructive cleanup needs a tri-state visibility answer. A null
+  // result means the renderer cannot safely prove that an entity is off-screen.
+  const getEntityVisibility = options.isEntityVisibleToAnyClient || null;
   const onEntityChange = options.onEntityChange || (() => {});
   const nowProvider = options.nowProvider || (() => performance.now());
   const intervalMs = positiveNumber(env.RANAR_LOAD_SAMPLE_MS, 2000);
@@ -215,11 +220,18 @@ function createLoadProtection(options = {}) {
   let unknownCleanupLatched = false;
   let unknownCleanupGeneration = 0;
   let unknownCleanupPending = false;
+  // Once severe load requests an off-screen cull, finish its sliced scan even if
+  // a single-cycle emergency clears before the scan reaches the end.
+  let offscreenCleanupPending = false;
   // Destructive cleanup is rate-limited by entities destroyed per cycle; candidate
-  // discovery is also sliced across cycles and preserves off-screen-first priority.
+  // discovery is also sliced across cycles and prioritizes off-screen respawnables.
   const cleanupDestroyBatchSize = Math.max(
     1,
     Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_DESTROY_BATCH_SIZE, 3))
+  );
+  const emergencyCleanupDestroyBatchSize = Math.max(
+    cleanupDestroyBatchSize,
+    Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_EMERGENCY_DESTROY_BATCH_SIZE, 10))
   );
   const naturalCapRatios = {
     warning: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_WARNING_RATIO) || 0.85)),
@@ -229,6 +241,7 @@ function createLoadProtection(options = {}) {
   };
   const CLEAN_UNKNOWN = 1;
   const CLEAN_NATURAL_POPULATION = 2;
+  const CLEAN_OFFSCREEN_RESPAWNABLE = 4;
   let naturalPopulationBaseline = 0;
   let naturalPopulationCacheAt = -Infinity;
   let naturalPopulationCacheSource = null;
@@ -255,6 +268,7 @@ function createLoadProtection(options = {}) {
     naturalExcess: 0,
     offscreenCandidates: [],
     onscreenCandidates: [],
+    respawnableOffscreenCandidates: [],
     unknownCandidates: [],
     candidates: [],
     cursor: 0,
@@ -265,6 +279,7 @@ function createLoadProtection(options = {}) {
     populationCap: null,
     destroyedUnknown: 0,
     destroyedOffscreen: 0,
+    destroyedRespawnableOffscreen: 0,
     destroyedOnscreen: 0,
   };
   let lastMetrics = {
@@ -570,6 +585,35 @@ function createLoadProtection(options = {}) {
     return alreadyKnownLive || isEntityLive(entity);
   }
 
+  function isRespawnableCleanupCandidate(entity) {
+    if (!entity || isUnknownEntity(entity) || shouldProtectFromNaturalCleanup(entity)) return false;
+    // Food, ordinary natural spawns, fired projectiles, and short-lived aura
+    // effects can be recreated by their normal game systems. Never infer that a
+    // unique/boss/objective entity is respawnable from its label alone.
+    return entity.type === "food" || isTransientEffect(entity) || isNaturalSpawnEntity(entity);
+  }
+
+  function visibilityToAnyClient(entity) {
+    if (typeof getEntityVisibility === "function") {
+      try {
+        const result = getEntityVisibility(entity);
+        return result === true ? true : result === false ? false : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    // Compatibility path for callers that only provide the historical boolean
+    // isEntityOnScreen callback. With no visibility callback at all, visibility
+    // is unknown rather than assuming every entity is off-screen.
+    if (!hasVisibilityCallback) return null;
+    try {
+      const result = isEntityOnScreen(entity);
+      return result === true ? true : result === false ? false : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
 
   function beginNaturalPopulationScan(list) {
     if (naturalPopulationCacheSource !== list) naturalPopulationCacheReady = false;
@@ -726,15 +770,21 @@ function createLoadProtection(options = {}) {
   function currentCleanupMode() {
     let mode = 0;
     if (unknownCleanupPending) mode |= CLEAN_UNKNOWN;
-    // As soon as load degrades, lower the natural-population cap. Persistently
-    // severe lag still activates the same policy, but never clears everything
-    // in one sweep.
-    if (
-      effectiveStage() > 0 ||
+
+    const severeLag = offscreenCleanupPending ||
       sustainedPolicies[150].triggered ||
       sustainedPolicies[200].triggered ||
-      lastMetrics.emergencyMitigation
-    ) mode |= CLEAN_NATURAL_POPULATION;
+      lastMetrics.emergencyMitigation;
+
+    if (severeLag) {
+      // Severe load removes every confirmed off-screen respawnable entity, not
+      // merely enough entities to meet the population cap. Visible natural
+      // enemies are deliberately spared by this mode.
+      mode |= CLEAN_OFFSCREEN_RESPAWNABLE;
+    } else if (effectiveStage() > 0) {
+      // Ordinary elevated load continues to reduce only excess natural population.
+      mode |= CLEAN_NATURAL_POPULATION;
+    }
     return mode;
   }
 
@@ -747,14 +797,19 @@ function createLoadProtection(options = {}) {
     cleanupSweep.naturalExcess = 0;
     cleanupSweep.offscreenCandidates = [];
     cleanupSweep.onscreenCandidates = [];
+    cleanupSweep.respawnableOffscreenCandidates = [];
     cleanupSweep.unknownCandidates = [];
   }
 
   function finishCleanupSweep(now) {
     const counts = cleanupSweep;
-    const total = counts.destroyedUnknown + counts.destroyedOffscreen + counts.destroyedOnscreen;
+    const total = counts.destroyedUnknown + counts.destroyedOffscreen +
+      counts.destroyedRespawnableOffscreen + counts.destroyedOnscreen;
     if (total > 0) {
       const parts = [];
+      if (counts.destroyedRespawnableOffscreen) {
+        parts.push(counts.destroyedRespawnableOffscreen + " off-screen respawnable");
+      }
       if (counts.destroyedOffscreen) parts.push(counts.destroyedOffscreen + " off-screen natural");
       if (counts.destroyedUnknown) parts.push(counts.destroyedUnknown + " unknown");
       if (counts.destroyedOnscreen) parts.push(counts.destroyedOnscreen + " on-screen natural");
@@ -771,6 +826,7 @@ function createLoadProtection(options = {}) {
       // candidate list every simulation tick, causing a sustained CPU spike.
       unknownCleanupPending = false;
     }
+    if (counts.mode & CLEAN_OFFSCREEN_RESPAWNABLE) offscreenCleanupPending = false;
     counts.active = false;
     counts.candidates = [];
     counts.cursor = 0;
@@ -779,6 +835,7 @@ function createLoadProtection(options = {}) {
     counts.nextSweepAt = now + cleanupIntervalMs;
     counts.destroyedUnknown = 0;
     counts.destroyedOffscreen = 0;
+    counts.destroyedRespawnableOffscreen = 0;
     counts.destroyedOnscreen = 0;
   }
 
@@ -795,11 +852,13 @@ function createLoadProtection(options = {}) {
       : 0;
     cleanupSweep.offscreenCandidates = [];
     cleanupSweep.onscreenCandidates = [];
+    cleanupSweep.respawnableOffscreenCandidates = [];
     cleanupSweep.unknownCandidates = [];
     cleanupSweep.candidates = [];
     cleanupSweep.cursor = 0;
     cleanupSweep.destroyedUnknown = 0;
     cleanupSweep.destroyedOffscreen = 0;
+    cleanupSweep.destroyedRespawnableOffscreen = 0;
     cleanupSweep.destroyedOnscreen = 0;
     cleanupSweep.scanning = true;
     cleanupSweep.active = true;
@@ -816,16 +875,34 @@ function createLoadProtection(options = {}) {
     while (cleanupSweep.scanCursor < stopAt && scanned < cleanupScanBatchSize) {
       const entity = list[cleanupSweep.scanCursor++];
       scanned++;
-      if (!entity || isTransientEffect(entity) || !isEntityLive(entity)) continue;
-      // A temporarily suspended entity must survive for the existing gradual
-      // restore path; don't permanently destroy it in the natural-population sweep.
-      if (suspendedEntities.has(entity)) continue;
+      if (!entity || (!(mode & CLEAN_OFFSCREEN_RESPAWNABLE) && isTransientEffect(entity)) ||
+          !isEntityLive(entity)) continue;
+      // During normal population cleanup, suspended entities must survive for
+      // the restore path. Severe cleanup may still retire a suspended entity if
+      // it is respawnable and definitely off-screen; visible suspended entities
+      // remain eligible for the ordinary gradual restore path.
+      if (suspendedEntities.has(entity) && !(mode & CLEAN_OFFSCREEN_RESPAWNABLE)) continue;
 
       if ((mode & CLEAN_UNKNOWN) && isUnknownEntity(entity) &&
           !shouldProtectFromNaturalCleanup(entity)) {
         cleanupSweep.unknownCandidates.push(entity);
         continue;
       }
+
+      if (mode & CLEAN_OFFSCREEN_RESPAWNABLE) {
+        if (!isRespawnableCleanupCandidate(entity)) continue;
+        // Only a definitive false grants permission to delete: a missing/broken
+        // viewport calculation is not proof that every client is off-screen.
+        if (visibilityToAnyClient(entity) === false) {
+          cleanupSweep.respawnableOffscreenCandidates.push(entity);
+        }
+        // This mode intentionally does not fall back to deleting visible natural
+        // entities just because the off-screen pool is too small.
+        continue;
+      }
+
+      // Transients have their own visibility-aware TTL outside severe-lag mode.
+      if (isTransientEffect(entity)) continue;
       if (!(mode & CLEAN_NATURAL_POPULATION) || naturalExcess <= 0 ||
           !isNaturalPopulationEntity(entity, true)) continue;
 
@@ -855,17 +932,26 @@ function createLoadProtection(options = {}) {
     if (cleanupSweep.scanCursor < stopAt) return false;
 
     const candidates = [];
-    let remainingNatural = naturalExcess;
-    for (const entity of cleanupSweep.offscreenCandidates) {
-      if (remainingNatural-- <= 0) break;
-      candidates.push({ entity, kind: "natural-offscreen", priority: 0 });
-    }
-    for (const entity of cleanupSweep.unknownCandidates) {
-      candidates.push({ entity, kind: "unknown", priority: 1 });
-    }
-    for (const entity of cleanupSweep.onscreenCandidates) {
-      if (remainingNatural-- <= 0) break;
-      candidates.push({ entity, kind: "natural-onscreen", priority: 2 });
+    if (mode & CLEAN_OFFSCREEN_RESPAWNABLE) {
+      for (const entity of cleanupSweep.respawnableOffscreenCandidates) {
+        candidates.push({ entity, kind: "respawnable-offscreen", priority: 0 });
+      }
+      for (const entity of cleanupSweep.unknownCandidates) {
+        candidates.push({ entity, kind: "unknown", priority: 1 });
+      }
+    } else {
+      let remainingNatural = naturalExcess;
+      for (const entity of cleanupSweep.offscreenCandidates) {
+        if (remainingNatural-- <= 0) break;
+        candidates.push({ entity, kind: "natural-offscreen", priority: 0 });
+      }
+      for (const entity of cleanupSweep.unknownCandidates) {
+        candidates.push({ entity, kind: "unknown", priority: 1 });
+      }
+      for (const entity of cleanupSweep.onscreenCandidates) {
+        if (remainingNatural-- <= 0) break;
+        candidates.push({ entity, kind: "natural-onscreen", priority: 2 });
+      }
     }
 
     cleanupSweep.candidates = candidates;
@@ -921,16 +1007,25 @@ function createLoadProtection(options = {}) {
     }
 
     let destroyedThisCycle = 0;
+    const destroyLimit = (cleanupSweep.mode & CLEAN_OFFSCREEN_RESPAWNABLE)
+      ? emergencyCleanupDestroyBatchSize
+      : cleanupDestroyBatchSize;
     while (
       cleanupSweep.cursor < cleanupSweep.candidates.length &&
-      destroyedThisCycle < cleanupDestroyBatchSize
+      destroyedThisCycle < destroyLimit
     ) {
       const candidate = cleanupSweep.candidates[cleanupSweep.cursor++];
       destroyedThisCycle++;
       const entity = candidate && candidate.entity;
-      if (!entity || !isEntityLive(entity) || suspendedEntities.has(entity)) continue;
+      if (!entity || !isEntityLive(entity)) continue;
+      if (suspendedEntities.has(entity) && candidate.kind !== "respawnable-offscreen") continue;
+      // Recheck sight immediately before destruction because an entity may have
+      // moved into a client's view while the bounded sweep was being processed.
+      if (candidate.kind === "respawnable-offscreen" &&
+          visibilityToAnyClient(entity) !== false) continue;
       if (destroyForLoadProtection(entity)) {
         if (candidate.kind === "unknown") cleanupSweep.destroyedUnknown++;
+        else if (candidate.kind === "respawnable-offscreen") cleanupSweep.destroyedRespawnableOffscreen++;
         else if (candidate.kind === "natural-offscreen") cleanupSweep.destroyedOffscreen++;
         else cleanupSweep.destroyedOnscreen++;
       }
@@ -1223,7 +1318,9 @@ function createLoadProtection(options = {}) {
 
     if (forceAll) {
       // At extreme load, bypass the normal 10s/15s grace periods and activate
-      // every policy in the same simulation cycle.
+      // every policy in the same simulation cycle. Ensure the off-screen scan
+      // completes across bounded batches even if this spike immediately clears.
+      offscreenCleanupPending = true;
       if (!unknownCleanupLatched) {
         unknownCleanupLatched = true;
         unknownCleanupPending = true;
@@ -1306,6 +1403,7 @@ function createLoadProtection(options = {}) {
       lag200.triggered = false;
     }
 
+    if (lag150.triggered || lag200.triggered) offscreenCleanupPending = true;
     lastMetrics.naturalSpawnsPaused = naturalSpawnsPaused;
     lastMetrics.lagPolicy100Triggered = lag100.triggered;
     lastMetrics.lagPolicy150Triggered = lag150.triggered;

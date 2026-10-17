@@ -5015,9 +5015,6 @@ PARENT: [exports.smasherOrbGenerator],
                   g.superDensity,
                   g.superDensity,
                   g.superDensity,
-                  g.superDensity,
-                  g.superDensity,
-                  g.halfPenetration,
                   /***************** RELOAD RECOIL SHUDDER  SIZE   HEALTH  DAMAGE   PEN    SPEED    MAX    RANGE  DENSITY  SPRAY   RESIST  */
                 ]),
                 TYPE: [
