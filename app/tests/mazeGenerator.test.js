@@ -21,6 +21,14 @@ assert.strictEqual(maze.shouldRandomizeMaze({ serverType: "normal", modeName: "S
 assert.strictEqual(maze.shouldRandomizeMaze({ serverType: "normal", modeName: "Sandbox", settings: {} }), false);
 
 const before = JSON.stringify(source);
+
+const clearedTemplate = maze.clearAuthoredWalls(source);
+assert.notStrictEqual(JSON.stringify(clearedTemplate), before, "clearing authored walls should create a fresh generation template");
+assert.strictEqual(JSON.stringify(source), before, "clearing authored walls must not mutate the source map");
+assert(clearedTemplate.every((row) => row.every((tile) => tile !== "wall")), "generation template should not retain authored wall tiles");
+assert.strictEqual(clearedTemplate[3][4], "nest", "clearing authored walls must preserve special gameplay tiles");
+const regeneratedFromClearedTemplate = maze.randomizeMaze(clearedTemplate, { random: () => 0.1 });
+assert(regeneratedFromClearedTemplate.some((row) => row.includes("wall")), "randomization should create new maze walls from the cleared template");
 const generated = maze.randomizeMaze(source, { random: () => 0.1 });
 const alternate = maze.randomizeMaze(source, { random: () => 0.9 });
 assert.notDeepStrictEqual(generated, alternate, "different random sources should make different maze layouts");

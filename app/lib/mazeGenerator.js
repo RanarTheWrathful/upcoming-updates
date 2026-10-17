@@ -16,6 +16,15 @@ function shouldRandomizeMaze({ serverType, modeName, settings } = {}) {
     /maze/i.test(String(modeName || settings.MODE || ""));
 }
 
+
+// Remove hand-authored maze-wall placements while keeping the map topology and
+// all named gameplay tiles. randomizeMaze() will then create a fresh randomized
+// wall layout instead of using the old wall pattern to determine its density.
+function clearAuthoredWalls(roomSetup) {
+  if (!isPlainGrid(roomSetup)) throw new TypeError("Maze generation requires a rectangular ROOM_SETUP grid.");
+  return roomSetup.map((row) => row.map((tile) => tile === "wall" ? "norm" : tile));
+}
+
 function floodFill(grid, startX, startY) {
   const height = grid.length;
   const width = grid[0].length;
@@ -95,9 +104,10 @@ function connectOpenAreas(grid, startX, startY) {
 }
 
 /**
- * Randomizes the existing wall/norm layout without replacing mode-specific
- * tiles. The open floor is connected after randomization, borders are clear,
- * and a 3x3-to-5x5 center pocket is kept open.
+ * Generates a fresh randomized wall/norm layout without replacing mode-specific
+ * tiles. Call clearAuthoredWalls() first when the old wall pattern should be
+ * discarded. The open floor is connected after randomization, borders are
+ * clear, and a 3x3-to-5x5 center pocket is kept open.
  */
 function randomizeMaze(roomSetup, { random = Math.random } = {}) {
   if (!isPlainGrid(roomSetup)) throw new TypeError("Maze generation requires a rectangular ROOM_SETUP grid.");
@@ -168,4 +178,4 @@ function randomizeMaze(roomSetup, { random = Math.random } = {}) {
   return grid;
 }
 
-module.exports = { shouldRandomizeMaze, randomizeMaze, floodFill, connectOpenAreas };
+module.exports = { shouldRandomizeMaze, clearAuthoredWalls, randomizeMaze, floodFill, connectOpenAreas };

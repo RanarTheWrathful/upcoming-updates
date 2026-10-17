@@ -138,10 +138,12 @@ const config = require("./config.js");
 const gameMode = require("./Game Modes/" + chosenMode);
 const mergedSettings = mergeModeSettings(config, gameMode);
 if (mazeGenerator.shouldRandomizeMaze({ serverType, modeName: chosenMode, settings: mergedSettings })) {
-  mergedSettings.ROOM_SETUP = mazeGenerator.randomizeMaze(mergedSettings.ROOM_SETUP);
-  // Maze generation now happens once on the tile grid before room indexing.
-  // Keeping the legacy flag true would also spawn a second, disconnected set
-  // of wall entities after startup, so clear it after the grid has been built.
+  // Discard hand-authored wall placements first, then generate one fresh maze
+  // layout on the tile grid. Named gameplay tiles (bases, nests, objectives,
+  // etc.) are preserved by clearAuthoredWalls()/randomizeMaze().
+  const mazeTemplate = mazeGenerator.clearAuthoredWalls(mergedSettings.ROOM_SETUP);
+  mergedSettings.ROOM_SETUP = mazeGenerator.randomizeMaze(mazeTemplate);
+  // Room wall entities are spawned from the finalized grid exactly once.
   mergedSettings.MAZE_GENERATION = false;
 }
 const c = validateModeSettings(mergedSettings, chosenMode);
@@ -2149,71 +2151,45 @@ function makepentagonWorkbench() {
   }
 }
 function makeMazeWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o;
-    let a = Class.wall;
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
-    o.spawnLoc = loc;
+  const gridWidth = room.width / room.xgrid;
+  const gridHeight = room.height / room.ygrid;
+  const wallLocations = room.wall;
+  if (!Array.isArray(wallLocations) || !wallLocations.length) return;
+
+  // Some rectangular grids previously emitted multiple wall entities for one
+  // tile to fill its long axis. Spawn exactly one wall per unique map cell.
+  const spawnedCells = new Set();
+  const baseSize = Math.min(gridWidth, gridHeight) / 2;
+
+  for (const loc of wallLocations) {
+    if (!loc || !Number.isFinite(loc.x) || !Number.isFinite(loc.y)) continue;
+    const gridX = Math.floor(loc.x / gridWidth);
+    const gridY = Math.floor(loc.y / gridHeight);
+    const cellKey = `${gridX}:${gridY}`;
+    if (spawnedCells.has(cellKey)) continue;
+    spawnedCells.add(cellKey);
+
+    const o = new Entity(loc);
+    o.define(Class.wall);
+    // Vary size slightly while keeping each block at least cell-sized so
+    // neighboring walls don't leave unintended gaps in the maze.
+    o.SIZE = baseSize * ran.randomRange(1.0, 1.12);
     o.coreSize = o.SIZE;
+    o.spawnLoc = loc;
     o.protect();
     o.team = -101;
     o.color = 16;
     o.alwaysExists = true;
     o.isMazeWall = true;
     o.refreshBodyAttributes();
-    o.grid = grid;
+    o.grid = { x: gridX, y: gridY };
     o.VELOCITY.x = 0;
     o.VELOCITY.y = 0;
     o.ACCEL.x = 0;
     o.ACCEL.y = 0;
-  };
-  if (room["wall"]) {
-    room["wall"].forEach((loc) => {
-      entity(loc, {
-        x: Math.floor(loc.x / gridWidth),
-        y: Math.floor(loc.y / gridHeight),
-      });
-    });
   }
 }
+
 function makePortals() {
   let entity = (loc, team) => {
     let o = new Entity(loc);

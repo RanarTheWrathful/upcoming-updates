@@ -40,6 +40,6 @@ module.exports =
   "SPAWN_NEUTRAL_BOSSES": false,
   "SPAWN_CRASHER": false,
   "SPAWN_SENTINEL": false,
-  MAZE_GENERATION: true,
   SPAWN_THRASHERS: true,
+  MAZE_GENERATION: true,
 }
