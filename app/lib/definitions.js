@@ -4243,7 +4243,15 @@ exports.creationrifle = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [20, 4.5, 1, 0, 3.7, 0, 1 / 3],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.gunner,
+        g.arty,
+        g.nail,
+        g.power,
+        g.halfSpeed,
+        g.greaterDamage,
+        g.greaterReload]),
         TYPE: exports.bullet,
         LABEL: "Secondary",
       },
@@ -4251,7 +4259,15 @@ exports.creationrifle = {
     {
       POSITION: [20, 4.5, 1, 0, -3.7, 0, 1 / 3],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.gunner,
+        g.arty,
+        g.nail,
+        g.power,
+        g.halfSpeed,
+        g.greaterDamage,
+        g.greaterReload]),
         TYPE: exports.bullet,
         LABEL: "Secondary",
       },
@@ -4259,35 +4275,35 @@ exports.creationrifle = {
     {
       POSITION: [24, 7, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.rifle, g.auto, g.flank,]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.rifle, g.auto, g.flank, g.greaterReload]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [16, 10, 0.7, -2.5, 0, 140, 0.2],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.halfDamage,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.minorDamage,]),
         TYPE: exports.swarmDrone,
       },
     },
     {
       POSITION: [16, 10, 0.7, -2.5, 0, -140, 0.2],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.halfDamage,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.minorDamage,]),
         TYPE: exports.swarmDrone,
       },
     },
     {
       POSITION: [16, 10, 0.7, 0.5, 0, 120, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.halfDamage,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.minorDamage,]),
         TYPE: exports.swarmDrone,
       },
     },
     {
       POSITION: [16, 10, 0.7, 0.5, 0, -120, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.halfDamage,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.minorDamage,]),
         TYPE: exports.swarmDrone,
       },
     },
