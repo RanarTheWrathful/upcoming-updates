@@ -43283,7 +43283,7 @@ exports.mechanisthand1 = {
       POSITION: [17, 16, 1, 0, 0, 0, 0],
     },
     {
-      POSITION: [20, 10, -0.5, 9, 0, 0, 0],
+      POSITION: [20, 10, 1, 0, 0, 0, 0],
     },
     {
       POSITION: [17, 11, 1, 0, 0, 0, 0],
@@ -43382,6 +43382,67 @@ exports.mechanist = {
       POSITION: [17, 17, -17, -15, 180, 1],
       TYPE: [exports.mechanisthand1, { COLOR: 13 }],
     },
+    {
+      POSITION: [23, 0, 0, 30, 0, 0],
+      TYPE: [exports.smasherBody2, { INDEPENDENT: true, COLOR: 13 }],
+    },
+    {
+      POSITION: [15, 0, 0, 180, 180, 1],
+      TYPE: [exports.smasherBody2, { INDEPENDENT: true, COLOR: 13 }],
+    },
+    {
+      POSITION: [100, 0, 0, 30, 0, 0],
+      TYPE: [exports.strongHexaAutoRing],
+    },
+  ],
+};
+exports.mechanisthandtest = {
+  LABEL: "Mechanist Hands",
+  SPECIAL_EFFECT: "Legend",
+  DANGER: 7,
+  STAT_NAMES: statnames.generic,
+  BODY: {
+    SPEED: base.SPEED * 0.75,
+    HEALTH: base.HEALTH * 1.25,
+    DAMAGE: base.DAMAGE * 1.75,
+    SHIELD: base.SHIELD * 2.5,
+    REGEN: base.REGEN * 1.25,
+  },
+  TURRETS: [
+    {
+      /*  SIZE    X       Y     ANGLE    ARC */
+      POSITION: [17, 17, 17, 15, 180, 1],
+      TYPE: [exports.mechanisthand1, { COLOR: 13 }],
+    },
+
+    {
+      POSITION: [17, 17, -17, -15, 180, 1],
+      TYPE: [exports.mechanisthand1, { COLOR: 13 }],
+    },
+    {
+      POSITION: [23, 0, 0, 30, 0, 0],
+      TYPE: [exports.smasherBody2, { INDEPENDENT: true, COLOR: 13 }],
+    },
+    {
+      POSITION: [15, 0, 0, 180, 180, 1],
+      TYPE: [exports.smasherBody2, { INDEPENDENT: true, COLOR: 13 }],
+    },
+  ],
+};
+
+exports.mechanistringtest = {
+  LABEL: "Mechanist Ring",
+  SPECIAL_EFFECT: "Legend",
+  DANGER: 7,
+  STAT_NAMES: statnames.generic,
+  BODY: {
+    SPEED: base.SPEED * 0.75,
+    HEALTH: base.HEALTH * 1.25,
+    DAMAGE: base.DAMAGE * 1.75,
+    SHIELD: base.SHIELD * 2.5,
+    REGEN: base.REGEN * 1.25,
+  },
+  TURRETS: [
     {
       POSITION: [23, 0, 0, 30, 0, 0],
       TYPE: [exports.smasherBody2, { INDEPENDENT: true, COLOR: 13 }],
@@ -95839,6 +95900,8 @@ exports.kristanks3.UPGRADES_TIER_1 = [
   exports.hyperSkimmer,
   exports.testerSkimmer,
   exports.testersphere,
+  exports.mechanisthandtest,
+  exports.mechanistringtest,
   exports.kristanks4,
 ];
 exports.krisbosses1.UPGRADES_TIER_1 = [
