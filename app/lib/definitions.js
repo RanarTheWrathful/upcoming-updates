@@ -16032,7 +16032,7 @@ exports.pillbox = {
 
 exports.unsetpillbox = {
   LABEL: "Pillbox",
-  PARENT: [exports.setBlock],
+  PARENT: [exports.unsetBlock],
   TURRETS: [
     {
       /*  SIZE     X       Y     ANGLE    ARC */
