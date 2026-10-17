@@ -37,7 +37,7 @@ module.exports =
   "PLAYER_SPAWN_LOCATION": "random",
   "TEAMS": [1],
   "BOT_TEAMS": [100],
-  "SPAWN_FOOD": false,
+  "SPAWN_FOOD": true,
   "SPAWN_NEUTRAL_BOSSES": false,
   "SPAWN_CRASHER": false,
   "SPAWN_SENTINEL": false
