@@ -116,7 +116,7 @@ const g = {
   twin: [1, 1, 0.9, 1, 1, 1.15, 0.75, 0.9, 1, 1, 1, 1.2, 1],
   bent: [1.1, 1, 0.8, 1, 1.25, 1, 0.8, 1, 1, 1, 0.8, 0.5, 1],
   triple: [1.2, 0.667, 0.9, 1, 1, 1, 1, 1, 1, 1, 1.1, 0.9, 0.95],
-  cyclone: [1.25, 0.25, 1.3, 1.2, 2, 0.55, 1.5, 1.5, 1.2, 1, 1.5, 1.5, 1.2],
+  cyclone: [1.25, 0.25, 1.3, 1.2, 2, 0.65, 1.5, 1.5, 1.2, 1, 1.5, 1.5, 1.2],
   dual: [4, 1, 0.8, 1, 1.5, 1.25, 1, 1.3, 1.1, 1, 1, 1, 1.25],
   double: [1, 1, 1, 1, 1, 0.9, 1, 1, 1, 1, 1, 1, 1],
   hewn: [1.25, 1.5, 1, 1, 0.9, 0.85, 1, 1, 0.9, 1, 1, 1, 1],
@@ -4094,6 +4094,7 @@ exports.autoTurret = {
           g.gunner,
           g.power,
           g.greaterStats,
+          g.doubleDamage,
           g.superReload,
           g.superReload,
           g.superReload,
@@ -30488,7 +30489,7 @@ exports.cheese = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [10.5, 18, 1.2, 5.5, 0, 0, 1],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.cheese, g.greaterDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.cheese]),
         TYPE: [exports.drone, { DRAW_HEALTH: true }],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
@@ -33911,6 +33912,7 @@ exports.decimate = {
           g.sniper,
           g.hunter,
           g.halfDamage,
+          g.lesserDamage,
           g.greaterPenetration,
           g.halfReload,
         ]),
@@ -33928,6 +33930,7 @@ exports.decimate = {
           g.destroy,
           g.hunter,
           g.greaterPenetration,
+          g.lesserDamage,
           g.halfReload,
           g.lesserDamage,
         ]),
@@ -42889,9 +42892,18 @@ exports.poptri = makeMulti(
 exports.stabberBullet = {
   PARENT: [exports.bullet],
   LABEL: "Bullet",
-  TURRETS: [ {
+};
+exports.stab = {
+  PARENT: [exports.genericTank],
+  LABEL: "Stabber",
+  BODY: {
+    SPEED: base.SPEED * 1.2,
+    DAMAGE: base.DAMAGE * 0.9,
+  },
+  HAS_NO_RECOIL: true,
+  STAT_NAMES: statnames.blade,TURRETS: [ {
       /*  SIZE     X       Y     ANGLE    ARC */
-      POSITION: [12, 0, 0, 0, 360, 1],
+      POSITION: [12, 15, 0, 0, 360, 1],
       TYPE: [
         exports.damageAuraSpawner,
         {
@@ -42913,25 +42925,9 @@ exports.stabberBullet = {
       ],
     },
   ],
-};
-exports.stab = {
-  PARENT: [exports.genericTank],
-  LABEL: "Stabber",
-  BODY: {
-    SPEED: base.SPEED * 1.2,
-    DAMAGE: base.DAMAGE * 0.9,
-  },
-  HAS_NO_RECOIL: true,
-  STAT_NAMES: statnames.blade,
   GUNS: [
     {
       POSITION: [20, 15, 0.001, 0, 0, 0, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.blade, g.uberRange, g.uberHealth]),
-        TYPE: [exports.stabberBullet],
-        AUTOFIRE: true,
-        MAX_CHILDREN: 2,
-      },
     },
     {
       POSITION: [25, 15, 0.001, 0, 0, 0, 0],
