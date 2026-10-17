@@ -7519,7 +7519,7 @@ class Entity {
             this.define(Class.infestationLegendaryClasses);
             break;
           case "theDenied":
-            this.define(Class.deniedLegendaryClasses);
+            this.define(Class.currentLegendaryClasses);
             if (this.skill.score < 1000000) this.skill.score = 1000000;
             break;
         }

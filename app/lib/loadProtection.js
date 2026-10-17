@@ -59,6 +59,12 @@ function createLoadProtection(options = {}) {
     options.targetCycleIntervalMs,
     positiveNumber(env.RANAR_LOAD_TARGET_CYCLE_MS, 1000 / 30)
   );
+  // Smooth ordinary load variation; emergency checks still use the raw current
+  // cycle/event-loop delay so a genuine stall is never hidden by the average.
+  const runtimeSmoothingAlpha = Math.max(
+    0.05,
+    Math.min(1, positiveNumber(env.RANAR_LOAD_RUNTIME_EMA_ALPHA, 0.30))
+  );
   const warningMemory = positiveNumber(env.RANAR_LOAD_WARNING_MEMORY, 0.75);
   const highMemory = positiveNumber(env.RANAR_LOAD_HIGH_MEMORY, 0.86);
   const criticalMemory = positiveNumber(env.RANAR_LOAD_CRITICAL_MEMORY, 0.94);
@@ -84,6 +90,13 @@ function createLoadProtection(options = {}) {
   const naturalPopulationRecountMs = Math.max(
     100,
     positiveNumber(env.RANAR_LAG_POPULATION_RECOUNT_MS, 1000)
+  );
+  // Population recalc is incremental: walking the complete world every second
+  // caused periodic frame-time spikes on large maps. Scan a bounded batch per
+  // simulation cycle and keep the last completed count until the next completes.
+  const naturalPopulationRecountBatchSize = Math.max(
+    100,
+    Math.floor(positiveNumber(env.RANAR_LAG_POPULATION_RECOUNT_BATCH_SIZE, 500))
   );
   // Cleanup discovery itself is incremental. Large entity arrays must not be
   // classified, wrapped, and sorted all at once at the moment lag begins.
@@ -116,6 +129,10 @@ function createLoadProtection(options = {}) {
     200: configuredSpeedThreshold("RANAR_LAG_200_SPEED_PERCENT", 200),
   };
   const policyRecoveryMs = positiveNumber(env.RANAR_LAG_POLICY_RECOVERY_MS, 10000);
+  const stageRecoverySamples = Math.max(
+    2,
+    Math.floor(positiveNumber(env.RANAR_LOAD_RECOVERY_SAMPLES, 5))
+  );
   const warningGrowthMb = positiveNumber(env.RANAR_LOAD_WARNING_GROWTH_MB, 64);
   const highGrowthMb = positiveNumber(env.RANAR_LOAD_HIGH_GROWTH_MB, 128);
   const criticalGrowthMb = positiveNumber(env.RANAR_LOAD_CRITICAL_GROWTH_MB, 256);
@@ -139,9 +156,12 @@ function createLoadProtection(options = {}) {
   let lowCycleSamples = 0;
   let cycleIndex = 0;
   let lastCycleStartedAt = null;
-  // Observed interval is start-to-start cadence, guarded by the current cycle's
-  // measured cost so a single expensive tick is reflected immediately.
+  let lastEntityList = null;
+  // Start-to-start cadence is kept for diagnostics only. Load decisions use
+  // smoothed simulation cost and event-loop delay instead.
   let observedCycleIntervalMs = targetCycleIntervalMs;
+  let smoothedCycleMs = targetCycleIntervalMs;
+  let smoothedEventLoopDelayMs = 0;
   let currentRunSpeedPercent = 100;
   let lastObservedRunSpeedPercent = 100;
   // Entity references are held only while they are visibly suspended/fading.
@@ -210,12 +230,21 @@ function createLoadProtection(options = {}) {
   const CLEAN_UNKNOWN = 1;
   const CLEAN_NATURAL_POPULATION = 2;
   let naturalPopulationBaseline = 0;
-  let lastNaturalPopulationCount = 0;
   let naturalPopulationCacheAt = -Infinity;
   let naturalPopulationCacheSource = null;
   let naturalPopulationCacheMembers = new WeakSet();
   let naturalPopulationCachedCount = 0;
+  let naturalPopulationCacheReady = false;
   let naturalPopulationSpawnReservations = 0;
+  let naturalPopulationLastScanCycle = -1;
+  const naturalPopulationScan = {
+    active: false,
+    list: null,
+    length: 0,
+    cursor: 0,
+    count: 0,
+    members: null,
+  };
   const cleanupSweep = {
     active: false,
     scanning: false,
@@ -266,6 +295,8 @@ function createLoadProtection(options = {}) {
     observedCycleIntervalMs,
     runSpeedPercent: currentRunSpeedPercent,
     runSpeedDeficitPercent: 0,
+    smoothedCycleMs,
+    smoothedEventLoopDelayMs,
     naturalSpawnsPaused: false,
     lagPolicy100Triggered: false,
     lagPolicy150Triggered: false,
@@ -292,6 +323,8 @@ function createLoadProtection(options = {}) {
         observedCycleIntervalMs,
         runSpeedPercent: currentRunSpeedPercent,
         runSpeedDeficitPercent: 100 - currentRunSpeedPercent,
+        smoothedCycleMs,
+        smoothedEventLoopDelayMs,
       }, provided);
     }
 
@@ -326,6 +359,8 @@ function createLoadProtection(options = {}) {
       observedCycleIntervalMs,
       runSpeedPercent: currentRunSpeedPercent,
       runSpeedDeficitPercent: 100 - currentRunSpeedPercent,
+      smoothedCycleMs,
+      smoothedEventLoopDelayMs,
     };
   }
 
@@ -369,32 +404,47 @@ function createLoadProtection(options = {}) {
     return 0;
   }
 
+  function updateSpeedEstimate() {
+    const controllingLoadMs = Math.max(smoothedCycleMs, smoothedEventLoopDelayMs);
+    currentRunSpeedPercent = controllingLoadMs <= targetCycleIntervalMs
+      ? 100
+      : Math.max(0, Math.min(100, (targetCycleIntervalMs / controllingLoadMs) * 100));
+    lastObservedRunSpeedPercent = currentRunSpeedPercent;
+    lastMetrics.smoothedCycleMs = smoothedCycleMs;
+    lastMetrics.smoothedEventLoopDelayMs = smoothedEventLoopDelayMs;
+    lastMetrics.runSpeedPercent = currentRunSpeedPercent;
+    lastMetrics.runSpeedDeficitPercent = 100 - currentRunSpeedPercent;
+    lastMetrics.targetCycleIntervalMs = targetCycleIntervalMs;
+    lastMetrics.observedCycleIntervalMs = observedCycleIntervalMs;
+    return currentRunSpeedPercent;
+  }
+
   function updateObservedRunSpeed(cycleMs, cycleStartedAt) {
     const completedAt = nowProvider();
     const startAt = Number.isFinite(cycleStartedAt) ? cycleStartedAt : completedAt - cycleMs;
     if (lastCycleStartedAt === null) {
-      // Until there are two start timestamps, use this cycle's cost as a safe
-      // initial estimate rather than assuming a slow first tick was healthy.
       observedCycleIntervalMs = Math.max(targetCycleIntervalMs, cycleMs);
     } else {
       const startInterval = Math.max(0, startAt - lastCycleStartedAt);
-      // Start-to-start cadence accounts for the previous cycle and its wait;
-      // current cycle cost catches an overload before another tick can finish.
       observedCycleIntervalMs = startInterval > 0
-        ? Math.max(cycleMs, startInterval)
+        ? startInterval
         : Math.max(targetCycleIntervalMs, cycleMs);
     }
     lastCycleStartedAt = startAt;
-    currentRunSpeedPercent = Math.max(
-      0,
-      Math.min(100, (targetCycleIntervalMs / Math.max(targetCycleIntervalMs, observedCycleIntervalMs)) * 100)
-    );
-    lastObservedRunSpeedPercent = currentRunSpeedPercent;
-    lastMetrics.targetCycleIntervalMs = targetCycleIntervalMs;
-    lastMetrics.observedCycleIntervalMs = observedCycleIntervalMs;
-    lastMetrics.runSpeedPercent = currentRunSpeedPercent;
-    lastMetrics.runSpeedDeficitPercent = 100 - currentRunSpeedPercent;
-    return currentRunSpeedPercent;
+
+    // Use execution cost, not start-to-start time, for load decisions. Start
+    // intervals include the deliberate wait introduced by adaptive pacing; using
+    // them as load would make the anti-lag system punish its own slowdown.
+    smoothedCycleMs += runtimeSmoothingAlpha * (cycleMs - smoothedCycleMs);
+    smoothedCycleMs = Math.max(0, smoothedCycleMs);
+    return updateSpeedEstimate();
+  }
+
+  function updateSmoothedEventLoopDelay(delayMs) {
+    const value = Number.isFinite(delayMs) && delayMs >= 0 ? delayMs : 0;
+    smoothedEventLoopDelayMs += runtimeSmoothingAlpha * (value - smoothedEventLoopDelayMs);
+    smoothedEventLoopDelayMs = Math.max(0, smoothedEventLoopDelayMs);
+    return updateSpeedEstimate();
   }
 
   function desiredCycleStage(speedPercent) {
@@ -520,44 +570,79 @@ function createLoadProtection(options = {}) {
     return alreadyKnownLive || isEntityLive(entity);
   }
 
-  function countNaturalPopulation(entityList, members = null) {
-    const list = Array.isArray(entityList) ? entityList : getEntities();
-    let count = 0;
-    for (const entity of list) {
+
+  function beginNaturalPopulationScan(list) {
+    if (naturalPopulationCacheSource !== list) naturalPopulationCacheReady = false;
+    naturalPopulationScan.active = true;
+    naturalPopulationScan.list = list;
+    naturalPopulationScan.length = list.length;
+    naturalPopulationScan.cursor = 0;
+    naturalPopulationScan.count = 0;
+    naturalPopulationScan.members = new WeakSet();
+  }
+
+  function advanceNaturalPopulationScan(now) {
+    const scan = naturalPopulationScan;
+    if (!scan.active || naturalPopulationLastScanCycle === cycleIndex) return;
+    naturalPopulationLastScanCycle = cycleIndex;
+
+    let scanned = 0;
+    while (scan.cursor < scan.length && scanned < naturalPopulationRecountBatchSize) {
+      const entity = scan.list[scan.cursor++];
+      scanned++;
       if (isNaturalPopulationEntity(entity)) {
-        count++;
-        if (members) members.add(entity);
+        scan.count++;
+        scan.members.add(entity);
       }
     }
-    return count;
+    if (scan.cursor < scan.length) return;
+
+    // Natural spawn sites reserve slots while a recount is in progress. The
+    // scan uses a fixed starting length, so newly appended entities are covered
+    // by these reservations and by a follow-up recount if the array changed.
+    naturalPopulationCachedCount = scan.count + naturalPopulationSpawnReservations;
+    naturalPopulationCacheMembers = scan.members;
+    naturalPopulationCacheSource = scan.list;
+    naturalPopulationCacheAt = now;
+    naturalPopulationCacheReady = true;
+    naturalPopulationSpawnReservations = 0;
+    const lengthChanged = scan.list.length !== scan.length;
+    scan.active = false;
+    scan.list = null;
+    scan.members = null;
+
+    // Don't restart the scan immediately on every call; the next normal cache
+    // refresh starts another bounded sweep if the world changed during this one.
+    if (lengthChanged) naturalPopulationCacheAt = now - naturalPopulationRecountMs;
   }
 
   function refreshNaturalPopulationCache(entityList) {
     const list = Array.isArray(entityList) ? entityList : getEntities();
     const providedNow = nowProvider();
     const now = Number.isFinite(providedNow) ? providedNow : 0;
-    const sourceChanged = naturalPopulationCacheSource !== list;
-    const cacheExpired = now - naturalPopulationCacheAt >= naturalPopulationRecountMs;
+    const cacheExpired = !naturalPopulationCacheReady ||
+      now - naturalPopulationCacheAt >= naturalPopulationRecountMs;
 
-    if (sourceChanged || cacheExpired || !Number.isFinite(naturalPopulationCacheAt)) {
-      const countedEntities = new WeakSet();
-      naturalPopulationCachedCount = countNaturalPopulation(list, countedEntities);
-      naturalPopulationCacheSource = list;
-      naturalPopulationCacheMembers = countedEntities;
-      naturalPopulationCacheAt = now;
-      naturalPopulationSpawnReservations = 0;
+    if (naturalPopulationScan.active && naturalPopulationScan.list !== list) {
+      beginNaturalPopulationScan(list);
+    } else if (!naturalPopulationScan.active && (
+      naturalPopulationCacheSource !== list || cacheExpired
+    )) {
+      beginNaturalPopulationScan(list);
     }
+
+    advanceNaturalPopulationScan(now);
     return {
       count: naturalPopulationCachedCount + naturalPopulationSpawnReservations,
       list,
+      ready: naturalPopulationCacheReady,
+      scanning: naturalPopulationScan.active,
     };
   }
 
   function getNaturalPopulationState(entityList) {
     const cached = refreshNaturalPopulationCache(entityList);
     const count = cached.count;
-    lastNaturalPopulationCount = count;
-
     const currentStage = effectiveStage();
     const healthy = currentStage === 0 &&
       currentRunSpeedPercent >= 90 &&
@@ -567,9 +652,9 @@ function createLoadProtection(options = {}) {
     // Learn the current healthy population instead of imposing a hard-coded
     // world-wide mob count. Freeze this baseline during lag so each cleanup
     // batch does not lower its own target; update it again after recovery.
-    if (healthy) {
+    if (healthy && cached.ready) {
       naturalPopulationBaseline = count;
-    } else if (naturalPopulationBaseline === 0 && count > 0) {
+    } else if (cached.ready && naturalPopulationBaseline === 0 && count > 0) {
       // If the server starts under load before a healthy sample exists, use the
       // first observed population as the baseline and keep it stable this episode.
       naturalPopulationBaseline = count;
@@ -586,15 +671,27 @@ function createLoadProtection(options = {}) {
       ? Number.MAX_SAFE_INTEGER
       : Math.max(1, Math.floor(baseline * ratio));
 
-    return { count, baseline, cap, ratio, stage: currentStage, list: cached.list };
+    return {
+      count,
+      baseline,
+      cap,
+      ratio,
+      stage: currentStage,
+      list: cached.list,
+      ready: cached.ready,
+      recounting: cached.scanning,
+    };
   }
 
   function canSpawnNaturalEntity() {
     if (naturalSpawnsPaused) return false;
     const state = getNaturalPopulationState(getEntities());
 
-    // While healthy, normal mode-specific spawn limits remain authoritative.
+    // A first-ever count can take multiple ticks on a huge world. While under
+    // load, fail closed until it completes rather than overfilling from a partial
+    // population estimate. Healthy mode-specific limits remain authoritative.
     if (state.stage === 0) return true;
+    if (!state.ready) return false;
     if (state.count >= state.cap) return false;
 
     // Multiple natural spawners may run in one simulation cycle. Reserve a slot
@@ -783,8 +880,9 @@ function createLoadProtection(options = {}) {
 
   function processCleanupSweep(entityList, now = nowProvider()) {
     const list = Array.isArray(entityList) ? entityList : getEntities();
-    const requestedMode = currentCleanupMode();
+    let requestedMode = currentCleanupMode();
     const populationState = getNaturalPopulationState(list);
+    if (!populationState.ready) requestedMode &= ~CLEAN_NATURAL_POPULATION;
 
     if (!requestedMode) {
       cleanupSweep.active = false;
@@ -1394,10 +1492,10 @@ function createLoadProtection(options = {}) {
     const growthAtCriticalLimit = safeMetrics.memoryTrendReady === true &&
       Number.isFinite(safeMetrics.memoryGrowthMb) &&
       safeMetrics.memoryGrowthMb >= criticalGrowthMb;
-    const extremeCycleCadence = Number.isFinite(observedCycleIntervalMs) &&
-      observedCycleIntervalMs >= emergencyLagMs;
+    // Do not treat the scheduler's intentional idle gap as an emergency. Only
+    // real cycle/event-loop stalls or critical memory pressure bypass grace timers.
     return (Number.isFinite(observedLagMs) && observedLagMs >= emergencyLagMs) ||
-      extremeCycleCadence || memoryAtCriticalLimit || growthAtCriticalLimit;
+      memoryAtCriticalLimit || growthAtCriticalLimit;
   }
 
   function reportCycle(durationMs, entityList, cycleStartedAt) {
@@ -1407,21 +1505,23 @@ function createLoadProtection(options = {}) {
     lastCycleMs = cycleMs;
     cycleIndex++;
 
-    // Run-speed protection uses actual completed-cycle cadence. The separate
-    // automatic scheduler still reacts immediately to cycle/event-loop ms.
+    // Runtime cost is smoothed for ordinary policy changes. Raw stalls still
+    // trigger emergency protection immediately and can jump scheduler pacing.
     const runSpeedPercent = updateObservedRunSpeed(cycleMs, cycleStartedAt);
     const sampledP95 = Number(lastMetrics.eventLoopP95Ms) || 0;
     const observedLagMs = Math.max(cycleMs, sampledP95);
     lastObservedLagMs = observedLagMs;
-    updateRunSpeed(observedLagMs, true);
+    const emergency = isExtremeLoad(observedLagMs, lastMetrics);
+    const controlLagMs = Math.max(smoothedCycleMs, smoothedEventLoopDelayMs);
+    updateRunSpeed(emergency ? Math.max(controlLagMs, observedLagMs) : controlLagMs, true);
     updateCycleStage(runSpeedPercent, true);
 
-    const reason = "server run speed fell to " + Math.round(runSpeedPercent) + "% of target";
-    const emergency = isExtremeLoad(observedLagMs, lastMetrics);
+    const reason = "smoothed server run speed fell to " + Math.round(runSpeedPercent) + "% of target";
     // Advance existing fades before episode transitions. In particular, the
     // 60-second cutoff must see the latest opacity of a just-disabled entity.
     advanceEntityTransitions(nowProvider());
-    const liveEntities = entityList || getEntities();
+    const liveEntities = Array.isArray(entityList) ? entityList : getEntities();
+    lastEntityList = liveEntities;
     updateSustainedLagPolicies(runSpeedPercent, emergency);
     handleCriticalLag(runSpeedPercent, liveEntities, reason, emergency);
     processCleanupSweep(liveEntities, nowProvider());
@@ -1437,6 +1537,8 @@ function createLoadProtection(options = {}) {
       observedCycleIntervalMs,
       runSpeedPercent: currentRunSpeedPercent,
       runSpeedDeficitPercent: 100 - currentRunSpeedPercent,
+      smoothedCycleMs,
+      smoothedEventLoopDelayMs,
     });
     updateSuspensionSnapshot(lastMetrics);
     notifyStageChange(previousEffective, lastMetrics);
@@ -1497,6 +1599,14 @@ function createLoadProtection(options = {}) {
       // A failed telemetry sample must never take down the game server.
       return getSnapshot();
     }
+    const sampledP95 = Number.isFinite(metrics.eventLoopP95Ms) ? metrics.eventLoopP95Ms : 0;
+    updateSmoothedEventLoopDelay(sampledP95);
+    metrics = Object.assign({}, metrics, {
+      runSpeedPercent: currentRunSpeedPercent,
+      runSpeedDeficitPercent: 100 - currentRunSpeedPercent,
+      smoothedCycleMs,
+      smoothedEventLoopDelayMs,
+    });
     const desiredStage = classify(metrics);
     lastMetrics = Object.assign({}, metrics, {
       stage,
@@ -1506,20 +1616,15 @@ function createLoadProtection(options = {}) {
       sampledAt: Date.now(),
     });
 
-    // Event-loop delay remains an input to automatic scheduler pacing. Entity
-    // suspension and other mitigation policies use the measured run-speed below.
-    const sampledP95 = Number.isFinite(metrics.eventLoopP95Ms) ? metrics.eventLoopP95Ms : 0;
     const observedLagMs = Math.max(sampledP95, lastCycleMs);
     lastObservedLagMs = observedLagMs;
-    // Sampling can immediately slow the loop further, but it cannot speed it
-    // back up: recovery is counted only on completed simulation cycles.
-    updateRunSpeed(observedLagMs, false);
-    const previousDelayEffective = effectiveStage();
-    // The sample timer may observe memory/event-loop stress, but destructive and
-    // spawn policies are driven by the latest measured simulation throughput.
-    updateCycleStage(currentRunSpeedPercent, false);
-    const reason = "server run speed stayed at " + Math.round(currentRunSpeedPercent) + "% of target";
     const emergency = isExtremeLoad(observedLagMs, metrics);
+    // Ordinary pacing uses filtered load; raw extreme delay still escalates now.
+    const controlLagMs = Math.max(smoothedCycleMs, smoothedEventLoopDelayMs);
+    updateRunSpeed(emergency ? Math.max(controlLagMs, observedLagMs) : controlLagMs, false);
+    const previousDelayEffective = effectiveStage();
+    updateCycleStage(currentRunSpeedPercent, false);
+    const reason = "smoothed server run speed stayed at " + Math.round(currentRunSpeedPercent) + "% of target";
     advanceEntityTransitions(nowProvider());
     const liveEntities = getEntities();
     updateSustainedLagPolicies(currentRunSpeedPercent, emergency);
@@ -1547,8 +1652,8 @@ function createLoadProtection(options = {}) {
       candidateStage = stage;
       candidateSamples = 0;
       recoverySamples++;
-      // Recover one tier at a time after 10 healthy samples (about 10 seconds).
-      if (recoverySamples >= 10) transition(Math.max(desiredStage, stage - 1), metrics);
+      // Recover one tier at a time after several healthy samples to avoid flapping.
+      if (recoverySamples >= stageRecoverySamples) transition(Math.max(desiredStage, stage - 1), metrics);
     } else {
       candidateStage = stage;
       candidateSamples = 0;
@@ -1590,6 +1695,9 @@ function createLoadProtection(options = {}) {
     snapshot.cycleMs = lastCycleMs;
     snapshot.targetCycleIntervalMs = targetCycleIntervalMs;
     snapshot.observedCycleIntervalMs = observedCycleIntervalMs;
+    snapshot.smoothedCycleMs = smoothedCycleMs;
+    snapshot.smoothedEventLoopDelayMs = smoothedEventLoopDelayMs;
+    snapshot.runtimeSmoothingAlpha = runtimeSmoothingAlpha;
     snapshot.runSpeedPercent = currentRunSpeedPercent;
     snapshot.runSpeedDeficitPercent = 100 - currentRunSpeedPercent;
     snapshot.runSpeedThresholds = Object.assign({}, speedThresholds);
@@ -1599,7 +1707,10 @@ function createLoadProtection(options = {}) {
     snapshot.targetTickRatePercent = Math.round(100 / getRunSpeedMultiplier());
     snapshot.cycleStage = cycleStage;
     snapshot.naturalSpawnsPaused = naturalSpawnsPaused;
-    const naturalPopulation = getNaturalPopulationState(getEntities());
+    const populationEntities = lastEntityList || getEntities();
+    const naturalPopulation = getNaturalPopulationState(populationEntities);
+    snapshot.naturalPopulationCacheReady = naturalPopulation.ready;
+    snapshot.naturalPopulationRecounting = naturalPopulation.recounting;
     snapshot.naturalPopulationCount = naturalPopulation.count;
     snapshot.naturalPopulationBaseline = naturalPopulation.baseline;
     snapshot.naturalPopulationCap = naturalPopulation.cap;

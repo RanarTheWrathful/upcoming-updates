@@ -5,6 +5,7 @@ const createLoadProtection = require("../lib/loadProtection");
 
 function makeProtection(overrides = {}) {
   let now = 0;
+  const emptyEntities = [];
   const env = Object.assign({
     RANAR_LOAD_SAMPLE_MS: "2000",
     RANAR_LAG_100_DURATION_MS: "10000",
@@ -27,7 +28,7 @@ function makeProtection(overrides = {}) {
       memoryGrowthMb: 0,
       memoryTrendReady: false,
     }),
-    getEntities: () => [],
+    getEntities: () => emptyEntities,
     onEntityChange: (_entity, _disabled, details) => changes.push(details || {}),
     delayMonitor: { enable() {}, disable() {}, percentile() { return 0; }, reset() {} },
   }, overrides.options || {}));
@@ -38,16 +39,21 @@ function makeProtection(overrides = {}) {
   };
 }
 
-// Sustained low measured run speed activates the reduced population cap rather than globally pausing spawns.
+// Sustained expensive cycles, rather than one noisy tick, activate the reduced population cap.
 {
   const test = makeProtection();
-  test.protection.reportCycle(110, []);
+  let start = 0;
+  for (let i = 0; i < 7; i++) {
+    test.setNow(start + 110);
+    test.protection.reportCycle(110, [], start);
+    start += 110;
+  }
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
   assert.strictEqual(test.protection.getSnapshot().lagPolicy100Triggered, false);
-  test.setNow(9999);
+  test.setNow(10659);
   test.protection.sample();
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
-  test.setNow(10000);
+  test.setNow(10660);
   test.protection.sample();
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true,
     "ordinary sustained lag should reduce the cap without globally pausing all natural spawning");
@@ -96,9 +102,13 @@ function makeProtection(overrides = {}) {
   test.protection.reportCycle(5, naturalEntities, 0);
   assert.strictEqual(test.protection.getSnapshot().naturalPopulationBaseline, 10);
 
-  // Degrade the simulation. Only one entity is destroyed per cycle, starting off-screen.
+  // Degrade the simulation. The smoothed estimate engages the cap after repeated costly cycles.
   test.setNow(33);
   test.protection.reportCycle(110, naturalEntities, 33);
+  test.setNow(66);
+  test.protection.reportCycle(110, naturalEntities, 66);
+  test.setNow(99);
+  test.protection.reportCycle(110, naturalEntities, 99);
   assert.strictEqual(naturalEntities[0].destroyed, true, "first batch targets an off-screen entity");
   assert.strictEqual(naturalEntities[1].destroyed, false, "cleanup respects the per-cycle destroy quota");
   assert.strictEqual(naturalEntities[2].destroyed, false, "visible entities are not chosen while off-screen candidates suffice");
@@ -106,8 +116,8 @@ function makeProtection(overrides = {}) {
   assert.strictEqual(test.protection.getSnapshot().naturalPopulationCap, 8,
     "the elevated-lag cap is a ratio of the stable healthy baseline");
 
-  test.setNow(66);
-  test.protection.reportCycle(110, naturalEntities, 66);
+  test.setNow(132);
+  test.protection.reportCycle(110, naturalEntities, 132);
   assert.strictEqual(naturalEntities[1].destroyed, true, "the next cycle continues the active sweep");
   assert.strictEqual(naturalEntities[2].destroyed, false);
   assert.strictEqual(test.protection.getSnapshot().naturalPopulationCount, 8);
@@ -115,7 +125,7 @@ function makeProtection(overrides = {}) {
     "natural spawning is refused when the reduced cap has been reached");
 
   // Ten healthy-cadence cycles clear the transient elevated stage; the natural cap restores.
-  let start = 99;
+  let start = 165;
   for (let i = 0; i < 10; i++) {
     test.setNow(start);
     test.protection.reportCycle(5, naturalEntities, start);
@@ -123,6 +133,42 @@ function makeProtection(overrides = {}) {
   }
   assert.strictEqual(test.protection.canSpawnNaturalEntity(), true,
     "natural spawn allowance returns as the simulation recovers");
+}
+
+
+// Large natural-population recounts are sliced across cycles rather than scanning the full world at once.
+{
+  let validChecks = 0;
+  const population = Array.from({ length: 1200 }, (_, i) => ({
+    type: "tank",
+    label: "Natural " + i,
+    name: "Natural " + i,
+    _loadProtectionNaturalSpawn: true,
+    alive: true,
+    valid() { validChecks++; return this.alive; },
+    isDead() { return false; },
+  }));
+  const test = makeProtection({
+    env: { RANAR_LAG_POPULATION_RECOUNT_BATCH_SIZE: "100" },
+    options: { getEntities: () => population },
+  });
+
+  test.protection.reportCycle(5, population, 0);
+  assert(validChecks <= 100, "a single cycle should not validate the full population");
+  assert.strictEqual(test.protection.getSnapshot().naturalPopulationRecounting, true);
+
+  let start = 33;
+  for (let i = 0; i < 12; i++) {
+    test.setNow(start + 5);
+    test.protection.reportCycle(5, population, start);
+    start += 33;
+  }
+  const snapshot = test.protection.getSnapshot();
+  assert.strictEqual(snapshot.naturalPopulationCacheReady, true);
+  assert.strictEqual(snapshot.naturalPopulationCount, 1200);
+  assert.strictEqual(snapshot.naturalPopulationBaseline, 1200);
+  assert(validChecks >= 1200 && validChecks < 1400,
+    "the population is counted once, in bounded batches");
 }
 
 // Extreme lag bypasses every grace timer and triggers all protocols immediately.
@@ -210,13 +256,24 @@ function makeProtection(overrides = {}) {
 // A severe-but-not-extreme lag incident still observes the critical persistence window.
 {
   const test = makeProtection({ env: { RANAR_LOAD_EXTREME_LAG_MS: "500" } });
-  test.protection.reportCycle(260, []);
+  let start = 0;
+  let criticalStartedAt = null;
+  for (let i = 0; i < 12; i++) {
+    test.setNow(start + 260);
+    test.protection.reportCycle(260, [], start);
+    const currentSnapshot = test.protection.getSnapshot();
+    if (criticalStartedAt === null && currentSnapshot.runSpeedPercent <= currentSnapshot.runSpeedThresholds.critical) {
+      criticalStartedAt = start + 260;
+    }
+    start += 260;
+  }
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
   assert.strictEqual(test.protection.getSnapshot().loadSuspensionElapsedMs, 0);
-  test.setNow(14999);
+  assert(Number.isFinite(criticalStartedAt), "sustained slow cycles should start the critical persistence clock");
+  test.setNow(criticalStartedAt + 14999);
   test.protection.sample();
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
-  test.setNow(15000);
+  test.setNow(criticalStartedAt + 15000);
   test.protection.sample();
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, true);
 }
@@ -224,44 +281,57 @@ function makeProtection(overrides = {}) {
 // Recovery before the persistence window cancels the pending critical episode.
 {
   const test = makeProtection({ env: { RANAR_LOAD_EXTREME_LAG_MS: "500" } });
-  test.protection.reportCycle(260, []);
-  test.setNow(50);
-  test.protection.reportCycle(20, []);
-  test.setNow(84);
-  test.protection.reportCycle(5, []);
+  let start = 0;
+  for (let i = 0; i < 12; i++) {
+    test.setNow(start + 260);
+    test.protection.reportCycle(260, [], start);
+    start += 260;
+  }
+  test.setNow(start + 20);
+  test.protection.reportCycle(20, [], start);
+  start += 34;
+  test.setNow(start + 5);
+  test.protection.reportCycle(5, [], start);
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
   test.setNow(20000);
-  // Pass a normal start-to-start interval; the long test-clock jump is not a real
-  // simulation gap in this recovery-window scenario.
+  // A later single costly cycle is not a critical episode when its smoothed run speed has recovered.
   test.protection.reportCycle(260, [], 114);
   assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
 }
 
-// Run speed reflects cycle cadence, not just the duration of the latest callback.
+// Deliberate scheduler gaps are diagnostic only; they do not masquerade as simulation work.
 {
   const test = makeProtection();
-  test.protection.reportCycle(5, []);
+  test.protection.reportCycle(5, [], 0);
   assert.strictEqual(test.protection.getSnapshot().runSpeedPercent, 100);
-  test.setNow(34);
-  test.protection.reportCycle(5, []);
-  assert(test.protection.getSnapshot().runSpeedPercent >= 95);
-  assert.strictEqual(test.protection.getSnapshot().observedCycleIntervalMs, 34);
+  test.setNow(300);
+  test.protection.reportCycle(5, [], 300);
+  assert.strictEqual(test.protection.getSnapshot().runSpeedPercent, 100,
+    "a long start-to-start interval must not be counted as heavy simulation work");
+  assert.strictEqual(test.protection.getSnapshot().observedCycleIntervalMs, 300);
+  assert.strictEqual(test.protection.getSnapshot().emergencyMitigation, false,
+    "adaptive pacing must not trigger its own emergency response");
 }
 
-// The legacy millisecond-based scheduler slowdown remains independent.
+// Cost smoothing damps a single moderate spike, then escalates after repeated expensive cycles.
 {
-  const test = makeProtection();
-  test.protection.reportCycle(110, []);
-  assert(test.protection.getRunSpeedMultiplier() > 1);
-  assert(test.protection.getSnapshot().runSpeedPercent < 40);
-  // The following tick begins after the slower scheduler's added wait.
-  test.setNow(16);
-  test.protection.reportCycle(5, [], 11);
-  assert(test.protection.getSnapshot().runSpeedPercent < 40);
-  // Once a few subsequent cycles return to cadence, measured speed recovers.
-  test.setNow(52.7);
-  test.protection.reportCycle(5, [], 47.7);
-  assert(test.protection.getSnapshot().runSpeedPercent > 50);
+  const test = makeProtection({ env: { RANAR_LOAD_EXTREME_LAG_MS: "500" } });
+  test.protection.reportCycle(110, [], 0);
+  assert.strictEqual(test.protection.getRunSpeedMultiplier(), 1,
+    "one moderately slow cycle should not immediately change pacing");
+  const firstSmoothedCost = test.protection.getSnapshot().smoothedCycleMs;
+  test.setNow(110);
+  test.protection.reportCycle(110, [], 110);
+  test.setNow(220);
+  test.protection.reportCycle(110, [], 220);
+  assert(test.protection.getRunSpeedMultiplier() > 1,
+    "repeated expensive cycles should gradually increase pacing protection");
+  assert(test.protection.getSnapshot().smoothedCycleMs > firstSmoothedCost);
+  const speedAfterLoad = test.protection.getSnapshot().runSpeedPercent;
+  test.setNow(500);
+  test.protection.reportCycle(5, [], 500);
+  assert(test.protection.getSnapshot().runSpeedPercent > speedAfterLoad,
+    "recovery should follow actual cycle cost even if the scheduler interval was long");
 }
 
 // A bot suspended during extreme lag is not culled by the cleanup sweep and returns after recovery.
