@@ -4094,8 +4094,6 @@ exports.autoTurret = {
           g.gunner,
           g.power,
           g.greaterStats,
-          g.superReload,
-          g.doubleReload,
         ]),
         TYPE: exports.bullet,
       },
@@ -22376,7 +22374,7 @@ exports.single = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [19, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.single]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.single, g.greaterHealth, g.doubleRange]),
         TYPE: exports.bullet,
       },
     },
@@ -25638,28 +25636,28 @@ exports.gunner = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [12, 3.5, 1, 0, 7.25, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [12, 3.5, 1, 0, -7.25, 0, 0.75],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [16, 3.5, 1, 0, 3.75, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner,  g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [16, 3.5, 1, 0, -3.75, 0, 0.25],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
