@@ -16029,6 +16029,18 @@ exports.pillbox = {
     },
   ],
 };
+
+exports.unsetpillbox = {
+  LABEL: "Pillbox",
+  PARENT: [exports.setBlock],
+  TURRETS: [
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [11, 0, 0, 0, 360, 1],
+      TYPE: [exports.lesserAutoTurret, { INDEPENDENT: true }],
+    },
+  ],
+};
 exports.REASpillboxTurret = {
   PARENT: [exports.pillboxTurret],
   GUNS: [
@@ -30592,7 +30604,7 @@ exports.quadengi = makeMulti(
           g.doubleReload,
           g.greaterReload
         ]),
-        TYPE: exports.bosspillbox,
+        TYPE: exports.unsetpillbox,
         SYNCS_SKILLS: true,
       },
     },
@@ -30636,7 +30648,7 @@ exports.quadtwinengi = makeMulti(
           g.doubleReload,
           g.greaterReload
         ]),
-          TYPE: exports.bosspillboxTwin,
+          TYPE: exports.tankpillboxTwin,
         },
       },
     ],
