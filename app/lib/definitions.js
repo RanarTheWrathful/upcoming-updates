@@ -116,7 +116,7 @@ const g = {
   twin: [1, 1, 0.9, 1, 1, 1.15, 0.75, 0.9, 1, 1, 1, 1.2, 1],
   bent: [1.1, 1, 0.8, 1, 1.25, 1, 0.8, 1, 1, 1, 0.8, 0.5, 1],
   triple: [1.2, 0.667, 0.9, 1, 1, 1, 1, 1, 1, 1, 1.1, 0.9, 0.95],
-  cyclone: [1.25, 0.25, 1.3, 1.2, 2, 0.85, 1.5, 1.5, 1.2, 1, 1.5, 1.5, 1.2],
+  cyclone: [1.25, 0.25, 1.3, 1.2, 2, 0.55, 1.5, 1.5, 1.2, 1, 1.5, 1.5, 1.2],
   dual: [4, 1, 0.8, 1, 1.5, 1.25, 1, 1.3, 1.1, 1, 1, 1, 1.25],
   double: [1, 1, 1, 1, 1, 0.9, 1, 1, 1, 1, 1, 1, 1],
   hewn: [1.25, 1.5, 1, 1, 0.9, 0.85, 1, 1, 0.9, 1, 1, 1, 1],
@@ -126,7 +126,7 @@ const g = {
   machgun: [0.66, 0.25, 2, 1, 0.25, 1.25, 0.75, 0.8, 0.8, 1, 1, 2.5, 1],
   gunner: [1.25, 0.25, 1.5, 1.1, 0.8, 0.4, 1.35, 0.9, 0.8, 1, 1.5, 1.5, 1.2],
   bounce: [7.5, 65, 1, 1, 0.01, 0.01, 1, 0.01, 0.01, 0.01, 1, 1, 1],
-  nail: [0.75, 2.5, 1, 0.8, 0.85, 1.5, 1.1, 1, 1, 1, 2, 1, 1],
+  nail: [0.75, 2.5, 1, 0.8, 0.85, 1.15, 1.1, 1, 1, 1, 2, 1, 1],
   fast: [1, 1, 1, 1, 1, 1, 1, 1.2, 1, 1, 1, 1, 1],
   turret: [2, 1, 1, 1, 0.8, 0.6, 0.7, 1, 1, 1, 0.1, 1, 1],
   /***************** RELOAD RECOIL SHUDDER  SIZE   HEALTH  DAMAGE   PEN    SPEED    MAX    RANGE  DENSITY  SPRAY   RESIST  */
@@ -25834,6 +25834,19 @@ exports.gunrshot = {
   LABEL: "Destablizer",
   GUNS: [
     {
+      POSITION: [14, 1.5, 4.0, 3, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.mach,
+          g.arty,
+          g.gunner,
+          g.halfRecoil,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [14, 2, 4.0, -3, 5, 45, 0.6],
       PROPERTIES: {
@@ -25887,19 +25900,6 @@ exports.gunrshot = {
       },
     },
     ...twinGuns,
-    {
-      POSITION: [14, 1.5, 4.0, 3, 0, 0, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([
-          g.basic,
-          g.mach,
-          g.arty,
-          g.gunner,
-          g.halfRecoil,
-        ]),
-        TYPE: exports.bullet,
-      },
-    },
   ],
 };
 
@@ -28814,7 +28814,6 @@ exports.nailgun = {
           g.gunner,
           g.nail,
           g.power,
-          g.lesserDamage,
         ]),
         TYPE: exports.bullet,
       },
@@ -29873,7 +29872,7 @@ exports.shooter = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [24, 12, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.lesserDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -29941,7 +29940,7 @@ exports.attack = {
     {
       POSITION: [24, 12, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.lesserDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -30154,7 +30153,7 @@ exports.infiltrate = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [24, 10, -2, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfRecoil, g.halfDamage]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfRecoil, g.lesserDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -42887,6 +42886,34 @@ exports.poptri = makeMulti(
   3,
   "Protector of Triangles"
 );
+exports.stabberBullet = {
+  PARENT: [exports.bullet],
+  LABEL: "Bullet",
+  TURRETS: [ {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [12, 0, 0, 0, 360, 1],
+      TYPE: [
+        exports.damageAuraSpawner,
+        {
+          GUNS: [
+            {
+              POSITION: [0, 20, 1, 0, 0, 0, 0],
+              PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.atmosphere,
+                  g.greaterSize,
+                ]),
+                TYPE: [exports.damageAura, { COLOR: 0, ALPHA: 0}],
+                MAX_CHILDREN: 1,
+                AUTOFIRE: true,
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
 exports.stab = {
   PARENT: [exports.genericTank],
   LABEL: "Stabber",
@@ -42900,8 +42927,8 @@ exports.stab = {
     {
       POSITION: [20, 15, 0.001, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.blade]),
-        TYPE: [exports.bullet, { ALPHA: 0 }],
+        SHOOT_SETTINGS: combineStats([g.basic, g.blade, g.uberRange, g.uberHealth]),
+        TYPE: [exports.stabberBullet],
         AUTOFIRE: true,
         MAX_CHILDREN: 2,
       },
