@@ -9,6 +9,7 @@ const definitions = require("../lib/definitions");
 const seen = new WeakSet();
 const nanPaths = [];
 const undefinedParents = [];
+const invalidSpecialEffects = [];
 function inspect(value, path = "definitions") {
   if (!value || typeof value !== "object") return;
   if (seen.has(value)) return;
@@ -24,6 +25,9 @@ function inspect(value, path = "definitions") {
   }
   for (const [key, child] of Object.entries(value)) {
     const childPath = `${path}.${key}`;
+    if (key === "SPECIAL_EFFECT" && (!Array.isArray(child) || child.some((effect) => typeof effect !== "string"))) {
+      invalidSpecialEffects.push(childPath);
+    }
     if (typeof child === "number" && Number.isNaN(child)) {
       nanPaths.push(childPath);
     } else if (child && typeof child === "object") {
@@ -37,6 +41,11 @@ assert.deepStrictEqual(
   undefinedParents,
   [],
   `Definitions must not contain missing PARENT entries:\n${undefinedParents.join("\n")}`
+);
+assert.deepStrictEqual(
+  invalidSpecialEffects,
+  [],
+  `SPECIAL_EFFECT values must be arrays of strings:\n${invalidSpecialEffects.join("\n")}`
 );
 
 assert.strictEqual(definitions.assort.BODY.DAMAGE, 2.8);

@@ -39,7 +39,7 @@ function isRepairTarget(entity) {
 function isHealTarget(entity) {
   return Boolean(
     entity &&
-    (entity.type === "tank" || entity.isPlayer === true || entity.isBot === true||entity.type === "food")
+    (entity.type === "tank" || entity.isPlayer === true || entity.isBot === true)
   );
 }
 

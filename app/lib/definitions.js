@@ -945,7 +945,7 @@ exports.food = {
   FACING_TYPE: "turnWithSpeed",
   VARIES_IN_SIZE: true,
   NO_REGEN: true,
-  SPECIAL_EFFECT: "none",
+  SPECIAL_EFFECT: ["none"],
   BODY: {
     STEALTH: 30,
     PUSHABILITY: 3.5,
@@ -3237,7 +3237,7 @@ exports.autoSmasherOrb = {
   AI: { FARMER: true },
   WALL_IMMUNITY: true,
   INDEPENDENT: false,
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPEL: 0.25,
   TURRETS: [
     {
@@ -3264,7 +3264,7 @@ exports.smasherOrb = {
   AI: { FARMER: true },
   WALL_IMMUNITY: true,
   INDEPENDENT: false,
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPEL: 0.25,
   TURRETS: [
     {
@@ -3287,7 +3287,7 @@ exports.landmineOrb = {
   AI: { FARMER: true },
   WALL_IMMUNITY: true,
   INDEPENDENT: false,
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPEL: 0.25,
   TURRETS: [
     {
@@ -3337,7 +3337,7 @@ exports.powerOrb = {
   AI: { FARMER: true },
   WALL_IMMUNITY: true,
   INDEPENDENT: false,
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPEL: 0.25,
   TURRETS: [],
  // CONNECTED_DAMAGE: true,
@@ -3614,7 +3614,7 @@ exports.repairTrap = {
   SHAPE: -3,
   MOTION_TYPE: "glide", // def
   FACING_TYPE: "turnWithSpeed",
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPAIR_EFFECT: true,
   DIE_AT_RANGE: true,
   BODY: {
@@ -3690,7 +3690,7 @@ exports.ogbursterTrap = {
 exports.unsetBlock = {
   LABEL: "Block",
   PARENT: [exports.trap],
-  SPECIAL_EFFECT: "block",
+  SPECIAL_EFFECT: ["block"],
   SHAPE: -4,
   MOTION_TYPE: "motor",
   BODY: {
@@ -3704,7 +3704,7 @@ exports.unsetBlock = {
 exports.setBlock = {
   LABEL: "Block",
   PARENT: [exports.trap],
-  SPECIAL_EFFECT: "block",
+  SPECIAL_EFFECT: ["block"],
   SHAPE: -4,
   MOTION_TYPE: "motor",
   // MOTION_TYPE: "glide",
@@ -3720,7 +3720,7 @@ exports.setBlock = {
 exports.assemblent = {
   LABEL: "Assemblent",
   PARENT: [exports.trap],
-  SPECIAL_EFFECT: "block",
+  SPECIAL_EFFECT: ["block"],
   SHAPE: -4,
   MOTION_TYPE: "motor",
   // MOTION_TYPE: "glide",
@@ -3757,7 +3757,7 @@ exports.wreckerSetBlock = {
 exports.boomerang = {
   LABEL: "Boomerang",
   PARENT: [exports.trap],
-  SPECIAL_EFFECT: "block",
+  SPECIAL_EFFECT: ["block"],
   HITS_OWN_TYPE: "polyrepel",
   CONTROLLERS: ["boomerang"],
   MOTION_TYPE: "motor",
@@ -3796,7 +3796,7 @@ exports.damageAura = {
     SPEED: 0,
   },
   DISABLE_DAMAGE: true,
-  //SPECIAL_EFFECT: "push",
+  //SPECIAL_EFFECT: ["push"],
   //REPEL: 1,
   TURRETS: [
     {
@@ -3856,7 +3856,7 @@ exports.metta1 = {
     SPEED: 0,
   },
   DISABLE_DAMAGE: true,
-  //SPECIAL_EFFECT: "push",
+  //SPECIAL_EFFECT: ["push"],
   //REPEL: 1,
   TURRETS: [
     {
@@ -3906,7 +3906,7 @@ exports.acidicField = {
     PUSHABILITY: 0,
     SPEED: 0,
   },
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPEL: 1,
   TURRETS: [
     {
@@ -6476,7 +6476,7 @@ exports.bang = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -6514,7 +6514,7 @@ exports.bangAlt = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -6557,7 +6557,7 @@ exports.bigBang = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -6596,7 +6596,7 @@ exports.bangBang = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -11641,7 +11641,7 @@ exports.repairMan = {
   GIVE_KILL_MESSAGE: true,
   DRAW_HEALTH: true,
   IS_PROJECTILE: false,
-  SPECIAL_EFFECT: "man",
+  SPECIAL_EFFECT: ["man"],
   AI_TARGET: "structures",
   ORBIT_DISTANCE: 80,
   CONTROLLERS: [
@@ -11902,7 +11902,7 @@ exports.experimenterStationedTurret = {
   LABEL: "Stationed Turret",
   TYPE: "trap",
   IS_PROJECTILE: true,
-  SPECIAL_EFFECT: "noRegen",
+  SPECIAL_EFFECT: ["noRegen"],
   WALL_IMMUNITY: true,
   DAMAGE_CLASS: 0,
   DANGER: 7,
@@ -12643,7 +12643,7 @@ exports.hexagon = {
   },
   SHAPE: 6,
   LABEL: "Hexagon",
-  SPECIAL_EFFECT: "beta",
+  SPECIAL_EFFECT: ["beta"],
   VALUE: 10000,
   COLOR: 15,
   SIZE: 29,
@@ -12665,7 +12665,7 @@ exports.septagon = {
     LEVEL: 5,
   },
   LABEL: "Septagon",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   VALUE: 50000,
   SIZE: 58,
   SHAPE: 7,
@@ -12687,7 +12687,7 @@ exports.octagon = {
     LEVEL: 6,
   },
   LABEL: "Octagon",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SHAPE: 8,
   COLOR: 4,
   VALUE: 150000,
@@ -12709,7 +12709,7 @@ exports.nonagon = {
     LEVEL: 7,
   },
   LABEL: "Nonagon",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SHAPE: 9,
   COLOR: 18,
   VALUE: 500000,
@@ -12997,7 +12997,7 @@ exports.shinySeptagon = {
   PARENT: [exports.septagon],
   LABEL: "Shiny Septagon",
   PASSIVE_EFFECT: "uniqueFood",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   VALUE: 5000000,
   SIZE: 58.5,
   COLOR: 1,
@@ -13025,7 +13025,7 @@ exports.shinyOctagon = {
   },
   LABEL: "Shiny Octagon",
   PASSIVE_EFFECT: "uniqueFood",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   VALUE: 15000000,
   SIZE: 75.5,
   COLOR: 1,
@@ -13049,7 +13049,7 @@ exports.shinyNonagon = {
   },
   LABEL: "Shiny Nonagon",
   PASSIVE_EFFECT: "uniqueFood",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   VALUE: 5000000,
   SIZE: 80,
   COLOR: 1,
@@ -13235,7 +13235,7 @@ exports.legendarySeptagon = {
     LEVEL: 5,
   },
   VALUE: 7500000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 59,
   COLOR: 0,
   BODY: {
@@ -13264,7 +13264,7 @@ exports.legendaryOctagon = {
     LEVEL: 6,
   },
   VALUE: 20000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 76,
   COLOR: 0,
   BODY: {
@@ -13293,7 +13293,7 @@ exports.legendaryNonagon = {
     LEVEL: 7,
   },
   VALUE: 75000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 81,
   COLOR: 0,
   BODY: {
@@ -13395,7 +13395,7 @@ exports.shadowSeptagon = {
   BODY: { REGEN: 0 },
   ALPHA: 0.05,
   VALUE: 10000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 19,
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
@@ -13410,7 +13410,7 @@ exports.shadowOctagon = {
   BODY: { REGEN: 0 },
   ALPHA: 0.05,
   VALUE: 25000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 19,
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
@@ -13425,7 +13425,7 @@ exports.shadowNonagon = {
   BODY: { REGEN: 0 },
   ALPHA: 0.05,
   VALUE: 125000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 19,
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
@@ -13492,7 +13492,7 @@ exports.albinoSeptagon = {
   PARENT: [exports.septagon],
   LABEL: "Albino Septagon",
   VALUE: 500000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   FOOD: {
     LEVEL: 2,
   },
@@ -13506,7 +13506,7 @@ exports.albinoOctagon = {
   PARENT: [exports.octagon],
   LABEL: "Albino Octagon",
   VALUE: 1500000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 6,
   BODY: { REGEN: 0 },
   FOOD: {
@@ -13520,7 +13520,7 @@ exports.albinoNonagon = {
   PARENT: [exports.nonagon],
   LABEL: "Albino Nonagon",
   VALUE: 1500000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 6,
   BODY: { REGEN: 0 },
   FOOD: {
@@ -13620,7 +13620,7 @@ exports.epilepticSeptagon = {
     LEVEL: 5,
   },
   VALUE: 15000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 58.5,
   COLOR: 20,
   BODY: {
@@ -13639,7 +13639,7 @@ exports.epilepticOctagon = {
     LEVEL: 6,
   },
   VALUE: 40000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 76.5,
   COLOR: 20,
   BODY: {
@@ -13658,7 +13658,7 @@ exports.epilepticNonagon = {
     LEVEL: 7,
   },
   VALUE: 200000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 83,
   COLOR: 20,
   BODY: {
@@ -13844,7 +13844,7 @@ exports.rainbowSeptagon = {
     LEVEL: 5,
   },
   VALUE: 22000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 59,
   COLOR: 36,
   BODY: {
@@ -13878,7 +13878,7 @@ exports.rainbowOctagon = {
     LEVEL: 6,
   },
   VALUE: 60000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 77,
   COLOR: 36,
   BODY: {
@@ -13912,7 +13912,7 @@ exports.rainbowNonagon = {
     LEVEL: 7,
   },
   VALUE: 300000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 85,
   COLOR: 36,
   BODY: {
@@ -13946,7 +13946,7 @@ exports.abyssalEgg1 = {
   VALUE: 13500,
   COLOR: 19,
   SIZE: 19,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   FOOD: {
     LEVEL: 7,
   },
@@ -13993,7 +13993,7 @@ exports.abyssalSquare = {
   VALUE: 54000,
   COLOR: 19,
   SIZE: 26,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
   TURRETS: [
@@ -14030,7 +14030,7 @@ exports.abyssalTriangle = {
   VALUE: 270000,
   COLOR: 19,
   SIZE: 25,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
   TURRETS: [
@@ -14067,7 +14067,7 @@ exports.abyssalPentagon = {
   VALUE: 1350000,
   COLOR: 19,
   SIZE: 34,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
   TURRETS: [
@@ -14107,7 +14107,7 @@ exports.abyssalHexagon = {
   VALUE: 7000000,
   COLOR: 19,
   SIZE: 62,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
   TURRETS: [
@@ -14147,7 +14147,7 @@ exports.abyssalSeptagon = {
   VALUE: 33000000,
   COLOR: 19,
   SIZE: 108,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
 
@@ -14184,7 +14184,7 @@ exports.abyssalOctagon = {
   VALUE: 90000000,
   COLOR: 19,
   SIZE: 154,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
 
@@ -14221,7 +14221,7 @@ exports.abyssalNonagon = {
   VALUE: 450000000,
   COLOR: 19,
   SIZE: 165,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
 
@@ -15911,7 +15911,7 @@ exports.pentagonsenti4 = {
 exports.hexasenti1 = {
   PARENT: [exports.pentagonsenti1],
   LABEL: "Hexagon Sentinel",
-  SPECIAL_EFFECT: "noRegen",
+  SPECIAL_EFFECT: ["noRegen"],
   TARGETABLE: true,
   WALL_IMMUNITY: true,
   GROWTH_FACTOR: 3.5,
@@ -18496,7 +18496,7 @@ exports.geode = {
   DANGER: 3,
   COLOR: 4,
   FACING_TYPE: "autospin",
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   SHAPE: -3,
   SIZE: 30,
   VARIES_IN_SIZE: true,
@@ -18589,7 +18589,7 @@ exports.geodecluster = {
   DANGER: 3,
   COLOR: 4,
   FACING_TYPE: "autospin",
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   SHAPE: -3,
   SIZE: 40,
   VARIES_IN_SIZE: true,
@@ -22079,7 +22079,7 @@ exports.counter = {
 exports.counterDenied = {
   PARENT: [exports.counter],
   LABEL: "Zero Lives = Lose",
-  SPECIAL_EFFECT: "denied",
+  SPECIAL_EFFECT: ["denied"],
   COLOR: 0,
   SCORE: Infinity,
 };
@@ -22958,7 +22958,7 @@ exports.destructionist = {
     REGEN: base.REGEN * 1.1,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   TURRETS: [
     {
@@ -24248,7 +24248,7 @@ exports.protect = {
 exports.healer = {
   PARENT: [exports.genericTank],
   LABEL: "Healer",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24275,7 +24275,7 @@ exports.healer = {
 exports.mechanic = {
   PARENT: [exports.genericTank],
   LABEL: "Mechanic",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24301,7 +24301,7 @@ exports.mechanic = {
 exports.curer = {
   PARENT: [exports.genericTank],
   LABEL: "Curer",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24340,7 +24340,7 @@ exports.curer = {
 exports.doctor = {
   PARENT: [exports.genericTank],
   LABEL: "Doctor",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24402,7 +24402,7 @@ exports.doctor = {
 
 exports.purifier = makeMulti({
   PARENT: [exports.genericTank],
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24444,7 +24444,7 @@ exports.purifier = makeMulti({
 exports.cleanser = {
   PARENT: [exports.genericTank],
   LABEL: "Cleanser",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24496,7 +24496,7 @@ exports.restorer = makeMulti(
   {
     PARENT: [exports.genericTank],
     LABEL: "Restorer",
-    SPECIAL_EFFECT: "noFFA",
+    SPECIAL_EFFECT: ["noFFA"],
     TURRETS: [
       {
         /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24751,7 +24751,7 @@ exports.rejuvenator = makeMulti(
   {
     PARENT: [exports.genericTank],
     LABEL: "Restorer",
-    SPECIAL_EFFECT: "noFFA",
+    SPECIAL_EFFECT: ["noFFA"],
     TURRETS: [
       {
         /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24781,7 +24781,7 @@ exports.rejuvenator = makeMulti(
 exports.medic = {
   PARENT: [exports.genericTank],
   LABEL: "Medic",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24808,7 +24808,7 @@ exports.medic = {
 exports.medigun = {
   PARENT: [exports.genericTank],
   LABEL: "Medigun",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24859,7 +24859,7 @@ exports.medigun = {
 exports.vital = {
   PARENT: [exports.genericTank],
   LABEL: "Vital Hunter",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24890,7 +24890,7 @@ exports.vital = {
 exports.surgeon = {
   PARENT: [exports.genericTank],
   LABEL: "Surgeon",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24920,7 +24920,7 @@ exports.surgeon = {
 exports.mender = {
   PARENT: [exports.genericTank],
   LABEL: "Mender",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25035,7 +25035,7 @@ exports.caretaker = {
 exports.reviver = {
   PARENT: [exports.genericTank],
   LABEL: "Reviver",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25062,7 +25062,7 @@ exports.reviver = {
 exports.vanguard = {
   PARENT: [exports.genericTank],
   LABEL: "Vanguard",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25089,7 +25089,7 @@ exports.vanguard = {
 exports.aderaline = {
   PARENT: [exports.genericTank],
   LABEL: "Aderaline Shot",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25137,7 +25137,7 @@ exports.aderaline = {
 exports.vitalis = {
   PARENT: [exports.genericTank],
   LABEL: "Vitalis",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25227,7 +25227,7 @@ exports.practitioner = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Practitioner",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25255,7 +25255,7 @@ exports.needle = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Needle",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25295,7 +25295,7 @@ exports.pulsecaster = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Pulsecaster",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25356,7 +25356,7 @@ exports.aegis = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Aegis",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25392,7 +25392,7 @@ exports.aegis = {
 exports.nurse = {
   PARENT: [exports.genericTank],
   LABEL: "Nurse",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   STAT_NAMES: statnames.drone,
   DANGER: 7,
   BODY: {
@@ -25425,7 +25425,7 @@ exports.nurse = {
 exports.sustainer = {
   PARENT: [exports.genericTank],
   LABEL: "Sustainer",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   STAT_NAMES: statnames.drone,
   DANGER: 7,
   BODY: {
@@ -25543,7 +25543,7 @@ exports.physician = {
   PARENT: [exports.genericTank],
   LABEL: "Physician",
   DANGER: 7,
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   BODY: {
     SPEED: base.SPEED * 0.9,
     DAMAGE: base.DAMAGE * 1.1,
@@ -25586,7 +25586,7 @@ exports.physician = {
 exports.minihealer = {
   PARENT: [exports.genericTank],
   LABEL: "Healer",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25934,7 +25934,7 @@ exports.helpme = {
     SPEED: base.SPEED * 0.75,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   VOID_CREATION: 1,
   TURRETS: [
@@ -28703,7 +28703,7 @@ exports.whirlpool = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: -0.75,
             INTANGIBLE: true,
           },
@@ -35434,7 +35434,7 @@ exports.breaker = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Breaker",
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   STAT_NAMES: statnames.trap,
   TURRETS: [
     {
@@ -35463,7 +35463,7 @@ exports.burster = {
   DANGER: 7,
   LABEL: "Burster",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [],
   TURRETS: [
     {
@@ -35492,7 +35492,7 @@ exports.ogburster = {
   DANGER: 7,
   LABEL: "og Burster",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [],
   TURRETS: [
     {
@@ -35522,7 +35522,7 @@ exports.landminelayer = makeMulti(
   DANGER: 7,
   INVISIBLE: [0.09, 0.03],
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -35558,7 +35558,7 @@ exports.cracker = {
   DANGER: 7,
   LABEL: "Cracker",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -35589,7 +35589,7 @@ exports.shatterer = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Shatterer",
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   STAT_NAMES: statnames.trap,
   TURRETS: [
     {
@@ -35623,7 +35623,7 @@ exports.autobreaker = {
   DANGER: 7,
   LABEL: "Auto-Breaker",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [
     {
       POSITION: [11, 0, 0, 180, 360, 1],
@@ -36729,7 +36729,7 @@ exports.wrecker = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Wrecker",
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   STAT_NAMES: statnames.trap,
   BODY: {
     SPEED: base.SPEED * 0.8,
@@ -39614,7 +39614,7 @@ exports.booster = {
 exports.duodecitank = {
   PARENT: [exports.genericTank],
   LABEL: "Trap-Booster",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     HEALTH: base.HEALTH * 3,
     SHIELD: base.SHIELD * 2,
@@ -40551,7 +40551,7 @@ exports.experimenter = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Experimenter",
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   STAT_NAMES: statnames.trap,
   BODY: {
     SPEED: base.SPEED * 0.75,
@@ -40598,7 +40598,7 @@ exports.scientist = {
   DANGER: 7,
   LABEL: "Scientist",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40639,7 +40639,7 @@ exports.researcher = {
   DANGER: 7,
   LABEL: "Researcher",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40685,7 +40685,7 @@ exports.inventor = {
   DANGER: 7,
   LABEL: "Inventor",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40728,7 +40728,7 @@ exports.c4deployer = {
   DANGER: 7,
   LABEL: "C4 Deployer",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40775,7 +40775,7 @@ exports.physicist = {
   DANGER: 7,
   LABEL: "Physicist",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40821,7 +40821,7 @@ exports.betascientist = {
   DANGER: 7,
   LABEL: "Beta Scientist",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40865,7 +40865,7 @@ exports.betaresearcher = {
   DANGER: 7,
   LABEL: "Beta Researcher",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40913,7 +40913,7 @@ exports.betainventor = {
   DANGER: 7,
   LABEL: "Beta Inventor",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40962,7 +40962,7 @@ exports.betaphysicist = {
   DANGER: 7,
   LABEL: "Beta Physicist",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -43173,7 +43173,7 @@ exports.fulgareon = {
 exports.MechanicalPentagonSpawner = {
   PARENT: [exports.genericTank],
   LABEL: "Mechanical Penta-Spawner",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   SHAPE: 5,
   STAT_NAMES: statnames.drone,
@@ -43296,7 +43296,7 @@ exports.tripwire = makeMulti(
     PARENT: [exports.genericTank],
     DANGER: 7,
     SHAPE: 6,
-    SPECIAL_EFFECT: "Legend",
+    SPECIAL_EFFECT: ["Legend"],
     BODY: {
       SPEED: base.SPEED * 0.5,
       HEALTH: base.HEALTH * 2,
@@ -43365,7 +43365,7 @@ exports.chaperzone = makeMulti(
     PARENT: [exports.genericTank],
     DANGER: 7,
     SHAPE: 6,
-    SPECIAL_EFFECT: "Legend",
+    SPECIAL_EFFECT: ["Legend"],
     CONTROLLERS: ["nearestDifferentMaster"],
     FACING_TYPE: "autospin",
     BODY: {
@@ -43511,7 +43511,7 @@ exports.mechanisthand1 = {
 };
 exports.mechanist = {
   LABEL: "Mechanist",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   STAT_NAMES: statnames.generic,
   BODY: {
@@ -43607,7 +43607,7 @@ exports.mechanist = {
 };
 exports.mechanisthandtest = {
   LABEL: "Mechanist Hands",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   STAT_NAMES: statnames.generic,
   BODY: {
@@ -43641,7 +43641,7 @@ exports.mechanisthandtest = {
 
 exports.mechanistringtest = {
   LABEL: "Mechanist Ring",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   STAT_NAMES: statnames.generic,
   BODY: {
@@ -43669,7 +43669,7 @@ exports.mechanistringtest = {
 exports.MassProducer = {
   PARENT: [exports.genericTank],
   LABEL: "Mass Producer",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   TYPE: "tank",
   ACCEPTS_SCORE: true,
   DANGER: 7,
@@ -43776,7 +43776,7 @@ exports.MassProducer = {
 exports.operator = {
   PARENT: [exports.genericTank],
   LABEL: "Operator",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   ACCEPTS_SCORE: true,
   TYPE: "tank",
   DANGER: 7,
@@ -43850,7 +43850,7 @@ exports.operator = {
 exports.conductor = {
   PARENT: [exports.genericTank],
   LABEL: "Conductor",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   STAT_NAMES: statnames.generic,
   BODY: {
@@ -43979,7 +43979,7 @@ exports.conductor = {
 exports.creation = makeMulti({
   PARENT: [exports.genericTank],
   FACING_TYPE: "autospin",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   SHAPE: 8,
   STAT_NAMES: statnames.generic,
@@ -44057,7 +44057,7 @@ exports.technologist = {
   PARENT: [exports.genericTank],
   LABEL: "Technologist",
   FACING_TYPE: "autospin",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   SHAPE: 6,
   STAT_NAMES: statnames.generic,
@@ -44210,7 +44210,7 @@ exports.technologist = {
 exports.EOA = {
   PARENT: [exports.genericTank],
   LABEL: "Embodiment of Annihilation",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   ACCEPTS_SCORE: true,
   TYPE: "deity",
   DANGER: 7,
@@ -44911,7 +44911,7 @@ exports.soulSnatcher = {
   PARENT: [exports.xhunter],
   LABEL: "Soul Snatcher",
   DANGER: 7,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.25,
@@ -44966,7 +44966,7 @@ exports.reaper = {
   PARENT: [exports.xhunter],
   LABEL: "Reaper",
   DANGER: 7,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.5,
@@ -44997,7 +44997,7 @@ exports.lighthouse = {
   DANGER: 7,
   STAT_NAMES: statnames.trap,
   LABEL: "Oracle",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.5,
@@ -45045,7 +45045,7 @@ exports.hollow = {
   PARENT: [exports.genericTank],
   LABEL: "Hollow",
   DANGER: 7,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   IS_CREEP: true,
   BODY: {
     SPEED: base.SPEED * 1.75,
@@ -45164,7 +45164,7 @@ exports.necrotyrant = makeMulti(
     PARENT: [exports.underseer],
     DANGER: 7,
   STAT_NAMES: statnames.necro,
-    SPECIAL_EFFECT: "Legend",
+    SPECIAL_EFFECT: ["Legend"],
     BODY: {
       SPEED: base.SPEED * 1.5,
       HEALTH: base.HEALTH * 1.5,
@@ -45301,7 +45301,7 @@ exports.ognecrotyrant = makeMulti(
     PARENT: [exports.underseer],
     DANGER: 7,
     STAT_NAMES: statnames.drone,
-    SPECIAL_EFFECT: "Legend",
+    SPECIAL_EFFECT: ["Legend"],
     BODY: {
       SPEED: base.SPEED * 1.5,
       HEALTH: base.HEALTH * 1.5,
@@ -45521,7 +45521,7 @@ exports.rebel = {
     REGEN: base.REGEN * 1.25,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   GUNS: [
     ...beeGuns,
@@ -45594,7 +45594,7 @@ exports.mortarRebel = {
     REGEN: base.REGEN * 1.5,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   GUNS: [
     ...extraSideGuns,
@@ -45668,7 +45668,7 @@ exports.annihilatorRebel = {
     REGEN: base.REGEN * 1.5,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   GUNS: [
     {
@@ -45734,7 +45734,7 @@ exports.swarmRebel = {
     REGEN: base.REGEN * 1.5,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   GUNS: [
     ...basicGun,
@@ -45819,7 +45819,7 @@ exports.swarmRebel = {
 exports.teraOperator = {
   PARENT: [exports.genericTank],
   LABEL: "Tetra-Operator",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   SHAPE: [
     [-1, -1],
     [0, -0.7],
@@ -45940,7 +45940,7 @@ exports.teraReaper = {
   LABEL: "Tetra-Reaper",
   DANGER: 7,
   HAS_NO_RECOIL: true,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.7,
@@ -46024,7 +46024,7 @@ exports.teranecrotyrant = makeMulti(
     DANGER: 7,
     SIZE: 15,
     STAT_NAMES: statnames.drone,
-    SPECIAL_EFFECT: "Legend",
+    SPECIAL_EFFECT: ["Legend"],
     BODY: {
       SPEED: base.SPEED * 1,
       HEALTH: base.HEALTH * 2.5,
@@ -54785,7 +54785,7 @@ exports.Stronghold = makeMulti(
   PARENT: [exports.genericTank],
   DANGER: 7,
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   HAS_NO_RECOIL: true,
     SIZE: 17.5,
     BODY: {
@@ -54856,7 +54856,7 @@ exports.Stationaryexperimenter = makeMulti(
   DANGER: 7,
   LABEL: "Inventor",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   HAS_NO_RECOIL: true,
   SIZE: 15.5,
     BODY: {
@@ -58879,7 +58879,7 @@ exports.castaway = {
 exports.roguepalisade = makeMulti(
   {
     PARENT: [exports.guardianRangedBoss],
-    SPECIAL_EFFECT: "palisadeEvolve",
+    SPECIAL_EFFECT: ["palisadeEvolve"],
     FACING_TYPE: "autospin",
     COLOR: 10,
     SHAPE: 6,
@@ -65630,7 +65630,7 @@ exports.ranarDiscipleForm = {
     REGEN: 0,
     RESIST: 1.5,
   },
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   DANGER: 10,
   SIZE: 17.5,
@@ -65777,7 +65777,7 @@ exports.rainOfAcid = {
   PARENT: [exports.neutralRangedBoss, exports.ranarDiscipleForm],
   NAME: "Oxini Vrochí",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   COLOR: 1,
   DANGER: 9,
   SIZE: 15,
@@ -65863,7 +65863,7 @@ exports.kristaps = {
   NAME: "Kristaps",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   CONTROLLERS: ["nearestDifferentMaster", "minion"],
   BODY: {
     HEALTH: 300,
@@ -66050,7 +66050,7 @@ exports.duodeci = {
   NAME: "Duodeci",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -66089,7 +66089,7 @@ exports.icecream = {
   NAME: "Ice Cream",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -66109,7 +66109,7 @@ exports.possessor = {
   NAME: "Possessor",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -66175,7 +66175,7 @@ exports.xxtrianguli = {
   NAME: "XX Trianguli",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     REGEN: 0,
@@ -66211,7 +66211,7 @@ exports.chaser = {
   NAME: "Chaser",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     REGEN: 0,
@@ -66250,7 +66250,7 @@ exports.powernoob = {
   NAME: "PowerNoob",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 500,
     PENETRATION: 5,
@@ -66270,7 +66270,7 @@ exports.johnathon = {
   NAME: "Johnathon",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -66290,7 +66290,7 @@ exports.alexTheDemonical = {
   NAME: "Alex, The Demonical",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -66310,7 +66310,7 @@ exports.pop64 = makeMulti(
     ],
     NAME: "Pop64",
     TYPE: "neutralBoss",
-    SPECIAL_EFFECT: "animatable",
+    SPECIAL_EFFECT: ["animatable"],
     BODY: {
       HEALTH: 250,
       PENETRATION: 5,
@@ -76801,7 +76801,7 @@ exports.omegaReaper = {
   DANGER: 7,
   SIZE: 25,
   HAS_NO_RECOIL: true,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.7,
@@ -76881,7 +76881,7 @@ exports.grimReaper = {
   DANGER: 7,
   HAS_NO_RECOIL: true,
   SIZE: 40,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 10,
     HEALTH: base.HEALTH * 20,
@@ -77855,7 +77855,7 @@ exports.arenaguardpl = {
     15, //shield regen
     15, //body speed
   ],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   ORBIT_DISTANCE: 150,
   HAS_NO_RECOIL: true,
   SIZE: 26,
@@ -79803,7 +79803,7 @@ exports.cxShrine = {
   LABEL: "Shrine",
   CONTROLLERS: ["Dominator"],
   AI_TARGET: "healAllies",
-  SPECIAL_EFFECT: "cxShrine",
+  SPECIAL_EFFECT: ["cxShrine"],
   SIZE: 22,
   VALUE: 100000,
   CAN_BE_ON_LEADERBOARD: false,
@@ -80530,7 +80530,7 @@ exports.nulltype = {
   PARENT: [exports.voidlordRangedBoss],
   //  NAME: "Alhazred",
   LABEL: "Ancient",
-  SPECIAL_EFFECT: "randomShit",
+  SPECIAL_EFFECT: ["randomShit"],
   SIZE: 30,
   VALUE: 250000,
   SKILL: skillSet({
@@ -80561,7 +80561,7 @@ exports.lurkerBelow = {
   PARENT: [exports.voidlordRangedBoss],
   NAME: "Alhazred",
   LABEL: "Lurker Below",
-  SPECIAL_EFFECT: "randomShit",
+  SPECIAL_EFFECT: ["randomShit"],
   MAX_CHILDREN: 50,
   SIZE: 30,
   VALUE: 2500000,
@@ -81752,7 +81752,7 @@ exports.alphaRifleAnomaly = {
     REGEN: 0,
     HEALTH: 500,
   },
-  SPECIAL_EFFECT: "fortressKill",
+  SPECIAL_EFFECT: ["fortressKill"],
   FACING_TYPE: "looseToTarget",
   DANGER: 8,
   SHAPE: 8,
@@ -81801,7 +81801,7 @@ exports.alphaBoosterAnomaly = {
     REGEN: 0,
     HEALTH: 500,
   },
-  SPECIAL_EFFECT: "fortressKill",
+  SPECIAL_EFFECT: ["fortressKill"],
   FACING_TYPE: "looseToTarget",
   DANGER: 8,
   SHAPE: 8,
@@ -81845,7 +81845,7 @@ exports.sardonyx = {
   NAME: "Sardonyx",
   LABEL: "Dark Fate",
   TYPE: "voidlordBoss",
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   ALLOW_PLATE: true,
   DANGER: 8,
@@ -81972,7 +81972,7 @@ exports.sardonyxGrimForm = {
   NAME: "Sardonyx",
   LABEL: "Grim Truth",
   TYPE: "voidlordBoss",
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   ALLOW_PLATE: true,
   DANGER: 8,
@@ -85347,7 +85347,7 @@ exports.Protalist = {
     REGEN: 0,
     HEALTH: 7000,
   },
-  SPECIAL_EFFECT: "fortressKill",
+  SPECIAL_EFFECT: ["fortressKill"],
   FACING_TYPE: "looseToTarget",
   DANGER: 8,
   SIZE: 40,
@@ -85459,7 +85459,7 @@ exports.highlordAidra = {
     REGEN: 0,
     HEALTH: 4000,
   },
-  SPECIAL_EFFECT: "fortressKill",
+  SPECIAL_EFFECT: ["fortressKill"],
   FACING_TYPE: "looseToTarget",
   DANGER: 8,
   SIZE: 25,
@@ -87330,7 +87330,7 @@ exports.flesh = {
     REGEN: base.REGEN * 1.5,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   PLAGUEBRINGER: true,
   TURRETS: [
@@ -87419,7 +87419,7 @@ exports.roguarmada = makeMulti(
   {
     PARENT: [exports.guardianRangedBoss],
     FACING_TYPE: "autospin",
-    SPECIAL_EFFECT: "armadaEvolve",
+    SPECIAL_EFFECT: ["armadaEvolve"],
     COLOR: 10,
     SHAPE: 7,
     SIZE: 28.5,
@@ -88536,7 +88536,7 @@ exports.crusherFortWall = {
   VALUE: 250000,
   AI_TARGET: "mostDeadly",
   CONTROLLERS: ["nearestDifferentMaster"],
-  SPECIAL_EFFECT: "crusherFortWall",
+  SPECIAL_EFFECT: ["crusherFortWall"],
   HAS_NO_RECOIL: false,
   BODY: {
     FOV: 0.5,
@@ -88690,7 +88690,7 @@ exports.buttonTrap = {
 exports.fortwallTS = {
   PARENT: [exports.fortwall],
   LABEL: "Fort Wall",
-  SPECIAL_EFFECT: "turretted",
+  SPECIAL_EFFECT: ["turretted"],
   TURRETS: [
     {
       POSITION: [6, 0, 0, 180, 360, 1],
@@ -88865,7 +88865,7 @@ exports.repPod = {
   PARENT: [exports.genericTank],
   TYPE: "voidlordBoss",
   LABEL: "Pod",
-  SPECIAL_EFFECT: "rep",
+  SPECIAL_EFFECT: ["rep"],
   LEVEL: 45,
   SIZE: 12,
   SHAPE: 6,
@@ -88937,7 +88937,7 @@ exports.itemtest1 = {
   DANGER: -1,
   LABEL: "item test",
   SHAPE: 6,
-  SPECIAL_EFFECT: "+speedT1",
+  SPECIAL_EFFECT: ["+speedT1"],
   SIZE: 15,
   COLOR: 10,
   BODY: {
@@ -90183,7 +90183,7 @@ exports.mechagod = {
     mob: 0,
   }),
   DANGER: 10,
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   LEVEL: Infinity,
   SIZE: 30,
   HAS_NO_RECOIL: true,
@@ -91318,7 +91318,7 @@ exports.livingApocalypse = {
     SHIELD: 99999,
     PUSHABILITY: 0,
   },
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   IGNORE_COLLISION: true,
   DANGER: 99,
@@ -94619,7 +94619,7 @@ exports.Seraphim = {
   SIZE: 35,
   BROADCAST_MESSAGE: "A fallen angel ascends back to the homeland.",
   TYPE: "voidlordBoss",
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   ALLOW_PLATE: true,
   DANGER: 8,
@@ -95214,7 +95214,7 @@ exports.zephilen = {
     REGEN: 0,
     RESIST: 1.4,
   },
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   DANGER: 10,
   SIZE: 17.5,
@@ -95742,7 +95742,7 @@ exports.teraRebel = {
   COLOR: 12,
   //SHAPE: [[1,-0.5],[-0.5,-1],[-1,-0.5],[-1,0.5],[-0.5,1],[1,0.5]],
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   BODY: {
     FOV: 3.25,

@@ -23,3 +23,5 @@ source tank's existing `UPGRADES_TIER_*` list, with duplicates ignored. The
 referenced source and upgrade class names must exist in `lib/definitions.js`; a
 mistyped name or tier stops startup with a useful error instead of silently
 breaking the branch.
+
+For mode-specific branch exclusions, per-entity branch exceptions, and secret branches unlocked by defeating an enemy, see [BRANCH_RULES.md](./BRANCH_RULES.md).
