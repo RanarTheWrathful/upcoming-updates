@@ -30589,6 +30589,7 @@ exports.quadengi = makeMulti(
           g.trap,
           g.block,
           g.greaterHealth,
+          g.doubleReload,
           g.greaterReload
         ]),
         TYPE: exports.bosspillbox,
@@ -30628,8 +30629,14 @@ exports.quadtwinengi = makeMulti(
       {
         POSITION: [2, 12, 1.1, 18, 0, 0, 0],
         PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([g.trap, g.block, g.halfRange,]),
-          TYPE: exports.tankpillboxTwin,
+          SHOOT_SETTINGS: combineStats([
+          g.trap,
+          g.block,
+          g.greaterHealth,
+          g.doubleReload,
+          g.greaterReload
+        ]),
+          TYPE: exports.bosspillboxTwin,
         },
       },
     ],
