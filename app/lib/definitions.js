@@ -5443,7 +5443,7 @@ exports.mechanistTurret = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [22, 10, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.flank, g.auto, g.pound, g.destroy, g.doubleDensity, g.doubleDensity, g.doubleSpeed, g.doubleSpeed, g.lesserReload]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.flank, g.auto, g.pound, g.destroy, g.doubleDensity, g.doubleDensity, g.doubleSpeed, g.doubleSpeed, g.lesserReload, g.doubleDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -43265,10 +43265,6 @@ exports.mechanisthand1 = {
   HAS_NO_RECOIL: true,
   GUNS: [
     {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [10, 14, -0.5, 12, 0, 0, 0],
-    },
-    {
       POSITION: [20, 15, 1, 0, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
@@ -43276,8 +43272,6 @@ exports.mechanisthand1 = {
           g.missile, 
           g.doubleReload,
           g.mediumReload,
-          g.greaterDamage,
-          g.greaterHealth,
           g.greaterPenetration,
           g.bitmoreSpeed
         ]),
@@ -43289,7 +43283,7 @@ exports.mechanisthand1 = {
       POSITION: [17, 16, 1, 0, 0, 0, 0],
     },
     {
-      POSITION: [10, 10, -0.5, 9, 0, 0, 0],
+      POSITION: [20, 10, -0.5, 9, 0, 0, 0],
     },
     {
       POSITION: [17, 11, 1, 0, 0, 0, 0],
