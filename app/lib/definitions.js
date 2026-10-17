@@ -30602,7 +30602,8 @@ exports.quadengi = makeMulti(
           g.block,
           g.greaterHealth,
           g.doubleReload,
-          g.greaterReload
+          g.bitmoreReload,
+          g.halfRange
         ]),
         TYPE: exports.unsetpillbox,
         SYNCS_SKILLS: true,
