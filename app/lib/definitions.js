@@ -42893,6 +42893,30 @@ exports.stabberBullet = {
   PARENT: [exports.bullet],
   LABEL: "Bullet",
 };
+exports.stabberTurret = {
+  PARENT: [exports.genericTank],
+          HAS_NO_RECOIL: true,
+          FACING_TYPE: "toTarget",
+          CONTROLLERS: ["onlyAcceptInArc"],
+          MAX_CHILDREN: 1,  
+  GUNS: [
+    {
+      POSITION: [20, 15, 0.001, 0, 0, 0, 0],
+      PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.basic,
+                  g.blade,
+                ]),
+                TYPE: [exports.bullet, { COLOR: 0, ALPHA: 1}],
+                MAX_CHILDREN: 1,
+                AUTOFIRE: true,
+              },
+            },
+    {
+      POSITION: [25, 15, 0.001, 0, 0, 0, 0],
+    },
+  ],
+};
 exports.stab = {
   PARENT: [exports.genericTank],
   LABEL: "Stabber",
@@ -42901,7 +42925,14 @@ exports.stab = {
     DAMAGE: base.DAMAGE * 0.9,
   },
   HAS_NO_RECOIL: true,
-  STAT_NAMES: statnames.blade,TURRETS: [ {
+  STAT_NAMES: statnames.blade,
+  TURRETS: [ 
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [15, 0, 0, 0, 0, 1],
+      TYPE: [exports.stabberTurret],
+    },
+    {
       /*  SIZE     X       Y     ANGLE    ARC */
       POSITION: [12, 15, 0, 0, 360, 1],
       TYPE: [
@@ -42923,14 +42954,6 @@ exports.stab = {
           ],
         },
       ],
-    },
-  ],
-  GUNS: [
-    {
-      POSITION: [20, 15, 0.001, 0, 0, 0, 0],
-    },
-    {
-      POSITION: [25, 15, 0.001, 0, 0, 0, 0],
     },
   ],
 };
