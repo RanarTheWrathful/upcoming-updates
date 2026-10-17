@@ -43922,7 +43922,13 @@ exports.creation = makeMulti({
       {
         POSITION: [2, 12, 1.1, 18, 0, 0, 0],
         PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([g.trap, g.block, g.halfRange,]),
+          SHOOT_SETTINGS: combineStats([
+          g.trap,
+          g.block,
+          g.greaterHealth,
+          g.doubleReload,
+          g.lesserRange
+        ]),
           TYPE: exports.tankpillboxTwin,
         },
       },
