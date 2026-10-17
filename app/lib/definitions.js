@@ -113,7 +113,7 @@ const g = {
   spreadmain: [3 / 4, 0.25, 0.5, 1, 0.5, 1, 1, 20 / 17, 4 / 3, 1, 1, 1, 1],
   spread: [1, 1, 0.8, 1, 1.1, 1.1, 1, 0.85, 0.85, 1, 1, 0.25, 1],
   skim: [1.33, 0.8, 0.8, 0.9, 1.3, 1.3, 1.6, 0.3, 0.3, 1, 1, 1, 1.1],
-  twin: [1, 1, 0.9, 1, 1, 1.15, 0.9, 0.9, 1, 1, 1, 1.2, 1],
+  twin: [1, 1, 0.9, 1, 1, 1.15, 0.75, 0.9, 1, 1, 1, 1.2, 1],
   bent: [1.1, 1, 0.8, 1, 1.25, 1, 0.8, 1, 1, 1, 0.8, 0.5, 1],
   triple: [1.2, 0.667, 0.9, 1, 1, 1, 1, 1, 1, 1, 1.1, 0.9, 0.95],
   cyclone: [1.25, 0.25, 1.3, 1.2, 2, 0.85, 1.5, 1.5, 1.2, 1, 1.5, 1.5, 1.2],
@@ -29873,7 +29873,7 @@ exports.shooter = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [24, 12, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.lesserStats]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -29941,7 +29941,7 @@ exports.attack = {
     {
       POSITION: [24, 12, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.lesserStats]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -30154,7 +30154,7 @@ exports.infiltrate = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [24, 10, -2, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfRecoil, g.lesserStats]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfRecoil, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
