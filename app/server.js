@@ -24,6 +24,7 @@ const siegeWavePlanner = require("./lib/siegeWavePlanner");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
 const droneInfection = require("./lib/droneInfection");
 const supportEffects = require("./lib/supportEffects");
+const foodSpawnSafety = require("./lib/foodSpawnSafety");
 const modeBranches = require("./lib/modeBranches");
 const modeVoting = require("./lib/modeVoting");
 const gunCalculator = require("./lib/gunCalculator");
@@ -23203,7 +23204,7 @@ var maintainloop = (() => {
       }
       return a;
     }
-    let placeNewFood = (position, scatter, level, allowInNest = false) => {
+    let placeNewFood = (position, scatter, level, allowInNest = false, spawnStatus = null) => {
       let o = nearest(food, position);
       let mitosis = false;
       let seed = false;
@@ -23234,7 +23235,10 @@ var maintainloop = (() => {
               x: o.x + o.size * Math.cos(o.facing),
               y: o.y + o.size * Math.sin(o.facing),
             };
-          if (!loadProtection.canSpawnNaturalEntity()) return null;
+          if (!loadProtection.canSpawnNaturalEntity()) {
+            if (spawnStatus) spawnStatus.blockedByLoadProtection = true;
+            return null;
+          }
           let new_o = new Entity(place);
           new_o._loadProtectionNaturalSpawn = true;
           switch (new_o.rarityType) {
@@ -23275,7 +23279,10 @@ var maintainloop = (() => {
         // Brand new
         else if (room.isIn("nest", position) === allowInNest) {
           if (!dirtyCheck(position, 20)) {
-            if (!loadProtection.canSpawnNaturalEntity()) return null;
+            if (!loadProtection.canSpawnNaturalEntity()) {
+              if (spawnStatus) spawnStatus.blockedByLoadProtection = true;
+              return null;
+            }
             o = new Entity(position);
             o._loadProtectionNaturalSpawn = true;
 
@@ -23317,76 +23324,119 @@ var maintainloop = (() => {
         }
       }
     };
-    // Define foodspawners
+    // Food spawners must never retry indefinitely: anti-lag protection can reject
+    // natural spawns while a food spawner is being replenished.
+    const FOOD_SPAWNER_COUNT = 4;
+    const FOOD_SPAWNER_MAX_ATTEMPTS = 24;
+    const FOOD_SPAWNER_RETRY_DELAY_TICKS = 30;
+    let foodSpawnerRetryCooldown = 0;
+
     class FoodSpawner {
       constructor() {
-        this.foodToMake = Math.ceil(
-          Math.abs(ran.gauss(0, room.scale.linear * 80))
+        this.active = false;
+        this.foodToMake = Math.max(
+          1,
+          Math.ceil(Math.abs(ran.gauss(0, room.scale.linear * 80)))
         );
         this.size = Math.sqrt(this.foodToMake) * 25;
 
-        // Determine where we ought to go
-        let position = {};
-        let o;
-        do {
-          position = room.gaussRing(1 / 3, 20);
-          o = placeNewFood(position, this.size, 0);
-        } while (o == null);
+        const o = foodSpawnSafety.tryWithLimit(() => {
+          const position = room.gaussRing(1 / 3, 20);
+          if (!position) return null;
+          const status = { blockedByLoadProtection: false };
+          const candidate = placeNewFood(position, this.size, 0, false, status);
+          // A population-cap rejection will not improve by sampling more points.
+          return status.blockedByLoadProtection ? false : candidate;
+        }, FOOD_SPAWNER_MAX_ATTEMPTS);
 
-        // Produce a few more
-        for (let i = Math.ceil(Math.abs(ran.gauss(0, 4))); i <= 0; i--) {
-          placeNewFood(o, this.size, 0);
+        if (!o) return;
+
+        // Seed a few additional food items, but stop immediately if anti-lag
+        // rejects spawning. The previous loop condition could count down forever.
+        const additionalFood = Math.ceil(Math.abs(ran.gauss(0, 4)));
+        for (let i = additionalFood; i > 0; i--) {
+          const status = { blockedByLoadProtection: false };
+          placeNewFood(o, this.size, 0, false, status);
+          if (status.blockedByLoadProtection) break;
         }
 
-        // Set location
         this.x = o.x;
         this.y = o.y;
-        //util.debug('FoodSpawner placed at ('+this.x+', '+this.y+'). Set to produce '+this.foodToMake+' food.');
+        this.active = true;
       }
+
       rot() {
+        if (!this.active) return;
         if (--this.foodToMake < 0) {
-          //util.debug('FoodSpawner rotted, respawning.');
-          util.remove(foodSpawners, foodSpawners.indexOf(this));
-          foodSpawners.push(new FoodSpawner());
+          this.active = false;
+          const index = foodSpawners.indexOf(this);
+          if (index !== -1) foodSpawners.splice(index, 1);
+          // Replenishment is deferred to the next food tick. Never construct a
+          // replacement from inside rot(), where a rejected spawn used to hang.
         }
       }
     }
-    // Add them
-    if (c.SPAWN_FOOD !== false && room.maxFood > 0) {
-      foodSpawners.push(new FoodSpawner());
-      foodSpawners.push(new FoodSpawner());
-      foodSpawners.push(new FoodSpawner());
-      foodSpawners.push(new FoodSpawner());
+
+    function ensureFoodSpawners() {
+      if (c.SPAWN_FOOD === false || room.maxFood <= 0) return;
+      if (foodSpawners.length >= FOOD_SPAWNER_COUNT) return;
+      if (foodSpawnerRetryCooldown > 0) {
+        foodSpawnerRetryCooldown--;
+        return;
+      }
+
+      let creationFailed = false;
+      while (foodSpawners.length < FOOD_SPAWNER_COUNT) {
+        const spawner = new FoodSpawner();
+        if (!spawner.active) {
+          creationFailed = true;
+          break;
+        }
+        foodSpawners.push(spawner);
+      }
+      if (creationFailed) foodSpawnerRetryCooldown = FOOD_SPAWNER_RETRY_DELAY_TICKS;
     }
+
+    // Seed the initial spawners with the same bounded path used during recovery.
+    ensureFoodSpawners();
     // Food making functions
     let makeGroupedFood = () => {
-      // Create grouped food
-      // Choose a location around a spawner
-      let spawner = foodSpawners[ran.irandom(foodSpawners.length - 1)],
-        bubble = ran.gaussRing(spawner.size, 1 / 4);
-      placeNewFood({ x: spawner.x + bubble.x, y: spawner.y + bubble.y }, -1, 0);
+      // A spawner may be absent while anti-lag prevents its replacement.
+      if (!foodSpawners.length) return false;
+      const spawner = foodSpawners[ran.irandom(foodSpawners.length - 1)];
+      if (!spawner || !spawner.active) return false;
+      const bubble = room.gaussRing(spawner.size, 1 / 4);
+      if (!bubble) return false;
+      const spawnedFood = placeNewFood(
+        { x: spawner.x + bubble.x, y: spawner.y + bubble.y },
+        -1,
+        0
+      );
+      // Failed placement must not consume a spawner's remaining food allowance.
+      if (!spawnedFood) return false;
       spawner.rot();
+      return true;
     };
     let makeDistributedFood = () => {
-      // Distribute food everywhere
-      //util.debug('Creating new distributed food.');
-      let spot = {};
-      do {
-        spot = room.gaussRing(1 / 2, 2);
-        if (!spot) return false;
-      } while (room.isInNorm(spot));
-      placeNewFood(spot, 0.01 * room.width, 0);
-      return true;
+      // Bounded rejection sampling protects unusual maps from infinite loops.
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const spot = room.gaussRing(1 / 2, 2);
+        if (!spot) continue;
+        if (room.isInNorm(spot)) continue;
+        placeNewFood(spot, 0.01 * room.width, 0);
+        return true;
+      }
+      return false;
     };
     let makeCornerFood = () => {
-      // Distribute food in the corners
-      let spot = {};
-      do {
-        spot = room.gaussInverse(5);
-        if (!spot) return false;
-      } while (room.isInNorm(spot));
-      placeNewFood(spot, 0.05 * room.width, 0);
-      return true;
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const spot = room.gaussInverse(5);
+        if (!spot) continue;
+        if (room.isInNorm(spot)) continue;
+        placeNewFood(spot, 0.05 * room.width, 0);
+        return true;
+      }
+      return false;
     };
     let makeNestFood = () => {
       // Make nest pentagons
@@ -23445,7 +23495,16 @@ var maintainloop = (() => {
       const currentFood = [];
       for (let i = 0; i < entities.length; i++) {
         const instance = entities[i];
-        if (!instance || typeof instance.valid !== "function" || !instance.valid()) continue;
+        if (!instance || typeof instance.valid !== "function") continue;
+        let isValid = false;
+        try {
+          isValid = instance.valid();
+        } catch (_) {
+          // Stale entities can be encountered while anti-lag is disabling or
+          // destroying population. Ignore them in this census rather than crash.
+          continue;
+        }
+        if (!isValid) continue;
         try {
           if (instance.type === "tank") {
             census.tank++;
@@ -23463,7 +23522,12 @@ var maintainloop = (() => {
         } catch (err) {
           util.error(instance.label);
           util.error(err);
-          instance.kill();
+          // A malformed/stale entity must not turn census recovery into a second crash.
+          try {
+            if (typeof instance.kill === "function") instance.kill();
+          } catch (killError) {
+            util.error(killError);
+          }
         }
       }
       food = currentFood;
@@ -23473,13 +23537,28 @@ var maintainloop = (() => {
 
       let foodAmount = census.sum;
       let nestFoodAmount = censusNest.sum;
+      /************** RESTORE MISSING SPAWNERS **************/
+      // Fill any slots lost on the previous tick, before this tick's rotation.
+      ensureFoodSpawners();
       /*********** ROT OLD SPAWNERS **********/
-      foodSpawners.forEach((spawner) => {
-        if (ran.chance(1 - foodAmount / maxFood)) spawner.rot();
-      });
+      const spawnerRotationChance = foodSpawnSafety.clampProbability(
+        1 - foodAmount / maxFood
+      );
+      // Iterate backwards because rot() removes expired spawners from this array.
+      for (let i = foodSpawners.length - 1; i >= 0; i--) {
+        const spawner = foodSpawners[i];
+        if (spawner && ran.chance(spawnerRotationChance)) spawner.rot();
+      }
       /************** MAKE FOOD **************/
-      while (
-        ran.chance(0.8 * (1 - (foodAmount * foodAmount) / maxFood / maxFood))
+      const generalFoodChance = foodSpawnSafety.clampProbability(
+        0.8 * (1 - (foodAmount * foodAmount) / (maxFood * maxFood))
+      );
+      // A fixed attempt budget prevents random runs of successful rolls from
+      // creating a large synchronous spawn burst during a lag spike.
+      for (
+        let attempt = 0;
+        attempt < 12 && ran.chance(generalFoodChance);
+        attempt++
       ) {
         switch (ran.chooseChance(10, 2, 1)) {
           case 0:
@@ -23493,13 +23572,16 @@ var maintainloop = (() => {
             break;
         }
       }
-      while (
-        ran.chance(
-          0.25 *
-            (1 - (nestFoodAmount * nestFoodAmount) / maxNestFood / maxNestFood)
-        )
-      )
+      const nestFoodChance = foodSpawnSafety.clampProbability(
+        0.25 * (1 - (nestFoodAmount * nestFoodAmount) / (maxNestFood * maxNestFood))
+      );
+      for (
+        let attempt = 0;
+        attempt < 8 && ran.chance(nestFoodChance);
+        attempt++
+      ) {
         makeNestFood();
+      }
       /************* UPGRADE FOOD ************/
       if (!food.length) return 0;
       for (let i = Math.ceil(food.length / 100); i > 0; i--) {
