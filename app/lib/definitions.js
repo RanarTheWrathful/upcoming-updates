@@ -57,13 +57,13 @@ const skillSet = (() => {
 const g = {
   // Gun info here
   bases: [2, 1, 1, 1, 1, 2, 1, 0.8, 1, 1, 1, 1, 1],
-  trap: [36, 1, 0.1, 0.6, 0.85, 1.15, 0.25, 5, 1, 1.2, 1, 15, 3],
+  trap: [36, 1, 0.1, 0.6, 0.85, 1.75, 0.25, 5, 1, 1.2, 1, 15, 3],
   barricade: [40, 1, 0.1, 0.6, 0.65, 0.75, 1, 5, 1, 1, 1, 15, 3],
-  drone: [70, 0.25, 0.1, 0.6, 1.25, 2, 1, 2, 1, 1, 1, 0.1, 1.15],
-  sunchip: [200, 0.25, 0.1, 0.8, 1.2, 1.2, 1.75, 1, 1, 1, 0.8, 1, 1],
+  drone: [70, 0.25, 0.1, 0.6, 1, 0.25, 3, 2, 1, 1, 1, 0.1, 1.15],
+  sunchip: [200, 0.25, 0.1, 0.8, 2, 0.25, 3, 1, 1, 1, 0.8, 1, 1],
   redrone: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
   factory: [90, 1, 0.1, 0.8, 1.25, 1.15, 1, 1.75, 1, 1, 1, 0.1, 1],
-  spawner: [90, 0.5, 0.1, 0.7, 1.7, 1, 1.75, 2, 1.2, 1, 1, 0.1, 0.8],
+  spawner: [90, 0.5, 0.1, 0.7, 1.7, 0.75, 1, 3, 1.2, 1, 1, 0.1, 0.8],
   basic: [18, 1.4, 0.1, 1, 1, 1, 1, 4.5, 1, 1, 1, 15, 1],
   /***************** RELOAD RECOIL SHUDDER  SIZE   HEALTH  DAMAGE   PEN    SPEED    MAX    RANGE  DENSITY  SPRAY   RESIST  */
   blank: [1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1],
@@ -113,10 +113,10 @@ const g = {
   spreadmain: [3 / 4, 0.25, 0.5, 1, 0.5, 1, 1, 20 / 17, 4 / 3, 1, 1, 1, 1],
   spread: [1, 1, 0.8, 1, 1.1, 1.1, 1, 0.85, 0.85, 1, 1, 0.25, 1],
   skim: [1.33, 0.8, 0.8, 0.9, 1.3, 1.3, 1.6, 0.3, 0.3, 1, 1, 1, 1.1],
-  twin: [1, 1, 0.9, 1, 1, 1.15, 0.9, 0.9, 1, 1, 1, 1.2, 1],
+  twin: [1, 1, 0.9, 1, 1, 1.15, 0.75, 0.9, 1, 1, 1, 1.2, 1],
   bent: [1.1, 1, 0.8, 1, 1.25, 1, 0.8, 1, 1, 1, 0.8, 0.5, 1],
   triple: [1.2, 0.667, 0.9, 1, 1, 1, 1, 1, 1, 1, 1.1, 0.9, 0.95],
-  cyclone: [1.25, 0.25, 1.3, 1.2, 2, 0.85, 1.5, 1.5, 1.2, 1, 1.5, 1.5, 1.2],
+  cyclone: [1.25, 0.25, 1.3, 1.2, 2, 0.65, 1.5, 1.5, 1.2, 1, 1.5, 1.5, 1.2],
   dual: [4, 1, 0.8, 1, 1.5, 1.25, 1, 1.3, 1.1, 1, 1, 1, 1.25],
   double: [1, 1, 1, 1, 1, 0.9, 1, 1, 1, 1, 1, 1, 1],
   hewn: [1.25, 1.5, 1, 1, 0.9, 0.85, 1, 1, 0.9, 1, 1, 1, 1],
@@ -126,7 +126,7 @@ const g = {
   machgun: [0.66, 0.25, 2, 1, 0.25, 1.25, 0.75, 0.8, 0.8, 1, 1, 2.5, 1],
   gunner: [1.25, 0.25, 1.5, 1.1, 0.8, 0.4, 1.35, 0.9, 0.8, 1, 1.5, 1.5, 1.2],
   bounce: [7.5, 65, 1, 1, 0.01, 0.01, 1, 0.01, 0.01, 0.01, 1, 1, 1],
-  nail: [0.75, 2.5, 1, 0.8, 0.85, 1.5, 1.1, 1, 1, 1, 2, 1, 1],
+  nail: [0.75, 2.5, 1, 0.8, 0.85, 1.15, 1.1, 1, 1, 1, 2, 1, 1],
   fast: [1, 1, 1, 1, 1, 1, 1, 1.2, 1, 1, 1, 1, 1],
   turret: [2, 1, 1, 1, 0.8, 0.6, 0.7, 1, 1, 1, 0.1, 1, 1],
   /***************** RELOAD RECOIL SHUDDER  SIZE   HEALTH  DAMAGE   PEN    SPEED    MAX    RANGE  DENSITY  SPRAY   RESIST  */
@@ -136,7 +136,7 @@ const g = {
   battleShip: [1, 1, 1, 1, 1.25, 1.15, 1, 1, 0.85, 1, 1, 1, 1.1],
   hexatrap: [0.85, 1, 1, 1, 0.9, 0.9, 1, 0.8, 1, 0.85, 1, 1, 1],
   block: [
-    1.3, 2.25, 0.1, 1.75, 1.25, 1.25, 1.25, 1.5, 1.5, 1.05, 0.25, 1, 1.75,
+    1.75, 2.25, 0.1, 1.75, 1.25, 1.25, 1.25, 1.5, 1.5, 1.05, 0.25, 1, 1.75,
   ],
   construct: [1.4, 1.5, 1, 0.9, 1.25, 1.25, 1.25, 0.95, 1.1, 1, 1, 1, 1],
   boomerang: [1, 1, 1, 0.8, 1, 1, 1, 1, 1, 1.55, 1, 1, 1],
@@ -512,6 +512,8 @@ exports.genericEntity = {
   },
 };
 const base = {
+  // Multiplicative defaults used by auto-turrets and custom body definitions.
+  RELOAD: 1,
   ACCEL: 1.75,
   SPEED: 5,
   HEALTH: 25,
@@ -943,7 +945,7 @@ exports.food = {
   FACING_TYPE: "turnWithSpeed",
   VARIES_IN_SIZE: true,
   NO_REGEN: true,
-  SPECIAL_EFFECT: "none",
+  SPECIAL_EFFECT: ["none"],
   BODY: {
     STEALTH: 30,
     PUSHABILITY: 3.5,
@@ -3235,7 +3237,7 @@ exports.autoSmasherOrb = {
   AI: { FARMER: true },
   WALL_IMMUNITY: true,
   INDEPENDENT: false,
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPEL: 0.25,
   TURRETS: [
     {
@@ -3262,7 +3264,7 @@ exports.smasherOrb = {
   AI: { FARMER: true },
   WALL_IMMUNITY: true,
   INDEPENDENT: false,
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPEL: 0.25,
   TURRETS: [
     {
@@ -3285,7 +3287,7 @@ exports.landmineOrb = {
   AI: { FARMER: true },
   WALL_IMMUNITY: true,
   INDEPENDENT: false,
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPEL: 0.25,
   TURRETS: [
     {
@@ -3323,8 +3325,21 @@ exports.spikeOrb = {
   ],
 };
 exports.powerOrb = {
-  PARENT: [exports.smasherOrb],
- TURRETS: [],
+  PARENT: [exports.drone],
+  LABEL: "Orb",
+  TYPE: "trap",
+  SHAPE: 0,
+  CONTROLLERS: [
+    "nearestDifferentMaster",
+    "mapTargetToGoal",
+    "hangOutNearMaster",
+  ],
+  AI: { FARMER: true },
+  WALL_IMMUNITY: true,
+  INDEPENDENT: false,
+  SPECIAL_EFFECT: ["push"],
+  REPEL: 0.25,
+  TURRETS: [],
  // CONNECTED_DAMAGE: true,
  // DAMAGE_MULTIPLIER: 0.75,
   };
@@ -3584,10 +3599,11 @@ exports.trap = {
     HEALTH: 0.5 * wepHealthFactor,
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
-    DENSITY: 1.5,
-    PENETRATION: 1,
+    DENSITY: 2.5,
     RESIST: 2.5,
     SPEED: 0,
+    PENETRATION: 1.15,
+    PUSHABILITY: 0.75,
   },
 };
 exports.repairTrap = {
@@ -3598,16 +3614,18 @@ exports.repairTrap = {
   SHAPE: -3,
   MOTION_TYPE: "glide", // def
   FACING_TYPE: "turnWithSpeed",
+  SPECIAL_EFFECT: ["push"],
   REPAIR_EFFECT: true,
   DIE_AT_RANGE: true,
   BODY: {
     HEALTH: 0.5 * wepHealthFactor,
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
-    DENSITY: 1.5,
-    PENETRATION: 1,
+    DENSITY: 2.5,
     RESIST: 2.5,
     SPEED: 0,
+    PENETRATION: 1.15,
+    PUSHABILITY: 0.75,
   },
 };
 exports.healTrap = {
@@ -3625,10 +3643,11 @@ exports.healTrap = {
     HEALTH: 0.5 * wepHealthFactor,
     DAMAGE: 1.25 * wepDamageFactor,
     RANGE: 450,
-    DENSITY: 1.5,
-    PENETRATION: 1,
+    DENSITY: 2.5,
     RESIST: 2.5,
     SPEED: 0,
+    PENETRATION: 1.15,
+    PUSHABILITY: 0.75,
   },
 };
 exports.breakerTrap = {
@@ -3671,43 +3690,44 @@ exports.ogbursterTrap = {
 exports.unsetBlock = {
   LABEL: "Block",
   PARENT: [exports.trap],
-  SPECIAL_EFFECT: "block",
+  SPECIAL_EFFECT: ["block"],
   SHAPE: -4,
   MOTION_TYPE: "motor",
   BODY: {
     SPEED: 1.2,
     PENETRATION: 0.85,
-    DENSITY: 4.5,
+    DENSITY: 7.5,
     PENETRATION: 1.15,
+    PUSHABILITY: 0.5,
   },
 };
 exports.setBlock = {
   LABEL: "Block",
   PARENT: [exports.trap],
-  SPECIAL_EFFECT: "block",
+  SPECIAL_EFFECT: ["block"],
   SHAPE: -4,
   MOTION_TYPE: "motor",
   // MOTION_TYPE: "glide",
   CONTROLLERS: ["goToMasterTarget"],
   BODY: {
     SPEED: 1.2,
-    DENSITY: 5.5,
+    DENSITY: 7.5,
     PENETRATION: 1.15,
 
-    PUSHABILITY: 1,
+    PUSHABILITY: 0.5,
   },
 };
 exports.assemblent = {
   LABEL: "Assemblent",
   PARENT: [exports.trap],
-  SPECIAL_EFFECT: "block",
+  SPECIAL_EFFECT: ["block"],
   SHAPE: -4,
   MOTION_TYPE: "motor",
   // MOTION_TYPE: "glide",
   CONTROLLERS: ["goToMasterTarget"],
   BODY: {
     SPEED: 1.2,
-    DENSITY: 5.5,
+    DENSITY: 100,
     PENETRATION: 1.15,
 
     PUSHABILITY: 1,
@@ -3737,7 +3757,7 @@ exports.wreckerSetBlock = {
 exports.boomerang = {
   LABEL: "Boomerang",
   PARENT: [exports.trap],
-  SPECIAL_EFFECT: "block",
+  SPECIAL_EFFECT: ["block"],
   HITS_OWN_TYPE: "polyrepel",
   CONTROLLERS: ["boomerang"],
   MOTION_TYPE: "motor",
@@ -3746,7 +3766,7 @@ exports.boomerang = {
   BODY: {
     SPEED: 1.15,
     RANGE: 260,
-    DENSITY: 5.5,
+    DENSITY: 100,
     PENETRATION: 1.15,
     PUSHABILITY: 1,
   },
@@ -3776,7 +3796,7 @@ exports.damageAura = {
     SPEED: 0,
   },
   DISABLE_DAMAGE: true,
-  //SPECIAL_EFFECT: "push",
+  //SPECIAL_EFFECT: ["push"],
   //REPEL: 1,
   TURRETS: [
     {
@@ -3836,7 +3856,7 @@ exports.metta1 = {
     SPEED: 0,
   },
   DISABLE_DAMAGE: true,
-  //SPECIAL_EFFECT: "push",
+  //SPECIAL_EFFECT: ["push"],
   //REPEL: 1,
   TURRETS: [
     {
@@ -3886,7 +3906,7 @@ exports.acidicField = {
     PUSHABILITY: 0,
     SPEED: 0,
   },
-  SPECIAL_EFFECT: "push",
+  SPECIAL_EFFECT: ["push"],
   REPEL: 1,
   TURRETS: [
     {
@@ -4074,8 +4094,10 @@ exports.autoTurret = {
           g.gunner,
           g.power,
           g.greaterStats,
+          g.doubleDamage,
           g.superReload,
-          g.doubleReload,
+          g.superReload,
+          g.superReload,
         ]),
         TYPE: exports.bullet,
       },
@@ -4222,42 +4244,68 @@ exports.creationrifle = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [20, 4.5, 1, 0, 3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.gunner,
+        g.arty,
+        g.nail,
+        g.power,
+        g.halfSpeed,
+        g.greaterDamage,
+        g.greaterReload]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [20, 4.5, 1, 0, -3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+        g.basic,
+        g.gunner,
+        g.arty,
+        g.nail,
+        g.power,
+        g.halfSpeed,
+        g.greaterDamage,
+        g.greaterReload]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [24, 7, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.rifle, g.auto, g.flank,]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.rifle, g.auto, g.flank, g.greaterReload]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [16, 10, 0.7, -2.5, 0, 140, 0.2],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.halfDamage,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.minorDamage,]),
         TYPE: exports.swarmDrone,
       },
     },
     {
       POSITION: [16, 10, 0.7, -2.5, 0, -140, 0.2],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.halfDamage,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.minorDamage,]),
         TYPE: exports.swarmDrone,
       },
     },
     {
       POSITION: [16, 10, 0.7, 0.5, 0, 120, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.halfDamage,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.minorDamage,]),
         TYPE: exports.swarmDrone,
       },
     },
     {
       POSITION: [16, 10, 0.7, 0.5, 0, -120, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.halfDamage,]),
+        SHOOT_SETTINGS: combineStats([g.swarm, g.greaterSpeed, g.auto, g.flank, g.minorDamage,]),
         TYPE: exports.swarmDrone,
       },
     },
@@ -4874,7 +4922,7 @@ exports.breakerAutoTurret = {
 };
 exports.smasherOrbGenerator = {
 PARENT: [exports.genericTank],
-  LABEL: "",
+  LABEL: "Generator",
   CONTROLLERS: ["spin"],
   //SPIN_RATE: -0.5555,
   COLOR: 9,
@@ -4971,10 +5019,20 @@ PARENT: [exports.smasherOrbGenerator],
                   //g.greaterStats,
                   g.superHealth,
                   g.greaterReload,
-                  g.greaterDamage,
+                  g.halfDamage,
+                  g.halfDamage,
+                  g.halfDamage,
+                  g.halfDamage,
                   g.superHealth,
                   g.superHealth,
                   g.superHealth,
+                  g.superHealth,
+                  g.superHealth,
+                  g.superHealth,
+                  g.superDensity,
+                  g.superDensity,
+                  g.superDensity,
+                  g.superDensity,
                   /***************** RELOAD RECOIL SHUDDER  SIZE   HEALTH  DAMAGE   PEN    SPEED    MAX    RANGE  DENSITY  SPRAY   RESIST  */
                 ]),
                 TYPE: [
@@ -5132,7 +5190,26 @@ exports.growCollident = {
        ],
          };
 exports.ascendantCollident = {
-  PARENT: [exports.dualCollident],
+  PARENT: [exports.genericTank],
+  TYPE: "attachment",
+  SHAPE: 1,
+  FACING_TYPE: "autospin",
+  CONTROLLERS: ["teleportToMaster"],
+  ACCEPTS_SCORE: false,
+  GIVE_KILL_MESSAGE: false,
+  CONNECTED_TRAITS: [
+    "skill.score",
+    ],
+  DIE_AT_RANGE: true,
+  SPIN_RATE: 0.075,
+  BODY: {
+    HEALTH: 99999,
+    RANGE: 1000,
+    DAMAGE: 0,
+    PENETRATION: 999,//deadly amount of penetration this baby has in it
+    },
+    DRAW_HEALTH: false,
+  CLEAR_ON_MASTER_UPGRADE: true,
   SHAPE: 0,
   TURRETS: [
     {
@@ -5384,7 +5461,7 @@ exports.mechanistTurret = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [22, 10, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.flank, g.auto, g.pound, g.destroy, g.doubleDensity, g.doubleDensity, g.doubleSpeed, g.doubleSpeed, g.lesserReload]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.flank, g.auto, g.pound, g.destroy, g.doubleDensity, g.doubleDensity, g.doubleSpeed, g.doubleSpeed, g.halfReload, g.doubleDamage,]),
         TYPE: exports.bullet,
       },
     },
@@ -6143,7 +6220,7 @@ exports.auto4Turret = {
           g.nail,
           g.power,
           g.auto,
-          g.greaterDamage,
+          g.halfDamage,
         ]),
         TYPE: exports.bullet,
       },
@@ -6158,7 +6235,7 @@ exports.auto4Turret = {
           g.nail,
           g.power,
           g.auto,
-          g.greaterDamage,
+          g.halfDamage,
         ]),
         TYPE: exports.bullet,
       },
@@ -6305,7 +6382,7 @@ exports.autoBounce = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [1, 1, 1, 0, 0, 180, 1],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.bounce, g.greaterReload]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.bounce, g.greaterReload, g.halfRecoil]),
         TYPE: [exports.bullet, { ALPHA: 0 }],
       },
     },
@@ -6399,7 +6476,7 @@ exports.bang = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -6437,7 +6514,7 @@ exports.bangAlt = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -6480,7 +6557,7 @@ exports.bigBang = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -6519,7 +6596,7 @@ exports.bangBang = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -8242,6 +8319,7 @@ exports.flankMechTurret = {
           g.gunner,
           g.minion,
           g.greaterStats,
+          g.greaterDamage,
           g.superReload,
           g.doubleReload,
         ]),
@@ -11563,7 +11641,7 @@ exports.repairMan = {
   GIVE_KILL_MESSAGE: true,
   DRAW_HEALTH: true,
   IS_PROJECTILE: false,
-  SPECIAL_EFFECT: "man",
+  SPECIAL_EFFECT: ["man"],
   AI_TARGET: "structures",
   ORBIT_DISTANCE: 80,
   CONTROLLERS: [
@@ -11824,7 +11902,7 @@ exports.experimenterStationedTurret = {
   LABEL: "Stationed Turret",
   TYPE: "trap",
   IS_PROJECTILE: true,
-  SPECIAL_EFFECT: "noRegen",
+  SPECIAL_EFFECT: ["noRegen"],
   WALL_IMMUNITY: true,
   DAMAGE_CLASS: 0,
   DANGER: 7,
@@ -12068,6 +12146,45 @@ exports.inventorStationedTurret = {
       POSITION: [5.5, 8, -1.8, 6.5, 0, 0, 0],
     },
   ],
+};
+
+exports.c4turret = {
+  PARENT: [exports.experimenterStationedTurret],
+  LABEL: "Deployed Plastic Explosive",
+  DEATH_THROES: "plasticExplosion",
+  GROWTH_FACTOR: 1.25,
+  BODY: {
+    FOV: 1.75,
+    SPEED: 0,
+    ACCELERATION: 0,
+    HEALTH: 1,
+    SHIELD: 0,
+    DAMAGE: 0.25,
+    RESIST: 1,
+    PENETRATION: 1,
+    RANGE: 100,
+    DENSITY: 0.4,
+    REGEN: 0,
+    PUSHABILITY: 0,
+  },
+  GUNS: [],
+  TURRETS: [
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [21.5, 0, 0, 0, 361, 0],
+      TYPE: exports.dominatorBody,
+    },
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [11, 0, 0, 0, 360, 1],
+      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ]
 };
 exports.researcherStationedTurret = {
   PARENT: [exports.experimenterStationedTurret],
@@ -12363,7 +12480,8 @@ function makeAuto(type, name = -1, options = {}) {
   } else {
     output.LABEL = name;
   }
-  output.DANGER = type.DANGER + 1;
+  const sourceDanger = Number(type.DANGER);
+  output.DANGER = Number.isFinite(sourceDanger) ? sourceDanger + 1 : 1;
   return output;
 }
 function makeHybrid(type, name = -1) {
@@ -12525,7 +12643,7 @@ exports.hexagon = {
   },
   SHAPE: 6,
   LABEL: "Hexagon",
-  SPECIAL_EFFECT: "beta",
+  SPECIAL_EFFECT: ["beta"],
   VALUE: 10000,
   COLOR: 15,
   SIZE: 29,
@@ -12547,7 +12665,7 @@ exports.septagon = {
     LEVEL: 5,
   },
   LABEL: "Septagon",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   VALUE: 50000,
   SIZE: 58,
   SHAPE: 7,
@@ -12569,7 +12687,7 @@ exports.octagon = {
     LEVEL: 6,
   },
   LABEL: "Octagon",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SHAPE: 8,
   COLOR: 4,
   VALUE: 150000,
@@ -12591,7 +12709,7 @@ exports.nonagon = {
     LEVEL: 7,
   },
   LABEL: "Nonagon",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SHAPE: 9,
   COLOR: 18,
   VALUE: 500000,
@@ -12879,7 +12997,7 @@ exports.shinySeptagon = {
   PARENT: [exports.septagon],
   LABEL: "Shiny Septagon",
   PASSIVE_EFFECT: "uniqueFood",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   VALUE: 5000000,
   SIZE: 58.5,
   COLOR: 1,
@@ -12907,7 +13025,7 @@ exports.shinyOctagon = {
   },
   LABEL: "Shiny Octagon",
   PASSIVE_EFFECT: "uniqueFood",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   VALUE: 15000000,
   SIZE: 75.5,
   COLOR: 1,
@@ -12931,7 +13049,7 @@ exports.shinyNonagon = {
   },
   LABEL: "Shiny Nonagon",
   PASSIVE_EFFECT: "uniqueFood",
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   VALUE: 5000000,
   SIZE: 80,
   COLOR: 1,
@@ -13117,7 +13235,7 @@ exports.legendarySeptagon = {
     LEVEL: 5,
   },
   VALUE: 7500000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 59,
   COLOR: 0,
   BODY: {
@@ -13146,7 +13264,7 @@ exports.legendaryOctagon = {
     LEVEL: 6,
   },
   VALUE: 20000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 76,
   COLOR: 0,
   BODY: {
@@ -13175,7 +13293,7 @@ exports.legendaryNonagon = {
     LEVEL: 7,
   },
   VALUE: 75000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 81,
   COLOR: 0,
   BODY: {
@@ -13277,7 +13395,7 @@ exports.shadowSeptagon = {
   BODY: { REGEN: 0 },
   ALPHA: 0.05,
   VALUE: 10000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 19,
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
@@ -13292,7 +13410,7 @@ exports.shadowOctagon = {
   BODY: { REGEN: 0 },
   ALPHA: 0.05,
   VALUE: 25000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 19,
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
@@ -13307,7 +13425,7 @@ exports.shadowNonagon = {
   BODY: { REGEN: 0 },
   ALPHA: 0.05,
   VALUE: 125000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 19,
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
@@ -13374,7 +13492,7 @@ exports.albinoSeptagon = {
   PARENT: [exports.septagon],
   LABEL: "Albino Septagon",
   VALUE: 500000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   FOOD: {
     LEVEL: 2,
   },
@@ -13388,7 +13506,7 @@ exports.albinoOctagon = {
   PARENT: [exports.octagon],
   LABEL: "Albino Octagon",
   VALUE: 1500000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 6,
   BODY: { REGEN: 0 },
   FOOD: {
@@ -13402,7 +13520,7 @@ exports.albinoNonagon = {
   PARENT: [exports.nonagon],
   LABEL: "Albino Nonagon",
   VALUE: 1500000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   COLOR: 6,
   BODY: { REGEN: 0 },
   FOOD: {
@@ -13502,7 +13620,7 @@ exports.epilepticSeptagon = {
     LEVEL: 5,
   },
   VALUE: 15000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 58.5,
   COLOR: 20,
   BODY: {
@@ -13521,7 +13639,7 @@ exports.epilepticOctagon = {
     LEVEL: 6,
   },
   VALUE: 40000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 76.5,
   COLOR: 20,
   BODY: {
@@ -13540,7 +13658,7 @@ exports.epilepticNonagon = {
     LEVEL: 7,
   },
   VALUE: 200000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 83,
   COLOR: 20,
   BODY: {
@@ -13726,7 +13844,7 @@ exports.rainbowSeptagon = {
     LEVEL: 5,
   },
   VALUE: 22000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 59,
   COLOR: 36,
   BODY: {
@@ -13760,7 +13878,7 @@ exports.rainbowOctagon = {
     LEVEL: 6,
   },
   VALUE: 60000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 77,
   COLOR: 36,
   BODY: {
@@ -13794,7 +13912,7 @@ exports.rainbowNonagon = {
     LEVEL: 7,
   },
   VALUE: 300000000,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   SIZE: 85,
   COLOR: 36,
   BODY: {
@@ -13828,7 +13946,7 @@ exports.abyssalEgg1 = {
   VALUE: 13500,
   COLOR: 19,
   SIZE: 19,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   FOOD: {
     LEVEL: 7,
   },
@@ -13875,7 +13993,7 @@ exports.abyssalSquare = {
   VALUE: 54000,
   COLOR: 19,
   SIZE: 26,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
   TURRETS: [
@@ -13912,7 +14030,7 @@ exports.abyssalTriangle = {
   VALUE: 270000,
   COLOR: 19,
   SIZE: 25,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
   TURRETS: [
@@ -13949,7 +14067,7 @@ exports.abyssalPentagon = {
   VALUE: 1350000,
   COLOR: 19,
   SIZE: 34,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
   TURRETS: [
@@ -13989,7 +14107,7 @@ exports.abyssalHexagon = {
   VALUE: 7000000,
   COLOR: 19,
   SIZE: 62,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
   TURRETS: [
@@ -14029,7 +14147,7 @@ exports.abyssalSeptagon = {
   VALUE: 33000000,
   COLOR: 19,
   SIZE: 108,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
 
@@ -14066,7 +14184,7 @@ exports.abyssalOctagon = {
   VALUE: 90000000,
   COLOR: 19,
   SIZE: 154,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
 
@@ -14103,7 +14221,7 @@ exports.abyssalNonagon = {
   VALUE: 450000000,
   COLOR: 19,
   SIZE: 165,
-  SPECIAL_EFFECT: "nestOnly",
+  SPECIAL_EFFECT: ["nestOnly"],
   GIVE_KILL_MESSAGE: true,
   PASSIVE_EFFECT: "uniqueFood",
 
@@ -14421,6 +14539,41 @@ exports.lesserGrenadierExplosion = makeMulti(
     ],
   },
   5,
+  ""
+);
+
+exports.plasticExplosion = makeMulti(
+  {
+    PARENT: [exports.bullet],
+    ALPHA: 0,
+    FACING_TYPE: "autospin",
+    INDEPENDENT: true,
+    BODY: {
+      RANGE: 5,
+    },
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [15, 5, 1, 0, 0, 0, 0],
+        PROPERTIES: {
+          AUTOFIRE: true,
+          SHOOT_SETTINGS: combineStats([
+            g.basic,
+            g.twin,
+            g.gunner,
+            g.cyclone,
+            g.power,
+            g.lesserStats,
+            g.lesserDamage,
+            g.pound,
+            g.greaterSize
+          ]),
+          TYPE: [exports.bullet, { PERSISTS_AFTER_DEATH: true }],
+        },
+      },
+    ],
+  },
+  7,
   ""
 );
 exports.RealisticExplosion = makeMulti(
@@ -15758,7 +15911,7 @@ exports.pentagonsenti4 = {
 exports.hexasenti1 = {
   PARENT: [exports.pentagonsenti1],
   LABEL: "Hexagon Sentinel",
-  SPECIAL_EFFECT: "noRegen",
+  SPECIAL_EFFECT: ["noRegen"],
   TARGETABLE: true,
   WALL_IMMUNITY: true,
   GROWTH_FACTOR: 3.5,
@@ -15886,6 +16039,18 @@ exports.pillbox = {
   LABEL: "Pillbox",
   PARENT: [exports.setBlock],
   CONTROLLERS: ["goToMasterTarget", "nearestDifferentMaster"],
+  TURRETS: [
+    {
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [11, 0, 0, 0, 360, 1],
+      TYPE: [exports.lesserAutoTurret, { INDEPENDENT: true }],
+    },
+  ],
+};
+
+exports.unsetpillbox = {
+  LABEL: "Pillbox",
+  PARENT: [exports.unsetBlock],
   TURRETS: [
     {
       /*  SIZE     X       Y     ANGLE    ARC */
@@ -16395,7 +16560,7 @@ exports.mechflingtrap = {
     {
       /*  SIZE     X       Y     ANGLE    ARC */
       POSITION: [11, 0, 0, 0, 360, 1],
-      TYPE: exports.bounce,
+      TYPE: exports.autobounce,
     },
   ],
 };
@@ -17588,7 +17753,8 @@ exports.roguestrapnelgunTurret2 = {
           g.doubleSpray,
           g.superSpeed,
           g.bitmoreSpeed,
-          g
+          g.halfReload,
+          g.bitmoreSize,
         ]),
         TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
       },
@@ -18330,7 +18496,7 @@ exports.geode = {
   DANGER: 3,
   COLOR: 4,
   FACING_TYPE: "autospin",
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   SHAPE: -3,
   SIZE: 30,
   VARIES_IN_SIZE: true,
@@ -18423,7 +18589,7 @@ exports.geodecluster = {
   DANGER: 3,
   COLOR: 4,
   FACING_TYPE: "autospin",
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   SHAPE: -3,
   SIZE: 40,
   VARIES_IN_SIZE: true,
@@ -19231,7 +19397,7 @@ exports.racer = {
   PARENT: [exports.genericTank],
   LABEL: "Racer",
   BODY: {
-    ACCELERATION: base.ACCELERATION,
+    ACCELERATION: base.ACCEL,
     HEALTH: base.HEALTH * 1.8,
     SHIELD: base.SHIELD * 1.8,
     SPEED: 6,
@@ -19286,7 +19452,7 @@ exports.bolter = {
   PARENT: [exports.genericTank],
   LABEL: "Bolter",
   BODY: {
-    ACCELERATION: base.ACCELERATION,
+    ACCELERATION: base.ACCEL,
     HEALTH: base.HEALTH * 2,
     SHIELD: base.SHIELD * 2,
     SPEED: 6,
@@ -19357,7 +19523,7 @@ exports.speedDemon = {
   PARENT: [exports.genericTank],
   LABEL: "Speed Demon",
   BODY: {
-    ACCELERATION: base.ACCELERATION,
+    ACCELERATION: base.ACCEL,
     HEALTH: base.HEALTH * 2.25,
     SHIELD: base.SHIELD * 2.25,
     SPEED: 6,
@@ -19445,7 +19611,7 @@ exports.zipper = {
   PARENT: [exports.genericTank],
   LABEL: "Zipper",
   BODY: {
-    ACCELERATION: base.ACCELERATION * 0.1,
+    ACCELERATION: base.ACCEL * 0.1,
     HEALTH: base.HEALTH * 1.8,
     SHIELD: base.SHIELD * 1.8,
     SPEED: base.SPEED * 3,
@@ -19485,7 +19651,7 @@ exports.Accelerator = {
   PARENT: [exports.genericTank],
   LABEL: "Accelerator",
   BODY: {
-    ACCELERATION: base.ACCELERATION * 0.1,
+    ACCELERATION: base.ACCEL * 0.1,
     HEALTH: base.HEALTH * 1.8,
     SHIELD: base.SHIELD * 1.8,
     SPEED: base.SPEED * 3,
@@ -21464,12 +21630,12 @@ exports.wtf = {
   LABEL: "Physical Manifestation of 'WTF!?'",
   NAME: undefined,
   BODY: {
-    DENSITY: Infinity,
-    DAMAGE: true,
-    HEALTH: NaN,
-    SPEED: false,
-    ACCELERATION: null,
-    PENETRATION: "Yes Daddy",
+    DENSITY: 1e12,
+    DAMAGE: 1,
+    HEALTH: 1,
+    SPEED: 0,
+    ACCELERATION: 0,
+    PENETRATION: 1,
   },
 };
 exports.IDAT = {
@@ -21496,12 +21662,12 @@ exports.IDAT = {
     [0, 0.5],
   ],
   BODY: {
-    HEALTH: NaN,
-    DENSITY: Infinity,
-    DAMAGE: true,
+    HEALTH: 1e12,
+    DENSITY: 1e12,
+    DAMAGE: 1,
     SPEED: 54,
     FOV: 30,
-    ACCELERATION: undefined,
+    ACCELERATION: base.ACCEL,
     PENETRATION: 13624315637485,
   },
   GUNS: [
@@ -21913,7 +22079,7 @@ exports.counter = {
 exports.counterDenied = {
   PARENT: [exports.counter],
   LABEL: "Zero Lives = Lose",
-  SPECIAL_EFFECT: "denied",
+  SPECIAL_EFFECT: ["denied"],
   COLOR: 0,
   SCORE: Infinity,
 };
@@ -22212,7 +22378,7 @@ exports.single = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [19, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.single]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.single, g.greaterHealth, g.doubleRange]),
         TYPE: exports.bullet,
       },
     },
@@ -22792,7 +22958,7 @@ exports.destructionist = {
     REGEN: base.REGEN * 1.1,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   TURRETS: [
     {
@@ -24082,7 +24248,7 @@ exports.protect = {
 exports.healer = {
   PARENT: [exports.genericTank],
   LABEL: "Healer",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24109,7 +24275,7 @@ exports.healer = {
 exports.mechanic = {
   PARENT: [exports.genericTank],
   LABEL: "Mechanic",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24135,7 +24301,7 @@ exports.mechanic = {
 exports.curer = {
   PARENT: [exports.genericTank],
   LABEL: "Curer",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24174,7 +24340,7 @@ exports.curer = {
 exports.doctor = {
   PARENT: [exports.genericTank],
   LABEL: "Doctor",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24236,7 +24402,7 @@ exports.doctor = {
 
 exports.purifier = makeMulti({
   PARENT: [exports.genericTank],
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24278,7 +24444,7 @@ exports.purifier = makeMulti({
 exports.cleanser = {
   PARENT: [exports.genericTank],
   LABEL: "Cleanser",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24330,7 +24496,7 @@ exports.restorer = makeMulti(
   {
     PARENT: [exports.genericTank],
     LABEL: "Restorer",
-    SPECIAL_EFFECT: "noFFA",
+    SPECIAL_EFFECT: ["noFFA"],
     TURRETS: [
       {
         /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24585,7 +24751,7 @@ exports.rejuvenator = makeMulti(
   {
     PARENT: [exports.genericTank],
     LABEL: "Restorer",
-    SPECIAL_EFFECT: "noFFA",
+    SPECIAL_EFFECT: ["noFFA"],
     TURRETS: [
       {
         /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24615,7 +24781,7 @@ exports.rejuvenator = makeMulti(
 exports.medic = {
   PARENT: [exports.genericTank],
   LABEL: "Medic",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24642,7 +24808,7 @@ exports.medic = {
 exports.medigun = {
   PARENT: [exports.genericTank],
   LABEL: "Medigun",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24693,7 +24859,7 @@ exports.medigun = {
 exports.vital = {
   PARENT: [exports.genericTank],
   LABEL: "Vital Hunter",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24724,7 +24890,7 @@ exports.vital = {
 exports.surgeon = {
   PARENT: [exports.genericTank],
   LABEL: "Surgeon",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24754,7 +24920,7 @@ exports.surgeon = {
 exports.mender = {
   PARENT: [exports.genericTank],
   LABEL: "Mender",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24869,7 +25035,7 @@ exports.caretaker = {
 exports.reviver = {
   PARENT: [exports.genericTank],
   LABEL: "Reviver",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24896,7 +25062,7 @@ exports.reviver = {
 exports.vanguard = {
   PARENT: [exports.genericTank],
   LABEL: "Vanguard",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24923,7 +25089,7 @@ exports.vanguard = {
 exports.aderaline = {
   PARENT: [exports.genericTank],
   LABEL: "Aderaline Shot",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -24971,7 +25137,7 @@ exports.aderaline = {
 exports.vitalis = {
   PARENT: [exports.genericTank],
   LABEL: "Vitalis",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25061,7 +25227,7 @@ exports.practitioner = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Practitioner",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25089,7 +25255,7 @@ exports.needle = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Needle",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25129,7 +25295,7 @@ exports.pulsecaster = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Pulsecaster",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25190,7 +25356,7 @@ exports.aegis = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Aegis",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25226,7 +25392,7 @@ exports.aegis = {
 exports.nurse = {
   PARENT: [exports.genericTank],
   LABEL: "Nurse",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   STAT_NAMES: statnames.drone,
   DANGER: 7,
   BODY: {
@@ -25259,7 +25425,7 @@ exports.nurse = {
 exports.sustainer = {
   PARENT: [exports.genericTank],
   LABEL: "Sustainer",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   STAT_NAMES: statnames.drone,
   DANGER: 7,
   BODY: {
@@ -25377,7 +25543,7 @@ exports.physician = {
   PARENT: [exports.genericTank],
   LABEL: "Physician",
   DANGER: 7,
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   BODY: {
     SPEED: base.SPEED * 0.9,
     DAMAGE: base.DAMAGE * 1.1,
@@ -25420,7 +25586,7 @@ exports.physician = {
 exports.minihealer = {
   PARENT: [exports.genericTank],
   LABEL: "Healer",
-  SPECIAL_EFFECT: "noFFA",
+  SPECIAL_EFFECT: ["noFFA"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -25474,28 +25640,28 @@ exports.gunner = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [12, 3.5, 1, 0, 7.25, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [12, 3.5, 1, 0, -7.25, 0, 0.75],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [16, 3.5, 1, 0, 3.75, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
     {
       POSITION: [16, 3.5, 1, 0, -3.75, 0, 0.25],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.puregunner, g.halfDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -25669,6 +25835,19 @@ exports.gunrshot = {
   LABEL: "Destablizer",
   GUNS: [
     {
+      POSITION: [14, 1.5, 4.0, 3, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.mach,
+          g.arty,
+          g.gunner,
+          g.halfRecoil,
+        ]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [14, 2, 4.0, -3, 5, 45, 0.6],
       PROPERTIES: {
@@ -25722,19 +25901,6 @@ exports.gunrshot = {
       },
     },
     ...twinGuns,
-    {
-      POSITION: [14, 1.5, 4.0, 3, 0, 0, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([
-          g.basic,
-          g.mach,
-          g.arty,
-          g.gunner,
-          g.halfRecoil,
-        ]),
-        TYPE: exports.bullet,
-      },
-    },
   ],
 };
 
@@ -25768,7 +25934,7 @@ exports.helpme = {
     SPEED: base.SPEED * 0.75,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   VOID_CREATION: 1,
   TURRETS: [
@@ -27977,9 +28143,9 @@ exports.mutant = {
       POSITION: [6.5, 10, 1.2, 8, 0, 180, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
-          g.drone,
+        g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -27994,7 +28160,7 @@ exports.mutant = {
     {
       POSITION: [6.5, 10, 1.2, 8, 0, 180, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         ALT_FIRE: true,
         MAX_CHILDREN: 2,
@@ -28047,6 +28213,7 @@ exports.Dad = {
 exports.healersphere = {
   PARENT: [exports.smash],
   LABEL: "Healersphere",
+  RESET_UPGRADES: true,
   HEAL_EFFECT: true,
   TURRETS: [
     {
@@ -28161,6 +28328,7 @@ exports.healersphere = {
 exports.truehealersphere = {
   PARENT: [exports.healersphere],
   LABEL: "True Healersphere",
+  RESET_UPGRADES: true,
   TURRETS: [
     {
       /** SIZE     X       Y     ANGLE    ARC */
@@ -28347,7 +28515,7 @@ exports.polyTerror = {
         SHOOT_SETTINGS: combineStats([
           g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -28362,7 +28530,7 @@ exports.polyTerror = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         MAX_CHILDREN: 6,
         AUTOFIRE: true,
@@ -28402,7 +28570,7 @@ exports.polyLord = {
         SHOOT_SETTINGS: combineStats([
           g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -28416,7 +28584,7 @@ exports.polyLord = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
@@ -28431,7 +28599,7 @@ exports.polyLord = {
           g.drone,
           g.doubleSize,
           g.greaterSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.greaterHealth,
           g.greaterReload,
         ]),
@@ -28451,6 +28619,7 @@ exports.polyLord = {
           g.greaterSize,
           g.lesserStats,
           g.halfSpeed,
+          g.lesserDamage,
           g.superHealth,
           g.superHealth,
           g.greaterHealth,
@@ -28534,7 +28703,7 @@ exports.whirlpool = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
-            SPECIAL_EFFECT: "push",
+            SPECIAL_EFFECT: ["push"],
             REPEL: -0.75,
             INTANGIBLE: true,
           },
@@ -28659,6 +28828,7 @@ exports.nailgun = {
           g.gunner,
           g.nail,
           g.power,
+          g.lesserDamage,
         ]),
         TYPE: exports.bullet,
       },
@@ -28672,6 +28842,7 @@ exports.nailgun = {
           g.gunner,
           g.nail,
           g.power,
+          g.lesserDamage,
         ]),
         TYPE: exports.bullet,
       },
@@ -28708,6 +28879,7 @@ exports.MechaNailgun = {
           g.gunner,
           g.nail,
           g.power,
+          g.lesserDamage,
         ]),
         TYPE: exports.bullet,
       },
@@ -28721,6 +28893,7 @@ exports.MechaNailgun = {
           g.gunner,
           g.nail,
           g.power,
+          g.lesserDamage,
         ]),
         TYPE: exports.bullet,
       },
@@ -28734,6 +28907,7 @@ exports.MechaNailgun = {
           g.gunner,
           g.nail,
           g.power,
+          g.lesserDamage,
         ]),
         TYPE: exports.bullet,
       },
@@ -29311,6 +29485,56 @@ exports.bulwark = {
     },
   ],
 };
+
+exports.bulwarkThrasher = {
+  PARENT: [exports.genericTank],
+  DANGER: 7,
+  LABEL: "Thrasher",
+  BODY: {
+    DAMAGE: base.DAMAGE * 1.1,
+    ACCEL: base.ACCEL * 0.8,
+  },
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [25, 8, 1, 0, 5.5, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.sniper]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [25, 8, 1, 0, -5.5, 0, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.sniper]),
+        TYPE: exports.bullet,
+      },
+    },
+    {
+      POSITION: [15, 8, 1, 0, 5.5, 185, 0],
+    },
+    {
+      POSITION: [3, 8, 1.7, 14, 5.5, 185, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.trap]),
+        TYPE: exports.trap,
+        STAT_CALCULATOR: gunCalcNames.trap,
+      },
+    },
+
+    {
+      POSITION: [15, 8, 1, 0, -5.5, 175, 0.5],
+    },
+    {
+      POSITION: [3, 8, 1.7, 14, -5.5, 175, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.trap]),
+        TYPE: exports.trap,
+        STAT_CALCULATOR: gunCalcNames.trap,
+      },
+    },
+  ],
+};
 exports.triwark = {
   PARENT: [exports.genericTank],
   DANGER: 7,
@@ -29649,7 +29873,7 @@ exports.shooter = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [24, 12, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.lesserDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -29664,11 +29888,20 @@ exports.rifle = {
   },
   GUNS: [
     {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [20, 4.5, 1, 0, 3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [20, 4.5, 1, 0, -3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [24, 7, 1, 0, 0, 0, 0],
@@ -29691,14 +29924,24 @@ exports.attack = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [20, 6, 1, 0, 6, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [20, 6, 1, 0, -6, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [24, 12, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.rifle]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.lesserDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -29716,9 +29959,19 @@ exports.musket = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [16, 8, 1, 0, 5.5, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.crossbow, g.minorSize]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [16, 8, 1, 0, -5.5, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.crossbow, g.minorSize]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [18, 7, 1, 0, 4, 0, 0],
@@ -29901,7 +30154,7 @@ exports.infiltrate = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [24, 10, -2, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.sniper, g.halfRecoil]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.sniper, g.pound, g.halfRecoil, g.lesserDamage]),
         TYPE: exports.bullet,
       },
     },
@@ -30236,7 +30489,7 @@ exports.cheese = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [10.5, 18, 1.2, 5.5, 0, 0, 1],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.cheese, g.greaterDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.cheese]),
         TYPE: [exports.drone, { DRAW_HEALTH: true }],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
@@ -30391,6 +30644,86 @@ exports.quadbuilder = makeMulti(
   "Quad-Builder"
 );
 
+exports.quadengi = makeMulti(
+  {
+    PARENT: [exports.genericTank],
+    DANGER: 7,
+    STAT_NAMES: statnames.trap,
+    BODY: {
+      SPEED: base.SPEED * 0.8,
+      FOV: base.FOV * 1.15,
+    },
+    GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [5, 11, 1, 10.5, 0, 0, 0],
+    },
+    {
+      POSITION: [3, 14, 1, 15.5, 0, 0, 0],
+    },
+    {
+      POSITION: [2, 14, 1.3, 18, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.trap,
+          g.block,
+          g.greaterHealth,
+          g.doubleReload,
+          g.bitmoreReload,
+          g.lesserRange
+        ]),
+        TYPE: exports.unsetpillbox,
+        SYNCS_SKILLS: true,
+      },
+    },
+    {
+      POSITION: [4, 14, 1, 8, 0, 0, 0],
+    },
+    ],
+  },
+  4,
+  "Quad-Engineer"
+);
+
+exports.quadtwinengi = makeMulti(
+  {
+    PARENT: [exports.genericTank],
+    DANGER: 7,
+    STAT_NAMES: statnames.trap,
+    BODY: {
+      SPEED: base.SPEED * 0.8,
+      FOV: base.FOV * 1.15,
+    },
+    GUNS: [
+      {
+        /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+        POSITION: [18, 12, 1, 0, 0, 0, 0],
+      },
+    {
+  POSITION: [18, 8, 1, 0, 0, 0, 0],
+  PROPERTIES: {
+    SHOOT_SETTINGS: combineStats([g.basic]),
+    TYPE: exports.Missile,
+      },
+    },
+      {
+        POSITION: [2, 12, 1.1, 18, 0, 0, 0],
+        PROPERTIES: {
+          SHOOT_SETTINGS: combineStats([
+          g.trap,
+          g.block,
+          g.greaterHealth,
+          g.doubleReload,
+          g.lesserRange
+        ]),
+          TYPE: exports.tankpillboxTwin,
+        },
+      },
+    ],
+  },
+  4,
+  "Quad-Twin-Engineer"
+);
 exports.overtrap = {
   PARENT: [exports.genericTank],
   LABEL: "Overtrapper",
@@ -32205,7 +32538,7 @@ exports.polyseer = {
         SHOOT_SETTINGS: combineStats([
           g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -32218,7 +32551,7 @@ exports.polyseer = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
@@ -32255,9 +32588,9 @@ exports.polyFear = {
       POSITION: [4, 8, 1.2, 8, 0, 90, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
-          g.drone,
+         g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -32272,7 +32605,7 @@ exports.polyFear = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         MAX_CHILDREN: 6,
         AUTOFIRE: true,
@@ -32443,9 +32776,9 @@ exports.polymancer = {
       POSITION: [4, 8, 1.2, 8, 0, 90, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
-          g.drone,
+        g.drone,
           g.doubleSize,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserHealth,
           g.lesserReload,
         ]),
@@ -32458,7 +32791,7 @@ exports.polymancer = {
     {
       POSITION: [4, 8, 1.2, 8, 0, 270, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.lesserDamage]),
+        SHOOT_SETTINGS: combineStats([g.drone, g.doubleSize, g.halfDamage]),
         TYPE: [exports.triangleDrone],
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
@@ -32563,7 +32896,7 @@ exports.polyTyrant = {
           g.superHealth,
           g.superReload,
           g.superReload,
-          g.lesserDamage,
+          g.halfDamage,
           g.lesserSpeed,
         ]),
         TYPE: exports.septagonDrone,
@@ -33262,6 +33595,7 @@ exports.megagun = {
           g.mini,
           g.pound,
           g.lesserDamage,
+          g.greaterHealth,
         ]),
         TYPE: exports.bullet,
       },
@@ -33274,6 +33608,7 @@ exports.megagun = {
           g.mini,
           g.pound,
           g.lesserDamage,
+          g.greaterHealth,
         ]),
         TYPE: exports.bullet,
       },
@@ -33286,6 +33621,7 @@ exports.megagun = {
           g.mini,
           g.pound,
           g.lesserDamage,
+          g.greaterHealth,
         ]),
         TYPE: exports.bullet,
       },
@@ -33576,6 +33912,7 @@ exports.decimate = {
           g.sniper,
           g.hunter,
           g.halfDamage,
+          g.lesserDamage,
           g.greaterPenetration,
           g.halfReload,
         ]),
@@ -33593,6 +33930,7 @@ exports.decimate = {
           g.destroy,
           g.hunter,
           g.greaterPenetration,
+          g.lesserDamage,
           g.halfReload,
           g.lesserDamage,
         ]),
@@ -34131,9 +34469,9 @@ exports.assort = {
   LABEL: "Assortment",
   BODY: {
     ACCELERATION: base.ACCEL * 0.7,
-    DAMAGE: base.ACCEL * 1.4,
-    PENETRATION: base.ACCEL * 1.1,
-    RELOAD: base.ACCEL * 1.2,
+    DAMAGE: base.DAMAGE * 1.4,
+    PENETRATION: base.PENETRATION * 1.1,
+    RELOAD: base.RELOAD * 1.2,
   },
   GUNS: [
     /***** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */ {
@@ -35096,7 +35434,7 @@ exports.breaker = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Breaker",
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   STAT_NAMES: statnames.trap,
   TURRETS: [
     {
@@ -35125,7 +35463,7 @@ exports.burster = {
   DANGER: 7,
   LABEL: "Burster",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [],
   TURRETS: [
     {
@@ -35154,7 +35492,7 @@ exports.ogburster = {
   DANGER: 7,
   LABEL: "og Burster",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [],
   TURRETS: [
     {
@@ -35184,7 +35522,7 @@ exports.landminelayer = makeMulti(
   DANGER: 7,
   INVISIBLE: [0.09, 0.03],
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -35220,7 +35558,7 @@ exports.cracker = {
   DANGER: 7,
   LABEL: "Cracker",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -35251,7 +35589,7 @@ exports.shatterer = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Shatterer",
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   STAT_NAMES: statnames.trap,
   TURRETS: [
     {
@@ -35273,7 +35611,7 @@ exports.shatterer = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.lesserDamage, g.greaterHealth]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.doubleHealth]),
         TYPE: exports.shattererTrap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -35285,7 +35623,7 @@ exports.autobreaker = {
   DANGER: 7,
   LABEL: "Auto-Breaker",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   TURRETS: [
     {
       POSITION: [11, 0, 0, 180, 360, 1],
@@ -35336,7 +35674,7 @@ exports.flinger = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.lesserDamage, g.greaterHealth]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.doubleHealth]),
         TYPE: exports.flingertrap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -35372,7 +35710,7 @@ exports.stinger = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.lesserDamage, g.greaterHealth]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.doubleHealth]),
         TYPE: exports.mechflingtrap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -36174,6 +36512,8 @@ exports.megafling = {
           g.greaterSize,
           g.greaterPenetration,
           g.minorMax,
+          g.halfDamage, 
+          g.doubleHealth
         ]),
         TYPE: exports.flingertrap,
         STAT_CALCULATOR: gunCalcNames.trap,
@@ -36389,7 +36729,7 @@ exports.wrecker = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Wrecker",
-  SPECIAL_EFFECT: "noDomination",
+  SPECIAL_EFFECT: ["noDomination"],
   STAT_NAMES: statnames.trap,
   BODY: {
     SPEED: base.SPEED * 0.8,
@@ -39274,10 +39614,10 @@ exports.booster = {
 exports.duodecitank = {
   PARENT: [exports.genericTank],
   LABEL: "Trap-Booster",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     HEALTH: base.HEALTH * 3,
-    SHEILD: base.SHEILD * 2,
+    SHIELD: base.SHIELD * 2,
     DAMAGE: base.DAMAGE * 1.75,
     PENETRATION: base.PENETRATION * 1.5,
   },
@@ -39701,9 +40041,19 @@ exports.woodpecker = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [16, 9.5, 1, 0, 0, -90, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [16, 9.5, 1, 0, 0, 90, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [18, 7, 1, 0, 0, -90, 0],
@@ -40201,7 +40551,7 @@ exports.experimenter = {
   PARENT: [exports.genericTank],
   DANGER: 7,
   LABEL: "Experimenter",
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   STAT_NAMES: statnames.trap,
   BODY: {
     SPEED: base.SPEED * 0.75,
@@ -40232,7 +40582,7 @@ exports.experimenter = {
           g.greaterHealth,
           g.greaterReload,
         ]),
-        TYPE: [exports.experimenterStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.experimenterStationedTurret, { PERSISTS_AFTER_DEATH: false }],
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
       },
@@ -40248,7 +40598,7 @@ exports.scientist = {
   DANGER: 7,
   LABEL: "Scientist",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40273,7 +40623,7 @@ exports.scientist = {
           g.greaterHealth,
           g.greaterReload,
         ]),
-        TYPE: [exports.scientistStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.scientistStationedTurret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40289,7 +40639,7 @@ exports.researcher = {
   DANGER: 7,
   LABEL: "Researcher",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40319,7 +40669,7 @@ exports.researcher = {
           g.greaterHealth,
           g.greaterReload,
         ]),
-        TYPE: [exports.researcherStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.researcherStationedTurret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40335,7 +40685,7 @@ exports.inventor = {
   DANGER: 7,
   LABEL: "Inventor",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40361,7 +40711,55 @@ exports.inventor = {
       POSITION: [8, 11, 1.3, 18, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
-        TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: false }],
+
+        ALT_FIRE: true,
+        SYNCS_SKILLS: true,
+      },
+    },
+    {
+      POSITION: [5, 7, -1.8, 6.5, 0, 0, 0],
+    },
+  ],
+};
+
+exports.c4deployer = {
+  PARENT: [exports.genericTank],
+  DANGER: 7,
+  LABEL: "C4 Deployer",
+  STAT_NAMES: statnames.trap,
+  SPECIAL_EFFECT: ["experiment"],
+  BODY: {
+    SPEED: base.SPEED * 0.75,
+    FOV: base.FOV * 1.15,
+  },
+  MAX_CHILDREN: 7,
+  TURRETS: [
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [11, 0, 0, 0, 360, 1],
+      TYPE: [exports.bursterSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+    {
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [9, 0, 0, 0, 360, 1],
+      TYPE: [exports.slingSymbol, { INDEPENDENT: true, COLOR: 16 }],
+    },
+  ],
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [4, 12, 1, 10.5, 0, 0, 0],
+    },
+
+    {
+      POSITION: [2, 13, 1, 15.5, 0, 0, 0],
+    },
+    {
+      POSITION: [8, 11, 1.3, 18, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize, g.lesserHealth]),
+        TYPE: [exports.c4turret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40377,7 +40775,7 @@ exports.physicist = {
   DANGER: 7,
   LABEL: "Physicist",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40407,7 +40805,7 @@ exports.physicist = {
           g.greaterHealth,
           g.greaterReload,
         ]),
-        TYPE: [exports.physicistStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.physicistStationedTurret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40423,7 +40821,7 @@ exports.betascientist = {
   DANGER: 7,
   LABEL: "Beta Scientist",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40451,7 +40849,7 @@ exports.betascientist = {
           g.greaterHealth,
           g.superReload,
         ]),
-        TYPE: [exports.betaScientistStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.betaScientistStationedTurret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40467,7 +40865,7 @@ exports.betaresearcher = {
   DANGER: 7,
   LABEL: "Beta Researcher",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40499,7 +40897,7 @@ exports.betaresearcher = {
           g.greaterHealth,
           g.superReload,
         ]),
-        TYPE: [exports.betaResearcherStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.betaResearcherStationedTurret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40515,7 +40913,7 @@ exports.betainventor = {
   DANGER: 7,
   LABEL: "Beta Inventor",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40548,7 +40946,7 @@ exports.betainventor = {
           g.lesserReload,
           g.greaterSize,
         ]),
-        TYPE: [exports.betaInventorStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.betaInventorStationedTurret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -40564,7 +40962,7 @@ exports.betaphysicist = {
   DANGER: 7,
   LABEL: "Beta Physicist",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   BODY: {
     SPEED: base.SPEED * 0.75,
     FOV: base.FOV * 1.15,
@@ -40597,7 +40995,7 @@ exports.betaphysicist = {
           g.greaterHealth,
           g.superReload,
         ]),
-        TYPE: [exports.betaPhysicistStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.betaPhysicistStationedTurret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -41424,7 +41822,7 @@ exports.infestor = makeMulti(
   "Infestor"
 );
 exports.eggento = {
-    LABEL: "???",
+    LABEL: "Begulier",
     PARENT: [exports.genericTank],
     DANGER: 7,
     STAT_NAMES: statnames.necro,
@@ -41658,7 +42056,7 @@ exports.exorcist = makeMulti(
 );
 exports.pentaento = 
   {
-    LABEL: "???",
+    LABEL: "Exorciser",
     PARENT: [exports.genericTank],
     DANGER: 7,
     STAT_NAMES: statnames.necro,
@@ -41907,7 +42305,7 @@ exports.hexaento =
   {
     PARENT: [exports.genericTank],
     DANGER: 7,
-    LABEL: "???",
+    LABEL: "Worshipper",
     STAT_NAMES: statnames.necro,
     BODY: {
       ACCELERATION: base.ACCEL * 0.7,
@@ -42078,7 +42476,7 @@ exports.triento =
   {
     PARENT: [exports.genericTank],
     DANGER: 7,
-    LABEL: "???",
+    LABEL: "Bewitcher",
     STAT_NAMES: statnames.necro,
     BODY: {
       ACCELERATION: base.ACCEL * 0.7,
@@ -42491,6 +42889,34 @@ exports.poptri = makeMulti(
   3,
   "Protector of Triangles"
 );
+exports.stabberBullet = {
+  PARENT: [exports.bullet],
+  LABEL: "Bullet",
+};
+exports.stabberTurret = {
+  PARENT: [exports.genericTank],
+          HAS_NO_RECOIL: true,
+          FACING_TYPE: "toTarget",
+          CONTROLLERS: ["onlyAcceptInArc"],
+          MAX_CHILDREN: 1,  
+  GUNS: [
+    {
+      POSITION: [20, 15, 0.001, 0, 0, 0, 0],
+      PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.basic,
+                  g.blade,
+                ]),
+                TYPE: [exports.bullet, { COLOR: 0, ALPHA: 1}],
+                MAX_CHILDREN: 1,
+                AUTOFIRE: true,
+              },
+            },
+    {
+      POSITION: [25, 15, 0.001, 0, 0, 0, 0],
+    },
+  ],
+};
 exports.stab = {
   PARENT: [exports.genericTank],
   LABEL: "Stabber",
@@ -42500,18 +42926,34 @@ exports.stab = {
   },
   HAS_NO_RECOIL: true,
   STAT_NAMES: statnames.blade,
-  GUNS: [
+  TURRETS: [ 
     {
-      POSITION: [20, 15, 0.001, 0, 0, 0, 0],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.blade]),
-        TYPE: [exports.bullet, { ALPHA: 0 }],
-        AUTOFIRE: true,
-        MAX_CHILDREN: 2,
-      },
+      /*********  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [15, 0, 0, 0, 0, 1],
+      TYPE: [exports.stabberTurret],
     },
     {
-      POSITION: [25, 15, 0.001, 0, 0, 0, 0],
+      /*  SIZE     X       Y     ANGLE    ARC */
+      POSITION: [12, 15, 0, 0, 360, 1],
+      TYPE: [
+        exports.damageAuraSpawner,
+        {
+          GUNS: [
+            {
+              POSITION: [0, 20, 1, 0, 0, 0, 0],
+              PROPERTIES: {
+                SHOOT_SETTINGS: combineStats([
+                  g.atmosphere,
+                  g.greaterSize,
+                ]),
+                TYPE: [exports.damageAura, { COLOR: 0, ALPHA: 0}],
+                MAX_CHILDREN: 1,
+                AUTOFIRE: true,
+              },
+            },
+          ],
+        },
+      ],
     },
   ],
 };
@@ -42731,7 +43173,7 @@ exports.fulgareon = {
 exports.MechanicalPentagonSpawner = {
   PARENT: [exports.genericTank],
   LABEL: "Mechanical Penta-Spawner",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   SHAPE: 5,
   STAT_NAMES: statnames.drone,
@@ -42854,7 +43296,7 @@ exports.tripwire = makeMulti(
     PARENT: [exports.genericTank],
     DANGER: 7,
     SHAPE: 6,
-    SPECIAL_EFFECT: "Legend",
+    SPECIAL_EFFECT: ["Legend"],
     BODY: {
       SPEED: base.SPEED * 0.5,
       HEALTH: base.HEALTH * 2,
@@ -42923,7 +43365,7 @@ exports.chaperzone = makeMulti(
     PARENT: [exports.genericTank],
     DANGER: 7,
     SHAPE: 6,
-    SPECIAL_EFFECT: "Legend",
+    SPECIAL_EFFECT: ["Legend"],
     CONTROLLERS: ["nearestDifferentMaster"],
     FACING_TYPE: "autospin",
     BODY: {
@@ -43031,25 +43473,29 @@ exports.mechanisthand1 = {
   HAS_NO_RECOIL: true,
   GUNS: [
     {
-      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [10, 14, -0.5, 12, 0, 0, 0],
-    },
-    {
       POSITION: [20, 15, 1, 0, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.basic, 
           g.missile, 
           g.doubleReload,
-          g.doubleReload,
-          g.greaterDamage,
-          g.greaterHealth,
+          g.mediumReload,
+          g.lesserReload,
           g.greaterPenetration,
           g.bitmoreSpeed
         ]),
-        TYPE: exports.missile,
+        TYPE: exports.hyperMissile,
         STAT_CALCULATOR: gunCalcNames.sustained,
       },
+    },
+    {
+      POSITION: [17, 16, 1, 0, 0, 0, 0],
+    },
+    {
+      POSITION: [20, 10, 1, 0, 0, 0, 0],
+    },
+    {
+      POSITION: [17, 11, 1, 0, 0, 0, 0],
     },
   ],
   TURRETS: [
@@ -43065,7 +43511,7 @@ exports.mechanisthand1 = {
 };
 exports.mechanist = {
   LABEL: "Mechanist",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   STAT_NAMES: statnames.generic,
   BODY: {
@@ -43159,10 +43605,71 @@ exports.mechanist = {
     },
   ],
 };
+exports.mechanisthandtest = {
+  LABEL: "Mechanist Hands",
+  SPECIAL_EFFECT: ["Legend"],
+  DANGER: 7,
+  STAT_NAMES: statnames.generic,
+  BODY: {
+    SPEED: base.SPEED * 0.75,
+    HEALTH: base.HEALTH * 1.25,
+    DAMAGE: base.DAMAGE * 1.75,
+    SHIELD: base.SHIELD * 2.5,
+    REGEN: base.REGEN * 1.25,
+  },
+  TURRETS: [
+    {
+      /*  SIZE    X       Y     ANGLE    ARC */
+      POSITION: [17, 17, 17, 15, 180, 1],
+      TYPE: [exports.mechanisthand1, { COLOR: 13 }],
+    },
+
+    {
+      POSITION: [17, 17, -17, -15, 180, 1],
+      TYPE: [exports.mechanisthand1, { COLOR: 13 }],
+    },
+    {
+      POSITION: [23, 0, 0, 30, 0, 0],
+      TYPE: [exports.smasherBody2, { INDEPENDENT: true, COLOR: 13 }],
+    },
+    {
+      POSITION: [15, 0, 0, 180, 180, 1],
+      TYPE: [exports.smasherBody2, { INDEPENDENT: true, COLOR: 13 }],
+    },
+  ],
+};
+
+exports.mechanistringtest = {
+  LABEL: "Mechanist Ring",
+  SPECIAL_EFFECT: ["Legend"],
+  DANGER: 7,
+  STAT_NAMES: statnames.generic,
+  BODY: {
+    SPEED: base.SPEED * 0.75,
+    HEALTH: base.HEALTH * 1.25,
+    DAMAGE: base.DAMAGE * 1.75,
+    SHIELD: base.SHIELD * 2.5,
+    REGEN: base.REGEN * 1.25,
+  },
+  TURRETS: [
+    {
+      POSITION: [23, 0, 0, 30, 0, 0],
+      TYPE: [exports.smasherBody2, { INDEPENDENT: true, COLOR: 13 }],
+    },
+    {
+      POSITION: [15, 0, 0, 180, 180, 1],
+      TYPE: [exports.smasherBody2, { INDEPENDENT: true, COLOR: 13 }],
+    },
+    {
+      POSITION: [100, 0, 0, 30, 0, 0],
+      TYPE: [exports.strongHexaAutoRing],
+    },
+  ],
+};
 exports.MassProducer = {
   PARENT: [exports.genericTank],
   LABEL: "Mass Producer",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   TYPE: "tank",
   ACCEPTS_SCORE: true,
   DANGER: 7,
@@ -43269,7 +43776,7 @@ exports.MassProducer = {
 exports.operator = {
   PARENT: [exports.genericTank],
   LABEL: "Operator",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   ACCEPTS_SCORE: true,
   TYPE: "tank",
   DANGER: 7,
@@ -43343,7 +43850,7 @@ exports.operator = {
 exports.conductor = {
   PARENT: [exports.genericTank],
   LABEL: "Conductor",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   STAT_NAMES: statnames.generic,
   BODY: {
@@ -43472,7 +43979,7 @@ exports.conductor = {
 exports.creation = makeMulti({
   PARENT: [exports.genericTank],
   FACING_TYPE: "autospin",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   SHAPE: 8,
   STAT_NAMES: statnames.generic,
@@ -43531,7 +44038,13 @@ exports.creation = makeMulti({
       {
         POSITION: [2, 12, 1.1, 18, 0, 0, 0],
         PROPERTIES: {
-          SHOOT_SETTINGS: combineStats([g.trap, g.block, g.halfRange,]),
+          SHOOT_SETTINGS: combineStats([
+          g.trap,
+          g.block,
+          g.greaterHealth,
+          g.doubleReload,
+          g.lesserRange
+        ]),
           TYPE: exports.tankpillboxTwin,
         },
       },
@@ -43544,7 +44057,7 @@ exports.technologist = {
   PARENT: [exports.genericTank],
   LABEL: "Technologist",
   FACING_TYPE: "autospin",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   DANGER: 7,
   SHAPE: 6,
   STAT_NAMES: statnames.generic,
@@ -43697,7 +44210,7 @@ exports.technologist = {
 exports.EOA = {
   PARENT: [exports.genericTank],
   LABEL: "Embodiment of Annihilation",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   ACCEPTS_SCORE: true,
   TYPE: "deity",
   DANGER: 7,
@@ -44398,7 +44911,7 @@ exports.soulSnatcher = {
   PARENT: [exports.xhunter],
   LABEL: "Soul Snatcher",
   DANGER: 7,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.25,
@@ -44453,7 +44966,7 @@ exports.reaper = {
   PARENT: [exports.xhunter],
   LABEL: "Reaper",
   DANGER: 7,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.5,
@@ -44484,7 +44997,7 @@ exports.lighthouse = {
   DANGER: 7,
   STAT_NAMES: statnames.trap,
   LABEL: "Oracle",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.5,
@@ -44532,12 +45045,12 @@ exports.hollow = {
   PARENT: [exports.genericTank],
   LABEL: "Hollow",
   DANGER: 7,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   IS_CREEP: true,
   BODY: {
     SPEED: base.SPEED * 1.75,
     HEALTH: base.HEALTH * 0.85,
-    DAMAGE: base.DAMAGE * 1.3,
+    DAMAGE: base.DAMAGE * 1,
     SHIELD: base.SHIELD * 1.52,
     REGEN: base.REGEN * 2,
   },
@@ -44650,8 +45163,8 @@ exports.necrotyrant = makeMulti(
   {
     PARENT: [exports.underseer],
     DANGER: 7,
-    STAT_NAMES: statnames.drone,
-    SPECIAL_EFFECT: "Legend",
+  STAT_NAMES: statnames.necro,
+    SPECIAL_EFFECT: ["Legend"],
     BODY: {
       SPEED: base.SPEED * 1.5,
       HEALTH: base.HEALTH * 1.5,
@@ -44788,7 +45301,7 @@ exports.ognecrotyrant = makeMulti(
     PARENT: [exports.underseer],
     DANGER: 7,
     STAT_NAMES: statnames.drone,
-    SPECIAL_EFFECT: "Legend",
+    SPECIAL_EFFECT: ["Legend"],
     BODY: {
       SPEED: base.SPEED * 1.5,
       HEALTH: base.HEALTH * 1.5,
@@ -45008,7 +45521,7 @@ exports.rebel = {
     REGEN: base.REGEN * 1.25,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   GUNS: [
     ...beeGuns,
@@ -45081,7 +45594,7 @@ exports.mortarRebel = {
     REGEN: base.REGEN * 1.5,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   GUNS: [
     ...extraSideGuns,
@@ -45155,7 +45668,7 @@ exports.annihilatorRebel = {
     REGEN: base.REGEN * 1.5,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   GUNS: [
     {
@@ -45221,7 +45734,7 @@ exports.swarmRebel = {
     REGEN: base.REGEN * 1.5,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   GUNS: [
     ...basicGun,
@@ -45306,7 +45819,7 @@ exports.swarmRebel = {
 exports.teraOperator = {
   PARENT: [exports.genericTank],
   LABEL: "Tetra-Operator",
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   SHAPE: [
     [-1, -1],
     [0, -0.7],
@@ -45427,7 +45940,7 @@ exports.teraReaper = {
   LABEL: "Tetra-Reaper",
   DANGER: 7,
   HAS_NO_RECOIL: true,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.7,
@@ -45511,7 +46024,7 @@ exports.teranecrotyrant = makeMulti(
     DANGER: 7,
     SIZE: 15,
     STAT_NAMES: statnames.drone,
-    SPECIAL_EFFECT: "Legend",
+    SPECIAL_EFFECT: ["Legend"],
     BODY: {
       SPEED: base.SPEED * 1,
       HEALTH: base.HEALTH * 2.5,
@@ -52646,9 +53159,19 @@ exports.zombieRifle = {
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [20, 4.5, 1, 0, 3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [20, 4.5, 1, 0, -3.7, 0, 1 / 3],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.crossbow]),
+        TYPE: exports.bullet,
+        LABEL: "Secondary",
+      },
     },
     {
       POSITION: [24, 7, 1, 0, 0, 0, 0],
@@ -54262,7 +54785,7 @@ exports.Stronghold = makeMulti(
   PARENT: [exports.genericTank],
   DANGER: 7,
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   HAS_NO_RECOIL: true,
     SIZE: 17.5,
     BODY: {
@@ -54314,7 +54837,7 @@ exports.Stronghold = makeMulti(
       POSITION: [8, 11, 1.3, 18, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
-        TYPE: [exports.experimenterStationedTurretNOGROWTH, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.experimenterStationedTurretNOGROWTH, { PERSISTS_AFTER_DEATH: false }],
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
       },
@@ -54333,7 +54856,7 @@ exports.Stationaryexperimenter = makeMulti(
   DANGER: 7,
   LABEL: "Inventor",
   STAT_NAMES: statnames.trap,
-  SPECIAL_EFFECT: "experiment",
+  SPECIAL_EFFECT: ["experiment"],
   HAS_NO_RECOIL: true,
   SIZE: 15.5,
     BODY: {
@@ -54376,7 +54899,7 @@ exports.Stationaryexperimenter = makeMulti(
       POSITION: [8, 11, 1.3, 10, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.spawner, g.halfReload, g.greaterSize]),
-        TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: true }],
+        TYPE: [exports.inventorStationedTurret, { PERSISTS_AFTER_DEATH: false }],
 
         ALT_FIRE: true,
         SYNCS_SKILLS: true,
@@ -58356,7 +58879,7 @@ exports.castaway = {
 exports.roguepalisade = makeMulti(
   {
     PARENT: [exports.guardianRangedBoss],
-    SPECIAL_EFFECT: "palisadeEvolve",
+    SPECIAL_EFFECT: ["palisadeEvolve"],
     FACING_TYPE: "autospin",
     COLOR: 10,
     SHAPE: 6,
@@ -65107,7 +65630,7 @@ exports.ranarDiscipleForm = {
     REGEN: 0,
     RESIST: 1.5,
   },
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   DANGER: 10,
   SIZE: 17.5,
@@ -65254,7 +65777,7 @@ exports.rainOfAcid = {
   PARENT: [exports.neutralRangedBoss, exports.ranarDiscipleForm],
   NAME: "Oxini Vrochí",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   COLOR: 1,
   DANGER: 9,
   SIZE: 15,
@@ -65340,7 +65863,7 @@ exports.kristaps = {
   NAME: "Kristaps",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   CONTROLLERS: ["nearestDifferentMaster", "minion"],
   BODY: {
     HEALTH: 300,
@@ -65527,7 +66050,7 @@ exports.duodeci = {
   NAME: "Duodeci",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -65566,7 +66089,7 @@ exports.icecream = {
   NAME: "Ice Cream",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -65586,7 +66109,7 @@ exports.possessor = {
   NAME: "Possessor",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -65652,7 +66175,7 @@ exports.xxtrianguli = {
   NAME: "XX Trianguli",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     REGEN: 0,
@@ -65688,7 +66211,7 @@ exports.chaser = {
   NAME: "Chaser",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     REGEN: 0,
@@ -65727,7 +66250,7 @@ exports.powernoob = {
   NAME: "PowerNoob",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 500,
     PENETRATION: 5,
@@ -65747,7 +66270,7 @@ exports.johnathon = {
   NAME: "Johnathon",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -65767,7 +66290,7 @@ exports.alexTheDemonical = {
   NAME: "Alex, The Demonical",
   TYPE: "neutralBoss",
   LABEL: "Descendant",
-  SPECIAL_EFFECT: "animatable",
+  SPECIAL_EFFECT: ["animatable"],
   BODY: {
     HEALTH: 250,
     PENETRATION: 5,
@@ -65787,7 +66310,7 @@ exports.pop64 = makeMulti(
     ],
     NAME: "Pop64",
     TYPE: "neutralBoss",
-    SPECIAL_EFFECT: "animatable",
+    SPECIAL_EFFECT: ["animatable"],
     BODY: {
       HEALTH: 250,
       PENETRATION: 5,
@@ -75836,7 +76359,7 @@ exports.Vbaltylahandsaw4 = {
   ],
 };
 exports.baltylaeye = {
-  PARET: [exports.genericTank],
+  PARENT: [exports.genericTank],
   LABEL: "",
   CONTROLLERS: ["dontTurn"],
   BODY: {
@@ -75851,7 +76374,7 @@ exports.baltylaeye = {
   ],
 };
 exports.Vbaltylaeyeholder = {
-  PARET: [exports.genericTank],
+  PARENT: [exports.genericTank],
   LABEL: "",
   SHAPE: 1,
   CONTROLLERS: ["dontTurn"],
@@ -76278,7 +76801,7 @@ exports.omegaReaper = {
   DANGER: 7,
   SIZE: 25,
   HAS_NO_RECOIL: true,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 1.5,
     HEALTH: base.HEALTH * 1.7,
@@ -76358,7 +76881,7 @@ exports.grimReaper = {
   DANGER: 7,
   HAS_NO_RECOIL: true,
   SIZE: 40,
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   BODY: {
     SPEED: base.SPEED * 10,
     HEALTH: base.HEALTH * 20,
@@ -77332,7 +77855,7 @@ exports.arenaguardpl = {
     15, //shield regen
     15, //body speed
   ],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   ORBIT_DISTANCE: 150,
   HAS_NO_RECOIL: true,
   SIZE: 26,
@@ -79229,8 +79752,8 @@ exports.ranarShrine = {
   PARENT: [exports.damagedArenaCloser],
   // NAME: "Ranar",
   LABEL: "Shrine",
-  //CONTROLLERS: ["Dominator"],
-  AI_TARGET: "healAllies",
+  CONTROLLERS: ["nearestDifferentMaster"],
+  //AI_TARGET: "healAllies",
   SIZE: 22,
   VALUE: 100000,
   CAN_BE_ON_LEADERBOARD: false,
@@ -79246,6 +79769,7 @@ exports.ranarShrine = {
     SPEED: 0,
   },
   SKILL: skillSet({
+    rld: -1,
     dam: 0.2, //bullet damage
     pen: 0.1, //bullet penetration
     str: 0.2, //bullet health
@@ -79257,7 +79781,13 @@ exports.ranarShrine = {
       POSITION: [9, 0, 0, 0, 0, 1],
       TYPE: [
         exports.ranarDiscipleForm,
-        { INDEPENDENT: true, HAS_NO_RECOIL: true, CONTROLLERS: [] },
+        {
+          INDEPENDENT: true,
+          HAS_NO_RECOIL: true,
+          FACING_TYPE: "looseToTarget",
+          CONTROLLERS: ["nearestDifferentMaster", "onlyAcceptInArc"],
+          MAX_CHILDREN: 1,
+        },
       ],
     },
     {
@@ -79273,7 +79803,7 @@ exports.cxShrine = {
   LABEL: "Shrine",
   CONTROLLERS: ["Dominator"],
   AI_TARGET: "healAllies",
-  SPECIAL_EFFECT: "cxShrine",
+  SPECIAL_EFFECT: ["cxShrine"],
   SIZE: 22,
   VALUE: 100000,
   CAN_BE_ON_LEADERBOARD: false,
@@ -80000,7 +80530,7 @@ exports.nulltype = {
   PARENT: [exports.voidlordRangedBoss],
   //  NAME: "Alhazred",
   LABEL: "Ancient",
-  SPECIAL_EFFECT: "randomShit",
+  SPECIAL_EFFECT: ["randomShit"],
   SIZE: 30,
   VALUE: 250000,
   SKILL: skillSet({
@@ -80022,12 +80552,16 @@ exports.nulltype = {
       TYPE: [exports.breakerSymbol, { INDEPENDENT: true, COLOR: 16 }],
     },
   ],
-};
+ };
+// Vbaltyla is defined before nulltype; resolve this gun's class after the export exists.
+if (exports.Vbaltyla && exports.Vbaltyla.GUNS && exports.Vbaltyla.GUNS[2]) {
+  exports.Vbaltyla.GUNS[2].PROPERTIES.TYPE = exports.nulltype;
+}
 exports.lurkerBelow = {
   PARENT: [exports.voidlordRangedBoss],
   NAME: "Alhazred",
   LABEL: "Lurker Below",
-  SPECIAL_EFFECT: "randomShit",
+  SPECIAL_EFFECT: ["randomShit"],
   MAX_CHILDREN: 50,
   SIZE: 30,
   VALUE: 2500000,
@@ -81218,7 +81752,7 @@ exports.alphaRifleAnomaly = {
     REGEN: 0,
     HEALTH: 500,
   },
-  SPECIAL_EFFECT: "fortressKill",
+  SPECIAL_EFFECT: ["fortressKill"],
   FACING_TYPE: "looseToTarget",
   DANGER: 8,
   SHAPE: 8,
@@ -81267,7 +81801,7 @@ exports.alphaBoosterAnomaly = {
     REGEN: 0,
     HEALTH: 500,
   },
-  SPECIAL_EFFECT: "fortressKill",
+  SPECIAL_EFFECT: ["fortressKill"],
   FACING_TYPE: "looseToTarget",
   DANGER: 8,
   SHAPE: 8,
@@ -81311,7 +81845,7 @@ exports.sardonyx = {
   NAME: "Sardonyx",
   LABEL: "Dark Fate",
   TYPE: "voidlordBoss",
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   ALLOW_PLATE: true,
   DANGER: 8,
@@ -81438,7 +81972,7 @@ exports.sardonyxGrimForm = {
   NAME: "Sardonyx",
   LABEL: "Grim Truth",
   TYPE: "voidlordBoss",
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   ALLOW_PLATE: true,
   DANGER: 8,
@@ -82920,7 +83454,7 @@ exports.cubedhandsaw4 = {
   ],
 };
 exports.cubedeye = {
-  PARET: [exports.genericTank],
+  PARENT: [exports.genericTank],
   LABEL: "",
   CONTROLLERS: ["dontTurn"],
   SHAPE: 4,
@@ -82936,7 +83470,7 @@ exports.cubedeye = {
   ],
 };
 exports.cubedeyeholder = {
-  PARET: [exports.genericTank],
+  PARENT: [exports.genericTank],
   LABEL: "",
   SHAPE: 1,
   CONTROLLERS: ["dontTurn"],
@@ -84678,42 +85212,6 @@ exports.contraption = {
       POSITION: [10, 0, 0, 180, 360, 1],
       TYPE: exports.autoTurret,
     },
-    {
-      POSITION: [18, 0, 0, -90, 200, 0],
-      TYPE: [
-        exports.mega3Turret,
-        { AI_TARGET: "projectiles", INDEPENDENT: true },
-      ],
-    },
-    {
-      POSITION: [18, 0, 0, 90, 200, 0],
-      TYPE: [
-        exports.mega3Turret,
-        { AI_TARGET: "projectiles", INDEPENDENT: true },
-      ],
-    },
-    {
-      POSITION: [10, 0, 0, 180, 360, 1],
-      TYPE: exports.autoTurret,
-    },
-    {
-      POSITION: [18, 0, 0, -90, 200, 0],
-      TYPE: [
-        exports.mega3Turret,
-        { AI_TARGET: "projectiles", INDEPENDENT: true },
-      ],
-    },
-    {
-      POSITION: [18, 0, 0, 90, 200, 0],
-      TYPE: [
-        exports.mega3Turret,
-        { AI_TARGET: "projectiles", INDEPENDENT: true },
-      ],
-    },
-    {
-      POSITION: [10, 0, 0, 180, 360, 1],
-      TYPE: exports.autoTurret,
-    },
   ],
   GUNS: [
     {
@@ -84849,7 +85347,7 @@ exports.Protalist = {
     REGEN: 0,
     HEALTH: 7000,
   },
-  SPECIAL_EFFECT: "fortressKill",
+  SPECIAL_EFFECT: ["fortressKill"],
   FACING_TYPE: "looseToTarget",
   DANGER: 8,
   SIZE: 40,
@@ -84961,7 +85459,7 @@ exports.highlordAidra = {
     REGEN: 0,
     HEALTH: 4000,
   },
-  SPECIAL_EFFECT: "fortressKill",
+  SPECIAL_EFFECT: ["fortressKill"],
   FACING_TYPE: "looseToTarget",
   DANGER: 8,
   SIZE: 25,
@@ -86832,7 +87330,7 @@ exports.flesh = {
     REGEN: base.REGEN * 1.5,
   },
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   PLAGUEBRINGER: true,
   TURRETS: [
@@ -86921,7 +87419,7 @@ exports.roguarmada = makeMulti(
   {
     PARENT: [exports.guardianRangedBoss],
     FACING_TYPE: "autospin",
-    SPECIAL_EFFECT: "armadaEvolve",
+    SPECIAL_EFFECT: ["armadaEvolve"],
     COLOR: 10,
     SHAPE: 7,
     SIZE: 28.5,
@@ -88038,7 +88536,7 @@ exports.crusherFortWall = {
   VALUE: 250000,
   AI_TARGET: "mostDeadly",
   CONTROLLERS: ["nearestDifferentMaster"],
-  SPECIAL_EFFECT: "crusherFortWall",
+  SPECIAL_EFFECT: ["crusherFortWall"],
   HAS_NO_RECOIL: false,
   BODY: {
     FOV: 0.5,
@@ -88192,7 +88690,7 @@ exports.buttonTrap = {
 exports.fortwallTS = {
   PARENT: [exports.fortwall],
   LABEL: "Fort Wall",
-  SPECIAL_EFFECT: "turretted",
+  SPECIAL_EFFECT: ["turretted"],
   TURRETS: [
     {
       POSITION: [6, 0, 0, 180, 360, 1],
@@ -88366,8 +88864,8 @@ exports.arenaCloser = {
 exports.repPod = {
   PARENT: [exports.genericTank],
   TYPE: "voidlordBoss",
-  LABEL: "Void Pod",
-  SPECIAL_EFFECT: "rep",
+  LABEL: "Pod",
+  SPECIAL_EFFECT: ["rep"],
   LEVEL: 45,
   SIZE: 12,
   SHAPE: 6,
@@ -88381,9 +88879,9 @@ exports.repPod = {
   FACING_TYPE: "turnWithSpeed",
   MOTION_TYPE: "drift",
   BODY: {
-    HEALTH: 10000,
+    HEALTH: 50,
     DAMAGE: 0,
-    SHIELD: 10000,
+    SHIELD: 25,
     REGEN: base.REGEN * 0,
     PUSHABILITY: 0,
     ACCELERATION: 0,
@@ -88439,7 +88937,7 @@ exports.itemtest1 = {
   DANGER: -1,
   LABEL: "item test",
   SHAPE: 6,
-  SPECIAL_EFFECT: "+speedT1",
+  SPECIAL_EFFECT: ["+speedT1"],
   SIZE: 15,
   COLOR: 10,
   BODY: {
@@ -89655,7 +90153,7 @@ exports.anti_tank2 = {
 exports.mechagod = {
   PARENT: [exports.genericTank],
   LABEL: "Arena Originator",
-  DANGER: NaN,
+  DANGER: 10,
   TYPE: "deity",
   TARGETABLE: true,
   VALUE: 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999,
@@ -89684,8 +90182,8 @@ exports.mechagod = {
     rgn: 100000000000000000000000000000000000000000000.4, //damn
     mob: 0,
   }),
-  DANGER: NaN,
-  SPECIAL_EFFECT: "dieWall",
+  DANGER: 10,
+  SPECIAL_EFFECT: ["dieWall"],
   LEVEL: Infinity,
   SIZE: 30,
   HAS_NO_RECOIL: true,
@@ -90742,7 +91240,7 @@ exports.skullGunner = {
   },
   FACING_TYPE: "looseToTarget",
   IGNORE_COLLISION: true,
-  DANGER: Infinity,
+  DANGER: 99,
   //CAN_BE_ON_LEADERBOARD: false,
   DRAW_HEALTH: false,
   SIZE: 20,
@@ -90820,10 +91318,10 @@ exports.livingApocalypse = {
     SHIELD: 99999,
     PUSHABILITY: 0,
   },
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   IGNORE_COLLISION: true,
-  DANGER: Infinity,
+  DANGER: 99,
   SIZE: 20,
   // ALPHA: 0.75,
   VALUE: 1000000000000,
@@ -94121,7 +94619,7 @@ exports.Seraphim = {
   SIZE: 35,
   BROADCAST_MESSAGE: "A fallen angel ascends back to the homeland.",
   TYPE: "voidlordBoss",
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   ALLOW_PLATE: true,
   DANGER: 8,
@@ -94716,7 +95214,7 @@ exports.zephilen = {
     REGEN: 0,
     RESIST: 1.4,
   },
-  SPECIAL_EFFECT: "dieWall",
+  SPECIAL_EFFECT: ["dieWall"],
   FACING_TYPE: "looseToTarget",
   DANGER: 10,
   SIZE: 17.5,
@@ -95244,7 +95742,7 @@ exports.teraRebel = {
   COLOR: 12,
   //SHAPE: [[1,-0.5],[-0.5,-1],[-1,-0.5],[-1,0.5],[-0.5,1],[1,0.5]],
   SKILL_CAP: [9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
-  SPECIAL_EFFECT: "Legend",
+  SPECIAL_EFFECT: ["Legend"],
   RESET_UPGRADES: true,
   BODY: {
     FOV: 3.25,
@@ -95495,8 +95993,8 @@ exports.pen.UPGRADES_TIER_4 = [
 exports.underpen.UPGRADES_TIER_6 = [exports.eggpen, exports.quadpen, exports.tripen, exports.pentapen, exports.hexapen,]
 exports.outpost.UPGRADES_TIER_5 = [exports.watchtower, exports.rampart]
 exports.watchtower.UPGRADES_TIER_6 = [exports.beacon]
-exports.beacon.UPGRADES_TIER_7 = [exports.lighthouse]
-exports.rampart.UPGRADES_TIER_7 = [exports.lighthouse]
+//exports.beacon.UPGRADES_TIER_7 = [exports.lighthouse]
+//exports.rampart.UPGRADES_TIER_7 = [exports.lighthouse]
 exports.quill.UPGRADES_TIER_5 = [
   exports.trident,
   exports.inkfountain,
@@ -95617,6 +96115,10 @@ exports.kristanks3.UPGRADES_TIER_1 = [
   exports.hyperSkimmer,
   exports.testerSkimmer,
   exports.testersphere,
+  exports.mechanisthandtest,
+  exports.mechanistringtest,
+  exports.quadengi,
+  exports.quadtwinengi,
   exports.kristanks4,
 ];
 exports.krisbosses1.UPGRADES_TIER_1 = [
@@ -95653,6 +96155,7 @@ exports.kristanks4.UPGRADES_TIER_1 = [
   exports.smashdupev2,
   exports.smashdupev3,
   exports.growdupe,
+  exports.c4deployer,
   exports.krispage,
 ];
 exports.cubedtestpage.UPGRADES_TIER_1 = [
@@ -96707,7 +97210,8 @@ exports.knight.UPGRADES_TIER_3 = [exports.warrior];
 exports.battery.UPGRADES_TIER_2 = [exports.generator];
 exports.generator.UPGRADES_TIER_3 = [exports.reactor];
 exports.overtrap.UPGRADES_TIER_5 = [exports.lordtrap];
-exports.quadbuilder.UPGRADES_TIER_5 = [exports.hexabuilder];
+exports.quadbuilder.UPGRADES_TIER_5 = [exports.hexabuilder, exports.quadengi];
+exports.quadengi.UPGRADES_TIER_6 = [exports.quadtwinengi]
 exports.hexabuilder.UPGRADES_TIER_7 = [exports.octobuilder];
 exports.basic.UPGRADES_TIER_1 = [
   exports.twin,
@@ -96855,6 +97359,7 @@ exports.bulwark.UPGRADES_TIER_4 = [
   exports.bentBulwark,
   exports.hewnBulwark,
   exports.frontier,
+  exports.bulwarkThrasher
 ];
 exports.bent.UPGRADES_TIER_3 = [
   exports.penta,
@@ -97282,7 +97787,7 @@ exports.autobuilder.UPGRADES_TIER_4 = [exports.autoconstructer];
 exports.constructer.UPGRADES_TIER_4 = [exports.autoconstructer];
 exports.autoconstructer.UPGRADES_TIER_5 = [exports.roadblock];
 exports.boomer.UPGRADES_TIER_5 = [exports.rebounder];
-exports.engineer.UPGRADES_TIER_5 = [exports.Originator];
+exports.engineer.UPGRADES_TIER_5 = [exports.Originator, exports.quadengi];
 exports.constructer.UPGRADES_TIER_5 = [exports.constructionist];
 exports.architect.UPGRADES_TIER_4 = [
   exports.autoArchitect,

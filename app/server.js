@@ -17,11 +17,50 @@ const fs = require("fs");
 const path = require("path"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
 const createLoadProtection = require("./lib/loadProtection");
+const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup");
+const isEntityVisibleToAnyClient = require("./lib/clientVisibility");
 const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
-const generateCaveMaze = require("./lib/mazeGenerator");
+const droneInfection = require("./lib/droneInfection");
+const supportEffects = require("./lib/supportEffects");
+const foodSpawnSafety = require("./lib/foodSpawnSafety");
+const modeBranches = require("./lib/modeBranches");
+const entityBranches = require("./lib/entityBranches");
+const { normalizeSpecialEffects, hasSpecialEffect } = require("./lib/specialEffects");
+const mazeGenerator = require("./lib/mazeGenerator");
+const modeVoting = require("./lib/modeVoting");
+const gunCalculator = require("./lib/gunCalculator");
 const { performance } = require("perf_hooks");
+
+function applyFoodInfectionEffects(food, infector) {
+  food.layer = infector.layer;
+  food.growthFactor = 0;
+  if (food.passiveEffect === "uniqueFood" && food.noMore !== true) {
+    food.health.max *= 2;
+    food.health.amount *= 2;
+    food.noMore = true;
+  }
+}
+
+function awardSupportScore(source, target, decision) {
+  if (
+    decision.action !== "heal" ||
+    !source.master ||
+    !source.master.skill ||
+    source.master === target.master ||
+    !target.health ||
+    !target.shield ||
+    (target.health.amount >= target.health.max && target.shield.amount >= target.shield.max)
+  ) return;
+
+  const missing = Math.max(0, target.health.max - target.health.amount) +
+    Math.max(0, target.shield.max - target.shield.amount);
+  const capacity = Math.max(0, target.health.max) + Math.max(0, target.shield.max);
+  const gain = Math.ceil((Number(source.damage) || 0) * (1 + (capacity > 0 ? missing / capacity : 0) * 10));
+  source.master.skill.score += gain;
+}
+
 // Example usage:
 let currentState = serverState.getServerState();
 
@@ -30,47 +69,11 @@ const lockFilePath = path.join(__dirname, "serv.lock");
 fs.writeFileSync(lockFilePath, process.pid.toString());
 
 let chosenMode;
-function countInstances(arr) {
-  const countMap = {}; // Object to store counts
-
-  // Loop through each element in the array
-  arr.forEach((item) => {
-    if (countMap[item]) {
-      countMap[item]++; // Increment count if item exists
-    } else {
-      countMap[item] = 1; // Initialize count if item does not exist
-    }
-  });
-
-  return countMap; // Return the object containing counts
-}
-function pickTheBiggest(countMap) {
-  // Determine the maximum count
-  let maxCount = -1;
-  let maxItems = [];
-
-  for (let key in countMap) {
-    if (countMap[key] > maxCount) {
-      maxCount = countMap[key];
-      maxItems = [key]; // Reset maxItems with the new maximum count item
-    } else if (countMap[key] === maxCount) {
-      maxItems.push(key); // Add to maxItems if count is equal to maxCount
-    }
-  }
-
-  // Randomly select one item from maxItems
-  const randomIndex = Math.floor(Math.random() * maxItems.length);
-  const selected = maxItems[randomIndex];
-
-  // Return just the selected item (not wrapped in an array)
-  return { selected, count: maxCount };
-}
-
 let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "FFA Maze";
+if (serverType === "testing") chosenMode = "Sandbox";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -97,13 +100,10 @@ else if (serverType === "normal") {
     "Grudge Ball",
     "Siege",
   ];
-  if (currentState.modeVotes.length === 0) {
-    chosenMode = ran.choose(modeList);
-  } else {
-    let votes = countInstances(currentState.modeVotes);
-    let result = pickTheBiggest(votes);
-    chosenMode = result.selected;
-  }
+  // Ignore stale mode names from old configs and use a random valid mode
+  // when there are no valid votes. Ties are resolved randomly.
+  const savedVotes = Array.isArray(currentState.modeVotes) ? currentState.modeVotes : [];
+  chosenMode = modeVoting.chooseMode(savedVotes, modeList, ran.choose) || ran.choose(modeList);
   currentState.modeVotes = [];
   if (chosenMode === "Siege") {
     for (let i = 0; i < 3; i++) {
@@ -133,9 +133,22 @@ else if (serverType === "normal") {
 
 //serverState.resetLoreIndex();
 //serverState.advanceLoreSequence();
-let config = require("./config.js"),
-  gameMode = require("./Game Modes/" + chosenMode),
-  c = { ...config, ...gameMode };
+const { mergeModeSettings, validateModeSettings } = require("./lib/modeSettings");
+const config = require("./config.js");
+const gameMode = require("./Game Modes/" + chosenMode);
+const mergedSettings = mergeModeSettings(config, gameMode);
+const generateWorldMaze = mazeGenerator.shouldRandomizeMaze({
+  serverType,
+  modeName: chosenMode,
+  settings: mergedSettings,
+});
+if (generateWorldMaze) {
+  // Remove hand-authored wall cells, but preserve the mode's room layout.
+  // The world-grid generator may place walls in norm, nest, rock, and roid
+  // areas; bases, objectives, gates, and other special zones keep clearances.
+  mergedSettings.ROOM_SETUP = mazeGenerator.clearAuthoredWalls(mergedSettings.ROOM_SETUP);
+}
+const c = validateModeSettings(mergedSettings, chosenMode);
 //util.log(JSON.stringify(c, null, 2));
 const decodeHTML = require("html-entities").decode;
 // Set up room
@@ -330,7 +343,7 @@ c.preparedCounter = 50;
 c.countdown = 60000;
 c.godRole = true; //ran.choose([true, false]);
 //important settings
-c.voteList = ["placeHolder"];
+c.voteList = [];
 c.banList = ["placeHolder"];
 c.muteList = ["placeHolder"];
 c.socketList = [];
@@ -434,28 +447,62 @@ const room = {
 };
 room.xgrid = c.ROOM_SETUP[0].length;
 room.ygrid = c.ROOM_SETUP.length;
+room._setupTypeKeys = new Set();
 room.findType = () => {
-  let j = 0;
-  room.setup.forEach((row) => {
-    let i = 0;
-    row.forEach((cell) => {
-      if (!room[cell]) room[cell] = [];
+  // Re-index idempotently. The previous implementation only appended tile
+  // positions, so invoking it during a reset duplicated every room coordinate.
+  for (const key of room._setupTypeKeys) delete room[key];
+  const setup = room.setup;
+  if (!Array.isArray(setup) || !setup.length || !Array.isArray(setup[0]) || !setup[0].length) {
+    room._setupTypeKeys = new Set();
+    return 0;
+  }
+  room.ygrid = setup.length;
+  room.xgrid = setup[0].length;
+  const keys = new Set();
+  for (let j = 0; j < setup.length; j++) {
+    const row = setup[j];
+    if (!Array.isArray(row)) continue;
+    for (let i = 0; i < row.length; i++) {
+      const cell = row[i];
+      if (typeof cell !== "string" || !cell) continue;
+      if (!Array.isArray(room[cell])) room[cell] = [];
       room[cell].push({
         x: ((i + 0.5) * room.width) / room.xgrid,
         y: ((j + 0.5) * room.height) / room.ygrid,
       });
-      i++;
-    });
-    j++;
-  });
+      keys.add(cell);
+    }
+  }
+  room._setupTypeKeys = keys;
+  return keys.size;
+};
+room.reevaluate = () => {
+  room.findType();
+  const foodAmount = Number(c.FOOD_AMOUNT);
+  room.maxFood = ((room.width * room.height) / 20000) *
+    (Number.isFinite(foodAmount) ? Math.max(0, foodAmount) : 0);
+  room.nestFoodAmount = room.nest && room.nest.length
+    ? (1.5 * Math.sqrt(room.nest.length)) / room.xgrid / room.ygrid
+    : 0;
+  return { xgrid: room.xgrid, ygrid: room.ygrid, indexedTypes: room._setupTypeKeys.size };
 };
 room.findType();
-
-room.nestFoodAmount = 0;
-if (room.nest) {
-  room.nestFoodAmount =
-    (1.5 * Math.sqrt(room.nest.length)) / room.xgrid / room.ygrid;
+if (generateWorldMaze) {
+  const generatedMaze = mazeGenerator.generateWorldMaze({
+    width: room.width,
+    height: room.height,
+    roomSetup: room.setup,
+  });
+  room.generatedMazeWalls = generatedMaze.walls;
+  util.log(
+    `Generated world-grid maze: ${generatedMaze.walls.length} wall blocks ` +
+    `on a ${generatedMaze.columns}x${generatedMaze.rows} grid ` +
+    `(${generatedMaze.candidateCells} available cells).`
+  );
 }
+
+room.reevaluate();
 room.random = () => {
   return {
     x: ran.irandom(room.width),
@@ -652,6 +699,12 @@ let Class = (() => {
   }
   return def;
 })();
+// Append or exclude selected-mode branches without changing other mode files.
+modeBranches.applyModeBranches(Class, c.TANK_BRANCHES, chosenMode);
+modeBranches.applyModeBranchExceptions(Class, c.TANK_BRANCH_EXCEPTIONS, chosenMode);
+const branchTierLevels = { 0: 0, god: c.TIER_GOD };
+for (let tier = 1; tier <= 15; tier++) branchTierLevels[tier] = c[`TIER_${tier}`];
+entityBranches.validateDefinitions(Class);
 
 
 function getSiegeThemesForCurrentWave() {
@@ -1503,6 +1556,10 @@ function makeDominators() {
   }
 }
 function makeFortGates() {
+  // The Denied builds gates when its Shrine falls. That event may be reached
+  // through multiple death/update paths, so make the map structure idempotent.
+  if (c.MODE === "theDenied" && c.deniedFortGatesCreated) return;
+
   let gridWidth = room.width / room.xgrid;
   let gridHeight = room.height / room.ygrid;
 
@@ -1580,18 +1637,9 @@ function makeFortGates() {
         //util.log("ruh");
       });
     }
-    if (c.MODE === "theDenied") {
-      if (room["bad" + i]) {
-        room["bad" + i].forEach((loc) => {
-          placegate(loc, i, {
-            x: Math.floor(loc.x / gridWidth),
-            y: Math.floor(loc.y / gridHeight),
-          });
-          //util.log("ruh");
-        });
-      }
-    }
   }
+
+  if (c.MODE === "theDenied") c.deniedFortGatesCreated = true;
 }
 
 function makeFortWalls() {
@@ -2139,71 +2187,79 @@ function makepentagonWorkbench() {
   }
 }
 function makeMazeWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o;
-    let a = Class.wall;
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
-    o.spawnLoc = loc;
+  const gridWidth = room.width / room.xgrid;
+  const gridHeight = room.height / room.ygrid;
+  const generatedWalls = Array.isArray(room.generatedMazeWalls) ? room.generatedMazeWalls : null;
+  const wallLocations = generatedWalls || room.wall;
+  if (!Array.isArray(wallLocations) || !wallLocations.length) return;
+
+  const shortSide = Math.min(gridWidth, gridHeight);
+  const baseSize = shortSide / 2;
+  const spawnedCells = new Set();
+
+  const spawnBlock = (x, y, gridX, gridY, generatedSize) => {
+    const o = new Entity({ x, y });
+    o.define(Class.wall);
+    // Generated walls carry their own size from the independent world grid.
+    // Authored walls keep the old room-cell sizing behavior.
+    o.SIZE = Number.isFinite(generatedSize) && generatedSize > 0
+      ? generatedSize
+      : baseSize * ran.randomRange(1.0, 1.25);
     o.coreSize = o.SIZE;
+    o.spawnLoc = { x, y };
     o.protect();
     o.team = -101;
     o.color = 16;
     o.alwaysExists = true;
     o.isMazeWall = true;
     o.refreshBodyAttributes();
-    o.grid = grid;
+    o.grid = { x: gridX, y: gridY };
     o.VELOCITY.x = 0;
     o.VELOCITY.y = 0;
     o.ACCEL.x = 0;
     o.ACCEL.y = 0;
   };
-  if (room["wall"]) {
-    room["wall"].forEach((loc) => {
-      entity(loc, {
-        x: Math.floor(loc.x / gridWidth),
-        y: Math.floor(loc.y / gridHeight),
-      });
-    });
+
+  if (generatedWalls) {
+    // Each generated entry already represents one independent world-grid
+    // cell. Don't deduplicate by ROOM_SETUP cell or force the walls back onto
+    // that coarser lattice.
+    for (const loc of generatedWalls) {
+      if (!loc || !Number.isFinite(loc.x) || !Number.isFinite(loc.y)) continue;
+      spawnBlock(loc.x, loc.y, loc.gridX, loc.gridY, loc.size);
+    }
+    return;
+  }
+
+  // Legacy support for maps that directly author 'wall' room tiles.
+  for (const loc of wallLocations) {
+    if (!loc || !Number.isFinite(loc.x) || !Number.isFinite(loc.y)) continue;
+    const gridX = Math.floor(loc.x / gridWidth);
+    const gridY = Math.floor(loc.y / gridHeight);
+    const cellKey = `${gridX}:${gridY}`;
+    if (spawnedCells.has(cellKey)) continue;
+    spawnedCells.add(cellKey);
+
+    if (gridWidth > gridHeight) {
+      const start = loc.x - gridWidth / 2 + gridHeight / 2;
+      const end = loc.x + gridWidth / 2 - gridHeight / 2;
+      for (let x = start; ; x += gridHeight) {
+        spawnBlock(Math.min(x, end), loc.y, gridX, gridY);
+        if (x >= end) break;
+      }
+    } else if (gridHeight > gridWidth) {
+      const start = loc.y - gridHeight / 2 + gridWidth / 2;
+      const end = loc.y + gridHeight / 2 - gridWidth / 2;
+      for (let y = start; ; y += gridWidth) {
+        spawnBlock(loc.x, Math.min(y, end), gridX, gridY);
+        if (y >= end) break;
+      }
+    } else {
+      spawnBlock(loc.x, loc.y, gridX, gridY);
+    }
   }
 }
+
 function makePortals() {
   let entity = (loc, team) => {
     let o = new Entity(loc);
@@ -2652,38 +2708,6 @@ function siegeCountdown() {
   }, 1000);
 }
 
-function createMaze() {
-  const area = room.width * room.height;
-  const gridWidth = room.width / room.xgrid;
-  const gridHeight = room.height / room.ygrid;
-  // About twice the old scatter count on a 4k map, scaled by area and capped
-  // so unusually large maps cannot create an unbounded number of static walls.
-  const targetWallCount = Math.max(120, Math.min(1000, Math.ceil(area / 65000)));
-  const wallLayout = generateCaveMaze({
-    width: room.width,
-    height: room.height,
-    gridWidth,
-    gridHeight,
-    cells: room.norm || [],
-    targetCount: targetWallCount,
-    random: Math.random,
-    isOpen: (loc) => room.isInRoom(loc) && room.isIn("norm", loc),
-    // Protected spawn points, gates, and authored structures remain clear.
-    canPlace: (loc, size) => !dirtyCheck(loc, size + 18),
-  });
-
-  for (const loc of wallLayout) {
-    const o = new Entity({ x: loc.x, y: loc.y });
-    o.define(Class.wall);
-    o.alwaysExists = true;
-    o.team = -101;
-    o.SIZE = loc.size;
-    o.coreSize = o.SIZE;
-    o.ACCELERATION = 0;
-    o.SPEED = 0;
-    o.refreshBodyAttributes();
-  }
-}
 function sortByDistance(array, location) {
   array.sort((a, b) => {
     let ad = Math.pow(a.x - location.x, 2) + Math.pow(a.y - location.y, 2);
@@ -3021,7 +3045,97 @@ class io_nearestDifferentMaster extends IO {
     this.lead = 0;
     this.validTargets = this.buildList(body.fov / 2);
     this.oldHealth = body.health.display();
+    // Damage-response targeting is independent of the normal target refresh cadence.
+    this.lastObservedHealth = (body.bond == null ? body : body.bond).health.display();
+    this.lastObservedDurability = this.getDurabilityRatio(body.bond == null ? body : body.bond);
+    this.damageHistory = new Map();
+    this.damageFocusTarget = undefined;
+    this.damageFocusUntil = 0;
     this.body.facing = 0;
+  }
+
+  getDurabilityRatio(entity) {
+    const health = entity.health;
+    const shield = entity.shield;
+    const current = Math.max(0, health?.amount || 0) + Math.max(0, shield?.amount || 0);
+    const maximum = Math.max(0, health?.max || 0) + Math.max(0, shield?.max || 0);
+    return maximum > 0 ? current / maximum : 1;
+  }
+
+  resolveDamageSource(hit) {
+    if (!hit) return undefined;
+    // Projectiles normally expose their owner through master; preserve the
+    // existing engine convention for entities whose master is the world.
+    let source = hit;
+    if (hit.master) {
+      source = hit.master.id === -1 && hit.source ? hit.source : hit.master;
+    }
+    if (!source || source === this.body || source === this.body.master) return undefined;
+    if (typeof source.valid === "function" && !source.valid()) return undefined;
+    if (source.isWall || source.isGate || source.isDominator || source.type === "tile") return undefined;
+    if (source.team === this.body.team) return undefined;
+    return source;
+  }
+
+  updateDamageFocus(now) {
+    const damageRef = this.body.bond == null ? this.body : this.body.bond;
+    const currentHealth = damageRef.health.display();
+    const currentDurability = this.getDurabilityRatio(damageRef);
+
+    // While focused, do not collect or evaluate aggro triggers. Keep both
+    // baselines current so damage during the focus window cannot trigger later.
+    if (this.damageFocusTarget && now < this.damageFocusUntil) {
+      this.lastObservedHealth = currentHealth;
+      this.lastObservedDurability = currentDurability;
+      return this.damageFocusTarget;
+    }
+
+    if (this.damageFocusTarget && now >= this.damageFocusUntil) {
+      this.damageFocusTarget = undefined;
+      this.damageFocusUntil = 0;
+      this.targetLock = undefined;
+      this.damageHistory.clear();
+    }
+
+    const durabilityLost = this.lastObservedDurability - currentDurability;
+    this.lastObservedHealth = currentHealth;
+    this.lastObservedDurability = currentDurability;
+
+    // Durability is normalized across maximum health plus shield, so a loss of
+    // 0.10 represents ten percent of the entity's combined defensive pool.
+    if (durabilityLost > 0) {
+      const collisions = damageRef.collisionArray || [];
+      let attacker;
+      for (let i = collisions.length - 1; i >= 0; i--) {
+        attacker = this.resolveDamageSource(collisions[i]);
+        if (attacker) break;
+      }
+
+      if (attacker) {
+        const previousHits = (this.damageHistory.get(attacker) || [])
+          .filter((timestamp) => now - timestamp <= 5000);
+        previousHits.push(now);
+        this.damageHistory.set(attacker, previousHits);
+
+        if (durabilityLost >= 0.20 || previousHits.length >= 10 || previousHits.length >= 4 && attacker.alpha < 0.3 || currentHealth <= 0.20) {
+          this.damageFocusTarget = attacker;
+          this.damageFocusUntil = now + 5000;
+          this.targetLock = attacker.master;
+          // The triggering hit starts a clean focus window. No further damage
+          // criteria are accumulated until the five seconds expire.
+          this.damageHistory.clear();
+          return attacker;
+        }
+      }
+    }
+
+    // Keep the history bounded to attackers that have hit in the last five seconds.
+    for (const [attacker, timestamps] of this.damageHistory) {
+      const recent = timestamps.filter((timestamp) => now - timestamp <= 5000);
+      if (recent.length) this.damageHistory.set(attacker, recent);
+      else this.damageHistory.delete(attacker);
+    }
+    return undefined;
   }
 
   /* buildList(range) {
@@ -3214,7 +3328,7 @@ class io_nearestDifferentMaster extends IO {
                           this.body.type !== "food")
                       ) {
                         if (
-                          (this.body.specialEffect === "crusherFortWall" &&
+                          (hasSpecialEffect(this.body, "crusherFortWall") &&
                             e.ignoreCollision) ||
                           (c.MODE === "theDenied" && e.isGate)||(this.body.isAnubis && c.MODE === "theInfestation" && (e.isGate && e.isWall))
                   )
@@ -3338,7 +3452,7 @@ class io_nearestDifferentMaster extends IO {
                           this.body.type !== "food")
                       ) {
                         if (
-                          (this.body.specialEffect === "crusherFortWall" &&
+                          (hasSpecialEffect(this.body, "crusherFortWall") &&
                             e.ignoreCollision) ||
                           (c.MODE === "theDenied" && e.isGate) ||
                           (this.body.isAnubis &&
@@ -3571,7 +3685,7 @@ class io_nearestDifferentMaster extends IO {
                           this.body.type !== "food")
                       ) {
                         if (
-                          (this.body.specialEffect === "crusherFortWall" &&
+                          (hasSpecialEffect(this.body, "crusherFortWall") &&
                             e.ignoreCollision) ||
                           (c.MODE === "theDenied" && e.isGate) ||
                           (this.body.isAnubis &&
@@ -3611,11 +3725,24 @@ class io_nearestDifferentMaster extends IO {
     // Targets behind solid walls or rocks should not be visible to this AI.
     // Keep this check after the normal target filters so rays are only cast for
     // plausible targets, rather than every active entity in the room.
-    out = out.filter((target) =>
-      hasClearLineOfSight(this.body, target, (midpoint, searchRadius) =>
-        getEntitiesFromRange(midpoint, searchRadius)
-      )
-    );
+    const canIgnoreWallOcclusion =
+      this.body.isRanar === true ||
+      hasSpecialEffect(this.body, "dieWall") ||
+      hasSpecialEffect(this.body, "crusherFortWall") ||
+      this.body.ignoreCollision === true ||
+      this.body.canDestroyWalls === true ||
+      this.body.canPassWalls === true ||
+      this.body.wallImmunity === true ||
+      hasClearLineOfSight.hasWallPassingProjectile(this.body) ||
+      this.body.phase === true ||
+      this.body.intangibility === true;
+    if (!canIgnoreWallOcclusion) {
+      out = out.filter((target) =>
+        hasClearLineOfSight(this.body, target, (midpoint, searchRadius) =>
+          getEntitiesFromRange(midpoint, searchRadius)
+        )
+      );
+    }
 
     // If there are no valid targets, return an empty array
     if (!out.length) return [];
@@ -3686,6 +3813,41 @@ class io_nearestDifferentMaster extends IO {
         break;
       }
     }
+    // Prioritize an attacker that triggered the damage-response rule. While
+    // the five-second focus is active, do not run normal target selection.
+    const now = Date.now();
+    const focusedAttacker = this.updateDamageFocus(now);
+    if (focusedAttacker && now < this.damageFocusUntil) {
+      this.targetLock = focusedAttacker;
+      if (focusedAttacker.health.amount > 0 && (typeof focusedAttacker.valid !== "function" || focusedAttacker.valid())) {
+        const radial = focusedAttacker.velocity || { x: 0, y: 0 };
+        const diff = {
+          x: focusedAttacker.x - this.body.x,
+          y: focusedAttacker.y - this.body.y,
+        };
+        if (this.tick % 4 === 0) {
+          this.lead = 0;
+          if (!this.body.aiSettings.chase) {
+            this.lead = timeOfImpact(diff, radial, tracking);
+          }
+        }
+        if (!this.body.isWall) {
+          return {
+            target: {
+              x: diff.x + this.lead * radial.x,
+              y: diff.y + this.lead * radial.y,
+            },
+            fire: true,
+            main: true,
+          };
+        }
+        return { fire: true, main: true };
+      }
+      // If the attacker dies during the lock, keep the focus window but do not
+      // opportunistically switch to another target until it expires.
+      return {};
+    }
+
     // Check if my target's alive
     if (this.targetLock) {
       if (
@@ -3751,19 +3913,9 @@ class io_nearestDifferentMaster extends IO {
         break;
       case "general":
       default:
-        let damageRef = this.body.bond == null ? this.body : this.body.bond;
-        if (
-          damageRef.collisionArray.length &&
-          damageRef.health.display() < this.oldHealth
-        ) {
-          this.oldHealth = damageRef.health.display();
-          if (this.validTargets.indexOf(damageRef.collisionArray[0]) === -1) {
-            this.targetLock =
-              damageRef.collisionArray[0].master.id === -1
-                ? damageRef.collisionArray[0].source
-                : damageRef.collisionArray[0].master;
-          }
-        }
+        // Damage-response focus is handled centrally above for every targeting
+        // mode. Do not let the old one-hit retaliation logic override its lock.
+        break;
     }
     // Consider how fast it's moving and shoot at it
     if (this.targetLock != null && this.targetLock.valid()) {
@@ -4740,10 +4892,11 @@ class Gun {
         info.PROPERTIES.SHOOT_SETTINGS == null
           ? []
           : info.PROPERTIES.SHOOT_SETTINGS;
-      this.calculator =
-        info.PROPERTIES.STAT_CALCULATOR == null
-          ? "default"
-          : info.PROPERTIES.STAT_CALCULATOR;
+      // Definitions store calculator types as numeric IDs. Normalize them to
+      // the names used by the calculation branches below (e.g. 7 -> "necro").
+      this.calculator = gunCalculator.normalizeCalculator(
+        info.PROPERTIES.STAT_CALCULATOR
+      );
       this.waitToCycle =
         info.PROPERTIES.WAIT_TO_CYCLE == null
           ? false
@@ -4774,6 +4927,11 @@ class Gun {
           ? false
           : info.PROPERTIES.SHOOT_ON_DEATH;
     }
+    // Cache the shape produced by this gun when its projectile definition is
+    // necromantic. This allows the owning tank itself to infect compatible food
+    // by ramming it, not only by sending a drone into it.
+    this.infectiousShape = droneInfection.getInfectiousShape(this.bulletTypes);
+    this.spawnedEntityType = droneInfection.getSpawnedEntityType(this.bulletTypes);
     let position = info.POSITION;
     this.length = position[0] / 10;
     this.width = position[1] / 10;
@@ -4841,6 +4999,38 @@ class Gun {
     return this.lastShot;
   }
 
+  canInfectFood(host) {
+    return Boolean(
+      host &&
+      host.type === "food" &&
+      Number.isFinite(host.shape) &&
+      Number.isFinite(this.infectiousShape) &&
+      this.infectiousShape === host.shape
+    );
+  }
+
+  infect(host, sourceEntity = null, options = {}) {
+    const owner = droneInfection.getTankOwner(this.body);
+    if (!this.canInfectFood(host)) return false;
+    if (!droneInfection.hasDroneCapacity(owner)) return false;
+
+    const saved = {
+      facing: host.facing,
+      size: host.SIZE,
+    };
+    // Infected food becomes a child of the tank-wide owner. It must not consume
+    // this particular gun's MAX_CHILDREN allowance.
+    host.foodLevel = -1;
+    this.bulletInit(host, { countTowardTank: true, owner });
+    host.master = owner;
+    host.team = owner && owner.team != null ? owner.team : host.team;
+    host.color = owner && owner.color != null ? owner.color : host.color;
+    host.facing = saved.facing;
+    host.SIZE = saved.size;
+    if (host.health) host.health.amount = host.health.max;
+    return true;
+  }
+
   live() {
     // Do
     this.recoil();
@@ -4849,14 +5039,10 @@ class Gun {
       // Find the proper skillset for shooting
       let sk =
         this.bulletStats === "master" ? this.body.skill : this.bulletStats;
-      // Decides what to do based on child-counting settings
-      let shootPermission = this.countsOwnKids
-        ? this.countsOwnKids >
-          this.children.length * (this.calculator == "necro" ? sk.rld : 1)
-        : this.body.maxChildren
-        ? this.body.maxChildren >
-          this.body.children.length * (this.calculator == "necro" ? sk.rld : 1)
-        : true;
+      // One capacity check is shared by the initial firing decision and the
+      // multi-shot loop. Necro's Reload-slot stat reduces the count multiplier,
+      // effectively increasing the permitted number of drones/minions.
+      let shootPermission = this.hasChildCapacity(sk);
       // Override in invuln
       if (this.body.master.invuln && this.body.INVULNERABLE !== true) {
         shootPermission = false;
@@ -4896,11 +5082,7 @@ class Gun {
           while (shootPermission && this.cycle >= 1) {
             this.fire(gx, gy, sk);
             // Figure out if we may still shoot
-            shootPermission = this.countsOwnKids
-              ? this.countsOwnKids > this.children.length
-              : this.body.maxChildren
-              ? this.body.maxChildren > this.body.children.length
-              : true;
+            shootPermission = this.hasChildCapacity(sk);
 
             // Cycle down
             this.cycle -= 1;
@@ -4910,6 +5092,35 @@ class Gun {
         this.cycle = !this.waitToCycle - this.delay;
       }
     }
+  }
+
+  hasChildCapacity(sk) {
+    // STAT_NAMES === 3 is definitions.statnames.necro: the UI replaces Reload
+    // with Max Drone Count. Resolve the root tank because guns mounted on a
+    // turret still need to use the owning class's stat variant and shared cap.
+    const owner = droneInfection.getTankOwner(this.body);
+    const maxDroneCountVariant =
+      !!owner && owner.settings &&
+      owner.settings.skillNames === gunCalculator.MAX_DRONE_COUNT_STAT_NAMES;
+    const producesDrones =
+      this.spawnedEntityType === "drone" || this.spawnedEntityType === "minion";
+    // For turret-mounted guns, use the owning tank's investment rather than a
+    // turret's potentially copied/stale skill object.
+    const capacitySkill =
+      maxDroneCountVariant && owner.skill ? owner.skill : sk;
+
+    return gunCalculator.hasChildCapacity({
+      calculator: this.calculator,
+      skill: capacitySkill,
+      gunLimit: this.countsOwnKids,
+      gunChildren: this.children.length,
+      bodyLimit: maxDroneCountVariant ? owner.maxChildren : this.body.maxChildren,
+      bodyChildren: maxDroneCountVariant
+        ? droneInfection.countOwnedDrones(owner)
+        : this.body.children.length,
+      maxDroneCountVariant,
+      producesDrones,
+    });
   }
 
   syncChildren() {
@@ -4984,7 +5195,7 @@ class Gun {
     o.coreSize = o.SIZE;
   }
 
-  bulletInit(o) {
+  bulletInit(o, options = {}) {
     // Define it by its natural properties
     this.bulletTypes.forEach((type) => o.define(type));
     // Pass the gun attributes
@@ -5011,8 +5222,21 @@ class Gun {
     }
 
     o.color = this.body.master.color;
-    // Keep track of it and give it the function it needs to deutil.log itself upon death
-    if (this.countsOwnKids) {
+    // Keep track of children. Infected food is tracked against the tank-wide
+    // drone cap instead of being counted against the individual gun's cap.
+    if (options.countTowardTank) {
+      const owner = options.owner || droneInfection.getTankOwner(this.body);
+      if (o.parent && Array.isArray(o.parent.children)) {
+        let childIndex;
+        while ((childIndex = o.parent.children.indexOf(o)) !== -1) {
+          util.remove(o.parent.children, childIndex);
+        }
+      }
+      o.parent = owner;
+      if (owner && Array.isArray(owner.children) && !owner.children.includes(o)) {
+        owner.children.push(o);
+      }
+    } else if (this.countsOwnKids) {
       o.parent = this;
       this.children.push(o);
     } else if (this.body.maxChildren) {
@@ -5022,39 +5246,8 @@ class Gun {
     }
     o.source = this.body;
     o.facing = o.velocity.direction;
-    // Necromancers.
-    o.necro = (host) => {
-      let shootPermission = this.countsOwnKids
-        ? this.countsOwnKids >
-          this.children.length *
-            (this.bulletStats === "master"
-              ? this.body.skill.rld
-              : this.bulletStats.rld)
-        : this.body.maxChildren
-        ? this.body.maxChildren >
-          this.body.children.length *
-            (this.bulletStats === "master"
-              ? this.body.skill.rld
-              : this.bulletStats.rld)
-        : true;
-      if (shootPermission) {
-        let save = {
-          facing: host.facing,
-          size: host.SIZE,
-        };
-        (this.foodLevel = -1), this.bulletInit(host);
-        host.team = o.master.master.team;
-        host.master = o.master;
-        host.color = o.color;
-        host.facing = save.facing;
-        host.SIZE = save.size;
-
-        host.health.amount = host.health.max;
-
-        return true;
-      }
-      return false;
-    };
+    // Necromancers and related infection-capable drone types.
+    o.necro = (host) => this.infect(host, o);
     // Otherwise
     o.refreshBodyAttributes();
     o.life();
@@ -5562,11 +5755,16 @@ class Entity {
     }
   }
 
-  define(set) {
+  define(set, isInheritedDefinition = false) {
     if (set) {
+      // A fresh class redefinition must not retain a prior class's kill reward.
+      // Parent definitions are processed recursively and may supply inherited rewards.
+      if (!isInheritedDefinition && (set.index != null || Object.prototype.hasOwnProperty.call(set, "PARENT"))) {
+        this.branchUnlockOnKill = undefined;
+      }
       if (set.PARENT != null) {
         for (let i = 0; i < set.PARENT.length; i++) {
-          this.define(set.PARENT[i]);
+          this.define(set.PARENT[i], true);
         }
       }
 
@@ -5624,8 +5822,11 @@ class Entity {
       if (set.STRUCTURE != null) {
         this.structure = set.STRUCTURE;
       }
+      if (set.BRANCH_UNLOCK_ON_KILL != null) {
+        this.branchUnlockOnKill = set.BRANCH_UNLOCK_ON_KILL;
+      }
       if (set.SPECIAL_EFFECT != null) {
-        this.specialEffect = set.SPECIAL_EFFECT;
+        this.specialEffect = normalizeSpecialEffects(set.SPECIAL_EFFECT);
       }
       if (set.DEATH_THROES != null) {
         this.deathThroes = set.DEATH_THROES;
@@ -6012,6 +6213,8 @@ class Entity {
           });
         });
       }
+      entityBranches.applyDefinitionBranchOverrides(this, set, Class, branchTierLevels);
+
       if (set.SIZE != null) {
         this.SIZE = set.SIZE * this.squiggle;
         if (this.coreSize == null) {
@@ -6118,18 +6321,27 @@ class Entity {
         }
         this.refreshBodyAttributes();
       }
-      if (set.TURRETS != null) {
-        let o;
-        this.turrets.forEach((o) => o.destroy());
+      // TURRETS is an explicit replacement field: [] or null clears existing
+      // turrets. Destroy a snapshot because turret.destroy() removes itself from
+      // this.turrets, which would otherwise make forEach skip entries.
+      if (Object.prototype.hasOwnProperty.call(set, "TURRETS")) {
+        const oldTurrets = Array.isArray(this.turrets) ? this.turrets.slice() : [];
+        for (const turret of oldTurrets) {
+          if (turret && keyManager.hasKey(turret.key)) turret.destroy();
+        }
         this.turrets = [];
-        set.TURRETS.forEach((def) => {
-          o = new Entity(this, this.master);
-          (Array.isArray(def.TYPE) ? def.TYPE : [def.TYPE]).forEach((type) =>
-            o.define(type)
-          );
-          o.bindToMaster(def.POSITION, this);
-          o.syncsSkills = true;
-        });
+
+        if (Array.isArray(set.TURRETS)) {
+          for (const def of set.TURRETS) {
+            if (!def || def.TYPE == null || !Array.isArray(def.POSITION)) continue;
+            const turret = new Entity(this, this.master);
+            (Array.isArray(def.TYPE) ? def.TYPE : [def.TYPE]).forEach((type) =>
+              turret.define(type)
+            );
+            turret.bindToMaster(def.POSITION, this);
+            turret.syncsSkills = true;
+          }
+        }
       }
 
       if (set.mockup != null) {
@@ -6138,7 +6350,7 @@ class Entity {
       //ON Define
       let dude = this.name;
       if (this.name === "") dude = "An unnamed player";
-      if (this.specialEffect === "Legend") {
+      if (hasSpecialEffect(this, "Legend")) {
         if (c.serverType === "lore") return;
         switch (this.label) {
           case "Arena Guard":
@@ -6261,12 +6473,22 @@ class Entity {
           case "Reaper":
             this.sendMessage("You: (Time to corrupt some souls!)");
             break;
-          case "Embodiment of Destruction":
+          case "Hollow":
+            this.sendMessage("You: (Hunting season has begun.)");
+            break;
+          case "Terror":
             this.sendMessage("You: (Time to harvest some barrels.)");
             break;
         }
       }
-    }  else util.log(`ERROR: Something is wrong this entity, check it out: ` + this.define());
+    } else {
+      // Never call define() from its own error path: a missing definition would
+      // recurse until the process throws Maximum call stack size exceeded.
+      util.log(
+        `ERROR: Invalid entity definition for ${this.label || this.name || "Unknown entity"} ` +
+        `(index: ${this.index ?? "unknown"}).`
+      );
+    }
   }
   refreshBodyAttributes() {
     let speedReduce = Math.pow(this.size / (this.coreSize || this.SIZE), 1);
@@ -7297,7 +7519,7 @@ class Entity {
           this.intangibility = false;
           this.invisible = [100, 0];
           this.alpha = 100;
-          this.specialEffect = "none";
+          this.specialEffect = ["none"];
           this.invuln = true;
           this.ignoreCollision = false;
           if (this.isBot) {
@@ -7341,7 +7563,7 @@ class Entity {
         this.intangibility = false;
         this.invisible = [100, 0];
         this.alpha = 100;
-        this.specialEffect = "none";
+        this.specialEffect = ["none"];
         this.skill.setCaps([9, 9, 9, 9, 9, 9, 9, 9, 9, 9]);
 
         switch (c.MODE) {
@@ -7353,6 +7575,7 @@ class Entity {
             break;
           case "theDenied":
             this.define(Class.deniedLegendaryClasses);
+            if (this.skill.score < 1000000) this.skill.score = 1000000;
             break;
         }
         this.skill.points += 15;
@@ -7592,7 +7815,7 @@ class Entity {
         !this.invuln &&
         this.label !== "Spectator"
       ) {
-        if (this.specialEffect !== "Legend") {
+        if (!hasSpecialEffect(this, "Legend")) {
           this.sendMessage(
             "You have gained access to the Legendary Class List!"
           );
@@ -8850,7 +9073,7 @@ class Entity {
       }
       if (
         room.isIn("dom3", this) &&
-        this.specialEffect !== "Legend" &&
+        !hasSpecialEffect(this, "Legend") &&
         this.team === -3 &&
         c.MODE === "theExpanse"
       ) {
@@ -9218,7 +9441,10 @@ class Entity {
         this.shield.amount /= 2;
       }
 
-      if (c.initiateHELL) {
+      // This event is checked from the entity update loop, so it must be
+      // latched before scheduling announcements/spawns or it repeats per entity.
+      if (c.initiateHELL && !c.initiateHELLStarted) {
+        c.initiateHELLStarted = true;
         sockets.broadcast(
           "Twilight: Um, I am sensing alot of powerful forces coming!"
         );
@@ -9234,7 +9460,7 @@ class Entity {
           );
           for (let i = 0; i < 7; i++) {
             let o = new Entity(room.random());
-            o.specialEffect = "dieWall";
+            o.specialEffect = ["dieWall"];
             o.impervious = true;
             o.counter = 0;
             c.startingClass = "basic";
@@ -9847,21 +10073,21 @@ class Entity {
           let o = new Entity(room.type("prf0"));
           o.define(Class.PentagonCloser);
           o.team = -100;
-          o.specialEffect = "dieWall";
+          o.specialEffect = ["dieWall"];
           o.ignoreCollision = true;
         }
         for (let i = 0; i < 2; i++) {
           let o = new Entity(room.type("prf0"));
           o.define(Class.GreaterPentagonCloser);
           o.team = -100;
-          o.specialEffect = "dieWall";
+          o.specialEffect = ["dieWall"];
           o.ignoreCollision = true;
         }
         for (let i = 0; i < 2; i++) {
           let o = new Entity(room.type("prf0"));
           o.define(Class.LesserPentagonCloser);
           o.team = -100;
-          o.specialEffect = "dieWall";
+          o.specialEffect = ["dieWall"];
           o.ignoreCollision = true;
         }
         for (let i = 0; i < 1; i++) {
@@ -9870,7 +10096,7 @@ class Entity {
           o.HEALTH *= 0.95;
           o.DAMAGE *= 2;
           o.team = -100;
-          o.specialEffect = "dieWall";
+          o.specialEffect = ["dieWall"];
           o.ignoreCfalseion = true;
         }
         for (let i = 0; i < 1; i++) {
@@ -9878,7 +10104,7 @@ class Entity {
           o.define(Class.CX2);
           o.team = -2;
           o.HEALTH *= 3;
-          o.specialEffect = "dieWall";
+          o.specialEffect = ["dieWall"];
           o.ignoreCfalseion = true;
         }
         for (let i = 0; i < 1; i++) {
@@ -9886,7 +10112,7 @@ class Entity {
           o.define(Class.zomblord2);
           o.team = -2;
           o.HEALTH *= 3;
-          o.specialEffect = "dieWall";
+          o.specialEffect = ["dieWall"];
           o.ignoreCfalseion = true;
         }
       }
@@ -10478,7 +10704,7 @@ class Entity {
       }
     }
 
-    if (this.specialEffect === "denied" && c.wave > 0) {
+    if (hasSpecialEffect(this, "denied") && c.wave > 0) {
       this.name = "Player Lives Remaining: " + c.ranarLoseCondition;
       if (c.wave > 0 && this.skill.score < 5000000) {
         this.settings.leaderboardable = true;
@@ -11221,11 +11447,16 @@ class Entity {
           if (
             c.wave >= 6 &&
             this.health.amount === this.health.max &&
-            this.REGEN > -1
+            this.down &&
+            Date.now() >= (this.twilightRecoverAt || 0)
           ) {
-            sockets.broadcast("Twilight has rejoined the fight!");
+            if (!this.twilightRejoinAnnounced) {
+              sockets.broadcast("Twilight has rejoined the fight!");
+              this.twilightRejoinAnnounced = true;
+            }
             this.invuln = false;
             this.intangibility = false;
+            this.down = false;
             this.REGEN = 0;
           }
           if (c.wave < 6) {
@@ -11311,6 +11542,7 @@ class Entity {
             twi.impervious = true;
             twi.isTwilight = true;
             twi.alwaysExists = true;
+            twi.down = true;
             this.color = 1;
             this.haltActions = true;
             sockets.broadcast(
@@ -11530,7 +11762,7 @@ class Entity {
               );
               c.unlockClasses = true;
             }, 12000);
-            c.BOTS = c.playerCount * 3;
+            c.BOTS = 0; // The Denied uses scripted wave enemies, not random bots.
             setTimeout(() => {
               for (let i = 0; i < Math.round(c.playerCount / 2); i++) {
                 let o = new Entity(room.randomType("nest"));
@@ -11744,7 +11976,7 @@ class Entity {
               sockets.broadcast("Twilight: What the F---?!");
             }, 6000);
             c.stopFoodSpawn = true;
-            c.BOTS = c.playerCount * 2;
+            c.BOTS = 0; // Prevent unrelated bot archetypes from joining this phase.
             setTimeout(() => {
               for (let i = 0; i < 6; i++) {
                 let o = new Entity(room.randomType("spw0"));
@@ -11978,7 +12210,7 @@ class Entity {
           this.destroy();
       }
       }*/
-    if (this.specialEffect === "denied" && c.wave > 0) {
+    if (hasSpecialEffect(this, "denied") && c.wave > 0) {
       this.name = "Player Lives Remaining: " + c.ranarLoseCondition;
       if (c.wave > 0 && this.skill.score < 5000000) {
         this.skill.score = Infinity;
@@ -12314,7 +12546,7 @@ class Entity {
       this.invisible = [100, 0];
       this.commandType = "none";
       this.alpha = 100;
-      this.specialEffect = "none";
+      this.specialEffect = ["none"];
       this.invuln = true;
       this.godMode = false;
       this.ignoreCollision = false;
@@ -12365,7 +12597,7 @@ class Entity {
       }, 100);
     }
     if (this.skill.score >= 5000000 && c.MODE === "siege" && !this.dayum) {
-      if (this.specialEffect === "Legend") {
+      if (hasSpecialEffect(this, "Legend")) {
         this.sendMessage(
           "You hear the calling...you have been chosen, warrior."
         );
@@ -12466,6 +12698,18 @@ class Entity {
         }
       }
       if (this.team === -4 || c.MODE === "siege") {
+        switch (this.laber) {
+          case "Poltergeist":
+          case "Revenant":
+          case "Shade":
+          case "Skulker":
+            this.sendMessage(
+              "You have unlocked the legendary class, Hollow. Press '~' to become it!"
+            );
+            break;
+        }
+      }
+      if (this.team === -4 || c.MODE === "siege") {
         switch (this.label) {
           case "Master":
           case "Hexanomaly":
@@ -12481,7 +12725,7 @@ class Entity {
           this.team === -100 ||
           (c.MODE === "siege" && this.label === "Master")
         ) {
-          if (this.specialEffect === "Legend") return;
+          if (hasSpecialEffect(this, "Legend")) return;
           this.sendMessage(
             "You have unlocked the legendary class, Arena Guard. Press '~' to become it(at the cost of score)!"
           );
@@ -12509,8 +12753,8 @@ class Entity {
       this.destroy();
     }
     if (this.skill.score >= 200000 && c.MODE !== "siege") {
-      if (this.specialEffect === "sentryEvolveG") {
-        this.specialEffect = "none";
+      if (hasSpecialEffect(this, "sentryEvolveG")) {
+        this.specialEffect = ["none"];
 
         this.invuln = true;
         setTimeout(() => {
@@ -12523,8 +12767,8 @@ class Entity {
         );
       }
 
-      if (this.specialEffect === "sentryEvolveS") {
-        this.specialEffect = "none";
+      if (hasSpecialEffect(this, "sentryEvolveS")) {
+        this.specialEffect = ["none"];
         this.invuln = true;
         setTimeout(() => {
           this.invuln = false;
@@ -12535,8 +12779,8 @@ class Entity {
         );
       }
 
-      if (this.specialEffect === "sentryEvolveT") {
-        this.specialEffect = "none";
+      if (hasSpecialEffect(this, "sentryEvolveT")) {
+        this.specialEffect = ["none"];
         this.invuln = true;
         setTimeout(() => {
           this.invuln = false;
@@ -12549,15 +12793,15 @@ class Entity {
     }
 
     if (this.skill.score >= 500000 && c.MODE !== "siege") {
-      if (this.specialEffect === "palisadeEvolve") {
-        this.specialEffect = "none";
+      if (hasSpecialEffect(this, "palisadeEvolve")) {
+        this.specialEffect = ["none"];
         this.define(Class.roguecitadel);
         sockets.broadcast(
           "A Rogue Palisade has reached it's limit and evolved into the mighty Rogue Citadel"
         );
       }
-      if (this.specialEffect === "armadaEvolve") {
-        this.specialEffect = "none";
+      if (hasSpecialEffect(this, "armadaEvolve")) {
+        this.specialEffect = ["none"];
         this.define(Class.rogueflagship);
         sockets.broadcast(
           "A Rogue Armada has reached it's limit and evolved into the mighty Rogue Flagship"
@@ -12609,7 +12853,7 @@ class Entity {
           this.master.impervious ||
           this.godMode ||
           (c.MODE === "siege" && this.master.skill.score >= 1000000) ||
-          (c.MODE === "siege" && this.master.specialEffect === "Legend")
+          (c.MODE === "siege" && hasSpecialEffect(this.master, "Legend"))
         )
           return;
         this.invuln = false;
@@ -13408,38 +13652,29 @@ console.log('Lore mode sequence advanced.');*/
           }
         }
       }
-      if (this.specialEffect === "cxShrine" && c.MODE === "theInfestation") {
+      if (hasSpecialEffect(this, "cxShrine") && c.MODE === "theInfestation") {
         c.cxPowerDrain += 1;
       }
       if (c.MODE === "theDenied" && !this.godMode) {
-        if (c.wave >= 6 && this.isTwilight) {
+        if (c.wave >= 6 && this.isTwilight && !this.down) {
+          this.down = true;
           this.invuln = true;
           this.trulyDead = false;
           this.health.amount = 1;
           this.REGEN = 7.5;
+          // Invulnerability restores health, but don't let the recovery be
+          // instantaneous: otherwise repeated knockdowns spam announcements.
+          this.twilightRecoverAt = Date.now() + 8000;
           if (this.twiDialog === undefined) this.twiDialog = 0;
           else this.twiDialog += 1;
           switch (this.twiDialog) {
             case 2:
               sockets.broadcast("Twilight: ...");
               break;
-            case 4:
-              sockets.broadcast(
-                "Twilight: ...Some help would be nice, yah know."
-              );
-              break;
+            // Keep one mid-fight quip and the final departure, rather than
+            // broadcasting a new taunt on almost every other knockdown.
             case 6:
               sockets.broadcast("Twilight: UGH!!!!!!");
-              break;
-            case 8:
-              sockets.broadcast(
-                "Twilight: wait.... ARE YOU MAKING ME SOLO RANAR!?"
-              );
-              break;
-            case 9:
-              sockets.broadcast(
-                "Twilight: Don't tell me you're doing the kill ranar with basic challenge....."
-              );
               break;
             case 10:
               sockets.broadcast(
@@ -13900,7 +14135,7 @@ console.log('Lore mode sequence advanced.');*/
           }
         }
       }
-      if (this.specialEffect === "rep") {
+      if (hasSpecialEffect(this, "rep")) {
         let loc = { x: this.x, y: this.y };
         let o = new Entity(loc);
         o.define(Class.repairMan);
@@ -14137,6 +14372,19 @@ console.log('Lore mode sequence advanced.');*/
         killers = killers.filter(
           (elem, index, self) => index == self.indexOf(elem)
         );
+        if (this.branchUnlockOnKill) {
+          const rewardKey = String(this.index == null ? this.label || "special-enemy" : this.index);
+          for (const killer of killers) {
+            if (!killer || killer.isPlayer !== true || killer.type !== "tank") continue;
+            entityBranches.grantBranchUnlock(
+              killer,
+              this.branchUnlockOnKill,
+              Class,
+              branchTierLevels,
+              rewardKey
+            );
+          }
+        }
         //    killers = killers.filter((elem, index, self) => {
         // return index == self.indexOf(elem);
         // });
@@ -14296,7 +14544,7 @@ console.log('Lore mode sequence advanced.');*/
                 this.skill.score < o.skill.score
               ) {
                 o.define(Class.thrasher);
-                o.specialEffect = "none";
+                o.specialEffect = ["none"];
                 o.ignoreCollision = false;
               }
               break;
@@ -14325,7 +14573,7 @@ console.log('Lore mode sequence advanced.');*/
               );
               {
                 o.define(Class.glitch);
-                o.specialEffect = "none";
+                o.specialEffect = ["none"];
                 o.ignoreCollision = false;
               }
               break;
@@ -14496,7 +14744,7 @@ console.log('Lore mode sequence advanced.');*/
           if (
             this.type === "tank" ||
             this.type === "crasher" ||
-            this.specialEffect === "animatable"
+            hasSpecialEffect(this, "animatable")
           ) {
             // instance.master.undeadLimit = instance.master.skill.score - instance.master.extraMinions;
             //instance.master.extraMinions += 50000;
@@ -14507,7 +14755,7 @@ console.log('Lore mode sequence advanced.');*/
             ) {
               this.kill();
             } else {
-              if (this.type === "tank" || this.specialEffect === "animatable") {
+              if (this.type === "tank" || hasSpecialEffect(this, "animatable")) {
                 let dude = this.name;
                 if (this.name === "") dude = "An unnamed player";
                 instance.sendMessage(
@@ -14875,7 +15123,7 @@ console.log('Lore mode sequence advanced.');*/
         }
         sockets.broadcast(usurptText);
       }
-      if (this.specialEffect === "gravelSpawn") {
+      if (hasSpecialEffect(this, "gravelSpawn")) {
         let loc = { x: this.x, y: this.y };
         let o = new Entity(loc);
         o.define(Class.babyObstacle);
@@ -14884,7 +15132,7 @@ console.log('Lore mode sequence advanced.');*/
         o.refreshBodyAttributes();
         o.ACCELERATION = 0.015;
       }
-      if (this.specialEffect === "rockSpawn") {
+      if (hasSpecialEffect(this, "rockSpawn")) {
         let loc = { x: this.x, y: this.y };
         let o = new Entity(loc);
         o.define(Class.obstacle);
@@ -14893,7 +15141,7 @@ console.log('Lore mode sequence advanced.');*/
         o.refreshBodyAttributes();
         o.ACCELERATION = 0.015;
       }
-      if (this.specialEffect === "fortWallSpawn") {
+      if (hasSpecialEffect(this, "fortWallSpawn")) {
         let loc = { x: this.x, y: this.y };
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
@@ -14947,7 +15195,7 @@ console.log('Lore mode sequence advanced.');*/
         }
       }
 
-      if (this.specialEffect === "fortGateSpawn") {
+      if (hasSpecialEffect(this, "fortGateSpawn")) {
         let loc = { x: this.x, y: this.y };
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
@@ -15001,7 +15249,7 @@ console.log('Lore mode sequence advanced.');*/
         }
       }
 
-      if (this.specialEffect === "wallSpawn") {
+      if (hasSpecialEffect(this, "wallSpawn")) {
         let loc = { x: this.x, y: this.y };
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
@@ -15058,7 +15306,7 @@ console.log('Lore mode sequence advanced.');*/
         }
       }
 
-      if (this.specialEffect === "bigWallSpawn") {
+      if (hasSpecialEffect(this, "bigWallSpawn")) {
         let loc = { x: this.x, y: this.y };
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
@@ -15115,7 +15363,7 @@ console.log('Lore mode sequence advanced.');*/
         }
       }
 
-      if (this.specialEffect === "smallWallSpawn") {
+      if (hasSpecialEffect(this, "smallWallSpawn")) {
         let loc = { x: this.x, y: this.y };
         let gridWidth = room.width / room.xgrid;
         let gridHeight = room.height / room.ygrid;
@@ -15231,6 +15479,10 @@ console.log('Lore mode sequence advanced.');*/
 
   destroy() {
     if (!keyManager.hasKey(this.key)) return;
+
+    // Remove this entity from all master/source/parent ownership sets. A
+    // destroyed drone must not continue consuming the owner's drone capacity.
+    droneInfection.detachOwnedEntity(this);
 
     // Remove from the protected entities list.
     if (this.isProtected) {
@@ -15354,8 +15606,130 @@ let speedcheckLoopTimer = null;
 let shutdownExitTimer = null;
 let cleanupStarted = false;
 
+const offscreenTransientCleanup = createOffscreenTransientCleanup({
+  delayMs: Number(process.env.RANAR_OFFSCREEN_TRANSIENT_TTL_MS) > 0
+    ? Number(process.env.RANAR_OFFSCREEN_TRANSIENT_TTL_MS)
+    : 2500,
+  isVisibleToAnyClient(entity) {
+    // Use the same drawn-view geometry the renderer uses. In particular, do not
+    // treat a missing hasSpawned flag as proof that no client can see an entity.
+    return isEntityVisibleToAnyClient(entity, views);
+  },
+});
+
+let antiLagSoftResetInProgress = false;
+
+function beginAntiLagSoftReset(details = {}) {
+  if (antiLagSoftResetInProgress || c.ANTILAG_SOFT_RESET_ACTIVE === true) return false;
+  antiLagSoftResetInProgress = true;
+  c.ANTILAG_SOFT_RESET_ACTIVE = true;
+  const warning = "Emergency server reset: you are being moved to spectator temporarily. Your score will be preserved.";
+  try { sockets.broadcast(warning); } catch (_) {}
+
+  const playerBodies = new Set();
+  const resetPlayers = [];
+  for (const socket of (sockets.clients || [])) {
+    if (!socket || !socket.player || !socket.player.body) continue;
+    const player = socket.player;
+    const originalBody = player.body;
+    const score = Number(originalBody.skill && originalBody.skill.score) || 0;
+    socket.savedScore = Math.max(Number(socket.savedScore) || 0, score);
+    socket._preserveNextDeathScore = true;
+    socket.status.deceased = false;
+
+    // Dominator bodies are map structures. Release control of the dominator and
+    // give the user a separate spectator body rather than deleting the structure.
+    let spectatorBody = originalBody;
+    if (originalBody.isDominator === true) {
+      originalBody.isTaken = false;
+      originalBody.controllers.length = 0;
+      if (typeof io_Dominator === "function") originalBody.addController(new io_Dominator(originalBody));
+      spectatorBody = new Entity({ x: originalBody.x, y: originalBody.y });
+      spectatorBody.define(Class.spectator);
+    } else {
+      spectatorBody.define(Class.spectator);
+    }
+
+    spectatorBody.isPlayer = true;
+    spectatorBody.keep = true;
+    spectatorBody.invuln = true;
+    spectatorBody.died = false;
+    spectatorBody.trulyDead = false;
+    spectatorBody.team = player.team;
+    spectatorBody.controllers.length = 0;
+    spectatorBody.addController(new io_listenToPlayer(spectatorBody, player));
+    spectatorBody.sendMessage = (content) => messenger(socket, content);
+    if (spectatorBody.health) spectatorBody.health.amount = spectatorBody.health.max;
+    if (spectatorBody.shield) spectatorBody.shield.amount = spectatorBody.shield.max;
+    if (player.command && typeof player.command === "object") {
+      for (const key of Object.keys(player.command)) {
+        if (typeof player.command[key] === "boolean") player.command[key] = false;
+      }
+    }
+    player.body = spectatorBody;
+    playerBodies.add(spectatorBody);
+    resetPlayers.push({ socket, player, body: spectatorBody, originalBody, score });
+    try { spectatorBody.sendMessage("Emergency server reset in progress. Your score is saved."); } catch (_) {}
+  }
+
+  // Preserve only structural world entities. Combatants, projectiles, bots,
+  // natural bosses, food, and temporary effects are destroyed without kill()
+  // side-effects so the reset doesn't recursively trigger more spawns.
+  const structures = new Set(["wall", "base", "fortWall", "fortGate", "dominator", "grid", "mazeWall"]);
+  for (const entity of entities.slice()) {
+    if (!entity || playerBodies.has(entity) || entity.isPlayer === true) continue;
+    if (entity.isMazeWall === true || entity.isWall === true || entity.isGate === true ||
+        entity.isDominator === true || structures.has(entity.type)) continue;
+    try {
+      if (typeof entity.destroy === "function" && (!entity.valid || entity.valid())) entity.destroy();
+    } catch (_) {}
+  }
+
+  let roomState = null;
+  try { roomState = room.reevaluate(); } catch (_) {}
+  try { sockets.changeroom(); } catch (_) {}
+  util.log("[ANTI-LAG] Soft reset started at " + Math.round(Number(details.runSpeedPercent) || 0) +
+    "% run speed; room re-evaluated " + JSON.stringify(roomState || {}) + ".");
+
+  const finishReset = () => {
+    for (const entry of resetPlayers) {
+      const { socket, player, body, originalBody, score } = entry;
+      socket.savedScore = Math.max(Number(socket.savedScore) || 0, score,
+        Number(body.skill && body.skill.score) || 0);
+      socket._preserveNextDeathScore = false;
+      if (player.body === body) {
+        // Normally gazeUpon() sends this packet. A fallback keeps users from
+        // getting stuck if the game loop is so degraded that it hasn't run.
+        try {
+          if (socket.status.deceased !== true) socket.talk("F", ...player.records(), 100000000000);
+        } catch (_) {}
+        player.body = null;
+      }
+      socket.status.deceased = true;
+      if (body !== originalBody) {
+        try { if (body && body.valid && body.valid()) body.destroy(); } catch (_) {}
+      } else if (!body.isDominator) {
+        try { if (body && body.valid && body.valid()) body.destroy(); } catch (_) {}
+      }
+    }
+    try { room.reevaluate(); } catch (_) {}
+    try { sockets.changeroom(); } catch (_) {}
+    c.ANTILAG_SOFT_RESET_ACTIVE = false;
+    antiLagSoftResetInProgress = false;
+    try { sockets.broadcast("Emergency reset complete. Respawn when ready; your score has been preserved."); } catch (_) {}
+    util.log("[ANTI-LAG] Soft reset complete.");
+  };
+  const timer = setTimeout(finishReset, 1800);
+  if (timer && typeof timer.unref === "function") timer.unref();
+  return true;
+}
+
 const loadProtection = createLoadProtection({
+  targetCycleIntervalMs: room.cycleSpeed,
   getEntities: () => entities,
+  isEntityVisibleToAnyClient(entity) {
+    return isEntityVisibleToAnyClient(entity, views);
+  },
   isEntityOnScreen(entity) {
     if (!entity) return false;
     // Runs only during sustained-lag cleanup, not in the per-entity hot path.
@@ -15396,6 +15770,9 @@ const loadProtection = createLoadProtection({
       " | sim-cycle=" + Math.round(metrics.cycleMs || 0) + "ms" +
       " | target-tick-rate=" + Math.round(100 / (metrics.runSpeedMultiplier || 1)) + "%"
     );*/
+  },
+  onSoftReset(details) {
+    beginAntiLagSoftReset(details);
   },
 });
 
@@ -15822,7 +16199,15 @@ class View {
       // But I just died...
       if (player.body.isDead() || player.body.died) {
         this.socket.status.deceased = true;
-        this.socket.savedScore = player.body.skill.score / 2;
+        if (this.socket._preserveNextDeathScore === true) {
+          this.socket.savedScore = Math.max(
+            Number(this.socket.savedScore) || 0,
+            Number(player.body.skill && player.body.skill.score) || 0
+          );
+          this.socket._preserveNextDeathScore = false;
+        } else {
+          this.socket.savedScore = player.body.skill.score / 2;
+        }
         if (c.PLAGUE === true) {
           /*/ player.body.team = -2;
           player.body.health.max *= 2;
@@ -16320,6 +16705,12 @@ const sockets = (() => {
             break;
           case "s":
             {
+              // Wait until the emergency soft reset has detached the old body.
+              if (c.ANTILAG_SOFT_RESET_ACTIVE === true) {
+                socket.status.deceased = true;
+                socket.talk("m", "The server is completing an emergency reset. Please respawn in a moment.");
+                break;
+              }
               // spawn request
               if (!socket.status.deceased) {
                 socket.kick("Trying to spawn while already alive.");
@@ -16678,7 +17069,7 @@ const sockets = (() => {
                     c.ALLOW_SERVER_END = false;
                   }
                   if (
-                    player.body.specialEffect !== "Legend" &&
+                    !hasSpecialEffect(player.body, "Legend") &&
                     player.body.skill.score >= 1000000
                   ) {
                     let dude = player.body.name;
@@ -16790,7 +17181,7 @@ const sockets = (() => {
                       if (
                         player.body.label === "Auto-5" ||
                         player.body.label === "Hardshell Spawner" ||
-                        player.body.label === "Skimmer"
+                        player.body.label === "Hyper Skimmer"
                       ) {
                         player.body.upgrades = [];
 
@@ -16878,6 +17269,32 @@ const sockets = (() => {
                             ". Be afraid, VERY AFRAID!"
                         );
                         player.body.define(Class.reaper);
+                        player.body.maxChildren = 0;
+                        player.body.intangibility = false;
+                        player.body.invisible = [100, 0];
+                        player.body.alpha = 100;
+                        player.body.ignoreCollision = false;
+                        player.body.skill.setCaps([
+                          9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+                        ]);
+
+                        player.body.skill.points += 10;
+                      }
+                    }
+
+                    if (player.body.team === -4 || c.MODE === "siege") {
+                      if (
+                        player.body.label === "Poltergeist" ||
+                        player.body.label === "Revenant" ||
+                        player.body.label === "Skulker" ||
+                        player.body.label === "Shade"
+                      ) {
+                        player.body.upgrades = [];
+                        sockets.broadcast(
+                            dude +
+                            " Has started haunting the server. Watch your step. Trust nothing."
+                        );
+                        player.body.define(Class.hollow);
                         player.body.maxChildren = 0;
                         player.body.intangibility = false;
                         player.body.invisible = [100, 0];
@@ -16980,7 +17397,7 @@ const sockets = (() => {
                         player.body.label === "Operator" ||
                         player.body.label === "Necro Tyrant
                         */
-                        player.body.specialEffect === "Legend"
+                        hasSpecialEffect(player.body, "Legend")
                       ) {
                         player.body.upgrades = [];
                         sockets.broadcast(
@@ -17047,7 +17464,7 @@ const sockets = (() => {
                     let o = ran.choose(socket.domList);
                   if (
 
-                    player.body.specialEffect !== "experiment" && player.body.label !== "Spectator"
+                    !hasSpecialEffect(player.body, "experiment") && player.body.label !== "Spectator"
                   ) {
                     player.body.team = o.team;
                     player.body.collisionArray = [];
@@ -17079,7 +17496,7 @@ const sockets = (() => {
                   }
               }
                 }*/
-              if (player.body.specialEffect === "experiment") {
+              if (hasSpecialEffect(player.body, "experiment")) {
                 let ID = player.body.id;
                 entities.forEach((instance) => {
                   if (
@@ -17095,6 +17512,12 @@ const sockets = (() => {
             break;
           case "K":
             {
+              if (c.ANTILAG_SOFT_RESET_ACTIVE === true) {
+                if (player.body && typeof player.body.sendMessage === "function") {
+                  player.body.sendMessage("Self-destruct is disabled during the emergency server reset.");
+                }
+                break;
+              }
               // cheatingbois
               if (player.body != null) {
                 if (player.body != null) {
@@ -18334,6 +18757,13 @@ player.color = easy;
                 // But I just died...
                 if (player.body.isDead()) {
                   socket.status.deceased = true;
+                  if (socket._preserveNextDeathScore === true) {
+                    socket.savedScore = Math.max(
+                      Number(socket.savedScore) || 0,
+                      Number(player.body.skill && player.body.skill.score) || 0
+                    );
+                    socket._preserveNextDeathScore = false;
+                  }
                   // Let the client know it died
                   socket.talk("F", ...player.records());
                   // Remove the body
@@ -18926,11 +19356,11 @@ var gameloop = (() => {
           d = (0.05 * (my.y - n.y)) / diff,
           e = 0.3,
           f = 0.3;
-        if (my.specialEffect === "push") {
+        if (hasSpecialEffect(my, "push")) {
           f = my.repel;
           a = 0;
         }
-        if (n.specialEffect === "push") {
+        if (hasSpecialEffect(n, "push")) {
           e = n.repel;
           b = 0;
         }
@@ -19189,40 +19619,21 @@ var gameloop = (() => {
 
             /********** DO DAMAGE *********/
             let bail = false;
-            if (
-              (my.shape === n.shape &&
-                my.settings.isNecromancer &&
-                n.type === "food") ||
-              (my.master.label === "Necro Tyrant" &&
-                my.type === "drone" &&
-                n.type === "food" &&
-                n.foodLevel < 4)
-            ) {
-              bail = my.necro(n);
-              n.layer = my.layer;
-              n.growthFactor = 0;
-              if (n.passiveEffect === "uniqueFood" && n.noMore !== true) {
-                n.health.max *= 2;
-                n.health.amount *= 2;
-                n.noMore = true;
+            // Any collision source can infect food, not just the tank body or a
+            // projectile whose own definition is necromantic. The lookup resolves
+            // the source's tank owner and uses its shape-matched infectious guns.
+            if (n.type === "food") {
+              const infectionGun = droneInfection.findInfectingGun(my, n);
+              if (infectionGun) {
+                bail = infectionGun.infect(n, my);
+                if (bail) applyFoodInfectionEffects(n, droneInfection.getTankOwner(my) || my);
               }
-            } else if (
-              (my.shape === n.shape &&
-                n.settings.isNecromancer &&
-                my.type === "food") ||
-              (n.master.label === "Necro Tyrant" &&
-                n.type === "drone" &&
-                my.type === "food" &&
-                my.foodLevel < 4)
-            ) {
-              bail = n.necro(my);
-              my.layer = n.layer;
-              my.growthFactor = 0;
-
-              if (my.passiveEffect === "uniqueFood" && my.noMore !== true) {
-                my.health.max *= 2;
-                my.health.amount *= 2;
-                my.noMore = true;
+            }
+            if (!bail && my.type === "food") {
+              const infectionGun = droneInfection.findInfectingGun(n, my);
+              if (infectionGun) {
+                bail = infectionGun.infect(my, n);
+                if (bail) applyFoodInfectionEffects(my, droneInfection.getTankOwner(n) || n);
               }
             }
             if (!bail) {
@@ -19235,7 +19646,7 @@ var gameloop = (() => {
                     n.impervious ||
                     n.type === "base")) ||
                 (my.isRanar && n.isGate) ||
-                (my.specialEffect === "heal" && n.master.isBoss)
+                (hasSpecialEffect(my, "heal") && n.master.isBoss)
               )
                 return;
               if (
@@ -19247,7 +19658,7 @@ var gameloop = (() => {
                     my.impervious ||
                     my.type === "base")) ||
                 (n.isRanar && my.isGate) ||
-                (n.specialEffect === "heal" && my.master.isBoss)
+                (hasSpecialEffect(n, "heal") && my.master.isBoss)
               )
                 return;
 
@@ -19375,283 +19786,67 @@ var gameloop = (() => {
               // Now apply it
               // no.
 
-              if (my.master !== n.master) {
-                if (n.team === my.team) {
-                  if (n.repairEffect || n.healEffect) {
-                    if (my.health.amount >= my.health.max) return;
-                    let scaleFactor = 10,
-                      missingShield = my.shield.max - my.shield.amount,
-                      missingHealth = my.health.max - my.health.amount,
-                      totalMissing = missingHealth + missingShield,
-                      scoreGain = Math.ceil(
-                        n.damage *
-                          (1 +
-                            (totalMissing / (my.health.max + my.shield.max)) *
-                              scaleFactor)
-                      );
-                    if (
-                      (n.healEffect &&
-                        (my.type === "tank" ||
-                          my.isBoss ||
-                          my.isEnemy ||
-                          my.type === "food")) ||
-                      (n.repairEffect &&
-                        ((my.isProjectile && my.type !== "bullet") ||
-                          my.isDominator ||
-                          my.isWall ||
-                          my.isGate))
-                    ) {
-                      n.master.skill.score += scoreGain;
-                    }
-                  } else if (my.repairEffect || my.healEffect) {
-                    if (n.health.amount >= n.health.max) return;
-                    let scaleFactor = 10,
-                      missingShield = n.shield.max - n.shield.amount,
-                      missingHealth = n.health.max - n.health.amount,
-                      totalMissing = missingHealth + missingShield,
-                      scoreGain = Math.ceil(
-                        my.damage *
-                          (1 +
-                            (totalMissing / (n.health.max + n.shield.max)) *
-                              scaleFactor)
-                      );
-                    if (
-                      (my.healEffect &&
-                        (n.type === "tank" ||
-                          n.isBoss ||
-                          n.isEnemy ||
-                          n.type === "food")) ||
-                      (my.repairEffect &&
-                        ((n.isProjectile && n.type !== "bullet") ||
-                          n.isDominator ||
-                          n.isWall ||
-                          n.isGate))
-                    ) {
-                      my.master.skill.score += scoreGain;
-                    }
-                  }
-                }
+              const supportFromN = supportEffects.hasSupportEffect(n)
+                ? supportEffects.resolveSupportInteraction(n, my)
+                : null;
+              const supportFromMy = supportEffects.hasSupportEffect(my)
+                ? supportEffects.resolveSupportInteraction(my, n)
+                : null;
+
+              if (my.master !== n.master && my.team === n.team) {
+                if (supportFromN) awardSupportScore(n, my, supportFromN);
+                if (supportFromMy) awardSupportScore(my, n, supportFromMy);
               }
+
+              // Damage/healing from n toward my.
               if (my.disableDamage !== true) {
-                if (n.healEffect) {
-                  //console.log("Be healed!");
-                  let heal;
-                  if (my.team === -4 && n.team !== -4) heal = 1.5;
-                  else if (my.team === -2 && n.team !== -2) heal = 1.25;
-                  else if (my.team === n.team) heal = -1;
-                  else {
-                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !n.isProjectile) heal /= 4;
-                  if (
-                    ((my.health.amount < my.health.max ||
-                      my.shield.amount < my.shield.max) &&
-                      n.team === my.team) ||
-                    n.team !== my.team
-                  ) {
-                    if (
-                      my.isEnemy ||
-                      my.isBoss ||
-                      my.isPlayer ||
-                      my.isBot || //now i am hung
-                      my.type === "food" ||
-                      (n.team !== my.team && !n.isProjectile)
-                    ) {
-                      if (my.type === "atmosphere" && n.isProjectile) return;
-                      //my.damageRecieved += damage._n * deathFactor._n*heal;
-                      if (my.health.amount < my.health.max) {
-                        my.health.amount -= damage._n * deathFactor._n * heal;
-                      } else my.shield.amount += my.shield.max / 3;
-                      if (n.team === my.team && n.isProjectile)
-                        n.damageRecieved += damage._me * deathFactor._me;
-                    }
-                  }
-                } else if (n.repairEffect) {
-                  //console.log("Be healed beech!");
-                  let heal;
-                  if (
-                    (my.team === -3 &&
-                      n.team !== -3 &&
-                      !my.isDominator &&
-                      !my.isWall &&
-                      !my.isGate) ||
-                    my.type === "food"
-                  )
-                    heal = 1.5;
-                  else if (
-                    n.team !== my.team &&
-                    (my.isDominator || my.isWall || my.isGate)
-                  )
-                    heal = 12;
-                  else if (
-                    n.team !== my.team &&
-                    (my.type === "trap" ||
-                      my.type === "drone" ||
-                      my.type === "minion")
-                  ) {
-                    heal = 1;
-                  } else if (my.team === n.team) heal = -1;
-                  else {
-                    if (n.type === "tank" || n.isEnemy || n.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !n.isProjectile) heal /= 4;
-                  if (
-                    ((my.health.amount < my.health.max) |
-                      (my.shield.amount < my.shield.max) &&
-                      n.team === my.team) ||
-                    n.team !== my.team
-                  ) {
-                    if (
-                      my.isDominator ||
-                      my.isWall ||
-                      my.isGate ||
-                      my.type === "trap" ||
-                      my.type === "drone" ||
-                      my.type === "minion" ||
-                      my.type === "food" ||
-                      (my.team !== n.team && my.team === -3) ||
-                      (n.team !== my.team && !n.isProjectile)
-                    ) {
-                      if (my.type === "atmosphere" && n.isProjectile) return;
-                      // my.damageRecieved += damage._n * deathFactor._n*heal;
-                      if (my.shield.amount < my.shield.max) {
-                        my.shield.amount += my.shield.max / 10;
-                      } else
-                        my.health.amount -=
-                          damage._n * deathFactor._n * (heal * 5);
-                      if (n.team === my.team && n.isProjectile)
-                        n.damageRecieved += damage._me * deathFactor._me;
-                    }
-                  }
+                if (supportEffects.hasSupportEffect(n)) {
+                  supportEffects.applyInteraction(
+                    n,
+                    my,
+                    damage._n * deathFactor._n,
+                    damage._me * deathFactor._me
+                  );
                 } else if (
                   my.team === -101 &&
                   n.type === "tank" &&
                   n.ignoreCollision
-                )
+                ) {
                   n.damageRecieved += n.health.max / 350;
-                else {
-                  if (
-                    (n.type === "atmosphere" && my.isProjectile) ||
-                    ((my.healEffect || my.repairEffect) && my.team === n.team)
-                  )
-                    return;
+                } else if (
+                  (n.type === "atmosphere" && my.isProjectile) ||
+                  (supportEffects.hasSupportEffect(my) && my.team === n.team)
+                ) {
+                  // Friendly support entities do not damage one another.
+                } else {
                   my.damageRecieved += damage._n * deathFactor._n;
                 }
               }
+
+              // Damage/healing from my toward n.
               if (n.disableDamage !== true) {
-                if (my.healEffect) {
-                  //console.log("Be healed!");
-                  let heal;
-                  if (n.team === -4 && my.team !== -4) heal = 1.5;
-                  if (n.team === -2 && my.team !== -2) heal = 1.25;
-                  else if (n.team === my.team) {
-                    // if (n.type === "atmosphere") heal = -0.5;
-                    heal = -1;
-                  } else {
-                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !my.isProjectile) heal /= 4;
-                  if (
-                    ((n.health.amount < n.health.max ||
-                      n.shield.amount < n.shield.max) &&
-                      my.team === n.team) ||
-                    my.team !== n.team
-                  ) {
-                    if (
-                      n.isEnemy ||
-                      n.isBoss ||
-                      n.isPlayer ||
-                      n.isBot ||
-                      n.type === "food" ||
-                      (n.team !== my.team && !my.isProjectile)
-                    ) {
-                      if (n.type === "atmosphere" && my.isProjectile) return;
-                      // n.damageRecieved += damage._me * deathFactor._me*heal;
-                      if (n.health.amount < n.health.max) {
-                        n.health.amount -= damage._me * deathFactor._me * heal;
-                      } else n.shield.amount += n.shield.max / 3;
-                      if (my.team === n.team && my.isProjectile)
-                        my.damageRecieved += damage._n * deathFactor._n;
-                    }
-                  }
-                } else if (my.repairEffect) {
-                  //console.log("Be repaired!");
-                  let heal;
-                  if (
-                    (n.team === -3 &&
-                      my.team !== -3 &&
-                      !n.isProjectile &&
-                      !n.isDominator &&
-                      !n.isWall &&
-                      !n.isGate) ||
-                    n.type === "food"
-                  )
-                    heal = 1.5;
-                  else if (
-                    my.team !== n.team &&
-                    (n.isDominator || n.isWall || n.isGate)
-                  )
-                    heal = 12;
-                  else if (
-                    my.team !== n.team &&
-                    (n.type === "trap" ||
-                      n.type === "drone" ||
-                      n.type === "minion")
-                  ) {
-                    heal = 1;
-                  } else if (n.team === my.team) heal = -1;
-                  else {
-                    if (my.type === "tank" || my.isEnemy || my.isBoss) heal = 1;
-                    else heal = 0;
-                  }
-                  if (heal < 0 && !my.isProjectile) heal /= 4;
-                  if (
-                    ((n.health.amount < n.health.max ||
-                      n.shield.amount < n.shield.max) &&
-                      my.team === n.team) ||
-                    my.team !== n.team
-                  ) {
-                    if (
-                      n.isDominator ||
-                      n.isWall ||
-                      n.isGate ||
-                      n.type === "trap" ||
-                      n.type === "drone" ||
-                      n.type === "minion" ||
-                      n.type === "food" ||
-                      (n.team !== my.team && n.team === -3) ||
-                      (n.team !== my.team && !my.isProjectile)
-                    ) {
-                      if (n.type === "atmosphere" && my.isProjectile) return;
-                      //n.damageRecieved += damage._me * deathFactor._me*heal;
-                      if (n.shield.amount < n.shield.max) {
-                        n.shield.amount += n.shield.max / 10;
-                      } else
-                        n.health.amount -=
-                          damage._me * deathFactor._me * (heal * 5);
-                      if (my.team === n.team && my.isProjectile)
-                        my.damageRecieved += damage._n * deathFactor._n;
-                    }
-                  }
+                if (supportEffects.hasSupportEffect(my)) {
+                  supportEffects.applyInteraction(
+                    my,
+                    n,
+                    damage._me * deathFactor._me,
+                    damage._n * deathFactor._n
+                  );
                 } else if (
                   n.team === -101 &&
                   my.type === "tank" &&
                   my.ignoreCollision
-                )
+                ) {
                   my.damageRecieved += my.health.max / 350;
-                else {
-                  if (
-                    (my.type === "atmosphere" && n.isProjectile) ||
-                    ((n.healEffect || n.repairEffect) && n.team === my.team)
-                  )
-                    return; //yes, if healing works properly. FANCY CODE JUMPSCARE
+                } else if (
+                  (my.type === "atmosphere" && n.isProjectile) ||
+                  (supportEffects.hasSupportEffect(n) && n.team === my.team)
+                ) {
+                  // Friendly support entities do not damage one another.
+                } else {
                   n.damageRecieved += damage._me * deathFactor._me;
                 }
               }
-
               if (my.connectedDamage) {
                 my.master.damageRecieved =
                   my.damageRecieved * (my.damageMultiple * 7.5);
@@ -19899,7 +20094,7 @@ var gameloop = (() => {
           }
         }
         if (
-          my.specialEffect === "crusherFortWall" &&
+          hasSpecialEffect(my, "crusherFortWall") &&
           my.team !== n.team &&
           kill
         ) {
@@ -19911,8 +20106,8 @@ var gameloop = (() => {
           n.team !== my.team
         ) {
           if (
-            n.specialEffect === "dieWall" ||
-            n.master.specialEffect === "dieWall"
+            hasSpecialEffect(n, "dieWall") ||
+            hasSpecialEffect(n.master, "dieWall")
           ) {
             my.health.amount -= my.health.max / 50 - my.SIZE / 2;
           }
@@ -20129,8 +20324,8 @@ var gameloop = (() => {
           }
           if (c.MODE !== "siege" && n.team !== my.team) {
             if (
-              n.specialEffect === "dieWall" ||
-              n.master.specialEffect === "dieWall"
+              hasSpecialEffect(n, "dieWall") ||
+              hasSpecialEffect(n.master, "dieWall")
             ) {
               my.health.amount -= my.health.max / 50 - my.SIZE / 2;
             }
@@ -20216,7 +20411,7 @@ var gameloop = (() => {
           }
         }
       }
-      if (instance.specialEffect === "randomShit") {
+      if (hasSpecialEffect(instance, "randomShit")) {
         let newGuns = [];
         for (let i = 1; i > 0; i--) {
           newGuns.push(
@@ -20330,7 +20525,7 @@ var gameloop = (() => {
 
         other.guns = newGuns;
       }
-      if (other.specialEffect === "randomShit") {
+      if (hasSpecialEffect(other, "randomShit")) {
         let newGuns = [];
         for (let i = 1; i > 0; i--) {
           newGuns.push(
@@ -20390,10 +20585,10 @@ var gameloop = (() => {
         other.guns = newGuns;
       }
       if (instance.team !== other.team) {
-        if (instance.specialEffect === "push") {
+        if (hasSpecialEffect(instance, "push")) {
           simplecollide(other, instance);
         }
-        if (other.specialEffect === "push") {
+        if (hasSpecialEffect(other, "push")) {
           simplecollide(instance, other);
         }
       }
@@ -20420,22 +20615,22 @@ var gameloop = (() => {
           instance.isPlayer &&
           other.label === "Void Portal" &&
           instance.label !== "Spectator" &&
-          instance.specialEffect !== "test1"
+          !hasSpecialEffect(instance, "test1")
         ) {
           instance.HEALTH = 5000000000;
           instance.SIZE = 20;
-          instance.specialEffect = "test1";
+          instance.specialEffect = ["test1"];
           instance.sendMessage("Your power grows!");
         }
         if (
           other.isPlayer &&
           instance.label === "Void Portal" &&
           other.label !== "Spectator" &&
-          other.specialEffect !== "test1"
+          !hasSpecialEffect(other, "test1")
         ) {
           other.HEALTH = 5000000000;
           other.SIZE = 20;
-          other.specialEffect = "test1";
+          other.specialEffect = ["test1"];
           other.sendMessage("Your power grows!");
         }
       }
@@ -20458,8 +20653,8 @@ var gameloop = (() => {
 
       /*  if (instance.team !== other.team && c.MODE !== "siege") {
         if (
-          instance.specialEffect === "dieWall" ||
-          instance.master.specialEffect === "dieWall"
+          hasSpecialEffect(instance, "dieWall") ||
+          hasSpecialEffect(instance.master, "dieWall")
         ) {
           if (
             other.type === "wall" ||
@@ -20472,8 +20667,8 @@ var gameloop = (() => {
           }
         }
         if (
-          other.specialEffect === "dieWall" ||
-          other.master.specialEffect === "dieWall"
+          hasSpecialEffect(other, "dieWall") ||
+          hasSpecialEffect(other.master, "dieWall")
         ) {
           if (
             instance.type === "wall" ||
@@ -20531,15 +20726,12 @@ var gameloop = (() => {
         }
       }
       if (
-        (instance.specialEffect === "heal" &&
+        (hasSpecialEffect(instance, "heal") &&
           instance.master !== other.master) ||
         (instance.master.label === "Heal Settings" &&
           instance.master !== other.master)
       ) {
-        if (
-          instance.team === other.team ||
-          instance.master.label === "Heal Settings"
-        ) {
+        if (instance.team === other.team) {
           if (instance.label === "Health Orb") return;
           if (
             other.health.amount < other.health.max ||
@@ -20568,18 +20760,18 @@ var gameloop = (() => {
           return;
         }
       }
-      if (other.specialEffect === "rep") {
+      if (hasSpecialEffect(other, "rep")) {
         if (instance.isPlayer) {
           other.kill();
         }
       }
-      if (instance.specialEffect === "rep") {
+      if (hasSpecialEffect(instance, "rep")) {
         if (other.isPlayer) {
           instance.kill();
         }
       }
       if (
-        instance.specialEffect === "banHammer" &&
+        hasSpecialEffect(instance, "banHammer") &&
         instance.master !== other.master &&
         other.isPlayer
       ) {
@@ -20590,7 +20782,7 @@ var gameloop = (() => {
         );
       }
       if (
-        other.specialEffect === "banHammer" &&
+        hasSpecialEffect(other, "banHammer") &&
         instance.master !== other.master &&
         instance.isPlayer
       ) {
@@ -20605,7 +20797,7 @@ var gameloop = (() => {
         );
       }
       if (
-        instance.specialEffect === "scoreGiver" &&
+        hasSpecialEffect(instance, "scoreGiver") &&
         instance.master !== other.master
       ) {
         if (other.targetable) {
@@ -20616,7 +20808,7 @@ var gameloop = (() => {
         return;
       }
       if (
-        other.specialEffect === "scoreGiver" &&
+        hasSpecialEffect(other, "scoreGiver") &&
         other.master !== instance.master
       ) {
         if (instance.targetable) {
@@ -20628,7 +20820,7 @@ var gameloop = (() => {
       }
 
       if (
-        instance.specialEffect === "scoreTheif" &&
+        hasSpecialEffect(instance, "scoreTheif") &&
         other.master !== instance.master
       ) {
         if (other.targetable) {
@@ -20639,7 +20831,7 @@ var gameloop = (() => {
         return;
       }
       if (
-        other.specialEffect === "scoreTheif" &&
+        hasSpecialEffect(other, "scoreTheif") &&
         other.master !== instance.master
       ) {
         if (instance.targetable) {
@@ -20698,35 +20890,35 @@ var gameloop = (() => {
         }
       }
 
-      if (instance.specialEffect === "clone" && other.isPlayer) {
+      if (hasSpecialEffect(instance, "clone") && other.isPlayer) {
         if (instance.master !== other.master) {
           other.define(Class.testbed);
           instance.DAMAGE = 0;
         }
       }
-      if (other.specialEffect === "clone" && instance.isPlayer) {
+      if (hasSpecialEffect(other, "clone") && instance.isPlayer) {
         if (other.master !== instance.master) {
           instance.define(Class.testbed);
           other.DAMAGE = 0;
         }
       }
 
-      if (instance.specialEffect === "teamer" && other.isPlayer) {
+      if (hasSpecialEffect(instance, "teamer") && other.isPlayer) {
         other.color = instance.color;
         other.team = instance.team;
         other.DAMAGE = 0;
       }
-      if (other.specialEffect === "teamer" && instance.isPlayer) {
+      if (hasSpecialEffect(other, "teamer") && instance.isPlayer) {
         instance.color = other.color;
         instance.team = other.team;
         other.DAMAGE = 0;
       }
-      if (other.specialEffect === "ultTeamer") {
+      if (hasSpecialEffect(other, "ultTeamer")) {
         instance.color = other.color;
         instance.team = other.team;
         other.DAMAGE = 0;
       }
-      if (instance.specialEffect === "ultTeamer") {
+      if (hasSpecialEffect(instance, "ultTeamer")) {
         other.color = instance.color;
         other.team = instance.team;
         other.DAMAGE = 0;
@@ -20814,8 +21006,8 @@ var gameloop = (() => {
           advancedcollide(instance, other, false, false, a);
           if (c.MODE !== "siege") {
             if (
-              other.specialEffect === "dieWall" ||
-              other.master.specialEffect === "dieWall"
+              hasSpecialEffect(other, "dieWall") ||
+              hasSpecialEffect(other.master, "dieWall")
             ) {
               instance.health.amount -=
                 instance.health.max / 50 - instance.SIZE / 2;
@@ -20825,8 +21017,8 @@ var gameloop = (() => {
           advancedcollide(other, instance, false, false, a);
           if (c.MODE !== "siege") {
             if (
-              instance.specialEffect === "dieWall" ||
-              instance.master.specialEffect === "dieWall"
+              hasSpecialEffect(instance, "dieWall") ||
+              hasSpecialEffect(instance.master, "dieWall")
             ) {
               other.health.amount -=
                 instance.health.max / 50 - instance.SIZE / 2;
@@ -20855,8 +21047,8 @@ var gameloop = (() => {
           instance.destroy();
         }
         if (
-          instance.specialEffect === "man" ||
-          instance.master.specialEffect === "man"
+          hasSpecialEffect(instance, "man") ||
+          hasSpecialEffect(instance.master, "man")
         ) {
           if (other.isGate || other.isWall) {
             other.health.amount = 0.011;
@@ -20864,8 +21056,8 @@ var gameloop = (() => {
           }
         }
         if (
-          other.specialEffect === "man" ||
-          other.master.specialEffect === "man"
+          hasSpecialEffect(other, "man") ||
+          hasSpecialEffect(other.master, "man")
         ) {
           if (instance.isGate || instance.isWall) {
             instance.health.amount = 0.011;
@@ -21178,7 +21370,7 @@ var gameloop = (() => {
 
     logs.master.mark();
     room.lastCycle = util.time();
-    loadProtection.reportCycle(performance.now() - cycleStartedAt, entities);
+    loadProtection.reportCycle(performance.now() - cycleStartedAt, entities, cycleStartedAt);
   };
   //let expected = 1000 / c.gameSpeed / 30;
   //let alphaFactor = (delta > expected) ? expected / delta : 1;
@@ -21822,6 +22014,7 @@ var maintainloop = (() => {
         i--;
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 1000000;
       if (c.SHINY_GLORY) {
@@ -21988,6 +22181,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 350;
       if (o.rarity > 96) {
@@ -22049,6 +22243,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       switch (c.MODE) {
         case "theExample":
@@ -22079,6 +22274,7 @@ var maintainloop = (() => {
           o.team = -5;
           break;
       }
+      o._loadProtectionNaturalSpawn = true;
     }
   };
   let spawnpentaSentinels = (census) => {
@@ -22092,6 +22288,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.define(
         Class[
@@ -22139,6 +22336,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 10000;
       if (o.rarity > 3000) {
@@ -22205,6 +22403,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 10000;
       if (o.rarity > 3000) {
@@ -22257,6 +22456,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 10000;
       if (o.rarity > 3000) {
@@ -22312,6 +22512,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.rarity = Math.random() * 10000;
       if (o.rarity > 1000) {
@@ -22405,6 +22606,7 @@ var maintainloop = (() => {
         if (!i || !spot) return 0;
       } while (dirtyCheck(spot, 100));
 
+      if (!loadProtection.canSpawnNaturalEntity()) return 0;
       let o = new Entity(spot);
       o.define(
         Class[
@@ -22437,10 +22639,6 @@ var maintainloop = (() => {
     }
   };
   c.KNOCKBACK_CONSTANT += 0.75;
-  if (c.MAZE_GENERATION === true) {
-    createMaze();
-  }
-
   if (c.MODE !== "siege") {
     setInterval(() => {
       c.timeLeft += 1000;
@@ -22472,7 +22670,7 @@ var maintainloop = (() => {
     makecubedrifts();
     makeDummies();
     makeTeamedWalls();
-    makeFortGates();
+   if (c.MODE !== "theDenied") makeFortGates();
     makepentFortWalls();
     makeFortWalls();
     makeTrapFortWalls();
@@ -22495,27 +22693,24 @@ var maintainloop = (() => {
         fallenBoss: 0,
         tank: 0,
       };
-      let npcs = entities
-        .map(function npcCensus(instance) {
-          if (instance.valid()) {
-            if (census[instance.type] != null) {
-              census[instance.type]++;
-              return instance;
-            }
-            if (census[instance.specialEffect] != null) {
-              census[instance.specialEffect]++;
-              return instance;
-            }
+      // Only the counts are consumed below; building a mapped array and then
+      // filtering it allocated two full-world arrays every 200 ms for no reason.
+      for (let i = 0; i < entities.length; i++) {
+        const instance = entities[i];
+        if (!instance || typeof instance.valid !== "function" || !instance.valid()) continue;
+        if (census[instance.type] != null) census[instance.type]++;
+        else {
+          for (const effect of normalizeSpecialEffects(instance.specialEffect)) {
+            if (census[effect] != null) census[effect]++;
           }
-        })
-        .filter((e) => {
-          return e;
-        });
+        }
+      }
       let ruh;
       if (c.REDUCE_BOTS_PER_PLAYER) ruh = c.playerCount;
       else ruh = 0;
       // Bots
       if (
+        c.MODE !== "theDenied" &&
         bots.length < c.BOTS - ruh &&
         c.botSpawn === true &&
         loadProtection.shouldSpawnBot()
@@ -22541,7 +22736,7 @@ var maintainloop = (() => {
               position = room.randomType(c.BOT_SPAWN_LOCATION);
             }
         }
-        if (!room.isIn("wall", position)) {
+        if (!room.isIn("wall", position) && loadProtection.canSpawnNaturalEntity()) {
           let o = new Entity(position);
           o._loadProtectionNaturalSpawn = true;
 
@@ -22873,7 +23068,7 @@ var maintainloop = (() => {
             }
             o.stopReppeat2 = true;
           }
-          if (o.specialEffect === "Legend" && !o.stopReppeat3) {
+          if (hasSpecialEffect(o, "Legend") && !o.stopReppeat3) {
             //o.name = "[]_";
             // o.name += ran.chooseBotName();
             o.controllers = [
@@ -23255,7 +23450,7 @@ var maintainloop = (() => {
       }
       return a;
     }
-    let placeNewFood = (position, scatter, level, allowInNest = false) => {
+    let placeNewFood = (position, scatter, level, allowInNest = false, spawnStatus = null) => {
       let o = nearest(food, position);
       let mitosis = false;
       let seed = false;
@@ -23286,6 +23481,10 @@ var maintainloop = (() => {
               x: o.x + o.size * Math.cos(o.facing),
               y: o.y + o.size * Math.sin(o.facing),
             };
+          if (!loadProtection.canSpawnNaturalEntity()) {
+            if (spawnStatus) spawnStatus.blockedByLoadProtection = true;
+            return null;
+          }
           let new_o = new Entity(place);
           new_o._loadProtectionNaturalSpawn = true;
           switch (new_o.rarityType) {
@@ -23326,6 +23525,10 @@ var maintainloop = (() => {
         // Brand new
         else if (room.isIn("nest", position) === allowInNest) {
           if (!dirtyCheck(position, 20)) {
+            if (!loadProtection.canSpawnNaturalEntity()) {
+              if (spawnStatus) spawnStatus.blockedByLoadProtection = true;
+              return null;
+            }
             o = new Entity(position);
             o._loadProtectionNaturalSpawn = true;
 
@@ -23367,76 +23570,119 @@ var maintainloop = (() => {
         }
       }
     };
-    // Define foodspawners
+    // Food spawners must never retry indefinitely: anti-lag protection can reject
+    // natural spawns while a food spawner is being replenished.
+    const FOOD_SPAWNER_COUNT = 4;
+    const FOOD_SPAWNER_MAX_ATTEMPTS = 24;
+    const FOOD_SPAWNER_RETRY_DELAY_TICKS = 30;
+    let foodSpawnerRetryCooldown = 0;
+
     class FoodSpawner {
       constructor() {
-        this.foodToMake = Math.ceil(
-          Math.abs(ran.gauss(0, room.scale.linear * 80))
+        this.active = false;
+        this.foodToMake = Math.max(
+          1,
+          Math.ceil(Math.abs(ran.gauss(0, room.scale.linear * 80)))
         );
         this.size = Math.sqrt(this.foodToMake) * 25;
 
-        // Determine where we ought to go
-        let position = {};
-        let o;
-        do {
-          position = room.gaussRing(1 / 3, 20);
-          o = placeNewFood(position, this.size, 0);
-        } while (o == null);
+        const o = foodSpawnSafety.tryWithLimit(() => {
+          const position = room.gaussRing(1 / 3, 20);
+          if (!position) return null;
+          const status = { blockedByLoadProtection: false };
+          const candidate = placeNewFood(position, this.size, 0, false, status);
+          // A population-cap rejection will not improve by sampling more points.
+          return status.blockedByLoadProtection ? false : candidate;
+        }, FOOD_SPAWNER_MAX_ATTEMPTS);
 
-        // Produce a few more
-        for (let i = Math.ceil(Math.abs(ran.gauss(0, 4))); i <= 0; i--) {
-          placeNewFood(o, this.size, 0);
+        if (!o) return;
+
+        // Seed a few additional food items, but stop immediately if anti-lag
+        // rejects spawning. The previous loop condition could count down forever.
+        const additionalFood = Math.ceil(Math.abs(ran.gauss(0, 4)));
+        for (let i = additionalFood; i > 0; i--) {
+          const status = { blockedByLoadProtection: false };
+          placeNewFood(o, this.size, 0, false, status);
+          if (status.blockedByLoadProtection) break;
         }
 
-        // Set location
         this.x = o.x;
         this.y = o.y;
-        //util.debug('FoodSpawner placed at ('+this.x+', '+this.y+'). Set to produce '+this.foodToMake+' food.');
+        this.active = true;
       }
+
       rot() {
+        if (!this.active) return;
         if (--this.foodToMake < 0) {
-          //util.debug('FoodSpawner rotted, respawning.');
-          util.remove(foodSpawners, foodSpawners.indexOf(this));
-          foodSpawners.push(new FoodSpawner());
+          this.active = false;
+          const index = foodSpawners.indexOf(this);
+          if (index !== -1) foodSpawners.splice(index, 1);
+          // Replenishment is deferred to the next food tick. Never construct a
+          // replacement from inside rot(), where a rejected spawn used to hang.
         }
       }
     }
-    // Add them
-    if (c.SPAWN_FOOD !== false && room.maxFood > 0) {
-      foodSpawners.push(new FoodSpawner());
-      foodSpawners.push(new FoodSpawner());
-      foodSpawners.push(new FoodSpawner());
-      foodSpawners.push(new FoodSpawner());
+
+    function ensureFoodSpawners() {
+      if (c.SPAWN_FOOD === false || room.maxFood <= 0) return;
+      if (foodSpawners.length >= FOOD_SPAWNER_COUNT) return;
+      if (foodSpawnerRetryCooldown > 0) {
+        foodSpawnerRetryCooldown--;
+        return;
+      }
+
+      let creationFailed = false;
+      while (foodSpawners.length < FOOD_SPAWNER_COUNT) {
+        const spawner = new FoodSpawner();
+        if (!spawner.active) {
+          creationFailed = true;
+          break;
+        }
+        foodSpawners.push(spawner);
+      }
+      if (creationFailed) foodSpawnerRetryCooldown = FOOD_SPAWNER_RETRY_DELAY_TICKS;
     }
+
+    // Seed the initial spawners with the same bounded path used during recovery.
+    ensureFoodSpawners();
     // Food making functions
     let makeGroupedFood = () => {
-      // Create grouped food
-      // Choose a location around a spawner
-      let spawner = foodSpawners[ran.irandom(foodSpawners.length - 1)],
-        bubble = ran.gaussRing(spawner.size, 1 / 4);
-      placeNewFood({ x: spawner.x + bubble.x, y: spawner.y + bubble.y }, -1, 0);
+      // A spawner may be absent while anti-lag prevents its replacement.
+      if (!foodSpawners.length) return false;
+      const spawner = foodSpawners[ran.irandom(foodSpawners.length - 1)];
+      if (!spawner || !spawner.active) return false;
+      const bubble = room.gaussRing(spawner.size, 1 / 4);
+      if (!bubble) return false;
+      const spawnedFood = placeNewFood(
+        { x: spawner.x + bubble.x, y: spawner.y + bubble.y },
+        -1,
+        0
+      );
+      // Failed placement must not consume a spawner's remaining food allowance.
+      if (!spawnedFood) return false;
       spawner.rot();
+      return true;
     };
     let makeDistributedFood = () => {
-      // Distribute food everywhere
-      //util.debug('Creating new distributed food.');
-      let spot = {};
-      do {
-        spot = room.gaussRing(1 / 2, 2);
-        if (!spot) return false;
-      } while (room.isInNorm(spot));
-      placeNewFood(spot, 0.01 * room.width, 0);
-      return true;
+      // Bounded rejection sampling protects unusual maps from infinite loops.
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const spot = room.gaussRing(1 / 2, 2);
+        if (!spot) continue;
+        if (room.isInNorm(spot)) continue;
+        placeNewFood(spot, 0.01 * room.width, 0);
+        return true;
+      }
+      return false;
     };
     let makeCornerFood = () => {
-      // Distribute food in the corners
-      let spot = {};
-      do {
-        spot = room.gaussInverse(5);
-        if (!spot) return false;
-      } while (room.isInNorm(spot));
-      placeNewFood(spot, 0.05 * room.width, 0);
-      return true;
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const spot = room.gaussInverse(5);
+        if (!spot) continue;
+        if (room.isInNorm(spot)) continue;
+        placeNewFood(spot, 0.05 * room.width, 0);
+        return true;
+      }
+      return false;
     };
     let makeNestFood = () => {
       // Make nest pentagons
@@ -23450,7 +23696,19 @@ var maintainloop = (() => {
     // local food registry (so destroyed food is not retained) but skip new food,
     // spawner rotations, and optional upgrade work.
     return (allowSpawning = true) => {
-      // Find and understand all food
+      if (!allowSpawning) {
+        // Keep the local registry free of dead food while natural spawning is
+        // paused. A full entities census is unnecessary until spawning resumes.
+        food = food.filter((instance) => {
+          if (!instance || !(instance.foodLevel > -1)) return false;
+          if (typeof instance.valid !== "function") return true;
+          try { return instance.valid(); } catch (_) { return false; }
+        });
+        return;
+      }
+
+      // Find and count all food. Use one pass, avoiding map()+filter() full-world
+      // array allocations while the normal spawner is active.
       let census = {
         [0]: 0, // Egg
         [1]: 0, // Square
@@ -23479,49 +23737,74 @@ var maintainloop = (() => {
         [9]: 0, //Nonagon
         sum: 0,
       };
-      // Do the censusNest
-      food = entities
-        .map((instance) => {
-          if (!instance.valid()) {
-            return;
-          }
-          try {
-            if (instance.type === "tank") {
-              census.tank++;
-              c.tankCount = census.tank;
-            } else if (instance.foodLevel > -1) {
-              if (room.isIn("nest", { x: instance.x, y: instance.y })) {
-                censusNest.sum++;
-                censusNest[instance.foodLevel]++;
-              } else {
-                census.sum++;
-                census[instance.foodLevel]++;
-              }
-              return instance;
+      // Do the food census without allocating an intermediate array per entity.
+      const currentFood = [];
+      for (let i = 0; i < entities.length; i++) {
+        const instance = entities[i];
+        if (!instance || typeof instance.valid !== "function") continue;
+        let isValid = false;
+        try {
+          isValid = instance.valid();
+        } catch (_) {
+          // Stale entities can be encountered while anti-lag is disabling or
+          // destroying population. Ignore them in this census rather than crash.
+          continue;
+        }
+        if (!isValid) continue;
+        try {
+          if (instance.type === "tank") {
+            census.tank++;
+            c.tankCount = census.tank;
+          } else if (instance.foodLevel > -1) {
+            if (room.isIn("nest", { x: instance.x, y: instance.y })) {
+              censusNest.sum++;
+              censusNest[instance.foodLevel]++;
+            } else {
+              census.sum++;
+              census[instance.foodLevel]++;
             }
-          } catch (err) {
-            util.error(instance.label);
-            util.error(err);
-            instance.kill();
+            currentFood.push(instance);
           }
-        })
-        .filter((e) => {
-          return e;
-        });
-      if (!allowSpawning) return;
+        } catch (err) {
+          util.error(instance.label);
+          util.error(err);
+          // A malformed/stale entity must not turn census recovery into a second crash.
+          try {
+            if (typeof instance.kill === "function") instance.kill();
+          } catch (killError) {
+            util.error(killError);
+          }
+        }
+      }
+      food = currentFood;
       // Sum it up
       let maxFood = room.maxFood / 7;
       let maxNestFood = room.maxFood / 25;
 
       let foodAmount = census.sum;
       let nestFoodAmount = censusNest.sum;
+      /************** RESTORE MISSING SPAWNERS **************/
+      // Fill any slots lost on the previous tick, before this tick's rotation.
+      ensureFoodSpawners();
       /*********** ROT OLD SPAWNERS **********/
-      foodSpawners.forEach((spawner) => {
-        if (ran.chance(1 - foodAmount / maxFood)) spawner.rot();
-      });
+      const spawnerRotationChance = foodSpawnSafety.clampProbability(
+        1 - foodAmount / maxFood
+      );
+      // Iterate backwards because rot() removes expired spawners from this array.
+      for (let i = foodSpawners.length - 1; i >= 0; i--) {
+        const spawner = foodSpawners[i];
+        if (spawner && ran.chance(spawnerRotationChance)) spawner.rot();
+      }
       /************** MAKE FOOD **************/
-      while (
-        ran.chance(0.8 * (1 - (foodAmount * foodAmount) / maxFood / maxFood))
+      const generalFoodChance = foodSpawnSafety.clampProbability(
+        0.8 * (1 - (foodAmount * foodAmount) / (maxFood * maxFood))
+      );
+      // A fixed attempt budget prevents random runs of successful rolls from
+      // creating a large synchronous spawn burst during a lag spike.
+      for (
+        let attempt = 0;
+        attempt < 12 && ran.chance(generalFoodChance);
+        attempt++
       ) {
         switch (ran.chooseChance(10, 2, 1)) {
           case 0:
@@ -23535,13 +23818,16 @@ var maintainloop = (() => {
             break;
         }
       }
-      while (
-        ran.chance(
-          0.25 *
-            (1 - (nestFoodAmount * nestFoodAmount) / maxNestFood / maxNestFood)
-        )
-      )
+      const nestFoodChance = foodSpawnSafety.clampProbability(
+        0.25 * (1 - (nestFoodAmount * nestFoodAmount) / (maxNestFood * maxNestFood))
+      );
+      for (
+        let attempt = 0;
+        attempt < 8 && ran.chance(nestFoodChance);
+        attempt++
+      ) {
         makeNestFood();
+      }
       /************* UPGRADE FOOD ************/
       if (!food.length) return 0;
       for (let i = Math.ceil(food.length / 100); i > 0; i--) {
@@ -23636,8 +23922,12 @@ var maintainloop = (() => {
     // Regen health and update the grid. Positive REGEN restores resources;
     // negative REGEN drains them. Existing no-regen sentinels are normalized
     // to zero, and NO_REGEN remains an explicit override.
+    const transientCleanupNow = performance.now();
     entities.forEach((instance) => {
-      if (instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;
+      // This lifecycle cleanup is independent of load-protection thresholds:
+      // any projectile/aura unseen by every client for 2.5 seconds is retired.
+      offscreenTransientCleanup.check(instance, transientCleanupNow);
+      if (!instance || instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;
       if (instance.health.amount > 0 || instance.health.max > 0) {
         if (instance.valid()) {
           const regenValue = Number(instance.REGEN);
@@ -24520,26 +24810,41 @@ You must have the chat site and the game site open at the same time for your cha
                         message =
                           `Here is the list of modes, type as they are for voting, if you are allowed to: <br><br>` +
                           modeList.join(`<br><br>`);
-                      } else if (command.includes("vote")) {
+                      } else if (/^vote(?:\s|$)/i.test(command.trim())) {
                         if (serverType === "normal") {
-                          let vote = command.slice(command.indexOf("e") + 2);
-                          if (!c.voteList.includes(socket.ip)) {
-                            let re = 1;
-                            if (socket.trueDev) re = 100;
-                            for (let i = 0; i < re; i++) {
-                              if (modeList.includes(vote)) {
-                                currentState.modeVotes.push(vote);
-                                message =
-                                  "You have successfully voted on " +
-                                  vote +
-                                  "!";
-                              } else
-                                message =
-                                  "That isn't a valid mode, try using /mode list!";
+                          const voteText = command.trim().replace(/^vote\b/i, "").trim();
+                          if (!Array.isArray(currentState.modeVotes)) currentState.modeVotes = [];
+                          // Preserve the original one-vote-per-IP policy.
+                          const voterId = socket.ip != null && String(socket.ip).trim()
+                            ? "ip:" + String(socket.ip)
+                            : socket.ID != null ? "socket:" + String(socket.ID) : null;
+                          const result = modeVoting.registerVote({
+                            voteText,
+                            allowedModes: modeList,
+                            voterId,
+                            voterList: c.voteList,
+                            votes: currentState.modeVotes,
+                            weight: socket.trueDev ? 100 : 1,
+                          });
+                          if (result.ok) {
+                            // Votes select the next startup mode, so persist them as
+                            // they arrive instead of relying only on a graceful shutdown.
+                            try {
+                              serverState.setServerState(currentState);
+                            } catch (error) {
+                              util.warn("Could not persist mode vote: " + (error && error.message || error));
                             }
-                          } else message = "You cannot vote again!";
-                        } else
+                            message = "You have successfully voted on " + result.mode + "!";
+                          } else if (result.reason === "already-voted") {
+                            message = "You cannot vote again!";
+                          } else if (result.reason === "invalid-mode") {
+                            message = "That isn't a valid mode, try using /mode list!";
+                          } else {
+                            message = "Your vote could not be registered. Please try again.";
+                          }
+                        } else {
                           message = "You cannot vote on modes in this server!";
+                        }
                       } else if (command.includes("reset")) {
                         if (player.body) {
                           if (
@@ -24563,7 +24868,7 @@ You must have the chat site and the game site open at the same time for your cha
                             player.body.intangibility = false;
                             player.body.invisible = [100, 0];
                             player.body.alpha = 100;
-                            player.body.specialEffect = "none";
+                            player.body.specialEffect = ["none"];
                             player.body.invuln = true;
                             player.body.ignoreCollision = false;
 
@@ -24575,7 +24880,9 @@ You must have the chat site and the game site open at the same time for your cha
                           message =
                             "You need to spawn for this command to work!";
                       } else if (command.includes("self destruct")) {
-                        if (player.body) {
+                        if (c.ANTILAG_SOFT_RESET_ACTIVE === true) {
+                          message = "Self-destruct is disabled during the emergency server reset.";
+                        } else if (player.body) {
                           if (
                             room.isIn("bas" + -player.body.team, player.body) ||
                             player.body.invuln ||

@@ -3,14 +3,86 @@
 function isSolidOccluder(entity) {
   if (!entity) return false;
   const label = String(entity.label || "");
+  const type = String(entity.type || "");
+
+  // Gates and fort walls do not block projectiles, so they must never occlude
+  // target selection. Maze/room walls and solid rocks do.
+  if (
+    entity.isGate ||
+    entity.isFortWall ||
+    entity.isFortGate ||
+    type === "fortWall" ||
+    type === "fortGate" ||
+    /^(?:fort|fortress) wall$/i.test(label) ||
+    /^(?:fort|fortress) gate$/i.test(label)
+  ) return false;
+
   return Boolean(
-    entity.isWall ||
-      entity.isMazeWall ||
-      entity.isGate ||
-      entity.type === "wall" ||
-      entity.type === "squareWall" ||
+    entity.isMazeWall ||
+      entity.isWall ||
+      type === "wall" ||
+      type === "squareWall" ||
       /^(rock|gravel|rubble|boulder|abyssal stonecage)$/i.test(label)
   );
+}
+
+
+function definitionAllowsWallPassage(definition, visited = new Set()) {
+  if (Array.isArray(definition)) {
+    return definition.some((item) => definitionAllowsWallPassage(item, visited));
+  }
+  if (!definition || typeof definition !== "object" || visited.has(definition)) return false;
+  visited.add(definition);
+
+  // WALL_IMMUNITY is the engine's explicit projectile/wall bypass flag.
+  // The additional names support custom classes without relying on penetration,
+  // which means resistance to damage, not necessarily passage through geometry.
+  if (
+    definition.WALL_IMMUNITY === true ||
+    definition.CAN_PASS_WALLS === true ||
+    definition.PASS_THROUGH_WALLS === true ||
+    definition.PROJECTILES_PASS_WALLS === true ||
+    (definition.BODY && (
+      definition.BODY.WALL_IMMUNITY === true ||
+      definition.BODY.CAN_PASS_WALLS === true
+    ))
+  ) return true;
+
+  const parents = definition.PARENT == null
+    ? []
+    : Array.isArray(definition.PARENT) ? definition.PARENT : [definition.PARENT];
+  return parents.some((parent) => definitionAllowsWallPassage(parent, visited));
+}
+
+function hasWallPassingProjectile(entity) {
+  const visitedEntities = new Set();
+
+  function inspect(current) {
+    if (!current || typeof current !== "object" || visitedEntities.has(current)) return false;
+    visitedEntities.add(current);
+
+    const guns = Array.isArray(current.guns) ? current.guns : [];
+    for (const gun of guns) {
+      if (!gun || gun.canShoot === false) continue;
+      if (
+        gun.wallImmunity === true ||
+        gun.WALL_IMMUNITY === true ||
+        (gun.natural && (
+          gun.natural.WALL_IMMUNITY === true ||
+          gun.natural.CAN_PASS_WALLS === true
+        ))
+      ) return true;
+      const bulletTypes = Array.isArray(gun.bulletTypes)
+        ? gun.bulletTypes
+        : gun.bulletTypes ? [gun.bulletTypes] : [];
+      if (bulletTypes.some((type) => definitionAllowsWallPassage(type))) return true;
+    }
+
+    const turrets = Array.isArray(current.turrets) ? current.turrets : [];
+    return turrets.some((turret) => inspect(turret));
+  }
+
+  return inspect(entity);
 }
 
 /**
@@ -79,4 +151,6 @@ function hasClearLineOfSight(source, target, getCandidates) {
 }
 
 hasClearLineOfSight.isSolidOccluder = isSolidOccluder;
+hasClearLineOfSight.definitionAllowsWallPassage = definitionAllowsWallPassage;
+hasClearLineOfSight.hasWallPassingProjectile = hasWallPassingProjectile;
 module.exports = hasClearLineOfSight;

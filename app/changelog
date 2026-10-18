@@ -1,3 +1,11 @@
+# Anti-lag smoothing rework (2026-10-16)
+
+- Decoupled simulation work cost from start-to-start tick cadence. The adaptive scheduler's deliberate wait no longer feeds back into load detection or triggers false emergency mitigation.
+- Added a configurable exponential moving average for cycle cost and event-loop delay (`RANAR_LOAD_RUNTIME_EMA_ALPHA`, default `0.30`). Raw extreme stalls and critical memory pressure still bypass the smoothing window.
+- Made natural-population recounts incremental (`RANAR_LAG_POPULATION_RECOUNT_BATCH_SIZE`, default `500` entities per cycle), avoiding periodic full-world scans. The last completed count is reused until a new bounded scan finishes; natural spawns fail closed under load while the initial population count is incomplete.
+- Shortened staged recovery hysteresis to five healthy samples by default (`RANAR_LOAD_RECOVERY_SAMPLES`), stepping down one severity tier at a time.
+- Added tests for scheduler-feedback prevention, smoothed escalation/recovery, emergency detection, and bounded population recounts.
+
 
 # Stability and lifecycle fixes (2026-10-10)
 
