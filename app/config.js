@@ -37,10 +37,11 @@ module.exports =
   "ENCLOSED_ARENA": false,
   "DISABLED_TEAM_MESSAGE": false,
   "MAZE_GENERATION": false,
+  "MAZE_GENERATION_STYLE": "cave-like",
   // Generated mazes choose a random supported layout unless a mode sets
   // MAZE_GENERATION_STYLE. `mazewall` maps to definitions.js's `wall` class.
   // Modes may set MAZE_WALL_ENTITY to another exported definition, e.g. obstacle.
-  "MAZE_WALL_ENTITY": "obstacle",
+  "MAZE_WALL_ENTITY": "mazewall",
   "DAMAGE_CONSTANT": 0.6, 
   "KNOCKBACK_CONSTANT": 1,  
   "ROOM_BOUND_FORCE": 0.01,
