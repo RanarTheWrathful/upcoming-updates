@@ -72,7 +72,7 @@ let chosenMode;
 let modeList = ["Unknown"];
 let serverType = "JJ's Reasearch Facility"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
-  chosenMode = "The Awakening"; //or this
+  chosenMode = "The Expanse"; //or this
 //JJ's Reasearch Facility
 if (serverType === "testing") chosenMode = "Sandbox";
 //change this to play a specifict mode
