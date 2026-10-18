@@ -16,9 +16,9 @@ const DEFAULT_STEPS = Object.freeze([
   { id: "onscreen-natural-enemies", category: "naturalEnemy", visibility: "onscreen", action: "suspend", speed: 16, lagMs: 300, durationMs: 5000, minActiveMs: 5000 },
   { id: "onscreen-bots", category: "bot", visibility: "onscreen", action: "suspend", speed: 14, lagMs: 325, durationMs: 5000, minActiveMs: 5000 },
   { id: "onscreen-natural-bosses", category: "naturalBoss", visibility: "onscreen", action: "suspend", speed: 12, lagMs: 350, durationMs: 5000, minActiveMs: 5000 },
-  // The reset stage is reserved for the raw 500ms emergency path below. A
-  // sustained-but-subcritical slowdown may reach every normal mitigation tier,
-  // but must never trigger a full world reset by simply waiting long enough.
+  // The reset stage is reserved for sustained raw extreme lag with very poor
+  // throughput. A sustained-but-subcritical slowdown may reach every normal
+  // mitigation tier, but must never trigger a full world reset by waiting alone.
   { id: "soft-reset", category: "all", visibility: "any", action: "reset", speed: 8, lagMs: 500, durationMs: 5000, minActiveMs: 0 },
 ]);
 
@@ -113,8 +113,10 @@ function createLagResponse(options = {}) {
   // Permit spawn recovery when heap use remains high-but-not-critical after a
   // lag episode. Requiring the heap to fall below 90% could keep spawners
   // disabled forever because a healthy Node.js heap does not necessarily shrink.
-  const recoveryMemoryRatio = ratio(env.RANAR_LAG_RECOVERY_MEMORY_RATIO, memoryCriticalRatio);
-  const emergencyLagMs = 500; // Fixed safety boundary: raw measured latency of 500ms+ is the emergency path.
+  const recoveryMemoryRatio = ratio(env.RANAR_LAG_RECOVERY_MEMORY_RATIO, 0.98);
+  const emergencyLagMs = 500; // Fixed safety boundary; sustained pressure is required before resetting.
+  const emergencyPersistenceMs = positive(env.RANAR_LAG_EMERGENCY_PERSIST_MS, 10000);
+  const emergencySpeedPercent = percent(env.RANAR_LAG_EMERGENCY_SPEED_PERCENT, 15);
   const memoryWarningGrowthMb = positive(env.RANAR_LOAD_WARNING_GROWTH_MB, 64);
   const memoryHighGrowthMb = positive(env.RANAR_LOAD_HIGH_GROWTH_MB, 128);
   const memoryCriticalGrowthMb = positive(env.RANAR_LOAD_CRITICAL_GROWTH_MB, 256);
@@ -132,6 +134,7 @@ function createLagResponse(options = {}) {
   let sweep = null;
   let lastLagMs = 0;
   let lastEmergencyLagMs = 0;
+  let emergencyLagSince = null;
   let emergencyClearSince = null;
 
   function clearSweep() { sweep = null; }
@@ -237,6 +240,7 @@ function createLagResponse(options = {}) {
     recoveryNotified = false;
     softResetRequested = false;
     emergencyClearSince = null;
+    emergencyLagSince = null;
     stepSince.fill(null);
     clearSweep();
   }
@@ -267,7 +271,10 @@ function createLagResponse(options = {}) {
       observedLagMs: lastLagMs,
       emergencyObservedLagMs: lastEmergencyLagMs,
       emergencyLagMs,
-      extremeLag: lastEmergencyLagMs >= emergencyLagMs,
+      emergencyLagPersistenceMs: emergencyPersistenceMs,
+      emergencyLagPersistenceElapsedMs: emergencyLagSince === null ? 0 : Math.max(0, now - emergencyLagSince),
+      extremeLag: emergencyLagSince !== null && now - emergencyLagSince >= emergencyPersistenceMs &&
+        lastEmergencyLagMs >= emergencyLagMs,
       recoverySpeedPercent: recoverySpeed,
       recoveryMaxLagMs,
       recoveryMemoryRatio,
@@ -298,16 +305,27 @@ function createLagResponse(options = {}) {
     lastLagMs = lagMs;
     lastEmergencyLagMs = rawEmergencyLagMs;
 
-    // A raw, current 500ms+ stall bypasses every persistence timer. Smoothed
-    // values can influence ordinary tiers, but cannot independently force reset.
-    if (rawEmergencyLagMs >= emergencyLagMs) {
+    // A single long tick can be caused by garbage collection, a host pause, or
+    // unrelated scheduler noise. Require severe measured latency AND genuinely
+    // poor throughput to persist before allowing the destructive reset path.
+    const emergencyCondition = rawEmergencyLagMs >= emergencyLagMs &&
+      speed <= emergencySpeedPercent;
+    if (emergencyCondition) {
+      if (emergencyLagSince === null) emergencyLagSince = now;
+    } else {
+      emergencyLagSince = null;
+    }
+    const emergencyConfirmed = emergencyCondition &&
+      now - emergencyLagSince >= emergencyPersistenceMs;
+
+    if (emergencyConfirmed) {
       activeIndex = steps.length - 1;
       if (activeSince === null || !softResetRequested) activeSince = now;
       recoverySince = null;
       emergencyClearSince = null;
       stepSince.fill(now);
       clearSweep();
-      cancelRecovery(now, "extreme lag interrupted recovery");
+      cancelRecovery(now, "sustained extreme lag interrupted recovery");
       recoveryNotified = false;
       if (!softResetRequested) {
         softResetRequested = true;
@@ -316,6 +334,7 @@ function createLagResponse(options = {}) {
             stepId: steps[activeIndex].id,
             runSpeedPercent: speed,
             observedLagMs: rawEmergencyLagMs,
+            emergencyPersistenceMs,
             metrics,
             at: now,
             emergency: true,
@@ -335,9 +354,8 @@ function createLagResponse(options = {}) {
       clearSweep();
     }
 
-    // Re-arm the emergency reset after raw latency has stayed below 500ms for
-    // a short, stable interval. This prevents a noisy threshold edge from
-    // requesting repeated resets while still allowing a genuinely new episode.
+    // Re-arm after the raw emergency signal clears and remains clear. A new
+    // reset must establish a fresh persistence window; stale samples cannot do it.
     if (softResetRequested) {
       if (emergencyClearSince === null) emergencyClearSince = now;
       if (now - emergencyClearSince >= emergencyRearmMs) softResetRequested = false;
@@ -355,12 +373,18 @@ function createLagResponse(options = {}) {
     }
 
     const mem = Number(metrics && metrics.memoryRatio);
-    // Recovery also needs both signals: good throughput and low measured lag.
-    // Step down one tier at a time; do not reactivate more mitigation while the
-    // recovery ramp is underway. Suspended entities begin their fade-in once a
-    // full recovery interval has elapsed, rather than waiting for every status
-    // tier to count all the way back to normal.
-    const memoryHealthy = !Number.isFinite(mem) || mem < recoveryMemoryRatio;
+    const memoryGrowth = Number(metrics && metrics.memoryGrowthMb);
+    const memoryTrendReady = metrics && metrics.memoryTrendReady === true;
+    // A large but stable Node heap is not proof the server is still unhealthy.
+    // Otherwise spawn gates can remain closed forever after cleanup because V8
+    // does not promise to return reserved heap pages to the operating system.
+    // Keep recovery blocked only while memory is both very high and still growing,
+    // or while the measured growth itself remains severe.
+    const memoryPressureStillGrowing = memoryTrendReady && Number.isFinite(memoryGrowth) &&
+      (memoryGrowth >= memoryHighGrowthMb ||
+        (Number.isFinite(mem) && mem >= recoveryMemoryRatio && memoryGrowth >= memoryWarningGrowthMb));
+    // Recovery still requires both healthy throughput and low current measured lag.
+    const memoryHealthy = !memoryPressureStillGrowing;
     const recoveryHealthy = speed >= recoverySpeed && memoryHealthy && lagMs <= recoveryMaxLagMs;
     if (activeIndex >= 0 && recoveryHealthy) {
       if (recoverySince === null) recoverySince = now;

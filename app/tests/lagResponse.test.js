@@ -150,17 +150,25 @@ function fastEnv() {
     "poor throughput without a qualifying latency signal must not start mitigation");
 }
 
-// A real 500ms+ stall is the sole immediate max-tier override.
+// A single 500ms+ tick is not a reset condition. Sustained raw lag AND poor
+// throughput must persist for the configured emergency window.
 {
   let now = 0;
   const resets = [];
   const response = createLagResponse({
-    env: {},
+    env: { RANAR_LAG_EMERGENCY_PERSIST_MS: "1000", RANAR_LAG_EMERGENCY_SPEED_PERCENT: "15" },
     nowProvider: () => now,
     getEntities: () => [],
     onSoftReset: (details) => { resets.push(details); },
   });
-  response.update(20, { cycleMs: 500 }, []);
+  response.update(10, { cycleMs: 500 }, []);
+  assert.notStrictEqual(response.activeStageId, "soft-reset", "one extreme tick must not reset the server");
+  assert.strictEqual(resets.length, 0);
+  now = 999;
+  response.update(10, { cycleMs: 500 }, []);
+  assert.notStrictEqual(response.activeStageId, "soft-reset", "the emergency timer must persist for its full duration");
+  now = 1000;
+  response.update(10, { cycleMs: 500 }, []);
   assert.strictEqual(response.activeStageId, "soft-reset");
   assert.strictEqual(response.softResetRequested, true);
   assert.strictEqual(resets.length, 1);
@@ -168,13 +176,57 @@ function fastEnv() {
 }
 
 
+// Repeated extreme-looking event-loop samples must not reset the world when
+// the simulation is otherwise sustaining healthy throughput.
+{
+  let now = 0;
+  const resets = [];
+  const response = createLagResponse({
+    env: { RANAR_LAG_EMERGENCY_PERSIST_MS: "10" },
+    nowProvider: () => now,
+    getEntities: () => [],
+    onSoftReset: (details) => resets.push(details),
+  });
+  response.update(100, { cycleMs: 500 }, []);
+  now = 100;
+  response.update(100, { cycleMs: 500 }, []);
+  now = 1000;
+  response.update(100, { cycleMs: 500 }, []);
+  assert.strictEqual(resets.length, 0, "healthy throughput prevents emergency reset despite high raw-lag values");
+  assert.notStrictEqual(response.activeStageId, "soft-reset");
+}
+
+// An isolated extreme sample must not leave a stale emergency timer that can
+// combine with a later, unrelated spike.
+{
+  let now = 0;
+  const resets = [];
+  const response = createLagResponse({
+    env: { RANAR_LAG_EMERGENCY_PERSIST_MS: "1000" },
+    nowProvider: () => now,
+    getEntities: () => [],
+    onSoftReset: (details) => resets.push(details),
+  });
+  response.update(10, { cycleMs: 500 }, []);
+  now = 100;
+  response.update(100, { cycleMs: 20 }, []);
+  now = 2000;
+  response.update(10, { cycleMs: 500 }, []);
+  assert.strictEqual(resets.length, 0, "separated spikes must not accumulate into an emergency reset");
+  assert.notStrictEqual(response.activeStageId, "soft-reset");
+}
+
 // Environment overrides must not make the hard emergency threshold more sensitive
 // than the documented 500ms raw-latency boundary.
 {
   let now = 0;
   const resets = [];
   const response = createLagResponse({
-    env: Object.assign(fastEnv(), { RANAR_LOAD_EXTREME_LAG_MS: "100" }),
+    env: Object.assign(fastEnv(), {
+      RANAR_LOAD_EXTREME_LAG_MS: "100",
+      RANAR_LAG_EMERGENCY_PERSIST_MS: "10",
+      RANAR_LAG_EMERGENCY_SPEED_PERCENT: "15",
+    }),
     nowProvider: () => now,
     getEntities: () => [],
     onSoftReset: (details) => resets.push(details),
@@ -183,10 +235,13 @@ function fastEnv() {
   assert.notStrictEqual(response.activeStageId, "soft-reset",
     "a configured lower threshold must not turn a sub-500ms cycle into an emergency reset");
   assert.strictEqual(resets.length, 0);
-  now++;
+  now += 10;
+  response.update(0, { cycleMs: 500 }, []);
+  assert.notStrictEqual(response.activeStageId, "soft-reset", "the raw emergency must persist after its first sample");
+  now += 10;
   response.update(0, { cycleMs: 500 }, []);
   assert.strictEqual(response.activeStageId, "soft-reset",
-    "the hard emergency activates at 500ms even when a lower environment override is present");
+    "the hard emergency activates after sustained 500ms lag even when a lower threshold override is present");
   assert.strictEqual(resets.length, 1);
 }
 
@@ -216,7 +271,7 @@ function fastEnv() {
   let now = 0;
   const resets = [];
   const response = createLagResponse({
-    env: fastEnv(),
+    env: Object.assign(fastEnv(), { RANAR_LAG_EMERGENCY_PERSIST_MS: "10" }),
     nowProvider: () => now,
     getEntities: () => [],
     onSoftReset: (details) => resets.push(details),
@@ -228,9 +283,13 @@ function fastEnv() {
   assert.notStrictEqual(response.activeStageId, "soft-reset",
     "an old or smoothed 700ms value must not reach the emergency-only reset tier");
   assert.strictEqual(resets.length, 0);
+  now += 10;
+  response.update(0, { cycleMs: 500, smoothedCycleMs: 700 }, []);
+  assert.notStrictEqual(response.activeStageId, "soft-reset", "the first raw severe sample starts persistence");
+  now += 10;
   response.update(0, { cycleMs: 500, smoothedCycleMs: 700 }, []);
   assert.strictEqual(response.activeStageId, "soft-reset",
-    "a raw 500ms cycle must still activate the emergency reset immediately");
+    "a raw 500ms cycle must activate the emergency reset only after the persistence window");
   assert.strictEqual(resets.length, 1);
 }
 
@@ -243,12 +302,18 @@ function fastEnv() {
   const recoveries = [];
   const cancellations = [];
   const response = createLagResponse({
-    env: Object.assign(fastEnv(), { RANAR_LAG_RESPONSE_RECOVERY_MS: "5" }),
+    env: Object.assign(fastEnv(), {
+      RANAR_LAG_RESPONSE_RECOVERY_MS: "5",
+      RANAR_LAG_EMERGENCY_PERSIST_MS: "1",
+    }),
     nowProvider: () => now,
     getEntities: () => [],
     onRecovery: (details) => recoveries.push(details),
     onRecoveryCancelled: (details) => cancellations.push(details),
   });
+  response.update(0, { cycleMs: 500 }, []);
+  assert.notStrictEqual(response.activeStageId, "soft-reset", "emergency persistence begins at the first stall");
+  now = 1;
   response.update(0, { cycleMs: 500 }, []);
   assert.strictEqual(response.activeStageId, "soft-reset");
   now = 5;

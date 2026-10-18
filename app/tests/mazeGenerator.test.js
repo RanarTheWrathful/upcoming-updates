@@ -119,14 +119,51 @@ const generated = maze.generateWorldMaze({
   width: 4000,
   height: 4000,
   roomSetup: cleared,
+  layoutType: "chaos",
   random: seededRandom(0xC0FFEE),
 });
 const alternate = maze.generateWorldMaze({
   width: 4000,
   height: 4000,
   roomSetup: cleared,
+  layoutType: "chaos",
   random: seededRandom(0x51A7),
 });
+assert.strictEqual(generated.layoutType, "chaos", "the requested maze style should be reported");
+
+assert(maze.MAZE_LAYOUT_TYPES.includes(maze.generateWorldMaze({
+  width: 2000, height: 2000, roomSetup: cleared, random: seededRandom(0xA11CE), density: 0,
+}).layoutType), "the default generation style should randomly choose a supported layout");
+for (const style of maze.MAZE_LAYOUT_TYPES) {
+  const styleLayout = maze.generateWorldMaze({
+    width: 2600,
+    height: 2600,
+    roomSetup: cleared,
+    layoutType: style,
+    density: 0.24,
+    random: seededRandom(0xACED + maze.MAZE_LAYOUT_TYPES.indexOf(style)),
+  });
+  assert.strictEqual(styleLayout.layoutType, style, `${style} should stay selected for the generated layout`);
+  assert(styleLayout.walls.every((wall) => Number.isFinite(wall.x) && Number.isFinite(wall.y) && wall.size > 0),
+    `${style} should generate valid wall entities`);
+  assertPhysicalClearanceConnectivity(styleLayout, 2600, 2600);
+}
+const littleStyle = maze.generateWorldMaze({
+  width: 2600, height: 2600, roomSetup: cleared, layoutType: "lotta-littles", density: 0.24, random: seededRandom(0xBEEF),
+});
+const largeStyle = maze.generateWorldMaze({
+  width: 2600, height: 2600, roomSetup: cleared, layoutType: "lotta-larges", density: 0.24, random: seededRandom(0xBEEF),
+});
+assert(Math.max(...littleStyle.walls.map((wall) => wall.size)) < Math.min(...largeStyle.walls.map((wall) => wall.size)),
+  "lotta-littles and lotta-larges must use distinct physical size profiles");
+assert.strictEqual(maze.resolveWallDefinition("mazewall", { wall: { key: "wall" }, obstacle: { key: "obstacle" } }).key, "wall",
+  "mazewall should resolve to the default exported wall definition");
+assert.strictEqual(maze.resolveWallDefinition("Maze Wall", { wall: { key: "wall" } }).key, "wall",
+  "the visible Maze Wall name should resolve to the default wall definition");
+assert.strictEqual(maze.resolveWallDefinition("ObStAcLe", { obstacle: { key: "obstacle" } }).key, "obstacle",
+  "other exported entity definitions should be selectable case-insensitively");
+assert.strictEqual(maze.resolveWallDefinition("missing", { wall: { key: "wall" } }), null,
+  "unknown entity classes should fall back explicitly in server setup");
 
 assert(generated.columns > cleared[0].length, "world-grid resolution should be independent of, and finer than, ROOM_SETUP");
 assert(generated.rows > cleared.length, "world-grid row count should not be copied from ROOM_SETUP");

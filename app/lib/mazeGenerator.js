@@ -29,6 +29,29 @@ const DEFAULTS = Object.freeze({
   specialClearanceBufferRatio: 0.06,
 });
 
+const MAZE_LAYOUT_TYPES = Object.freeze([
+  "cave-like",
+  "natural-maze",
+  "lotta-littles",
+  "lotta-larges",
+  "chaos",
+  "simplistic",
+]);
+
+function normalizeLayoutType(value, tools) {
+  const normalized = String(value || "random").trim().toLowerCase()
+    .replace(/[\s_]+/g, "-");
+  const aliases = {
+    cave: "cave-like", caves: "cave-like", caveish: "cave-like",
+    maze: "natural-maze", natural: "natural-maze", naturalmaze: "natural-maze",
+    littles: "lotta-littles", "lots-of-littles": "lotta-littles",
+    larges: "lotta-larges", "lots-of-larges": "lotta-larges",
+    simple: "simplistic",
+  };
+  const candidate = aliases[normalized] || normalized;
+  return MAZE_LAYOUT_TYPES.includes(candidate) ? candidate : tools.choose(MAZE_LAYOUT_TYPES);
+}
+
 function isPlainGrid(grid) {
   return Array.isArray(grid) && grid.length > 0 && grid.every(
     (row) => Array.isArray(row) && row.length === grid[0].length && row.length > 0
@@ -45,6 +68,20 @@ function shouldRandomizeMaze({ serverType, modeName, settings } = {}) {
     settings.RANDOMIZE_MAZE === true ||
     settings.HAS_MAZE === true ||
     /maze/i.test(String(modeName || settings.MODE || ""));
+}
+
+function resolveWallDefinition(name, definitions) {
+  if (!definitions || typeof definitions !== "object") return null;
+  const requestedName = String(name || "mazewall").trim();
+  const normalize = (value) => String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normalized = normalize(requestedName);
+  const aliases = { mazewall: "wall", wall: "wall", rock: "obstacle" };
+  const keyName = aliases[normalized] || requestedName;
+  const direct = definitions[keyName];
+  if (direct && typeof direct === "object" && !Array.isArray(direct)) return direct;
+  const matchingKey = Object.keys(definitions).find((key) => normalize(key) === normalize(keyName));
+  const match = matchingKey ? definitions[matchingKey] : null;
+  return match && typeof match === "object" && !Array.isArray(match) ? match : null;
 }
 
 // Remove hand-authored wall cells when a mode opts into generated walls.
@@ -268,13 +305,66 @@ function makeWindingPattern(tools) {
   return Array.from(cells.values());
 }
 
-function makePattern(tools) {
+function makePattern(tools, layoutType) {
   const { unit, intBetween } = tools;
   const roll = unit();
   const cells = [];
   let reservedVoids = [];
 
-  if (roll < 0.02) {
+  if (layoutType === "cave-like") {
+    const cave = makeCavePattern(tools);
+    cells.push(...cave.points);
+    reservedVoids = cave.voids;
+  } else if (layoutType === "natural-maze") {
+    cells.push(...makeWindingPattern(tools));
+    // Occasional short side branches make the corridors feel hand-dug rather
+    // than like a single snake, without breaking the connected formation.
+    if (unit() < 0.5) {
+      const branchAt = cells[intBetween(0, cells.length - 1)] || [0, 0];
+      const branchLength = intBetween(2, 4);
+      const [dx, dy] = tools.choose([[1, 0], [0, 1], [-1, 0], [0, -1]]);
+      for (let i = 1; i <= branchLength; i++) cells.push([branchAt[0] + dx * i, branchAt[1] + dy * i]);
+    }
+  } else if (layoutType === "lotta-littles") {
+    // Small connected clumps keep this style scattered and granular. Wall
+    // radii are reduced separately in addWall().
+    const points = new Map([["0:0", [0, 0]]]);
+    const count = intBetween(1, 4);
+    for (let i = 0; i < count; i++) {
+      const existing = Array.from(points.values());
+      const [x, y] = tools.choose(existing);
+      const [dx, dy] = tools.choose([[1, 0], [0, 1], [-1, 0], [0, -1]]);
+      points.set(`${x + dx}:${y + dy}`, [x + dx, y + dy]);
+    }
+    cells.push(...points.values());
+  } else if (layoutType === "lotta-larges") {
+    // Broad masses, sometimes with a small interior void, create large
+    // formations rather than simply increasing the count of small blocks.
+    const width = intBetween(4, 7);
+    const height = intBetween(4, 7);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const insidePocket = x > 0 && y > 0 && x < width - 1 && y < height - 1;
+        if (insidePocket && unit() < 0.10) reservedVoids.push([x, y]);
+        else cells.push([x, y]);
+      }
+    }
+  } else if (layoutType === "simplistic") {
+    // Clean rectangular blocks and straight ribs: deliberately little
+    // ornamentation compared with cave/chaos/winding styles.
+    const rollSimple = unit();
+    if (rollSimple < 0.40) {
+      const length = intBetween(3, 6);
+      const horizontal = unit() < 0.5;
+      for (let i = 0; i < length; i++) cells.push(horizontal ? [i, 0] : [0, i]);
+    } else {
+      const width = intBetween(2, 3);
+      const height = intBetween(2, 3);
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) cells.push([x, y]);
+      }
+    }
+  } else if (roll < 0.02) {
     // A few isolated stones give large formations breathing room.
     cells.push([0, 0]);
   } else if (roll < 0.10) {
@@ -807,6 +897,7 @@ function generateWorldMaze({
   random = Math.random,
   cellSize,
   density = DEFAULTS.wallDensity,
+  layoutType = "random",
 } = {}) {
   width = Number(width);
   height = Number(height);
@@ -816,6 +907,7 @@ function generateWorldMaze({
 
   const tools = makeRandomTools(random);
   const { unit, intBetween } = tools;
+  const selectedLayoutType = normalizeLayoutType(layoutType, tools);
   const minDimension = Math.min(width, height);
   const hasRoomGrid = isPlainGrid(roomSetup);
   const roomTileSide = hasRoomGrid
@@ -888,6 +980,11 @@ function generateWorldMaze({
   const occupied = Array.from({ length: rows }, () => Array(columns).fill(false));
   const reservedOpen = Array.from({ length: rows }, () => Array(columns).fill(false));
   const walls = [];
+  const styleJitterRatio = selectedLayoutType === "simplistic" ? 0.025
+    : selectedLayoutType === "natural-maze" ? 0.10
+      : DEFAULTS.positionJitterRatio;
+  const styleMaxJitterX = cellWidth * styleJitterRatio;
+  const styleMaxJitterY = cellHeight * styleJitterRatio;
   const addWall = (gridX, gridY) => {
     if (
       gridX < 0 || gridY < 0 || gridX >= columns || gridY >= rows ||
@@ -895,21 +992,32 @@ function generateWorldMaze({
     ) return false;
 
     occupied[gridY][gridX] = true;
-    const jitterX = (unit() * 2 - 1) * maxJitterX;
-    const jitterY = (unit() * 2 - 1) * maxJitterY;
-    // Keep wall blocks within roughly one grid cell. A few small blocks add
-    // texture, while the bulk remain large enough to form recognizable runs.
-    const sizeRoll = unit();
+    const jitterX = (unit() * 2 - 1) * styleMaxJitterX;
+    const jitterY = (unit() * 2 - 1) * styleMaxJitterY;
+    // Size profile is part of the layout style: little-heavy and large-heavy
+    // layouts differ in actual collision radii as well as formation shape.
     let minScale;
     let maxScale;
-    if (sizeRoll < 0.10) {
-      [minScale, maxScale] = [0.22, 0.29];
-    } else if (sizeRoll < 0.30) {
-      [minScale, maxScale] = [0.29, 0.36];
-    } else if (sizeRoll < 0.78) {
-      [minScale, maxScale] = [0.36, 0.43];
+    if (selectedLayoutType === "lotta-littles") {
+      minScale = 0.16;
+      maxScale = 0.29;
+    } else if (selectedLayoutType === "lotta-larges") {
+      minScale = 0.40;
+      maxScale = DEFAULTS.maxWallSizeScale;
+    } else if (selectedLayoutType === "simplistic") {
+      minScale = 0.34;
+      maxScale = 0.40;
     } else {
-      [minScale, maxScale] = [0.43, DEFAULTS.maxWallSizeScale];
+      const sizeRoll = unit();
+      if (sizeRoll < 0.10) {
+        [minScale, maxScale] = [0.22, 0.29];
+      } else if (sizeRoll < 0.30) {
+        [minScale, maxScale] = [0.29, 0.36];
+      } else if (sizeRoll < 0.78) {
+        [minScale, maxScale] = [0.36, 0.43];
+      } else {
+        [minScale, maxScale] = [0.43, DEFAULTS.maxWallSizeScale];
+      }
     }
     const size = shortCellSide * (minScale + unit() * (maxScale - minScale));
     walls.push({
@@ -1013,7 +1121,7 @@ function generateWorldMaze({
     for (let attempt = 0; attempt < attemptsForPattern; attempt++) {
       const [anchorX, anchorY] = chooseAnchor(openCandidates, pickWeightedCandidate);
       fallbackAnchor = [anchorX, anchorY];
-      let pattern = makePattern(tools);
+      let pattern = makePattern(tools, selectedLayoutType);
       if (pattern.cells.length > remainingBudget) pattern = { cells: [[0, 0]], voids: [] };
       if (!canPlacePattern(anchorX, anchorY, pattern)) continue;
       for (const [offsetX, offsetY] of pattern.cells) addWall(anchorX + offsetX, anchorY + offsetY);
@@ -1062,6 +1170,7 @@ function generateWorldMaze({
   });
 
   return {
+    layoutType: selectedLayoutType,
     columns,
     rows,
     cellWidth,
@@ -1074,7 +1183,9 @@ function generateWorldMaze({
 }
 
 module.exports = {
+  MAZE_LAYOUT_TYPES,
   shouldRandomizeMaze,
+  resolveWallDefinition,
   clearAuthoredWalls,
   generateWorldMaze,
 };

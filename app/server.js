@@ -489,15 +489,20 @@ room.reevaluate = () => {
 };
 room.findType();
 if (generateWorldMaze) {
+  const mazeWallEntityName = String(mergedSettings.MAZE_WALL_ENTITY || "mazewall");
   const generatedMaze = mazeGenerator.generateWorldMaze({
     width: room.width,
     height: room.height,
     roomSetup: room.setup,
+    layoutType: mergedSettings.MAZE_GENERATION_STYLE || "random",
+    density: mergedSettings.MAZE_GENERATION_DENSITY,
   });
   room.generatedMazeWalls = generatedMaze.walls;
+  room.generatedMazeStyle = generatedMaze.layoutType;
+  room.generatedMazeEntityName = mazeWallEntityName;
   util.log(
-    `Generated world-grid maze: ${generatedMaze.walls.length} wall blocks ` +
-    `on a ${generatedMaze.columns}x${generatedMaze.rows} grid ` +
+    `Generated world-grid maze: ${generatedMaze.walls.length} ${mazeWallEntityName} blocks ` +
+    `using '${generatedMaze.layoutType}' style on a ${generatedMaze.columns}x${generatedMaze.rows} grid ` +
     `(${generatedMaze.candidateCells} available cells).`
   );
 }
@@ -2186,6 +2191,16 @@ function makepentagonWorkbench() {
     });
   }
 }
+function resolveMazeWallDefinition() {
+  const requestedName = String(
+    room.generatedMazeEntityName || c.MAZE_WALL_ENTITY || "mazewall"
+  ).trim();
+  const definition = mazeGenerator.resolveWallDefinition(requestedName, Class);
+  if (definition) return definition;
+  util.warn(`[MAZE] Unknown MAZE_WALL_ENTITY '${requestedName}'. Falling back to the default Maze Wall class.`);
+  return Class.wall;
+}
+
 function makeMazeWalls() {
   const gridWidth = room.width / room.xgrid;
   const gridHeight = room.height / room.ygrid;
@@ -2196,10 +2211,11 @@ function makeMazeWalls() {
   const shortSide = Math.min(gridWidth, gridHeight);
   const baseSize = shortSide / 2;
   const spawnedCells = new Set();
+  const mazeWallDefinition = resolveMazeWallDefinition();
 
   const spawnBlock = (x, y, gridX, gridY, generatedSize) => {
     const o = new Entity({ x, y });
-    o.define(Class.wall);
+    o.define(mazeWallDefinition);
     // Generated walls carry their own size from the independent world grid.
     // Authored walls keep the old room-cell sizing behavior.
     o.SIZE = Number.isFinite(generatedSize) && generatedSize > 0
@@ -2209,7 +2225,7 @@ function makeMazeWalls() {
     o.spawnLoc = { x, y };
     o.protect();
     o.team = -101;
-    o.color = 16;
+    if (c.MAZE_WALL_COLOR !== undefined) o.color = c.MAZE_WALL_COLOR;
     o.alwaysExists = true;
     o.isMazeWall = true;
     o.refreshBodyAttributes();

@@ -82,8 +82,11 @@ function createLoadProtection(options = {}) {
   const warningDelayMs = positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 100);
   const highDelayMs = positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 200);
   const criticalDelayMs = positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 300);
-  // Crossing this extreme-lag threshold bypasses every policy persistence timer.
-  const emergencyLagMs = 500; // Only a raw 500ms+ stall may instantly max anti-lag response.
+  // A single long tick may be garbage collection or host jitter. The emergency
+  // path now requires sustained raw lag and genuinely poor throughput.
+  const emergencyLagMs = 500;
+  const emergencyLagPersistenceMs = positiveNumber(env.RANAR_LOAD_EMERGENCY_PERSIST_MS, 10000);
+  const emergencySpeedPercent = Math.max(1, Math.min(100, Number(env.RANAR_LOAD_EMERGENCY_SPEED_PERCENT) || 15));
   const suspensionIntervalMs = positiveNumber(env.RANAR_LOAD_SUSPEND_INTERVAL_MS, 2500);
   const suspensionWindowMs = positiveNumber(env.RANAR_LOAD_SUSPEND_WINDOW_MS, 60000);
   const entityFadeMs = positiveNumber(env.RANAR_LOAD_ENTITY_FADE_MS, 2500);
@@ -175,6 +178,7 @@ function createLoadProtection(options = {}) {
   let smoothedEventLoopDelayMs = 0;
   let currentRunSpeedPercent = 100;
   let lastObservedRunSpeedPercent = 100;
+  let emergencyLagSince = null;
   // Entity references are held only while they are visibly suspended/fading.
   // The episode is bounded to one minute and invalid entities are pruned each cycle.
   const suspendedEntities = new Map();
@@ -475,8 +479,6 @@ function createLoadProtection(options = {}) {
       ? Math.max(0, Math.min(100, speedPercent))
       : 100;
     const safeLag = Number.isFinite(lagMs) && lagMs >= 0 ? lagMs : 0;
-    if (safeLag >= emergencyLagMs) return 3;
-
     let desired = 0;
     if (safeLag >= warningDelayMs && safeSpeed <= speedThresholds.warning) desired = 1;
     if (safeLag >= highDelayMs && safeSpeed <= speedThresholds.high) desired = 2;
@@ -484,13 +486,12 @@ function createLoadProtection(options = {}) {
     return desired;
   }
 
-  function updateCycleStage(speedPercent, allowRecovery, lagMs) {
+  function updateCycleStage(speedPercent, allowRecovery, lagMs, emergencyConfirmed = false) {
     const now = nowProvider();
     const safeLag = Number.isFinite(lagMs) && lagMs >= 0 ? lagMs : 0;
-    const desired = desiredCycleStage(speedPercent, safeLag);
+    const desired = emergencyConfirmed ? 3 : desiredCycleStage(speedPercent, safeLag);
 
-    if (safeLag >= emergencyLagMs) {
-      // Only a raw extreme stall bypasses the normal five-second escalation.
+    if (emergencyConfirmed) {
       cycleStage = 3;
       cycleStageEscalationSince = null;
       cycleStageRecoverySince = null;
@@ -1681,8 +1682,6 @@ function createLoadProtection(options = {}) {
     const safeSpeed = Number.isFinite(speedPercent)
       ? Math.max(0, Math.min(100, speedPercent))
       : 100;
-    if (safeLagMs >= emergencyLagMs) return runSpeedMultipliers.length - 1;
-
     let desired = 0;
     for (let i = 0; i < RUN_SPEED_THRESHOLDS_MS.length; i++) {
       // Both latency and throughput must indicate trouble before a tier counts.
@@ -1695,14 +1694,12 @@ function createLoadProtection(options = {}) {
     return desired;
   }
 
-  function updateRunSpeed(lagMs, allowRecovery, rawObservedLagMs = 0) {
+  function updateRunSpeed(lagMs, allowRecovery, rawObservedLagMs = 0, emergencyConfirmed = false) {
     const now = nowProvider();
     const safeLagMs = Number.isFinite(lagMs) && lagMs >= 0 ? lagMs : 0;
-    const rawLagMs = Number.isFinite(rawObservedLagMs) && rawObservedLagMs >= 0 ? rawObservedLagMs : 0;
     const desired = desiredRunSpeedLevel(safeLagMs, currentRunSpeedPercent);
 
-    if (rawLagMs >= emergencyLagMs) {
-      // Only a raw measured 500ms+ stall may bypass tier-by-tier pacing.
+    if (emergencyConfirmed) {
       runSpeedLevel = runSpeedMultipliers.length - 1;
       runSpeedEscalationSince = null;
       runSpeedRecoverySince = null;
@@ -1741,6 +1738,18 @@ function createLoadProtection(options = {}) {
   function getRecommendedCycleIntervalMs(baseIntervalMs) {
     const base = positiveNumber(baseIntervalMs, 1000 / 30);
     return base * getRunSpeedMultiplier();
+  }
+
+  function updateEmergencyLagState(rawLagMs, speedPercent) {
+    const now = nowProvider();
+    const lag = Number.isFinite(rawLagMs) && rawLagMs >= 0 ? rawLagMs : 0;
+    const speed = Number.isFinite(speedPercent) ? speedPercent : 100;
+    if (lag >= emergencyLagMs && speed <= emergencySpeedPercent) {
+      if (emergencyLagSince === null) emergencyLagSince = now;
+      return now - emergencyLagSince >= emergencyLagPersistenceMs;
+    }
+    emergencyLagSince = null;
+    return false;
   }
 
   function collectOwnedEntityUnit(root) {
@@ -1952,8 +1961,9 @@ function createLoadProtection(options = {}) {
     const observedLagMs = Math.max(cycleMs, sampledP95);
     lastObservedLagMs = observedLagMs;
     const controlLagMs = Math.max(smoothedCycleMs, smoothedEventLoopDelayMs);
-    updateRunSpeed(controlLagMs, true, observedLagMs);
-    updateCycleStage(runSpeedPercent, true, observedLagMs);
+    const emergencyConfirmed = updateEmergencyLagState(observedLagMs, runSpeedPercent);
+    updateRunSpeed(controlLagMs, true, observedLagMs, emergencyConfirmed);
+    updateCycleStage(runSpeedPercent, true, observedLagMs, emergencyConfirmed);
 
     // Advance existing fades before episode transitions. In particular, the
     // 60-second cutoff must see the latest opacity of a just-disabled entity.
@@ -2062,12 +2072,14 @@ function createLoadProtection(options = {}) {
 
     const observedLagMs = Math.max(sampledP95, lastCycleMs);
     lastObservedLagMs = observedLagMs;
-    // Ordinary pacing uses filtered load; only the current raw 500ms+ observation
-    // bypasses tier timers. Critical memory remains handled by memory policies.
+    // Ordinary pacing uses filtered load. Only a confirmed, persistent raw
+    // extreme-lag episode bypasses the ordinary tier timers. Critical memory is
+    // handled separately by the memory policy.
     const controlLagMs = Math.max(smoothedCycleMs, smoothedEventLoopDelayMs);
-    updateRunSpeed(controlLagMs, false, observedLagMs);
+    const emergencyConfirmed = updateEmergencyLagState(observedLagMs, currentRunSpeedPercent);
+    updateRunSpeed(controlLagMs, false, observedLagMs, emergencyConfirmed);
     const previousDelayEffective = effectiveStage();
-    updateCycleStage(currentRunSpeedPercent, false, observedLagMs);
+    updateCycleStage(currentRunSpeedPercent, false, observedLagMs, emergencyConfirmed);
     advanceEntityTransitions(nowProvider());
     const liveEntities = getEntities();
     lastMetrics = Object.assign({}, lastMetrics, {
@@ -2157,6 +2169,10 @@ function createLoadProtection(options = {}) {
     snapshot.runSpeedRecoveryMs = runSpeedRecoveryMs;
     snapshot.runSpeedLevel = runSpeedLevel;
     snapshot.emergencyLagMs = emergencyLagMs;
+    snapshot.emergencyLagPersistenceMs = emergencyLagPersistenceMs;
+    snapshot.emergencyLagPersistenceElapsedMs = emergencyLagSince === null
+      ? 0 : Math.max(0, nowProvider() - emergencyLagSince);
+    snapshot.emergencyLagPending = emergencyLagSince !== null;
     snapshot.runSpeedMultiplier = getRunSpeedMultiplier();
     snapshot.targetTickRatePercent = Math.round(100 / getRunSpeedMultiplier());
     snapshot.cycleStage = cycleStage;

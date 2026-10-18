@@ -99,7 +99,7 @@ function makeEntity(overrides = {}) {
     "sustained throughput loss and measured latency should lower the natural population cap after the tier timer");
 }
 
-// Scheduler pacing escalates one tier per five seconds and reserves instant max for 500ms+.
+// Scheduler pacing escalates one tier per five seconds; emergency max requires sustained severe lag.
 {
   const test = makeProtection();
   test.protection.reportCycle(200, [], 0);
@@ -120,13 +120,33 @@ function makeEntity(overrides = {}) {
   assert.strictEqual(test.protection.getSnapshot().runSpeedLevel, 1,
     "sustained lag should climb by one tier after five seconds, not jump to the requested level");
 
-  const emergency = makeProtection();
+  const emergency = makeProtection({
+    env: {
+      RANAR_LOAD_RUNTIME_EMA_ALPHA: "1",
+      RANAR_LOAD_EMERGENCY_PERSIST_MS: "1000",
+      RANAR_LAG_EMERGENCY_PERSIST_MS: "1000",
+      RANAR_LOAD_EMERGENCY_SPEED_PERCENT: "15",
+      RANAR_LAG_EMERGENCY_SPEED_PERCENT: "15",
+    },
+  });
   emergency.protection.reportCycle(500, [], 0);
-  const snapshot = emergency.protection.getSnapshot();
-  assert.strictEqual(snapshot.runSpeedLevel, 5,
-    "a measured 500ms cycle should immediately max the scheduler pacing tier");
-  assert.strictEqual(snapshot.lagResponseStageId, "soft-reset",
-    "a measured 500ms stall should immediately trigger the emergency mitigation tier");
+  let emergencySnapshot = emergency.protection.getSnapshot();
+  assert(emergencySnapshot.runSpeedLevel < 5,
+    "a single 500ms cycle must not instantly max scheduler pacing");
+  assert.notStrictEqual(emergencySnapshot.lagResponseStageId, "soft-reset",
+    "a single 500ms cycle must not trigger the emergency mitigation tier");
+  emergency.setNow(999);
+  emergency.protection.reportCycle(500, [], 999);
+  emergencySnapshot = emergency.protection.getSnapshot();
+  assert.notStrictEqual(emergencySnapshot.lagResponseStageId, "soft-reset",
+    "the emergency reset must wait for the complete persistence window");
+  emergency.setNow(1000);
+  emergency.protection.reportCycle(500, [], 1000);
+  emergencySnapshot = emergency.protection.getSnapshot();
+  assert.strictEqual(emergencySnapshot.runSpeedLevel, 5,
+    "persistent severe lag may max scheduler pacing");
+  assert.strictEqual(emergencySnapshot.lagResponseStageId, "soft-reset",
+    "persistent severe lag may activate emergency mitigation");
 }
 
 // The hard emergency boundary is exactly 500ms. A lower environment setting
@@ -136,6 +156,10 @@ function makeEntity(overrides = {}) {
     env: {
       RANAR_LOAD_EXTREME_LAG_MS: "100",
       RANAR_LOAD_RUNTIME_EMA_ALPHA: "1",
+      RANAR_LOAD_EMERGENCY_PERSIST_MS: "1000",
+      RANAR_LAG_EMERGENCY_PERSIST_MS: "1000",
+      RANAR_LOAD_EMERGENCY_SPEED_PERCENT: "15",
+      RANAR_LAG_EMERGENCY_SPEED_PERCENT: "15",
     },
   });
   test.protection.reportCycle(499, [], 0);
@@ -144,16 +168,22 @@ function makeEntity(overrides = {}) {
     "a 499ms cycle must not instantly max scheduler pacing");
   assert.notStrictEqual(snapshot.lagResponseStageId, "soft-reset",
     "a 499ms cycle must not trigger the emergency world reset");
+  test.setNow(1);
   test.protection.reportCycle(500, [], 1);
   snapshot = test.protection.getSnapshot();
+  assert(snapshot.runSpeedLevel < 5, "the first raw 500ms sample starts, but does not bypass, the persistence timer");
+  assert.notStrictEqual(snapshot.lagResponseStageId, "soft-reset");
+  test.setNow(1001);
+  test.protection.reportCycle(500, [], 1001);
+  snapshot = test.protection.getSnapshot();
   assert.strictEqual(snapshot.runSpeedLevel, 5,
-    "a raw 500ms cycle must instantly max scheduler pacing");
+    "a raw 500ms cycle must max scheduler pacing only after sustained emergency lag");
   assert.strictEqual(snapshot.lagResponseStageId, "soft-reset",
-    "a raw 500ms cycle must instantly activate emergency mitigation");
+    "a raw 500ms cycle must activate emergency mitigation only after sustained emergency lag");
 }
 
 // Once throughput recovers, every natural spawn gate reopens even if the
-// slower diagnostic-stage cooldown has not yet returned to its normal level.
+// slower diagnostic-stage cooldown has not returned to normal or heap use remains high but stable.
 {
   let now = 0;
   const env = {
@@ -171,10 +201,10 @@ function makeEntity(overrides = {}) {
   const test = makeProtection({
     env,
     options: {
-      // A high-but-not-critical heap should not prevent lag gates reopening once
-      // simulation throughput is healthy again.
+      // A high, stable heap should not prevent lag gates reopening once
+      // simulation throughput is healthy again; V8 need not return reserved pages.
       sampleProvider: () => ({
-        memoryRatio: 0.92, rssMb: 450, heapUsedMb: 420, heapLimitMb: 456, externalMb: 0,
+        memoryRatio: 0.99, rssMb: 450, heapUsedMb: 420, heapLimitMb: 456, externalMb: 0,
         eventLoopP95Ms: 0, eventLoopMaxMs: 0, memoryGrowthMb: 0, memoryTrendReady: false,
       }),
     },
@@ -191,11 +221,11 @@ function makeEntity(overrides = {}) {
   assert.strictEqual(test.protection.shouldSpawnFood(), false, "food spawning pauses at its mitigation stage");
   assert.strictEqual(test.protection.shouldSpawnBot(), false, "bot spawning pauses at its mitigation stage");
 
-  // Supply the current high-but-not-critical heap sample while runtime speed is
-  // still poor; it must not bypass the active mitigation stage on its own.
+  // Supply a stable high heap sample while runtime speed is still poor; it must
+  // not bypass the active mitigation stage on its own.
   test.protection.sample();
   assert.notStrictEqual(test.protection.getSnapshot().lagResponseStageId, "normal",
-    "high memory alone must not prematurely release active lag mitigation");
+    "high but stable memory alone must not prematurely release active lag mitigation");
 
   for (let tick = 0; tick < 20 && test.protection.getSnapshot().lagResponseStage !== -1; tick++) {
     now += 5;
