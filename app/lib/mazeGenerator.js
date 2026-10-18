@@ -7,8 +7,8 @@ const DEFAULTS = Object.freeze({
   targetCellsAcrossShortSide: 28,
   minCellSize: 115,
   maxCellSize: 230,
-  wallDensity: 0.35,
-  maxWallSizeScale: 0.48,
+  wallDensity: 0.40,
+  maxWallSizeScale: 0.52,
   // Bias density away from the exact centre and outer edge, but never forbid
   // either region. Smooth falloffs avoid obvious empty bands.
   centerFadeRatio: 0.15,
@@ -16,11 +16,11 @@ const DEFAULTS = Object.freeze({
   borderFadeRatio: 0.14,
   borderDensityFloor: 0.18,
   // Real positional variance prevents the layout from reading as a rigid grid.
-  positionJitterRatio: 0.20,
+  positionJitterRatio: 0.17,
   // Narrow clearances are closed up; wider clearances remain useful passages.
   minimumOpeningRatio: 0.42,
   touchingGapRatio: 0.025,
-  maxGapResolvePasses: 128,
+  maxGapResolvePasses: 256,
   specialClearanceBufferRatio: 0.06,
 });
 
@@ -110,46 +110,49 @@ function makePattern(tools) {
   const roll = unit();
   const cells = [];
 
-  if (roll < 0.16) {
-    // Frequent single blocks keep gaps and alternate routes throughout the map.
+  if (roll < 0.08) {
+    // Isolated blocks remain possible, but should be uncommon.
     cells.push([0, 0]);
-  } else if (roll < 0.40) {
-    // Mostly small/medium rectangular islands, with occasional larger chunks.
-    const width = intBetween(1, unit() < 0.82 ? 3 : 4);
-    const height = intBetween(1, unit() < 0.82 ? 3 : 4);
+  } else if (roll < 0.36) {
+    // Favor larger, chunky rectangles over a field of tiny individual blocks.
+    const width = intBetween(1, unit() < 0.68 ? 3 : 4);
+    const height = intBetween(1, unit() < 0.68 ? 3 : 4);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) cells.push([x, y]);
     }
-  } else if (roll < 0.65) {
-    // Short corridors form readable runs without creating too many huge slabs.
-    const length = intBetween(2, 5);
-    const thickness = unit() < 0.22 ? 2 : 1;
+  } else if (roll < 0.59) {
+    // Longer corridors are more frequent, with a meaningful share two blocks thick.
+    const length = intBetween(2, 6);
+    const thicknessRoll = unit();
+    const thickness = thicknessRoll < 0.42 ? 2 : thicknessRoll < 0.48 ? 3 : 1;
     const horizontal = unit() < 0.5;
     for (let i = 0; i < length; i++) {
       for (let t = 0; t < thickness; t++) {
         cells.push(horizontal ? [i, t] : [t, i]);
       }
     }
-  } else if (roll < 0.84) {
-    // Short L-shaped chunks introduce turns and small sheltered pockets.
-    const horizontalLength = intBetween(2, 4);
-    const verticalLength = intBetween(2, 4);
+  } else if (roll < 0.78) {
+    // Broader L-shaped chunks make recognizable corners and routes.
+    const horizontalLength = intBetween(2, 5);
+    const verticalLength = intBetween(2, 5);
     for (let x = 0; x < horizontalLength; x++) cells.push([x, 0]);
     for (let y = 1; y < verticalLength; y++) cells.push([horizontalLength - 1, y]);
-    if (unit() < 0.3 && horizontalLength > 2) cells.push([horizontalLength - 2, 1]);
-  } else if (roll < 0.95) {
-    // Staggered clusters create uneven but traversable maze-like patterns.
-    const length = intBetween(3, 5);
+    if (unit() < 0.5 && horizontalLength > 2) cells.push([horizontalLength - 2, 1]);
+  } else if (roll < 0.93) {
+    // Staggered patches create denser clusters without filling whole rectangles.
+    const length = intBetween(3, 6);
     for (let x = 0; x < length; x++) {
       const y = Math.floor(x / 2);
       cells.push([x, y]);
-      if (unit() < 0.36) cells.push([x, y + 1]);
+      if (unit() < 0.48) cells.push([x, y + 1]);
+      if (unit() < 0.18 && x > 0) cells.push([x - 1, y + 1]);
     }
   } else {
-    // Rare large formations provide landmarks without dominating the map.
+    // Larger formations are uncommon, but now often form substantial barriers.
     const horizontal = unit() < 0.5;
-    const length = intBetween(4, 7);
-    const thickness = unit() < 0.35 ? 2 : 1;
+    const length = intBetween(4, 8);
+    const thicknessRoll = unit();
+    const thickness = thicknessRoll < 0.45 ? 2 : thicknessRoll < 0.53 ? 3 : 1;
     for (let i = 0; i < length; i++) {
       for (let t = 0; t < thickness; t++) {
         cells.push(horizontal ? [i, t] : [t, i]);
@@ -206,65 +209,96 @@ function closeNarrowOpenings(walls, {
   shortCellSide,
 }) {
   if (walls.length < 2) return;
-
   const byCell = new Map(walls.map((wall) => [`${wall.gridX}:${wall.gridY}`, wall]));
   const minimumOpening = shortCellSide * DEFAULTS.minimumOpeningRatio;
   const touchingGap = shortCellSide * DEFAULTS.touchingGapRatio;
   const maxStep = shortCellSide * DEFAULTS.minimumOpeningRatio * 0.5;
   const edgePadding = Math.max(2, shortCellSide * 0.025);
+  const addShift = (shifts, wall, dx, dy) => {
+    let shift = shifts.get(wall);
+    if (!shift) { shift = { x: 0, y: 0 }; shifts.set(wall, shift); }
+    shift.x += dx;
+    shift.y += dy;
+  };
+  const applyShifts = (shifts) => {
+    for (const [wall, shift] of shifts) {
+      wall.x = Math.max(wall.size + edgePadding, Math.min(width - wall.size - edgePadding,
+        wall.x + Math.max(-maxStep, Math.min(maxStep, shift.x))));
+      wall.y = Math.max(wall.size + edgePadding, Math.min(height - wall.size - edgePadding,
+        wall.y + Math.max(-maxStep, Math.min(maxStep, shift.y))));
+    }
+  };
+
+  // Resolve cardinal openings with axis-aligned movement. The resolver returns
+  // whether it changed any positions so it can alternate with the diagonal pass.
+  const resolveCardinal = (passes) => {
+    let changed = false;
+    for (let pass = 0; pass < passes; pass++) {
+      const shifts = new Map();
+      let found = false;
+      const check = (first, second, axis) => {
+        const delta = axis === "x" ? second.x - first.x : second.y - first.y;
+        if (delta <= 0) return;
+        const gap = delta - first.size - second.size;
+        if (gap <= touchingGap || gap >= minimumOpening) return;
+        found = true;
+        const correction = (gap - touchingGap) / 2;
+        if (axis === "x") {
+          addShift(shifts, first, correction, 0);
+          addShift(shifts, second, -correction, 0);
+        } else {
+          addShift(shifts, first, 0, correction);
+          addShift(shifts, second, 0, -correction);
+        }
+      };
+      for (const wall of walls) {
+        const right = byCell.get(`${wall.gridX + 1}:${wall.gridY}`);
+        const below = byCell.get(`${wall.gridX}:${wall.gridY + 1}`);
+        if (right && wall.gridX + 1 < columns) check(wall, right, "x");
+        if (below && wall.gridY + 1 < rows) check(wall, below, "y");
+      }
+      if (!found) break;
+      changed = true;
+      applyShifts(shifts);
+    }
+    return changed;
+  };
+
+  // Resolve cardinal and diagonal gaps together. A final cardinal-only pass
+  // used to reopen diagonal slits that the previous pass had just closed.
+  // Alternating both constraints allows the positions to settle without leaving
+  // tiny diagonal holes or compromising the minimum straight corridor width.
+  const diagonalOffsets = [[1, 1], [-1, 1]];
+  const resolveDiagonals = () => {
+    const shifts = new Map();
+    let found = false;
+    for (const wall of walls) {
+      for (const [ox, oy] of diagonalOffsets) {
+        const other = byCell.get(`${wall.gridX + ox}:${wall.gridY + oy}`);
+        if (!other) continue;
+        const dx = other.x - wall.x;
+        const dy = other.y - wall.y;
+        const radiusSum = wall.size + other.size;
+        const gapX = Math.max(0, Math.abs(dx) - radiusSum);
+        const gapY = Math.max(0, Math.abs(dy) - radiusSum);
+        const gap = Math.hypot(gapX, gapY);
+        if (!Number.isFinite(gap) || gap <= touchingGap || gap >= minimumOpening) continue;
+        found = true;
+        const correction = (gap - touchingGap) / 2;
+        const moveX = Math.sign(dx) * correction * (gapX / gap);
+        const moveY = Math.sign(dy) * correction * (gapY / gap);
+        addShift(shifts, wall, moveX, moveY);
+        addShift(shifts, other, -moveX, -moveY);
+      }
+    }
+    if (found) applyShifts(shifts);
+    return found;
+  };
 
   for (let pass = 0; pass < DEFAULTS.maxGapResolvePasses; pass++) {
-    const shifts = new Map();
-    let foundNarrowGap = false;
-    const addShift = (wall, dx, dy) => {
-      let shift = shifts.get(wall);
-      if (!shift) {
-        shift = { x: 0, y: 0 };
-        shifts.set(wall, shift);
-      }
-      shift.x += dx;
-      shift.y += dy;
-    };
-
-    const checkPair = (first, second, axis) => {
-      const delta = axis === "x" ? second.x - first.x : second.y - first.y;
-      // Grid jitter and the previous corrections should preserve ordering. If
-      // malformed inputs ever break it, leave the pair alone rather than flip it.
-      if (delta <= 0) return;
-      const gap = delta - first.size - second.size;
-      if (gap <= touchingGap || gap >= minimumOpening) return;
-
-      foundNarrowGap = true;
-      const correction = (gap - touchingGap) / 2;
-      if (axis === "x") {
-        addShift(first, correction, 0);
-        addShift(second, -correction, 0);
-      } else {
-        addShift(first, 0, correction);
-        addShift(second, 0, -correction);
-      }
-    };
-
-    for (const wall of walls) {
-      const right = byCell.get(`${wall.gridX + 1}:${wall.gridY}`);
-      const below = byCell.get(`${wall.gridX}:${wall.gridY + 1}`);
-      if (right && right.gridX < columns) checkPair(wall, right, "x");
-      if (below && below.gridY < rows) checkPair(wall, below, "y");
-    }
-
-    if (!foundNarrowGap) break;
-    for (const [wall, shift] of shifts) {
-      wall.x = Math.max(
-        wall.size + edgePadding,
-        Math.min(width - wall.size - edgePadding,
-          wall.x + Math.max(-maxStep, Math.min(maxStep, shift.x)))
-      );
-      wall.y = Math.max(
-        wall.size + edgePadding,
-        Math.min(height - wall.size - edgePadding,
-          wall.y + Math.max(-maxStep, Math.min(maxStep, shift.y)))
-      );
-    }
+    const cardinalChanged = resolveCardinal(1);
+    const diagonalChanged = resolveDiagonals();
+    if (!cardinalChanged && !diagonalChanged) break;
   }
 }
 
@@ -339,11 +373,22 @@ function connectOpenRegions(walls, { columns, rows }) {
 
     const route = [];
     for (let point = exit; point; point = previous.get(key(...point))) route.push(point);
+    route.reverse();
     const carve = new Set();
-    for (const [x, y] of route) {
+    for (let i = 0; i < route.length; i++) {
+      const [x, y] = route[i];
       carve.add(key(x, y));
-      // Widen the route so adjacent wall radii cannot pinch it shut.
-      for (const [dx, dy] of directions) if (inBounds(x + dx, y + dy)) carve.add(key(x + dx, y + dy));
+      const next = route[i + 1];
+      const previousPoint = route[i - 1];
+      const reference = next || previousPoint;
+      if (!reference) continue;
+      const dx = next ? next[0] - x : x - previousPoint[0];
+      const dy = next ? next[1] - y : y - previousPoint[1];
+      // Clear one consistent perpendicular cell as well as the route cell. This
+      // creates a two-cell-wide exit without erasing three adjacent wall bands.
+      const px = -dy;
+      const py = dx;
+      if (inBounds(x + px, y + py)) carve.add(key(x + px, y + py));
     }
     for (const k of carve) wallByCell.delete(k);
     if (wallByCell.size === 0) break;

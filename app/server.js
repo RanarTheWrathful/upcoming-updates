@@ -73,7 +73,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "The Expanse";
+if (serverType === "testing") chosenMode = "FFA Maze";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -447,20 +447,45 @@ const room = {
 };
 room.xgrid = c.ROOM_SETUP[0].length;
 room.ygrid = c.ROOM_SETUP.length;
+room._setupTypeKeys = new Set();
 room.findType = () => {
-  let j = 0;
-  room.setup.forEach((row) => {
-    let i = 0;
-    row.forEach((cell) => {
-      if (!room[cell]) room[cell] = [];
+  // Re-index idempotently. The previous implementation only appended tile
+  // positions, so invoking it during a reset duplicated every room coordinate.
+  for (const key of room._setupTypeKeys) delete room[key];
+  const setup = room.setup;
+  if (!Array.isArray(setup) || !setup.length || !Array.isArray(setup[0]) || !setup[0].length) {
+    room._setupTypeKeys = new Set();
+    return 0;
+  }
+  room.ygrid = setup.length;
+  room.xgrid = setup[0].length;
+  const keys = new Set();
+  for (let j = 0; j < setup.length; j++) {
+    const row = setup[j];
+    if (!Array.isArray(row)) continue;
+    for (let i = 0; i < row.length; i++) {
+      const cell = row[i];
+      if (typeof cell !== "string" || !cell) continue;
+      if (!Array.isArray(room[cell])) room[cell] = [];
       room[cell].push({
         x: ((i + 0.5) * room.width) / room.xgrid,
         y: ((j + 0.5) * room.height) / room.ygrid,
       });
-      i++;
-    });
-    j++;
-  });
+      keys.add(cell);
+    }
+  }
+  room._setupTypeKeys = keys;
+  return keys.size;
+};
+room.reevaluate = () => {
+  room.findType();
+  const foodAmount = Number(c.FOOD_AMOUNT);
+  room.maxFood = ((room.width * room.height) / 20000) *
+    (Number.isFinite(foodAmount) ? Math.max(0, foodAmount) : 0);
+  room.nestFoodAmount = room.nest && room.nest.length
+    ? (1.5 * Math.sqrt(room.nest.length)) / room.xgrid / room.ygrid
+    : 0;
+  return { xgrid: room.xgrid, ygrid: room.ygrid, indexedTypes: room._setupTypeKeys.size };
 };
 room.findType();
 if (generateWorldMaze) {
@@ -477,11 +502,7 @@ if (generateWorldMaze) {
   );
 }
 
-room.nestFoodAmount = 0;
-if (room.nest) {
-  room.nestFoodAmount =
-    (1.5 * Math.sqrt(room.nest.length)) / room.xgrid / room.ygrid;
-}
+room.reevaluate();
 room.random = () => {
   return {
     x: ran.irandom(room.width),
@@ -15596,6 +15617,113 @@ const offscreenTransientCleanup = createOffscreenTransientCleanup({
   },
 });
 
+let antiLagSoftResetInProgress = false;
+
+function beginAntiLagSoftReset(details = {}) {
+  if (antiLagSoftResetInProgress || c.ANTILAG_SOFT_RESET_ACTIVE === true) return false;
+  antiLagSoftResetInProgress = true;
+  c.ANTILAG_SOFT_RESET_ACTIVE = true;
+  const warning = "Emergency server reset: you are being moved to spectator temporarily. Your score will be preserved.";
+  try { sockets.broadcast(warning); } catch (_) {}
+
+  const playerBodies = new Set();
+  const resetPlayers = [];
+  for (const socket of (sockets.clients || [])) {
+    if (!socket || !socket.player || !socket.player.body) continue;
+    const player = socket.player;
+    const originalBody = player.body;
+    const score = Number(originalBody.skill && originalBody.skill.score) || 0;
+    socket.savedScore = Math.max(Number(socket.savedScore) || 0, score);
+    socket._preserveNextDeathScore = true;
+    socket.status.deceased = false;
+
+    // Dominator bodies are map structures. Release control of the dominator and
+    // give the user a separate spectator body rather than deleting the structure.
+    let spectatorBody = originalBody;
+    if (originalBody.isDominator === true) {
+      originalBody.isTaken = false;
+      originalBody.controllers.length = 0;
+      if (typeof io_Dominator === "function") originalBody.addController(new io_Dominator(originalBody));
+      spectatorBody = new Entity({ x: originalBody.x, y: originalBody.y });
+      spectatorBody.define(Class.spectator);
+    } else {
+      spectatorBody.define(Class.spectator);
+    }
+
+    spectatorBody.isPlayer = true;
+    spectatorBody.keep = true;
+    spectatorBody.invuln = true;
+    spectatorBody.died = false;
+    spectatorBody.trulyDead = false;
+    spectatorBody.team = player.team;
+    spectatorBody.controllers.length = 0;
+    spectatorBody.addController(new io_listenToPlayer(spectatorBody, player));
+    spectatorBody.sendMessage = (content) => messenger(socket, content);
+    if (spectatorBody.health) spectatorBody.health.amount = spectatorBody.health.max;
+    if (spectatorBody.shield) spectatorBody.shield.amount = spectatorBody.shield.max;
+    if (player.command && typeof player.command === "object") {
+      for (const key of Object.keys(player.command)) {
+        if (typeof player.command[key] === "boolean") player.command[key] = false;
+      }
+    }
+    player.body = spectatorBody;
+    playerBodies.add(spectatorBody);
+    resetPlayers.push({ socket, player, body: spectatorBody, originalBody, score });
+    try { spectatorBody.sendMessage("Emergency server reset in progress. Your score is saved."); } catch (_) {}
+  }
+
+  // Preserve only structural world entities. Combatants, projectiles, bots,
+  // natural bosses, food, and temporary effects are destroyed without kill()
+  // side-effects so the reset doesn't recursively trigger more spawns.
+  const structures = new Set(["wall", "base", "fortWall", "fortGate", "dominator", "grid", "mazeWall"]);
+  for (const entity of entities.slice()) {
+    if (!entity || playerBodies.has(entity) || entity.isPlayer === true) continue;
+    if (entity.isMazeWall === true || entity.isWall === true || entity.isGate === true ||
+        entity.isDominator === true || structures.has(entity.type)) continue;
+    try {
+      if (typeof entity.destroy === "function" && (!entity.valid || entity.valid())) entity.destroy();
+    } catch (_) {}
+  }
+
+  let roomState = null;
+  try { roomState = room.reevaluate(); } catch (_) {}
+  try { sockets.changeroom(); } catch (_) {}
+  util.log("[ANTI-LAG] Soft reset started at " + Math.round(Number(details.runSpeedPercent) || 0) +
+    "% run speed; room re-evaluated " + JSON.stringify(roomState || {}) + ".");
+
+  const finishReset = () => {
+    for (const entry of resetPlayers) {
+      const { socket, player, body, originalBody, score } = entry;
+      socket.savedScore = Math.max(Number(socket.savedScore) || 0, score,
+        Number(body.skill && body.skill.score) || 0);
+      socket._preserveNextDeathScore = false;
+      if (player.body === body) {
+        // Normally gazeUpon() sends this packet. A fallback keeps users from
+        // getting stuck if the game loop is so degraded that it hasn't run.
+        try {
+          if (socket.status.deceased !== true) socket.talk("F", ...player.records(), 100000000000);
+        } catch (_) {}
+        player.body = null;
+      }
+      socket.status.deceased = true;
+      if (body !== originalBody) {
+        try { if (body && body.valid && body.valid()) body.destroy(); } catch (_) {}
+      } else if (!body.isDominator) {
+        try { if (body && body.valid && body.valid()) body.destroy(); } catch (_) {}
+      }
+    }
+    try { room.reevaluate(); } catch (_) {}
+    try { sockets.changeroom(); } catch (_) {}
+    c.ANTILAG_SOFT_RESET_ACTIVE = false;
+    antiLagSoftResetInProgress = false;
+    try { sockets.broadcast("Emergency reset complete. Respawn when ready; your score has been preserved."); } catch (_) {}
+    util.log("[ANTI-LAG] Soft reset complete.");
+  };
+  const timer = setTimeout(finishReset, 1800);
+  if (timer && typeof timer.unref === "function") timer.unref();
+  return true;
+}
+
 const loadProtection = createLoadProtection({
   targetCycleIntervalMs: room.cycleSpeed,
   getEntities: () => entities,
@@ -15642,6 +15770,9 @@ const loadProtection = createLoadProtection({
       " | sim-cycle=" + Math.round(metrics.cycleMs || 0) + "ms" +
       " | target-tick-rate=" + Math.round(100 / (metrics.runSpeedMultiplier || 1)) + "%"
     );*/
+  },
+  onSoftReset(details) {
+    beginAntiLagSoftReset(details);
   },
 });
 
@@ -16068,7 +16199,15 @@ class View {
       // But I just died...
       if (player.body.isDead() || player.body.died) {
         this.socket.status.deceased = true;
-        this.socket.savedScore = player.body.skill.score / 2;
+        if (this.socket._preserveNextDeathScore === true) {
+          this.socket.savedScore = Math.max(
+            Number(this.socket.savedScore) || 0,
+            Number(player.body.skill && player.body.skill.score) || 0
+          );
+          this.socket._preserveNextDeathScore = false;
+        } else {
+          this.socket.savedScore = player.body.skill.score / 2;
+        }
         if (c.PLAGUE === true) {
           /*/ player.body.team = -2;
           player.body.health.max *= 2;
@@ -16566,6 +16705,12 @@ const sockets = (() => {
             break;
           case "s":
             {
+              // Wait until the emergency soft reset has detached the old body.
+              if (c.ANTILAG_SOFT_RESET_ACTIVE === true) {
+                socket.status.deceased = true;
+                socket.talk("m", "The server is completing an emergency reset. Please respawn in a moment.");
+                break;
+              }
               // spawn request
               if (!socket.status.deceased) {
                 socket.kick("Trying to spawn while already alive.");
@@ -17367,6 +17512,12 @@ const sockets = (() => {
             break;
           case "K":
             {
+              if (c.ANTILAG_SOFT_RESET_ACTIVE === true) {
+                if (player.body && typeof player.body.sendMessage === "function") {
+                  player.body.sendMessage("Self-destruct is disabled during the emergency server reset.");
+                }
+                break;
+              }
               // cheatingbois
               if (player.body != null) {
                 if (player.body != null) {
@@ -18606,6 +18757,13 @@ player.color = easy;
                 // But I just died...
                 if (player.body.isDead()) {
                   socket.status.deceased = true;
+                  if (socket._preserveNextDeathScore === true) {
+                    socket.savedScore = Math.max(
+                      Number(socket.savedScore) || 0,
+                      Number(player.body.skill && player.body.skill.score) || 0
+                    );
+                    socket._preserveNextDeathScore = false;
+                  }
                   // Let the client know it died
                   socket.talk("F", ...player.records());
                   // Remove the body
@@ -24722,7 +24880,9 @@ You must have the chat site and the game site open at the same time for your cha
                           message =
                             "You need to spawn for this command to work!";
                       } else if (command.includes("self destruct")) {
-                        if (player.body) {
+                        if (c.ANTILAG_SOFT_RESET_ACTIVE === true) {
+                          message = "Self-destruct is disabled during the emergency server reset.";
+                        } else if (player.body) {
                           if (
                             room.isIn("bas" + -player.body.team, player.body) ||
                             player.body.invuln ||

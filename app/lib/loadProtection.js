@@ -4,6 +4,7 @@ const fs = require("fs");
 const v8 = require("v8");
 const { monitorEventLoopDelay, performance } = require("perf_hooks");
 const isTransientEffect = require("./offscreenTransientCleanup").isTransientEffect;
+const createLagResponse = require("./lagResponse");
 
 const STAGE_NAMES = ["normal", "elevated", "high", "critical"];
 const RUN_SPEED_THRESHOLDS_MS = [75, 100, 150, 200, 250];
@@ -282,6 +283,7 @@ function createLoadProtection(options = {}) {
     destroyedRespawnableOffscreen: 0,
     destroyedOnscreen: 0,
   };
+  let lagResponse = null;
   let lastMetrics = {
     stage: 0,
     stageName: "normal",
@@ -555,6 +557,94 @@ function createLoadProtection(options = {}) {
     if (typeof entity.foodLevel === "number" && entity.foodLevel >= 0) return true;
     const source = entity.source;
     return !!(source && source !== entity && source._loadProtectionNaturalSpawn === true);
+  }
+
+  function isProjectileForLag(entity) {
+    return !!entity && (
+      entity.isProjectile === true || entity.type === "bullet" || entity.type === "projectile"
+    );
+  }
+
+  function isFoodForLag(entity) {
+    return !!entity && (
+      entity.type === "food" ||
+      (typeof entity.foodLevel === "number" && entity.foodLevel >= 0)
+    );
+  }
+
+  function isBotForLag(entity) {
+    return !!entity && (entity.isBot === true || entity.isBot === 1);
+  }
+
+  function isBossForLag(entity) {
+    return !!entity && (entity.isBoss === true || entity.boss === true);
+  }
+
+  function isNaturalBossForLag(entity) {
+    return isBossForLag(entity) && isNaturalSpawnEntity(entity) &&
+      entity._loadProtectionSpecialSpawn !== true;
+  }
+
+  function isLagProtectedStructure(entity, allowNaturalBoss = false) {
+    if (!entity) return true;
+    // Structural entities remain protected in every stage. Natural bosses may
+    // carry generic isProtected/alwaysExists flags from their class definition;
+    // those flags must not make a naturally spawned boss immune to the explicit
+    // natural-boss cleanup stages.
+    const isStructure = entity.isPlayer === true || entity.isDominator === true ||
+      entity.isGate === true || entity.isWall === true || entity.isMazeWall === true ||
+      entity.type === "base" || entity.type === "wall" ||
+      entity.type === "fortWall" || entity.type === "fortGate" ||
+      entity.type === "dominator" || entity.type === "grid";
+    if (isStructure) return true;
+    if (allowNaturalBoss && isNaturalBossForLag(entity)) return false;
+    return entity.isProtected === true || entity.alwaysExists === true;
+  }
+
+  function hasProtectedLagOwner(entity) {
+    for (const owner of [entity && entity.master, entity && entity.source, entity && entity.parent]) {
+      if (!owner || owner === entity) continue;
+      if (owner.isPlayer === true || owner.isDominator === true || owner.keep === true ||
+          owner.KEEP === true || owner.isBoss === true || owner.boss === true ||
+          owner._loadProtectionSpecialSpawn === true) return true;
+    }
+    return false;
+  }
+
+  function matchesLagCategory(entity, step) {
+    const projectile = isProjectileForLag(entity);
+    const food = isFoodForLag(entity);
+    const bot = isBotForLag(entity);
+    const boss = isBossForLag(entity);
+    const natural = isNaturalSpawnEntity(entity);
+    switch (step.category) {
+      case "projectile": return projectile;
+      case "food": return food && !projectile;
+      case "bot": return bot && !projectile && !food && !boss;
+      case "naturalBoss": return isNaturalBossForLag(entity) && !projectile && !food;
+      case "naturalEnemy": return natural && !projectile && !food && !bot && !boss;
+      case "general": return !projectile && !food && !natural && !bot && !boss;
+      default: return false;
+    }
+  }
+
+  function isLagResponseCandidate(entity, step) {
+    if (!entity || isDisabledOrRespawning(entity) || !isEntityLive(entity)) return false;
+    if (typeof entity.isDead === "function") {
+      try { if (entity.isDead()) return false; } catch (_) { return false; }
+    }
+    if (!matchesLagCategory(entity, step)) return false;
+    const naturalBoss = step.category === "naturalBoss" && isNaturalBossForLag(entity);
+    if (isLagProtectedStructure(entity, naturalBoss) || entity._loadProtectionSpecialSpawn === true ||
+        entity.bond != null || entity.type === "wall" || entity.type === "base" ||
+        (typeof entity.name === "string" && entity.name.startsWith("[LORD]_"))) return false;
+
+    // Existing KEEP and boss flags are often set automatically on boss classes.
+    // Only the explicit natural-boss steps are allowed to override those flags.
+    if (!naturalBoss && (entity.keep === true || entity.KEEP === true ||
+        (entity.settings && entity.settings.KEEP === true) || isBossForLag(entity))) return false;
+    if (step.category !== "projectile" && step.category !== "naturalBoss" && hasProtectedLagOwner(entity)) return false;
+    return true;
   }
 
   function shouldProtectFromNaturalCleanup(entity) {
@@ -1042,36 +1132,40 @@ function createLoadProtection(options = {}) {
     }
   }
 
-  function shouldKeepEntity(entity) {
+  function shouldKeepEntity(entity, options = {}) {
     if (!entity) return true;
-    // Bound turrets are lifecycle-controlled by their parent; suspending them
-    // independently would not reliably stop their nested life() calls.
-    if (entity.bond != null) return true;
-    if (
+    const ownedSet = options.allowedOwnedEntities instanceof Set ? options.allowedOwnedEntities : null;
+    const isOwnedChild = !!(ownedSet && ownedSet.has(entity) && entity !== options.root &&
+      [entity.master, entity.source, entity.parent].some((owner) => owner && ownedSet.has(owner)));
+    const allowedNaturalBoss = options.allowNaturalBoss === true && isNaturalBossForLag(entity);
+
+    // These are world/player structures, not expendable performance candidates.
+    // Generic class protection flags may be overridden only for natural bosses
+    // during the dedicated late-stage mitigation pass.
+    if (isLagProtectedStructure(entity, allowedNaturalBoss || isOwnedChild) ||
+        entity._loadProtectionSpecialSpawn === true) return true;
+    if (entity.bond != null && !isOwnedChild) return true;
+    if (entity.isProjectile === true && !isOwnedChild) return true;
+    if (entity.type === "bullet" && !isOwnedChild) return true;
+    if (!allowedNaturalBoss && !isOwnedChild && (
       entity.keep === true || entity.KEEP === true ||
       (entity.settings && entity.settings.KEEP === true) ||
-      entity.isPlayer === true || entity.isBoss === true || entity.boss === true ||
-      entity._loadProtectionSpecialSpawn === true || entity.alwaysExists === true ||
-      entity.isProjectile === true || entity.type === "bullet" ||
-      entity.isDominator === true || entity.isGate === true ||
-      entity.isWall === true || entity.isProtected === true ||
-      entity.type === "base" || entity.type === "wall" ||
-      entity.type === "fortWall" || entity.type === "fortGate"
-    ) return true;
+      entity.isBoss === true || entity.boss === true
+    )) return true;
 
-    // Do not disable support entities belonging to a protected player or boss.
-    const master = entity.master;
-    const source = entity.source;
-    const parent = entity.parent;
-    if (master && master !== entity && (
-      master.keep === true || master.KEEP === true || master.isPlayer === true || master.isBoss === true
-    )) return true;
-    if (source && source !== entity && (
-      source.keep === true || source.KEEP === true || source.isPlayer === true || source.isBoss === true
-    )) return true;
-    if (parent && parent !== entity && (
-      parent.keep === true || parent.KEEP === true || parent.isPlayer === true || parent.isBoss === true
-    )) return true;
+    // Do not disable standalone support entities belonging to protected owners;
+    // descendants of the one selected owner are disabled together as a unit.
+    if (!isOwnedChild) {
+      const master = entity.master;
+      const source = entity.source;
+      const parent = entity.parent;
+      for (const owner of [master, source, parent]) {
+        if (owner && owner !== entity && (
+          owner.keep === true || owner.KEEP === true || owner.isPlayer === true ||
+          owner.isBoss === true || owner.boss === true || owner._loadProtectionSpecialSpawn === true
+        )) return true;
+      }
+    }
     return false;
   }
 
@@ -1152,7 +1246,7 @@ function createLoadProtection(options = {}) {
       }
 
       // A runtime KEEP opt-out takes effect immediately, even mid-fade.
-      if (shouldKeepEntity(entity) && state.phase !== "restoring") {
+      if (shouldKeepEntity(entity, state) && state.phase !== "restoring") {
         beginEntityRestore(entity, state, "entity became protected");
       } else if (state.kind === "unknown" && !isUnknownEntity(entity) && state.phase !== "restoring") {
         beginEntityRestore(entity, state, "entity no longer has an unknown label");
@@ -1200,8 +1294,9 @@ function createLoadProtection(options = {}) {
     }
   }
 
-  function suspendEntity(entity, reason, kind, score) {
-    if (!entity || !isEntityLive(entity) || isDisabledOrRespawning(entity) || suspendedEntities.has(entity) || shouldKeepEntity(entity)) return null;
+  function suspendEntity(entity, reason, kind, score, suspensionOptions = {}) {
+    if (!entity || !isEntityLive(entity) || isDisabledOrRespawning(entity) ||
+        suspendedEntities.has(entity) || shouldKeepEntity(entity, suspensionOptions)) return null;
     if (typeof entity.isDead === "function") {
       let dead = false;
       try { dead = entity.isDead(); } catch (_) { dead = true; }
@@ -1219,6 +1314,9 @@ function createLoadProtection(options = {}) {
       transitionStartedAt: nowProvider(),
       startAlpha: clampVisualAlpha(originalAlpha),
       restoreReason: null,
+      allowNaturalBoss: suspensionOptions.allowNaturalBoss === true,
+      root: suspensionOptions.root || entity,
+      allowedOwnedEntities: suspensionOptions.allowedOwnedEntities || null,
     };
     suspendedEntities.set(entity, state);
     entity._loadDisabled = true;
@@ -1583,6 +1681,176 @@ function createLoadProtection(options = {}) {
     return base * getRunSpeedMultiplier();
   }
 
+  function collectOwnedEntityUnit(root) {
+    const unit = new Set([root]);
+    const queue = [root];
+    for (let i = 0; i < queue.length; i++) {
+      const owner = queue[i];
+      if (!owner) continue;
+      const children = [];
+      if (owner.possiblyChildren && typeof owner.possiblyChildren.forEach === "function") {
+        owner.possiblyChildren.forEach((child) => children.push(child));
+      }
+      if (Array.isArray(owner.children)) children.push(...owner.children);
+      for (const child of children) {
+        if (!child || child === owner || unit.has(child)) continue;
+        if (child.master === owner || child.source === owner || child.parent === owner || child.bond === owner) {
+          unit.add(child);
+          queue.push(child);
+        }
+      }
+    }
+    return unit;
+  }
+
+  function suspendLagUnit(root, step, score) {
+    if (!root) return false;
+    const owned = collectOwnedEntityUnit(root);
+    const options = {
+      root,
+      allowedOwnedEntities: owned,
+      allowNaturalBoss: step.category === "naturalBoss",
+    };
+    const suspendedRoot = suspendEntity(
+      root,
+      "persistent lag response: " + step.id,
+      step.id,
+      score,
+      options
+    );
+    if (!suspendedRoot) return false;
+    for (const child of owned) {
+      if (child === root || !isEntityLive(child) || isDisabledOrRespawning(child)) continue;
+      suspendEntity(
+        child,
+        "owned by suspended entity during " + step.id,
+        step.id,
+        entityCostScore(child),
+        options
+      );
+    }
+    return true;
+  }
+
+  function destroyLagEntity(entity, step) {
+    if (!isLagResponseCandidate(entity, step) || !isEntityLive(entity)) return false;
+    const visibility = visibilityToAnyClient(entity);
+    if (step.visibility === "offscreen" && visibility !== false) return false;
+    if (step.visibility === "onscreen" && visibility !== true) return false;
+    const wasCounted = naturalPopulationCacheReady && naturalPopulationCacheMembers.has(entity);
+    try {
+      if (typeof entity.destroy !== "function") return false;
+      entity.destroy();
+      suspendedEntities.delete(entity);
+      if (wasCounted) {
+        naturalPopulationCachedCount = Math.max(0, naturalPopulationCachedCount - 1);
+        naturalPopulationCacheMembers.delete(entity);
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function performGenericMemoryCleanup(level, metrics) {
+    // Drop reusable/transient references first. The profiling WeakMap itself
+    // doesn't keep entities alive, so it remains safe and useful across pressure.
+    if (memoryHistory.length > trendWindowSamples) {
+      memoryHistory.splice(0, memoryHistory.length - trendWindowSamples);
+    }
+    cleanupSweep.offscreenCandidates.length = 0;
+    cleanupSweep.onscreenCandidates.length = 0;
+    cleanupSweep.respawnableOffscreenCandidates.length = 0;
+    cleanupSweep.unknownCandidates.length = 0;
+    cleanupSweep.candidates.length = 0;
+    cleanupSweep.active = false;
+    cleanupSweep.scanning = false;
+    cleanupSweep.source = null;
+    cleanupSweep.scanList = null;
+    cleanupSweep.scanLength = 0;
+    cleanupSweep.scanCursor = 0;
+    cleanupSweep.naturalExcess = 0;
+    cleanupSweep.cursor = 0;
+    cleanupSweep.unknownGeneration = 0;
+    cleanupSweep.nextSweepAt = 0;
+    cleanupSweep.populationCap = null;
+    suspensionSearch.active = false;
+    suspensionSearch.list = null;
+    suspensionSearch.length = 0;
+    suspensionSearch.cursor = 0;
+    suspensionSearch.best = null;
+    suspensionSearch.bestScore = -1;
+    naturalPopulationCacheAt = -Infinity;
+    naturalPopulationCacheSource = null;
+    naturalPopulationCacheReady = false;
+    naturalPopulationCachedCount = 0;
+    naturalPopulationCacheMembers = new WeakSet();
+    naturalPopulationScan.active = false;
+    naturalPopulationScan.list = null;
+    naturalPopulationScan.length = 0;
+    naturalPopulationScan.cursor = 0;
+    naturalPopulationScan.count = 0;
+    naturalPopulationScan.members = new WeakSet();
+    clearUntrustedMetricHistory();
+    // Calling a full GC is only possible when the runtime was launched with
+    // --expose-gc. Never rely on it and never force GC on every simulation tick.
+    if (typeof global.gc === "function" && (level === "high" || level === "critical")) {
+      try { global.gc(); } catch (_) {}
+    }
+    lastMetrics.lastGenericMemoryCleanup = Date.now();
+    lastMetrics.lastGenericMemoryCleanupLevel = level;
+  }
+
+  function clearUntrustedMetricHistory() {
+    // Keep enough samples for trend detection while severing old object/array refs.
+    if (memoryHistory.length > trendWindowSamples) memoryHistory.length = trendWindowSamples;
+  }
+
+  function syncLagResponseSnapshot(snapshot) {
+    if (!snapshot) return;
+    naturalSpawnsPaused = snapshot.naturalSpawnsPaused === true;
+    lastMetrics.naturalSpawnsPaused = naturalSpawnsPaused;
+    lastMetrics.emergencyMitigation = snapshot.emergencyMitigation === true;
+    lastMetrics.lagResponseStage = snapshot.stageIndex;
+    lastMetrics.lagResponseStageId = snapshot.stageId;
+    lastMetrics.lagResponseStageElapsedMs = snapshot.stageElapsedMs;
+    lastMetrics.lagResponseSweepActive = snapshot.sweepActive;
+    lastMetrics.lagResponseSweepsCompleted = snapshot.completedSweeps;
+    lastMetrics.lagResponseDestroyedCount = snapshot.destroyedByMitigation;
+    lastMetrics.lagResponseSuspendedCount = snapshot.suspendedByMitigation;
+    sustainedPolicies[100].triggered = snapshot.stageIndex >= 0;
+    sustainedPolicies[150].triggered = snapshot.stageIndex >= 1;
+    sustainedPolicies[200].triggered = snapshot.stageIndex >= 5;
+  }
+
+  lagResponse = createLagResponse({
+    env,
+    nowProvider,
+    getEntities,
+    isEntityVisibleToAnyClient: visibilityToAnyClient,
+    isCandidate: isLagResponseCandidate,
+    scoreEntity: entityCostScore,
+    onDestroy: destroyLagEntity,
+    onSuspend: suspendLagUnit,
+    onSoftReset(details) {
+      if (typeof options.onSoftReset === "function") options.onSoftReset(details);
+    },
+    onRecovery(details) {
+      naturalSpawnsPaused = false;
+      restoreAllSuspendedEntities(details && details.reason || "lag recovered");
+      suspensionEpisodeStartedAt = null;
+      criticalLagSince = null;
+      lastEntitySuspensionAt = null;
+      suspensionLockout = false;
+      for (const policy of Object.values(sustainedPolicies)) {
+        policy.since = null;
+        policy.triggered = false;
+      }
+      if (typeof options.onRecovery === "function") options.onRecovery(details);
+    },
+    onMemoryPressure: performGenericMemoryCleanup,
+  });
+
   function isExtremeLoad(observedLagMs, metrics = lastMetrics) {
     const safeMetrics = metrics || {};
     const memoryAtCriticalLimit = Number.isFinite(safeMetrics.memoryRatio) &&
@@ -1620,9 +1888,8 @@ function createLoadProtection(options = {}) {
     advanceEntityTransitions(nowProvider());
     const liveEntities = Array.isArray(entityList) ? entityList : getEntities();
     lastEntityList = liveEntities;
-    updateSustainedLagPolicies(runSpeedPercent, emergency);
-    handleCriticalLag(runSpeedPercent, liveEntities, reason, emergency);
-    processCleanupSweep(liveEntities, nowProvider());
+    const responseSnapshot = lagResponse.update(runSpeedPercent, lastMetrics, liveEntities);
+    syncLagResponseSnapshot(responseSnapshot);
     advanceEntityTransitions(nowProvider());
 
     // Keep the sampled telemetry current without storing entity references in history.
@@ -1725,8 +1992,8 @@ function createLoadProtection(options = {}) {
     const reason = "smoothed server run speed stayed at " + Math.round(currentRunSpeedPercent) + "% of target";
     advanceEntityTransitions(nowProvider());
     const liveEntities = getEntities();
-    updateSustainedLagPolicies(currentRunSpeedPercent, emergency);
-    handleCriticalLag(currentRunSpeedPercent, liveEntities, reason, emergency);
+    const responseSnapshot = lagResponse.update(currentRunSpeedPercent, lastMetrics, liveEntities);
+    syncLagResponseSnapshot(responseSnapshot);
     advanceEntityTransitions(nowProvider());
     lastMetrics.cycleStage = cycleStage;
     lastMetrics.stageName = STAGE_NAMES[effectiveStage()];
@@ -1816,6 +2083,21 @@ function createLoadProtection(options = {}) {
     snapshot.lagPolicy100Triggered = sustainedPolicies[100].triggered;
     snapshot.lagPolicy150Triggered = sustainedPolicies[150].triggered;
     snapshot.lagPolicy200Triggered = sustainedPolicies[200].triggered;
+    if (lagResponse) {
+      snapshot.lagResponse = lagResponse.getSnapshot();
+      snapshot.lagResponseStage = snapshot.lagResponse.stageIndex;
+      snapshot.lagResponseStageId = snapshot.lagResponse.stageId;
+      snapshot.lagResponseStageElapsedMs = snapshot.lagResponse.stageElapsedMs;
+      snapshot.lagResponseSweepActive = snapshot.lagResponse.sweepActive;
+      snapshot.lagResponseSweepsCompleted = snapshot.lagResponse.completedSweeps;
+      snapshot.lagResponseDestroyedCount = snapshot.lagResponse.destroyedByMitigation;
+      snapshot.lagResponseSuspendedCount = snapshot.lagResponse.suspendedByMitigation;
+      snapshot.naturalSpawnsPaused = snapshot.lagResponse.naturalSpawnsPaused;
+      snapshot.emergencyMitigation = snapshot.lagResponse.emergencyMitigation;
+      snapshot.lagPolicy100Triggered = snapshot.lagResponse.stageIndex >= 0;
+      snapshot.lagPolicy150Triggered = snapshot.lagResponse.stageIndex >= 1;
+      snapshot.lagPolicy200Triggered = snapshot.lagResponse.stageIndex >= 5;
+    }
     updateSuspensionSnapshot(snapshot);
     snapshot.memoryRatio = Number.isFinite(snapshot.memoryRatio) ? snapshot.memoryRatio : 0;
     return snapshot;
@@ -1829,18 +2111,19 @@ function createLoadProtection(options = {}) {
   }
 
   function shouldSpawnFood() {
-    if (naturalSpawnsPaused) return false;
+    // Do not stop food from being replenished during the natural-enemy pass:
+    // its off-screen removal is the next stage in the ordered mitigation ladder.
+    if (lagResponse && lagResponse.activeStageIndex >= 2) return false;
     const currentStage = effectiveStage();
-    if (currentStage >= 3) return false;
     if (currentStage < 2) return true;
     foodSpawnTick++;
     return foodSpawnTick % 2 === 0;
   }
 
   function shouldSpawnBot() {
-    if (naturalSpawnsPaused) return false;
+    // Bot spawning stays available until the bot cleanup stage itself begins.
+    if (lagResponse && lagResponse.activeStageIndex >= 3) return false;
     const currentStage = effectiveStage();
-    if (currentStage >= 3) return false;
     if (currentStage < 2) return true;
     botSpawnTick++;
     return botSpawnTick % 2 === 0;
@@ -1848,8 +2131,9 @@ function createLoadProtection(options = {}) {
 
   function shouldSpawnNaturalEntities() {
     // Individual automatic spawn sites enforce the dynamic population cap just
-    // before creating entities. This method only handles emergency spawn pause.
-    return !naturalSpawnsPaused;
+    // before creating entities. Natural enemies/bosses pause at their own first
+    // cleanup stage; food and bots remain available until their respective turns.
+    return !naturalSpawnsPaused && !(lagResponse && lagResponse.naturalSpawnsPaused);
   }
 
   return {
@@ -1866,6 +2150,7 @@ function createLoadProtection(options = {}) {
     get stage() { return effectiveStage(); },
     isCritical: () => effectiveStage() >= 3,
     getSnapshot,
+    getLagResponseSnapshot: () => lagResponse ? lagResponse.getSnapshot() : null,
     shouldUpdateMinimap,
     shouldSpawnFood,
     shouldSpawnBot,

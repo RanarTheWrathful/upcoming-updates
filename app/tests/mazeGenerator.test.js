@@ -74,6 +74,8 @@ assert(generated.rows > cleared.length, "world-grid row count should not be copi
 assert(generated.walls.length > 25, "the generator should make a meaningful number of wall blocks");
 assert(generated.targetWalls > generated.candidateCells * 0.30, "default maze density should be significantly denser than the old 23% setting");
 assert(generated.walls.length < generated.targetWalls, "connectivity repair should carve openings when random formations enclose regions");
+assert(generated.walls.length > generated.candidateCells * 0.30,
+  "two-cell connectivity corridors should preserve a denser wall layout after connectivity repair");
 const occupiedCells = new Set(generated.walls.map((wall) => `${wall.gridX}:${wall.gridY}`));
 const reachable = new Set();
 const queue = [];
@@ -127,6 +129,8 @@ let adjacentWallPairs = 0;
 let significantlyOffsetWalls = 0;
 let checkedOpenings = 0;
 let awkwardNarrowOpenings = 0;
+let checkedDiagonalOpenings = 0;
+let awkwardDiagonalOpenings = 0;
 for (const wall of generated.walls) {
   assert(Number.isFinite(wall.x) && Number.isFinite(wall.y) && Number.isFinite(wall.size), "each wall needs finite coordinates and size");
   assert(wall.x > 0 && wall.x < 4000, "walls may approach either border but must remain inside the world");
@@ -156,6 +160,19 @@ for (const wall of generated.walls) {
     const minimumOpening = Math.min(generated.cellWidth, generated.cellHeight) * 0.42;
     if (gap > touchingGap + 2 && gap < minimumOpening - 1) awkwardNarrowOpenings++;
   }
+  // Diagonal pairs used to regain pinched gaps after the final cardinal pass.
+  // Check the nearest edge-to-edge clearance, not just their center distance.
+  for (const [dx, dy] of [[1, 1], [-1, 1]]) {
+    const neighbor = wallsByCell.get(`${wall.gridX + dx}:${wall.gridY + dy}`);
+    if (!neighbor) continue;
+    const gapX = Math.max(0, Math.abs(neighbor.x - wall.x) - wall.size - neighbor.size);
+    const gapY = Math.max(0, Math.abs(neighbor.y - wall.y) - wall.size - neighbor.size);
+    const gap = Math.hypot(gapX, gapY);
+    checkedDiagonalOpenings++;
+    const touchingGap = Math.min(generated.cellWidth, generated.cellHeight) * 0.025;
+    const minimumOpening = Math.min(generated.cellWidth, generated.cellHeight) * 0.42;
+    if (gap > touchingGap + 2 && gap < minimumOpening - 1) awkwardDiagonalOpenings++;
+  }
 }
 assert(adjacentWallPairs > 10, "wall layouts should include connected blocky runs and clusters");
 assert(
@@ -165,6 +182,10 @@ assert(
 assert(
   awkwardNarrowOpenings <= Math.max(1, checkedOpenings * 0.02),
   "adjacent walls should either touch closely or leave a usable opening"
+);
+assert(
+  awkwardDiagonalOpenings <= Math.max(1, checkedDiagonalOpenings * 0.03),
+  "diagonal walls should not leave tiny corner passages that can appear sealed off"
 );
 
 const tileBounds = (column, row) => ({
