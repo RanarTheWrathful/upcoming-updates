@@ -97762,6 +97762,9 @@ exports.launcher.UPGRADES_TIER_3 = [
 exports.rocketeer.UPGRADES_TIER_4 = [
   exports.firework,
 ];
+exports.eviscerate.UPGRADES_TIER_4 = [
+  exports.fieldartillery,
+];
 exports.Chucker.UPGRADES_TIER_4 = [
   exports.grenadier,
   exports.striker,
