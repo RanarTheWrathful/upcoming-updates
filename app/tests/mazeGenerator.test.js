@@ -93,33 +93,50 @@ assert.notDeepStrictEqual(generated.walls, alternate.walls, "different random se
 assert.strictEqual(JSON.stringify(source), sourceBefore, "world maze generation must not mutate ROOM_SETUP");
 
 const keys = new Set();
+const wallsByCell = new Map(generated.walls.map((wall) => [`${wall.gridX}:${wall.gridY}`, wall]));
 let adjacentWallPairs = 0;
+let significantlyOffsetWalls = 0;
+let checkedOpenings = 0;
+let awkwardNarrowOpenings = 0;
 for (const wall of generated.walls) {
   assert(Number.isFinite(wall.x) && Number.isFinite(wall.y) && Number.isFinite(wall.size), "each wall needs finite coordinates and size");
-  assert(wall.x > 180 && wall.x < 3820, "walls should remain clear of the map's outer border");
-  assert(wall.y > 180 && wall.y < 3820, "walls should remain clear of the map's outer border");
+  assert(wall.x > 0 && wall.x < 4000, "walls may approach either border but must remain inside the world");
+  assert(wall.y > 0 && wall.y < 4000, "walls may approach either border but must remain inside the world");
   assert(wall.x - wall.size > 0 && wall.x + wall.size < 4000, "wall blocks must fit inside the world bounds");
   assert(wall.y - wall.size > 0 && wall.y + wall.size < 4000, "wall blocks must fit inside the world bounds");
+  if (
+    Math.abs(wall.x - (wall.gridX + 0.5) * generated.cellWidth) > generated.cellWidth * 0.08 ||
+    Math.abs(wall.y - (wall.gridY + 0.5) * generated.cellHeight) > generated.cellHeight * 0.08
+  ) significantlyOffsetWalls++;
   const key = `${wall.gridX}:${wall.gridY}`;
   assert(!keys.has(key), "a world-grid cell must not spawn duplicate wall blocks");
   keys.add(key);
   if (keys.has(`${wall.gridX + 1}:${wall.gridY}`) || keys.has(`${wall.gridX - 1}:${wall.gridY}`) ||
       keys.has(`${wall.gridX}:${wall.gridY + 1}`) || keys.has(`${wall.gridX}:${wall.gridY - 1}`)) adjacentWallPairs++;
 
-  // A central pocket remains open on ordinary terrain. Nests and resource
-  // tiles explicitly opt out of that rule so they can host maze walls too.
-  const tileX = Math.min(14, Math.floor((wall.x / 4000) * 15));
-  const tileY = Math.min(14, Math.floor((wall.y / 4000) * 15));
-  const roomTile = cleared[tileY][tileX];
-  const tileAllowsWalls = ["nest", "rock", "roid"].includes(String(roomTile).toLowerCase());
-  if (!tileAllowsWalls) {
-    assert(
-      !(Math.abs(wall.x - 2000) < 300 && Math.abs(wall.y - 2000) < 300),
-      "maze walls should leave a usable central pocket on ordinary terrain"
-    );
+  // The centre is legal but lower-weight. The test's neighbouring-wall count
+  // also confirms that connected runs remain after position relaxation.
+  for (const [dx, dy] of [[1, 0], [0, 1]]) {
+    const neighbor = wallsByCell.get(`${wall.gridX + dx}:${wall.gridY + dy}`);
+    if (!neighbor) continue;
+    const gap = dx
+      ? Math.abs(neighbor.x - wall.x) - wall.size - neighbor.size
+      : Math.abs(neighbor.y - wall.y) - wall.size - neighbor.size;
+    checkedOpenings++;
+    const touchingGap = Math.min(generated.cellWidth, generated.cellHeight) * 0.025;
+    const minimumOpening = Math.min(generated.cellWidth, generated.cellHeight) * 0.42;
+    if (gap > touchingGap + 2 && gap < minimumOpening - 1) awkwardNarrowOpenings++;
   }
 }
 assert(adjacentWallPairs > 10, "wall layouts should include connected blocky runs and clusters");
+assert(
+  significantlyOffsetWalls > generated.walls.length * 0.5,
+  "wall positions should vary noticeably instead of sitting at grid-cell centres"
+);
+assert(
+  awkwardNarrowOpenings <= Math.max(1, checkedOpenings * 0.02),
+  "adjacent walls should either touch closely or leave a usable opening"
+);
 
 const tileBounds = (column, row) => ({
   left: (column / 15) * 4000,
@@ -140,16 +157,58 @@ assert(
   "maze walls should be allowed inside rock/roid obstacle areas"
 );
 
-const openCenterMaze = maze.generateWorldMaze({
-  width: 4000,
-  height: 4000,
-  roomSetup: Array.from({ length: 15 }, () => Array(15).fill("norm")),
-  random: seededRandom(0xC0FFEE),
-});
-assert(
-  !openCenterMaze.walls.some((wall) => Math.abs(wall.x - 2000) < 300 && Math.abs(wall.y - 2000) < 300),
-  "the center pocket should still be preserved when no nest/resource area claims it"
-);
+// The centre and map edges are now legal placement areas, but their density
+// should fall below the preferred middle band over many independent layouts.
+const plainSetup = Array.from({ length: 15 }, () => Array(15).fill("norm"));
+let centerWallCount = 0;
+let centerCellCount = 0;
+let borderWallCount = 0;
+let borderCellCount = 0;
+let middleWallCount = 0;
+let middleCellCount = 0;
+let centerAppeared = false;
+let borderAppeared = false;
+for (let seed = 1; seed <= 30; seed++) {
+  const layout = maze.generateWorldMaze({
+    width: 4000,
+    height: 4000,
+    roomSetup: plainSetup,
+    random: seededRandom(seed),
+  });
+  const centerRadius = 160;
+  const borderBand = 200;
+  for (let y = 0; y < layout.rows; y++) {
+    for (let x = 0; x < layout.columns; x++) {
+      const px = (x + 0.5) * layout.cellWidth;
+      const py = (y + 0.5) * layout.cellHeight;
+      const centerDistance = Math.hypot(px - 2000, py - 2000);
+      const edgeDistance = Math.min(px, 4000 - px, py, 4000 - py);
+      if (centerDistance < centerRadius) centerCellCount++;
+      if (edgeDistance < borderBand) borderCellCount++;
+      if (edgeDistance > 600 && centerDistance > 800) middleCellCount++;
+    }
+  }
+  for (const wall of layout.walls) {
+    const centerDistance = Math.hypot(wall.x - 2000, wall.y - 2000);
+    const edgeDistance = Math.min(wall.x, 4000 - wall.x, wall.y, 4000 - wall.y);
+    if (centerDistance < centerRadius) {
+      centerWallCount++;
+      centerAppeared = true;
+    }
+    if (edgeDistance < borderBand) {
+      borderWallCount++;
+      borderAppeared = true;
+    }
+    if (edgeDistance > 600 && centerDistance > 800) middleWallCount++;
+  }
+}
+const centerRate = centerWallCount / centerCellCount;
+const borderRate = borderWallCount / borderCellCount;
+const middleRate = middleWallCount / middleCellCount;
+assert(centerAppeared, "maze walls should sometimes appear near the centre");
+assert(borderAppeared, "maze walls should sometimes appear near map borders");
+assert(centerRate < middleRate, "centre placements should be less common than the middle band");
+assert(borderRate < middleRate, "border placements should be less common than the middle band");
 
 // Test non-square world coordinates as well; row/column counts should follow
 // world dimensions and not ROOM_SETUP's fixed 15x15 layout.

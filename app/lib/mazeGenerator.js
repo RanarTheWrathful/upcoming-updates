@@ -9,9 +9,19 @@ const DEFAULTS = Object.freeze({
   maxCellSize: 230,
   wallDensity: 0.35,
   maxWallSizeScale: 0.48,
-  borderMarginRatio: 0.035,
-  centerClearRatio: 0.06,
-  positionJitterRatio: 0.012,
+  // Bias density away from the exact centre and outer edge, but never forbid
+  // either region. Smooth falloffs avoid obvious empty bands.
+  centerFadeRatio: 0.15,
+  centerDensityFloor: 0.22,
+  borderFadeRatio: 0.14,
+  borderDensityFloor: 0.18,
+  // Real positional variance prevents the layout from reading as a rigid grid.
+  positionJitterRatio: 0.20,
+  // Narrow clearances are closed up; wider clearances remain useful passages.
+  minimumOpeningRatio: 0.42,
+  touchingGapRatio: 0.025,
+  maxGapResolvePasses: 128,
+  specialClearanceBufferRatio: 0.06,
 });
 
 function isPlainGrid(grid) {
@@ -160,6 +170,104 @@ function makePattern(tools) {
   return transformed;
 }
 
+function smoothstep(value) {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
+}
+
+// Centre and border cells remain legal but receive less selection weight.
+// The gradual falloff prevents a hard empty ring or a perfectly empty centre.
+function getPlacementWeight(x, y, width, height, minDimension) {
+  const edgeDistance = Math.min(x, width - x, y, height - y);
+  const edgeProgress = edgeDistance / (minDimension * DEFAULTS.borderFadeRatio);
+  const borderWeight = DEFAULTS.borderDensityFloor +
+    (1 - DEFAULTS.borderDensityFloor) * smoothstep(edgeProgress);
+
+  const centerDistance = Math.hypot(x - width / 2, y - height / 2);
+  const centerProgress = centerDistance / (minDimension * DEFAULTS.centerFadeRatio);
+  const centerWeight = DEFAULTS.centerDensityFloor +
+    (1 - DEFAULTS.centerDensityFloor) * smoothstep(centerProgress);
+
+  return Math.max(0.01, borderWeight * centerWeight);
+}
+
+/**
+ * Resolve slits between orthogonally adjacent blocks. A positive gap smaller
+ * than a usable opening is closed by moving both blocks toward each other.
+ * Accumulating pair forces before moving anything lets a block between two
+ * narrow gaps settle naturally between both neighbours rather than snapping
+ * arbitrarily toward whichever one happened to be processed first.
+ */
+function closeNarrowOpenings(walls, {
+  columns,
+  rows,
+  width,
+  height,
+  shortCellSide,
+}) {
+  if (walls.length < 2) return;
+
+  const byCell = new Map(walls.map((wall) => [`${wall.gridX}:${wall.gridY}`, wall]));
+  const minimumOpening = shortCellSide * DEFAULTS.minimumOpeningRatio;
+  const touchingGap = shortCellSide * DEFAULTS.touchingGapRatio;
+  const maxStep = shortCellSide * DEFAULTS.minimumOpeningRatio * 0.5;
+  const edgePadding = Math.max(2, shortCellSide * 0.025);
+
+  for (let pass = 0; pass < DEFAULTS.maxGapResolvePasses; pass++) {
+    const shifts = new Map();
+    let foundNarrowGap = false;
+    const addShift = (wall, dx, dy) => {
+      let shift = shifts.get(wall);
+      if (!shift) {
+        shift = { x: 0, y: 0 };
+        shifts.set(wall, shift);
+      }
+      shift.x += dx;
+      shift.y += dy;
+    };
+
+    const checkPair = (first, second, axis) => {
+      const delta = axis === "x" ? second.x - first.x : second.y - first.y;
+      // Grid jitter and the previous corrections should preserve ordering. If
+      // malformed inputs ever break it, leave the pair alone rather than flip it.
+      if (delta <= 0) return;
+      const gap = delta - first.size - second.size;
+      if (gap <= touchingGap || gap >= minimumOpening) return;
+
+      foundNarrowGap = true;
+      const correction = (gap - touchingGap) / 2;
+      if (axis === "x") {
+        addShift(first, correction, 0);
+        addShift(second, -correction, 0);
+      } else {
+        addShift(first, 0, correction);
+        addShift(second, 0, -correction);
+      }
+    };
+
+    for (const wall of walls) {
+      const right = byCell.get(`${wall.gridX + 1}:${wall.gridY}`);
+      const below = byCell.get(`${wall.gridX}:${wall.gridY + 1}`);
+      if (right && right.gridX < columns) checkPair(wall, right, "x");
+      if (below && below.gridY < rows) checkPair(wall, below, "y");
+    }
+
+    if (!foundNarrowGap) break;
+    for (const [wall, shift] of shifts) {
+      wall.x = Math.max(
+        wall.size + edgePadding,
+        Math.min(width - wall.size - edgePadding,
+          wall.x + Math.max(-maxStep, Math.min(maxStep, shift.x)))
+      );
+      wall.y = Math.max(
+        wall.size + edgePadding,
+        Math.min(height - wall.size - edgePadding,
+          wall.y + Math.max(-maxStep, Math.min(maxStep, shift.y)))
+      );
+    }
+  }
+}
+
 /**
  * Create a randomized maze on a world-space grid unrelated to ROOM_SETUP's
  * dimensions. ROOM_SETUP is used as a placement mask: walls can appear in
@@ -167,8 +275,8 @@ function makePattern(tools) {
  * other special tiles keep a clearance zone.
  *
  * The output contains one wall entity position per occupied world-grid cell.
- * Small position jitter and tighter size bounds keep formations aligned and
- * reduce accidental overlaps while preserving chunky, connected layouts.
+ * Size variation, substantial positional jitter, weighted placement and gap
+ * relaxation keep the result irregular while preserving connected formations.
  */
 function generateWorldMaze({
   width,
@@ -206,16 +314,16 @@ function generateWorldMaze({
   const cellWidth = width / columns;
   const cellHeight = height / rows;
   const shortCellSide = Math.min(cellWidth, cellHeight);
-  // SIZE is the wall's radius in world units. Reserve space using the largest
-  // allowed size, not an average size, so even oversized blocks stay in bounds.
+  // SIZE is the wall's collision radius. Leave room for both positional jitter
+  // and the gap resolver's maximum adjustment when protecting special zones.
   const maxWallRadius = shortCellSide * DEFAULTS.maxWallSizeScale;
   const maxJitterX = cellWidth * DEFAULTS.positionJitterRatio;
   const maxJitterY = cellHeight * DEFAULTS.positionJitterRatio;
-  const borderMargin = Math.max(minDimension * DEFAULTS.borderMarginRatio, shortCellSide * 0.9);
-  const centerClearX = width * DEFAULTS.centerClearRatio + maxWallRadius + maxJitterX;
-  const centerClearY = height * DEFAULTS.centerClearRatio + maxWallRadius + maxJitterY;
-  const clearanceX = maxWallRadius + maxJitterX + cellWidth * 0.22;
-  const clearanceY = maxWallRadius + maxJitterY + cellHeight * 0.22;
+  const maxPlacementShiftX = shortCellSide * DEFAULTS.minimumOpeningRatio * 0.5;
+  const maxPlacementShiftY = maxPlacementShiftX;
+  const clearanceX = maxWallRadius + maxJitterX + maxPlacementShiftX + cellWidth * DEFAULTS.specialClearanceBufferRatio;
+  const clearanceY = maxWallRadius + maxJitterY + maxPlacementShiftY + cellHeight * DEFAULTS.specialClearanceBufferRatio;
+  const edgePadding = Math.max(2, shortCellSide * 0.025);
   const specialBounds = getSpecialRoomBounds(roomSetup, width, height);
   const allowed = Array.from({ length: rows }, () => Array(columns).fill(false));
   const candidates = [];
@@ -224,24 +332,9 @@ function generateWorldMaze({
     for (let gridX = 0; gridX < columns; gridX++) {
       const x = (gridX + 0.5) * cellWidth;
       const y = (gridY + 0.5) * cellHeight;
-      if (
-        x < borderMargin + maxWallRadius + maxJitterX ||
-        x > width - borderMargin - maxWallRadius - maxJitterX ||
-        y < borderMargin + maxWallRadius + maxJitterY ||
-        y > height - borderMargin - maxWallRadius - maxJitterY
-      ) continue;
-
-      const roomTile = getRoomTileAtPoint(roomSetup, x, y, width, height);
-      const tileAllowsWalls = typeof roomTile === "string" && ["nest", "rock", "roid"].includes(roomTile.toLowerCase());
-
-      // Keep a usable center pocket in open/special areas, but don't let that
-      // blanket rule override a mode's explicit nest or obstacle placement.
-      if (
-        !tileAllowsWalls &&
-        Math.abs(x - width / 2) < centerClearX &&
-        Math.abs(y - height / 2) < centerClearY
-      ) continue;
-
+      // The outermost cells are valid too. Final positions are clamped using
+      // each wall's actual size, while selection weighting discourages excessive
+      // edge density instead of imposing a hard border exclusion.
       // Named special areas retain a clearance halo; nest and obstacle/resource
       // tiles are intentionally omitted from this list and can host wall blocks.
       let nearSpecialRoom = false;
@@ -257,7 +350,11 @@ function generateWorldMaze({
       if (nearSpecialRoom) continue;
 
       allowed[gridY][gridX] = true;
-      candidates.push([gridX, gridY]);
+      candidates.push([
+        gridX,
+        gridY,
+        getPlacementWeight(x, y, width, height, minDimension),
+      ]);
     }
   }
 
@@ -293,8 +390,13 @@ function generateWorldMaze({
     }
     const size = shortCellSide * (minScale + unit() * (maxScale - minScale));
     walls.push({
-      x: Math.max(0, Math.min(width, (gridX + 0.5) * cellWidth + jitterX)),
-      y: Math.max(0, Math.min(height, (gridY + 0.5) * cellHeight + jitterY)),
+      // Clamp by the actual size so even walls very close to the map boundary
+      // stay fully inside it. Positions still vary by a meaningful fraction of
+      // the cell rather than snapping to each grid centre.
+      x: Math.max(size + edgePadding, Math.min(width - size - edgePadding,
+        (gridX + 0.5) * cellWidth + jitterX)),
+      y: Math.max(size + edgePadding, Math.min(height - size - edgePadding,
+        (gridY + 0.5) * cellHeight + jitterY)),
       size,
       gridX,
       gridY,
@@ -309,12 +411,32 @@ function generateWorldMaze({
       allowed[gridY][gridX] && !occupied[gridY][gridX];
   });
 
-  const chooseAnchor = (openCandidates) => {
-    let best = openCandidates[Math.floor(unit() * openCandidates.length)];
+  const makeWeightedPicker = (openCandidates) => {
+    const cumulativeWeights = [];
+    let totalWeight = 0;
+    for (const candidate of openCandidates) {
+      totalWeight += candidate[2];
+      cumulativeWeights.push(totalWeight);
+    }
+    return () => {
+      const roll = unit() * totalWeight;
+      let low = 0;
+      let high = cumulativeWeights.length - 1;
+      while (low < high) {
+        const middle = (low + high) >> 1;
+        if (roll < cumulativeWeights[middle]) high = middle;
+        else low = middle + 1;
+      }
+      return openCandidates[low];
+    };
+  };
+
+  const chooseAnchor = (openCandidates, pickWeightedCandidate) => {
+    let best = pickWeightedCandidate();
     let bestScore = Infinity;
     const sampleCount = Math.min(16, openCandidates.length);
     for (let sample = 0; sample < sampleCount; sample++) {
-      const candidate = openCandidates[Math.floor(unit() * openCandidates.length)];
+      const candidate = pickWeightedCandidate();
       let adjacentWalls = 0;
       let nearbyWalls = 0;
       for (let dy = -2; dy <= 2; dy++) {
@@ -327,9 +449,11 @@ function generateWorldMaze({
           if (Math.abs(dx) + Math.abs(dy) === 1) adjacentWalls++;
         }
       }
-      // Prefer to occasionally connect formations into longer runs, without
-      // selecting already-cluttered pockets too often.
-      const score = Math.abs(adjacentWalls - 1) * 1.5 + Math.max(0, nearbyWalls - 7) * 0.18 + unit() * 0.8;
+      // Spatial weighting discourages the centre and border. Neighbour scoring
+      // still forms clusters and corridors instead of isolated random rubble.
+      const spatialPenalty = (1 - candidate[2]) * 2.5;
+      const score = spatialPenalty + Math.abs(adjacentWalls - 1) * 1.5 +
+        Math.max(0, nearbyWalls - 7) * 0.18 + unit() * 0.8;
       if (score < bestScore) {
         best = candidate;
         bestScore = score;
@@ -343,7 +467,8 @@ function generateWorldMaze({
     if (!openCandidates.length) break;
 
     let placedPattern = false;
-    let fallbackAnchor = openCandidates[Math.floor(unit() * openCandidates.length)];
+    const pickWeightedCandidate = makeWeightedPicker(openCandidates);
+    let fallbackAnchor = pickWeightedCandidate();
     const attemptsForPattern = Math.min(12, openCandidates.length);
     const remainingBudget = targetWalls - walls.length;
 
@@ -351,7 +476,7 @@ function generateWorldMaze({
     // pattern cells masked by protected areas or existing walls, which left
     // awkward partial rectangles and corridors along clearance-zone edges.
     for (let attempt = 0; attempt < attemptsForPattern; attempt++) {
-      const [anchorX, anchorY] = chooseAnchor(openCandidates);
+      const [anchorX, anchorY] = chooseAnchor(openCandidates, pickWeightedCandidate);
       fallbackAnchor = [anchorX, anchorY];
       let pattern = makePattern(tools);
       if (pattern.length > remainingBudget) pattern = [[0, 0]];
@@ -365,6 +490,14 @@ function generateWorldMaze({
     // path guarantees progress even when no complete multi-cell pattern fits.
     if (!placedPattern) addWall(fallbackAnchor[0], fallbackAnchor[1]);
   }
+
+  closeNarrowOpenings(walls, {
+    columns,
+    rows,
+    width,
+    height,
+    shortCellSide,
+  });
 
   return {
     columns,
