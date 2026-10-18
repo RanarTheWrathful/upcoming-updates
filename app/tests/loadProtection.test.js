@@ -5,19 +5,19 @@ const createLoadProtection = require("../lib/loadProtection");
 
 function makeProtection(overrides = {}) {
   let now = 0;
-  const emptyEntities = [];
   const env = Object.assign({
     RANAR_LOAD_SAMPLE_MS: "2000",
-    RANAR_LAG_RESPONSE_RECOVERY_MS: "10",
-    RANAR_LAG_MEMORY_CLEANUP_INTERVAL_MS: "1000",
+    RANAR_LAG_100_DURATION_MS: "10000",
+    RANAR_LAG_150_DURATION_MS: "15000",
+    RANAR_LAG_200_DURATION_MS: "15000",
+    RANAR_LAG_CRITICAL_DURATION_MS: "15000",
   }, overrides.env || {});
   const changes = [];
-  const memoryCleanups = [];
   const protection = createLoadProtection(Object.assign({
     env,
     nowProvider: () => now,
     sampleProvider: () => ({
-      memoryRatio: 0.1,
+      memoryRatio: 0,
       rssMb: 100,
       heapUsedMb: 50,
       heapLimitMb: 512,
@@ -27,288 +27,203 @@ function makeProtection(overrides = {}) {
       memoryGrowthMb: 0,
       memoryTrendReady: false,
     }),
-    getEntities: () => emptyEntities,
+    getEntities: () => [],
     onEntityChange: (_entity, _disabled, details) => changes.push(details || {}),
-    onMemoryPressure: (level) => memoryCleanups.push(level),
     delayMonitor: { enable() {}, disable() {}, percentile() { return 0; }, reset() {} },
   }, overrides.options || {}));
   return {
     protection,
     changes,
-    memoryCleanups,
     setNow(value) { now = value; },
   };
 }
 
-function makeEntity(overrides = {}) {
-  return Object.assign({
-    type: "tank", label: "Enemy", name: "Enemy", alpha: 1, size: 10,
-    health: { amount: 100, max: 100 }, alive: true, destroyed: false,
-    valid() { return this.alive; }, isDead() { return false; },
-    destroy() { this.destroyed = true; this.alive = false; },
-  }, overrides);
-}
-
-// A single extreme cycle affects pacing, but destructive mitigation waits for persistence.
+// A short 100ms spike must not pause spawns or trigger the unknown-entity sweep.
 {
   const test = makeProtection();
-  test.protection.reportCycle(260, [], 0);
-  let snapshot = test.protection.getSnapshot();
-  assert.strictEqual(snapshot.lagResponseStageId, "normal");
-  assert.strictEqual(snapshot.naturalSpawnsPaused, false);
-  assert.strictEqual(snapshot.emergencyMitigation, false,
-    "a single expensive tick must not jump directly to on-screen cleanup or reset");
+  test.protection.reportCycle(110, []);
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
-
-  // Persistent low run speed eventually enters the first, least disruptive stage.
-  for (let now = 260; now <= 5260; now += 260) {
-    test.setNow(now);
-    test.protection.reportCycle(260, [], now - 260);
-  }
-  snapshot = test.protection.getSnapshot();
-  assert.strictEqual(snapshot.lagResponseStageId, "offscreen-projectiles");
-  assert.strictEqual(snapshot.naturalSpawnsPaused, false,
-    "natural spawning remains active until the off-screen projectile pass completes and the next stage begins");
+  assert.strictEqual(test.protection.getSnapshot().lagPolicy100Triggered, false);
+  test.setNow(9999);
+  test.protection.reportCycle(110, []);
+  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
+  test.setNow(10000);
+  test.protection.reportCycle(110, []);
+  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), false);
+  assert.strictEqual(test.protection.getSnapshot().lagPolicy100Triggered, true);
 }
 
-// Natural population caps still reduce spawning as measured simulation load rises.
+// Critical entity suspension is deferred until critical lag has persisted.
 {
-  const natural = Array.from({ length: 10 }, (_, i) => makeEntity({
-    label: "Natural " + i, name: "Natural " + i, _loadProtectionNaturalSpawn: true,
-  }));
-  const test = makeProtection({ options: { getEntities: () => natural } });
-  test.protection.reportCycle(5, natural, 0);
-  const baseline = test.protection.getSnapshot().naturalPopulationBaseline;
-  assert.strictEqual(baseline, 10, "the healthy population should establish a stable baseline");
-  // A sustained 220 ms execution cycle is above the newly raised threshold.
-  // Three samples should lower the cap, while the persistence timer still keeps
-  // the cleanup ladder from deleting entities immediately.
-  test.setNow(33);
-  test.protection.reportCycle(220, natural, 33);
-  test.setNow(66);
-  test.protection.reportCycle(220, natural, 66);
-  test.setNow(99);
-  test.protection.reportCycle(220, natural, 99);
-  assert.strictEqual(natural.every((entity) => !entity.destroyed), true,
-    "the new anti-lag ladder does not destroy natural enemies before its persistence timer");
-  assert(test.protection.getSnapshot().naturalPopulationCap < baseline,
-    "reduced simulation throughput should still lower the natural population cap");
+  const test = makeProtection();
+  test.protection.reportCycle(600, []);
+  assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
+  assert.strictEqual(test.protection.getSnapshot().loadSuspensionElapsedMs, 0);
+  test.setNow(14999);
+  test.protection.reportCycle(600, []);
+  assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
+  test.setNow(15000);
+  test.protection.reportCycle(600, []);
+  assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, true);
 }
 
-// Once throughput recovers, every natural spawn gate reopens even if the
-// slower diagnostic-stage cooldown has not yet returned to its normal level.
+// Recovery before the persistence window cancels the pending critical episode.
 {
-  let now = 0;
-  const env = {
-    RANAR_LOAD_RUNTIME_EMA_ALPHA: "1",
-    RANAR_LAG_RECOVERY_SPEED_PERCENT: "75",
-    RANAR_LAG_RESPONSE_RECOVERY_MS: "10",
-  };
-  const { DEFAULT_STEPS } = require("../lib/lagResponse");
-  for (const step of DEFAULT_STEPS) {
-    const prefix = "RANAR_LAG_STEP_" + step.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
-    env[prefix + "_SPEED_PERCENT"] = "100";
-    env[prefix + "_DURATION_MS"] = "1";
-    env[prefix + "_MIN_ACTIVE_MS"] = "0";
-  }
-  const test = makeProtection({
-    env,
-    options: {
-      // A high-but-not-critical heap should not prevent lag gates reopening once
-      // simulation throughput is healthy again.
-      sampleProvider: () => ({
-        memoryRatio: 0.92, rssMb: 450, heapUsedMb: 420, heapLimitMb: 456, externalMb: 0,
-        eventLoopP95Ms: 0, eventLoopMaxMs: 0, memoryGrowthMb: 0, memoryTrendReady: false,
-      }),
-    },
-  });
-  for (let tick = 0; tick < 20 && test.protection.getSnapshot().lagResponseStage < 3; tick++) {
-    now += 2;
-    test.setNow(now);
-    test.protection.reportCycle(220, [], now - 220);
-  }
-  assert(test.protection.getSnapshot().lagResponseStage >= 3,
-    "sustained server lag should reach the bot-throttling stage in this short-timer test");
-  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), false,
-    "natural enemies and bosses should be gated while their mitigation stage is active");
-  assert.strictEqual(test.protection.shouldSpawnFood(), false, "food spawning pauses at its mitigation stage");
-  assert.strictEqual(test.protection.shouldSpawnBot(), false, "bot spawning pauses at its mitigation stage");
-
-  // Supply the current high-but-not-critical heap sample while runtime speed is
-  // still poor; it must not bypass the active mitigation stage on its own.
-  test.protection.sample();
-  assert.notStrictEqual(test.protection.getSnapshot().lagResponseStageId, "normal",
-    "high memory alone must not prematurely release active lag mitigation");
-
-  for (let tick = 0; tick < 20 && test.protection.getSnapshot().lagResponseStage !== -1; tick++) {
-    now += 5;
-    test.setNow(now);
-    test.protection.reportCycle(1, [], now - 1);
-  }
-  const recovered = test.protection.getSnapshot();
-  assert.strictEqual(recovered.lagResponseStageId, "normal", "the mitigation ladder should reset after sustained recovery");
-  assert.strictEqual(recovered.naturalSpawnRecoveryOverride, true,
-    "natural spawning should be explicitly released on lag recovery");
-  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true,
-    "natural enemies and bosses should spawn again after lag subsides");
-  assert.strictEqual(test.protection.shouldSpawnFood(), true, "food spawning should resume after lag subsides");
-  assert.strictEqual(test.protection.shouldSpawnBot(), true, "bot spawning should resume after lag subsides");
-  assert.strictEqual(test.protection.canSpawnNaturalEntity(), true,
-    "the natural population cap should no longer use a stale anti-lag stage after recovery");
+  const test = makeProtection();
+  test.protection.reportCycle(600, []);
+  test.setNow(5000);
+  test.protection.reportCycle(20, []);
+  test.setNow(20000);
+  test.protection.reportCycle(600, []);
+  assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
 }
 
-// Off-screen culling rechecks visibility, and only runs after the duration configured for that stage.
+// A dip below the true emergency threshold breaks the pre-episode persistence
+// window; 400–499ms hysteresis only applies after an emergency episode starts.
 {
-  const projectile = makeEntity({ type: "bullet", isProjectile: true, label: "Projectile" });
-  const food = makeEntity({ type: "food", foodLevel: 1, label: "Food" });
-  let now = 0;
-  let visible = false;
-  const entities = [projectile, food];
-  const env = {
-    RANAR_LAG_STEP_OFFSCREEN_PROJECTILES_DURATION_MS: "100",
-    RANAR_LAG_RESPONSE_SCAN_BATCH_SIZE: "100",
-    RANAR_LAG_RESPONSE_DESTROY_BATCH_SIZE: "1",
-  };
-  const test = makeProtection({
-    env,
-    options: {
-      getEntities: () => entities,
-      isEntityVisibleToAnyClient(entity) {
-        if (entity === projectile) return visible;
-        return false;
-      },
-    },
-  });
-  test.protection.reportCycle(260, entities, 0);
-  visible = true;
-  now = 99;
-  test.setNow(now);
-  test.protection.reportCycle(260, entities, now - 260);
-  assert.strictEqual(projectile.destroyed, false, "a single tick and a sub-threshold duration do not destroy projectiles");
-  visible = false;
-  now = 500;
-  test.setNow(now);
-  test.protection.reportCycle(260, entities, now - 260);
-  assert.strictEqual(projectile.destroyed, true, "off-screen projectiles are removed after their stage duration persists");
-  assert.strictEqual(food.destroyed, false, "food belongs to a later stage, not the projectile pass");
+  const test = makeProtection();
+  test.protection.reportCycle(600, []);
+  test.setNow(5000);
+  test.protection.reportCycle(450, []);
+  test.setNow(15000);
+  test.protection.reportCycle(450, []);
+  assert.strictEqual(test.protection.getSnapshot().criticalLagConfirmed, false);
+  assert.strictEqual(test.protection.getSnapshot().loadDisabledEntityCount, 0);
 }
 
-// Natural bosses remain eligible for their dedicated late-stage cleanup even when
-// their generic class carries isProtected/alwaysExists/KEEP flags.
+// One ordinary critical-threshold frame does not immediately set the system to maximum.
 {
-  let now = 0;
-  const boss = makeEntity({
-    label: "Natural Boss", name: "Natural Boss", isBoss: true, boss: true,
-    _loadProtectionNaturalSpawn: true, isProtected: true, alwaysExists: true,
-    keep: true, KEEP: true,
-  });
-  const wall = makeEntity({
-    label: "Maze Wall", name: "Maze Wall", type: "wall", isWall: true,
-    isBoss: true, _loadProtectionNaturalSpawn: true, isProtected: true,
-    alwaysExists: true, keep: true, KEEP: true,
-  });
-  const entities = [boss, wall];
-  const env = {
-    RANAR_LAG_RESPONSE_SCAN_BATCH_SIZE: "10000",
-    RANAR_LAG_RESPONSE_DESTROY_BATCH_SIZE: "10000",
-    RANAR_LAG_RESPONSE_RESCAN_MS: "1",
-    RANAR_LAG_RESPONSE_SUSPEND_INTERVAL_MS: "1",
-  };
-  const { DEFAULT_STEPS } = require("../lib/lagResponse");
-  for (const step of DEFAULT_STEPS) {
-    const prefix = "RANAR_LAG_STEP_" + step.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
-    env[prefix + "_DURATION_MS"] = "1";
-    env[prefix + "_MIN_ACTIVE_MS"] = "0";
-  }
-  const test = makeProtection({
-    env,
-    options: { getEntities: () => entities, isEntityVisibleToAnyClient: () => false },
-  });
-  for (let tick = 0; tick < 30 && !boss.destroyed; tick++) {
-    now += 10;
-    test.setNow(now);
-    test.protection.reportCycle(2000, entities, now - 2000);
-  }
-  assert.strictEqual(boss.destroyed, true,
-    "the natural-boss stage should be able to remove a natural boss despite generic protection flags");
-  assert.strictEqual(wall.destroyed, false,
-    "a structure remains protected even when it carries boss-like flags");
-}
-
-// Critical memory pressure performs generic memory cleanup only and does not skip ahead to destructive stages.
-{
-  let now = 0;
-  const bot = makeEntity({ isBot: true });
-  const test = makeProtection({
-    env: { RANAR_LAG_MEMORY_CLEANUP_INTERVAL_MS: "1" },
-    options: {
-      getEntities: () => [bot],
-      sampleProvider: () => ({
-        memoryRatio: 0.96, rssMb: 900, heapUsedMb: 500, heapLimitMb: 512, externalMb: 0,
-        eventLoopP95Ms: 0, eventLoopMaxMs: 0, memoryGrowthMb: 0, memoryTrendReady: false,
-      }),
-    },
-  });
-  test.protection.sample();
+  const test = makeProtection();
+  test.protection.reportCycle(260, []);
   const snapshot = test.protection.getSnapshot();
-  assert.strictEqual(snapshot.lagResponseStageId, "normal");
-  assert.strictEqual(snapshot.naturalSpawnsPaused, false);
-  assert.strictEqual(bot.destroyed, false, "memory pressure alone does not delete gameplay entities");
-  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
+  assert.strictEqual(snapshot.cycleStage, 0);
+  assert.strictEqual(snapshot.runSpeedLevel, 0);
+  assert.strictEqual(test.protection.shouldSpawnFood(), true);
+  assert.strictEqual(snapshot.criticalLagConfirmed, false);
 }
 
-// Recovery after temporary suspension restores opacity, names, and gameplay state.
+// Sustained high lag increases scheduler pacing a notch at a time, then recovery
+// returns a notch only after the configured quiet period.
+{
+  const test = makeProtection({ env: { RANAR_LOAD_RUN_SPEED_ESCALATION_MS: "1000", RANAR_LOAD_RUN_SPEED_RECOVERY_MS: "5000" } });
+  test.protection.reportCycle(200, []);
+  assert.strictEqual(test.protection.getSnapshot().runSpeedLevel, 0);
+  test.setNow(1249);
+  test.protection.reportCycle(200, []);
+  assert.strictEqual(test.protection.getSnapshot().runSpeedLevel, 0);
+  test.setNow(1250);
+  test.protection.reportCycle(200, []);
+  assert.strictEqual(test.protection.getSnapshot().runSpeedLevel, 1);
+  test.protection.reportCycle(20, []);
+  assert.strictEqual(test.protection.getSnapshot().runSpeedLevel, 1);
+  test.setNow(6250);
+  test.protection.reportCycle(20, []);
+  assert.strictEqual(test.protection.getSnapshot().runSpeedLevel, 0);
+}
+
+// Only extreme latency jumps directly to critical pacing/stage.
+{
+  const test = makeProtection();
+  test.protection.reportCycle(600, []);
+  const snapshot = test.protection.getSnapshot();
+  assert.strictEqual(snapshot.cycleStage, 3);
+  assert.strictEqual(snapshot.runSpeedLevel, 5);
+  assert.strictEqual(snapshot.criticalLagConfirmed, false);
+}
+
+// Sustained-but-not-extreme 250ms lag enters the elevated tier gradually.
+{
+  const test = makeProtection();
+  test.protection.reportCycle(260, []);
+  test.setNow(5999);
+  test.protection.reportCycle(260, []);
+  assert.strictEqual(test.protection.getSnapshot().cycleStage, 0);
+  test.setNow(6000);
+  test.protection.reportCycle(260, []);
+  assert.strictEqual(test.protection.getSnapshot().cycleStage, 1);
+  assert.notStrictEqual(test.protection.getSnapshot().runSpeedLevel, 5);
+}
+
+// Moderate lag may pause natural spawns, but must not trigger the destructive
+// unknown-class sweep; unknown cleanup waits for its own severe-lag threshold.
+{
+  let alive = true;
+  const unknown = {
+    id: 1,
+    label: "Unknown Class",
+    type: "tank",
+    settings: {},
+    valid: () => alive,
+    destroy: () => { alive = false; },
+  };
+  const test = makeProtection({
+    env: { RANAR_LAG_100_DURATION_MS: "1000", RANAR_LAG_UNKNOWN_DURATION_MS: "1000" },
+    options: { getEntities: () => [unknown] },
+  });
+  test.protection.reportCycle(110, [unknown]);
+  test.setNow(1000);
+  test.protection.reportCycle(110, [unknown]);
+  assert.strictEqual(alive, true);
+  test.setNow(2000);
+  test.protection.reportCycle(110, [unknown]);
+  assert.strictEqual(alive, true);
+}
+
+
+// Recovery restores suspended entities in a queue instead of making every
+// disabled entity respawn during the same simulation cycle.
 {
   let now = 0;
-  const ownedProjectile = makeEntity({
-    name: "Owned Projectile", label: "Owned Projectile", type: "bullet", isProjectile: true,
-  });
-  const visibleEnemy = makeEntity({
-    name: "Visible Enemy", label: "Visible Enemy",
-    children: [ownedProjectile], possiblyChildren: new Set([ownedProjectile]),
-  });
-  ownedProjectile.master = visibleEnemy;
-  ownedProjectile.source = visibleEnemy;
-  const entities = [visibleEnemy, ownedProjectile];
-  const env = {};
-  // Use the real staged sequence with short timings; one visible general entity is
-  // suspended only after the five off-screen sweeps have been completed.
-  const { DEFAULT_STEPS } = require("../lib/lagResponse");
-  for (const step of DEFAULT_STEPS) {
-    const prefix = "RANAR_LAG_STEP_" + step.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
-    env[prefix + "_DURATION_MS"] = "1";
-    env[prefix + "_MIN_ACTIVE_MS"] = "0";
-  }
-  env.RANAR_LOAD_ENTITY_FADE_MS = "2";
-  env.RANAR_LOAD_RUNTIME_EMA_ALPHA = "1";
-  env.RANAR_LAG_RESPONSE_RECOVERY_MS = "5";
-  const test = makeProtection({
-    env,
-    options: {
-      getEntities: () => entities,
-      isEntityVisibleToAnyClient: () => true,
+  const entities = ["first", "second"].map((name, id) => ({
+    id,
+    name,
+    label: "Test Unit",
+    type: "tank",
+    alpha: 1,
+    settings: {},
+    controllers: [],
+    guns: [],
+    turrets: [],
+    children: [],
+    valid: () => true,
+  }));
+  const protection = createLoadProtection({
+    env: {
+      RANAR_LOAD_SAMPLE_MS: "2000",
+      RANAR_LOAD_ENTITY_FADE_MS: "100",
+      RANAR_LOAD_SUSPEND_INTERVAL_MS: "2500",
+      RANAR_LOAD_RESTORE_INTERVAL_MS: "1000",
+      RANAR_LAG_CRITICAL_DURATION_MS: "15000",
     },
+    nowProvider: () => now,
+    sampleProvider: () => ({
+      memoryRatio: 0, rssMb: 100, heapUsedMb: 50, heapLimitMb: 512,
+      externalMb: 0, eventLoopP95Ms: 0, eventLoopMaxMs: 0,
+      memoryGrowthMb: 0, memoryTrendReady: false,
+    }),
+    getEntities: () => entities,
+    delayMonitor: { enable() {}, disable() {}, percentile() { return 0; }, reset() {} },
   });
-  for (let tick = 0; tick < 7; tick++) {
-    now += 1;
-    test.setNow(now);
-    test.protection.reportCycle(260, entities, now - 260);
-  }
-  assert.strictEqual(visibleEnemy._loadDisabled, true,
-    "an on-screen ordinary entity is disabled only after earlier mitigation stages");
-  assert.strictEqual(ownedProjectile._loadDisabled, true,
-    "owned projectiles are suspended together with their visible owner");
-  for (let tick = 0; tick < 8; tick++) {
-    now += 10;
-    test.setNow(now);
-    test.protection.reportCycle(5, entities, now - 5);
-  }
-  assert.strictEqual(visibleEnemy._loadDisabled, undefined,
-    "sustained healthy throughput restores suspended entities");
-  assert.strictEqual(ownedProjectile._loadDisabled, undefined,
-    "owned projectiles are restored with their owner when load recovers");
-  assert.strictEqual(visibleEnemy.name, "Visible Enemy");
-  assert.strictEqual(visibleEnemy.destroyed, false);
+  protection.reportCycle(600, entities);
+  now = 15000;
+  protection.reportCycle(600, entities); // Suspend first entity.
+  now = 17500;
+  protection.reportCycle(600, entities); // Suspend second entity.
+  assert.strictEqual(entities.filter(entity => entity.name === "[Disabled]").length, 2);
+
+  now = 18000;
+  protection.reportCycle(20, entities); // Recovery starts only the first restore.
+  assert.strictEqual(entities.filter(entity => entity.name === "[Respawning...]").length, 1);
+  assert.strictEqual(entities.filter(entity => entity.name === "[Disabled]").length, 1);
+
+  now = 18100;
+  protection.reportCycle(20, entities); // First finishes; second is still queued.
+  assert.strictEqual(entities.filter(entity => entity.name === "[Disabled]").length, 1);
+  assert.strictEqual(entities.filter(entity => entity.name === "[Respawning...]").length, 0);
+
+  now = 19000;
+  protection.reportCycle(20, entities); // Second restore can now begin.
+  assert.strictEqual(entities.filter(entity => entity.name === "[Respawning...]").length, 1);
 }
 
 console.log("loadProtection tests passed");
