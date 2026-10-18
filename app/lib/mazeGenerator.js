@@ -7,7 +7,9 @@ const DEFAULTS = Object.freeze({
   targetCellsAcrossShortSide: 28,
   minCellSize: 115,
   maxCellSize: 230,
-  wallDensity: 0.40,
+  // Slightly denser than the previous default. The connectivity passes below
+  // still remove a small number of blocks to avoid physically trapped pockets.
+  wallDensity: 0.48,
   maxWallSizeScale: 0.52,
   // Bias density away from the exact centre and outer edge, but never forbid
   // either region. Smooth falloffs avoid obvious empty bands.
@@ -19,6 +21,9 @@ const DEFAULTS = Object.freeze({
   positionJitterRatio: 0.17,
   // Narrow clearances are closed up; wider clearances remain useful passages.
   minimumOpeningRatio: 0.42,
+  // Extra radius used by the physical connectivity pass to approximate the
+  // space a normal tank needs to move through a generated corridor.
+  minimumTraversalClearanceRatio: 0.16,
   touchingGapRatio: 0.025,
   maxGapResolvePasses: 256,
   specialClearanceBufferRatio: 0.06,
@@ -350,29 +355,81 @@ function connectOpenRegions(walls, { columns, rows }) {
     }
     if (!enclosed) break;
 
-    // BFS through open cells at zero cost and wall cells at one cost is not
-    // needed here: a normal BFS finds a short route, then only wall cells on it
-    // are removed. This keeps the repair deterministic and bounded.
-    const queue = [enclosed];
-    const previous = new Map([[key(...enclosed), null]]);
-    let exit = null;
-    for (let i = 0; i < queue.length && !exit; i++) {
-      const [x, y] = queue[i];
+    // Prefer a route that removes as few wall cells as possible, then the
+    // shortest such route. The old unweighted BFS routinely cut straight
+    // through dense formations and threw away many more walls than necessary.
+    const totalCells = columns * rows;
+    const wallPenalty = totalCells + 1;
+    const distances = new Float64Array(totalCells);
+    distances.fill(Infinity);
+    const previous = new Int32Array(totalCells);
+    previous.fill(-1);
+    const cellIndex = (x, y) => y * columns + x;
+    const startIndex = cellIndex(enclosed[0], enclosed[1]);
+    const heap = [];
+    const push = (cost, index) => {
+      let i = heap.length;
+      heap.push({ cost, index });
+      while (i > 0) {
+        const parent = (i - 1) >> 1;
+        if (heap[parent].cost <= cost) break;
+        heap[i] = heap[parent];
+        i = parent;
+      }
+      heap[i] = { cost, index };
+    };
+    const pop = () => {
+      if (!heap.length) return null;
+      const first = heap[0];
+      const last = heap.pop();
+      if (heap.length) {
+        let i = 0;
+        while (true) {
+          const left = i * 2 + 1;
+          const right = left + 1;
+          if (left >= heap.length) break;
+          let child = left;
+          if (right < heap.length && heap[right].cost < heap[left].cost) child = right;
+          if (heap[child].cost >= last.cost) break;
+          heap[i] = heap[child];
+          i = child;
+        }
+        heap[i] = last;
+      }
+      return first;
+    };
+
+    distances[startIndex] = 0;
+    push(0, startIndex);
+    let exitIndex = -1;
+    while (heap.length) {
+      const current = pop();
+      if (!current || current.cost !== distances[current.index]) continue;
+      const x = current.index % columns;
+      const y = Math.floor(current.index / columns);
       if (x === 0 || y === 0 || x === columns - 1 || y === rows - 1) {
-        exit = [x, y];
+        exitIndex = current.index;
         break;
       }
       for (const [dx, dy] of directions) {
-        const nx = x + dx, ny = y + dy, nk = key(nx, ny);
-        if (!inBounds(nx, ny) || previous.has(nk)) continue;
-        previous.set(nk, [x, y]);
-        queue.push([nx, ny]);
+        const nx = x + dx;
+        const ny = y + dy;
+        if (!inBounds(nx, ny)) continue;
+        const nextIndex = cellIndex(nx, ny);
+        const nextCost = current.cost + (wallByCell.has(key(nx, ny)) ? wallPenalty : 1);
+        if (nextCost >= distances[nextIndex]) continue;
+        distances[nextIndex] = nextCost;
+        previous[nextIndex] = current.index;
+        push(nextCost, nextIndex);
       }
     }
-    if (!exit) break;
+    if (exitIndex < 0) break;
 
     const route = [];
-    for (let point = exit; point; point = previous.get(key(...point))) route.push(point);
+    for (let point = exitIndex; point >= 0; point = previous[point]) {
+      route.push([point % columns, Math.floor(point / columns)]);
+      if (point === startIndex) break;
+    }
     route.reverse();
     const carve = new Set();
     for (let i = 0; i < route.length; i++) {
@@ -396,6 +453,163 @@ function connectOpenRegions(walls, { columns, rows }) {
 
   const kept = walls.filter((wall) => wallByCell.has(key(wall.gridX, wall.gridY)));
   walls.splice(0, walls.length, ...kept);
+}
+
+/**
+ * Repair enclosed pockets that exist in world-space even though their grid
+ * cells look connected. Jitter and variable wall radii can close a route after
+ * the cell-grid connectivity pass, leaving tiny spaces a tank cannot enter or
+ * leave. A small clearance-expanded raster catches those cases; one boundary
+ * wall is removed per repair and the raster is rebuilt until each traversable
+ * sample can reach the map edge.
+ */
+function repairPhysicalClearanceConnectivity(walls, {
+  width,
+  height,
+  columns,
+  rows,
+  cellWidth,
+  cellHeight,
+}) {
+  if (walls.length < 4 || columns < 3 || rows < 3) return 0;
+
+  // Three samples per world-grid cell detect narrow pockets without turning
+  // generation into a high-resolution physics simulation.
+  const sampleColumns = columns * 3;
+  const sampleRows = rows * 3;
+  const stepX = width / sampleColumns;
+  const stepY = height / sampleRows;
+  const clearance = Math.min(cellWidth, cellHeight) *
+    DEFAULTS.minimumTraversalClearanceRatio;
+  const sampleCount = sampleColumns * sampleRows;
+  const key = (x, y) => y * sampleColumns + x;
+  const directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  // Bound startup work on unusually large maps while allowing enough repairs
+  // for the small pockets created by ordinary randomized layouts.
+  const maxRepairs = Math.min(
+    walls.length,
+    Math.max(24, Math.min(128, Math.ceil(walls.length * 0.20)))
+  );
+  let repairs = 0;
+
+  while (repairs < maxRepairs && walls.length) {
+    const blocked = new Uint8Array(sampleCount);
+    const blockerAt = new Int32Array(sampleCount);
+    blockerAt.fill(-1);
+    const boundaryPenetration = new Float32Array(sampleCount);
+    boundaryPenetration.fill(Infinity);
+
+    // Rasterize only within each wall's expanded bounds, rather than checking
+    // every wall against every sample in the world.
+    for (let wallIndex = 0; wallIndex < walls.length; wallIndex++) {
+      const wall = walls[wallIndex];
+      const radius = wall.size + clearance;
+      const radiusSquared = radius * radius;
+      const minX = Math.max(0, Math.floor((wall.x - radius) / stepX));
+      const maxX = Math.min(sampleColumns - 1, Math.floor((wall.x + radius) / stepX));
+      const minY = Math.max(0, Math.floor((wall.y - radius) / stepY));
+      const maxY = Math.min(sampleRows - 1, Math.floor((wall.y + radius) / stepY));
+
+      for (let y = minY; y <= maxY; y++) {
+        const pointY = (y + 0.5) * stepY;
+        for (let x = minX; x <= maxX; x++) {
+          const pointX = (x + 0.5) * stepX;
+          const dx = pointX - wall.x;
+          const dy = pointY - wall.y;
+          const distanceSquared = dx * dx + dy * dy;
+          if (distanceSquared >= radiusSquared) continue;
+
+          const index = key(x, y);
+          blocked[index] = 1;
+          // The shallowest overlapping wall sits nearest this sample's edge,
+          // making it a good candidate to remove at a pinched passage.
+          const penetration = radius - Math.sqrt(distanceSquared);
+          if (penetration < boundaryPenetration[index]) {
+            boundaryPenetration[index] = penetration;
+            blockerAt[index] = wallIndex;
+          }
+        }
+      }
+    }
+
+    const reachable = new Uint8Array(sampleCount);
+    const queue = new Int32Array(sampleCount);
+    let head = 0;
+    let tail = 0;
+    const addReachable = (x, y) => {
+      if (x < 0 || y < 0 || x >= sampleColumns || y >= sampleRows) return;
+      const index = key(x, y);
+      if (blocked[index] || reachable[index]) return;
+      reachable[index] = 1;
+      queue[tail++] = index;
+    };
+    for (let x = 0; x < sampleColumns; x++) {
+      addReachable(x, 0);
+      addReachable(x, sampleRows - 1);
+    }
+    for (let y = 0; y < sampleRows; y++) {
+      addReachable(0, y);
+      addReachable(sampleColumns - 1, y);
+    }
+    for (; head < tail; head++) {
+      const index = queue[head];
+      const x = index % sampleColumns;
+      const y = Math.floor(index / sampleColumns);
+      for (const [dx, dy] of directions) addReachable(x + dx, y + dy);
+    }
+
+    // Find the first enclosed free-space component and count which walls form
+    // its boundary. Rebuild after each removal to verify the new gap is usable.
+    let repairWallIndex = -1;
+    let bestBoundaryCount = -1;
+    let bestWallSize = Infinity;
+    for (let start = 0; start < sampleCount && repairWallIndex < 0; start++) {
+      if (blocked[start] || reachable[start]) continue;
+      const component = [start];
+      const wallBoundaryCounts = new Map();
+      reachable[start] = 1; // Reuse as the visited bit for this pocket.
+
+      for (let cursor = 0; cursor < component.length; cursor++) {
+        const index = component[cursor];
+        const x = index % sampleColumns;
+        const y = Math.floor(index / sampleColumns);
+        for (const [dx, dy] of directions) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= sampleColumns || ny >= sampleRows) continue;
+          const neighbor = key(nx, ny);
+          if (blocked[neighbor]) {
+            const wallIndex = blockerAt[neighbor];
+            if (wallIndex >= 0) {
+              wallBoundaryCounts.set(wallIndex, (wallBoundaryCounts.get(wallIndex) || 0) + 1);
+            }
+          } else if (!reachable[neighbor]) {
+            reachable[neighbor] = 1;
+            component.push(neighbor);
+          }
+        }
+      }
+
+      for (const [wallIndex, boundaryCount] of wallBoundaryCounts) {
+        const wall = walls[wallIndex];
+        if (!wall) continue;
+        if (
+          boundaryCount > bestBoundaryCount ||
+          (boundaryCount === bestBoundaryCount && wall.size < bestWallSize)
+        ) {
+          repairWallIndex = wallIndex;
+          bestBoundaryCount = boundaryCount;
+          bestWallSize = wall.size;
+        }
+      }
+    }
+
+    if (repairWallIndex < 0) break;
+    walls.splice(repairWallIndex, 1);
+    repairs++;
+  }
+
+  return repairs;
 }
 
 /**
@@ -490,7 +704,7 @@ function generateWorldMaze({
 
   const requestedDensity = Number(density);
   const wallDensity = Number.isFinite(requestedDensity)
-    ? Math.max(0, Math.min(0.45, requestedDensity))
+    ? Math.max(0, Math.min(0.49, requestedDensity))
     : DEFAULTS.wallDensity;
   const targetWalls = Math.floor(candidates.length * wallDensity);
   const occupied = Array.from({ length: rows }, () => Array(columns).fill(false));
@@ -629,6 +843,14 @@ function generateWorldMaze({
     shortCellSide,
   });
   connectOpenRegions(walls, { columns, rows });
+  const clearanceRepairs = repairPhysicalClearanceConnectivity(walls, {
+    width,
+    height,
+    columns,
+    rows,
+    cellWidth,
+    cellHeight,
+  });
 
   return {
     columns,
@@ -637,6 +859,7 @@ function generateWorldMaze({
     cellHeight,
     candidateCells: candidates.length,
     targetWalls,
+    clearanceRepairs,
     walls,
   };
 }

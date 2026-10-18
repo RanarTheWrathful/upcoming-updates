@@ -11,6 +11,65 @@ function seededRandom(seed) {
   };
 }
 
+function assertPhysicalClearanceConnectivity(layout, width, height) {
+  const sampleColumns = layout.columns * 3;
+  const sampleRows = layout.rows * 3;
+  const stepX = width / sampleColumns;
+  const stepY = height / sampleRows;
+  const clearance = Math.min(layout.cellWidth, layout.cellHeight) * 0.16;
+  const blocked = new Uint8Array(sampleColumns * sampleRows);
+  const indexOf = (x, y) => y * sampleColumns + x;
+  for (const wall of layout.walls) {
+    const radius = wall.size + clearance;
+    const radiusSquared = radius * radius;
+    const minX = Math.max(0, Math.floor((wall.x - radius) / stepX));
+    const maxX = Math.min(sampleColumns - 1, Math.floor((wall.x + radius) / stepX));
+    const minY = Math.max(0, Math.floor((wall.y - radius) / stepY));
+    const maxY = Math.min(sampleRows - 1, Math.floor((wall.y + radius) / stepY));
+    for (let y = minY; y <= maxY; y++) {
+      const py = (y + 0.5) * stepY;
+      for (let x = minX; x <= maxX; x++) {
+        const px = (x + 0.5) * stepX;
+        if ((px - wall.x) ** 2 + (py - wall.y) ** 2 < radiusSquared) {
+          blocked[indexOf(x, y)] = 1;
+        }
+      }
+    }
+  }
+  const reachable = new Uint8Array(blocked.length);
+  const queue = new Int32Array(blocked.length);
+  let head = 0;
+  let tail = 0;
+  const visit = (x, y) => {
+    if (x < 0 || y < 0 || x >= sampleColumns || y >= sampleRows) return;
+    const index = indexOf(x, y);
+    if (blocked[index] || reachable[index]) return;
+    reachable[index] = 1;
+    queue[tail++] = index;
+  };
+  for (let x = 0; x < sampleColumns; x++) {
+    visit(x, 0);
+    visit(x, sampleRows - 1);
+  }
+  for (let y = 0; y < sampleRows; y++) {
+    visit(0, y);
+    visit(sampleColumns - 1, y);
+  }
+  for (; head < tail; head++) {
+    const index = queue[head];
+    const x = index % sampleColumns;
+    const y = Math.floor(index / sampleColumns);
+    visit(x + 1, y);
+    visit(x - 1, y);
+    visit(x, y + 1);
+    visit(x, y - 1);
+  }
+  for (let index = 0; index < blocked.length; index++) {
+    assert(blocked[index] || reachable[index],
+      "every physically traversable clearance sample should connect to the world perimeter");
+  }
+}
+
 const source = Array.from({ length: 15 }, () => Array(15).fill("norm"));
 source[6][6] = "nest";
 source[6][7] = "nest";
@@ -106,6 +165,11 @@ for (let y = 1; y < generated.rows - 1; y++) {
   }
 }
 assert(generated.walls.length <= generated.candidateCells * 0.36, "default wall density should remain bounded near 35%");
+assert(generated.clearanceRepairs > 0, "the physical-clearance pass should repair at least one enclosed pocket in this seeded layout");
+
+// Check real movement clearance, not only logical grid connectivity.
+assertPhysicalClearanceConnectivity(generated, 4000, 4000);
+
 assert(
   Math.abs(generated.cellWidth - (4000 / 15 / 2)) < 10,
   "world-grid cell scale should be based on roughly half an in-game room tile"
@@ -225,6 +289,7 @@ for (let seed = 1; seed <= 30; seed++) {
     roomSetup: plainSetup,
     random: seededRandom(seed),
   });
+  assertPhysicalClearanceConnectivity(layout, 4000, 4000);
   const centerRadius = 160;
   const borderBand = 200;
   for (let y = 0; y < layout.rows; y++) {

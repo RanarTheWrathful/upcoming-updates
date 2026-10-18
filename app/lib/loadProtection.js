@@ -7,7 +7,10 @@ const isTransientEffect = require("./offscreenTransientCleanup").isTransientEffe
 const createLagResponse = require("./lagResponse");
 
 const STAGE_NAMES = ["normal", "elevated", "high", "critical"];
-const RUN_SPEED_THRESHOLDS_MS = [75, 100, 150, 200, 250];
+// Raise pacing thresholds so brief or modest slowdowns do not trigger the
+// anti-lag ladder. The more disruptive actions remain reserved for genuinely
+// expensive cycles.
+const RUN_SPEED_THRESHOLDS_MS = [100, 150, 200, 250, 350];
 
 function positiveNumber(value, fallback) {
   const number = Number(value);
@@ -75,11 +78,11 @@ function createLoadProtection(options = {}) {
   const highMemory = positiveNumber(env.RANAR_LOAD_HIGH_MEMORY, 0.86);
   const criticalMemory = positiveNumber(env.RANAR_LOAD_CRITICAL_MEMORY, 0.94);
   // Match actual simulation lag thresholds requested for this server.
-  const warningDelayMs = positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 75);
-  const highDelayMs = positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 150);
-  const criticalDelayMs = positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 250);
+  const warningDelayMs = positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 100);
+  const highDelayMs = positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 200);
+  const criticalDelayMs = positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 300);
   // Crossing this extreme-lag threshold bypasses every policy persistence timer.
-  const emergencyLagMs = positiveNumber(env.RANAR_LOAD_EXTREME_LAG_MS, 250);
+  const emergencyLagMs = positiveNumber(env.RANAR_LOAD_EXTREME_LAG_MS, 350);
   const suspensionIntervalMs = positiveNumber(env.RANAR_LOAD_SUSPEND_INTERVAL_MS, 2500);
   const suspensionWindowMs = positiveNumber(env.RANAR_LOAD_SUSPEND_WINDOW_MS, 60000);
   const entityFadeMs = positiveNumber(env.RANAR_LOAD_ENTITY_FADE_MS, 2500);
@@ -181,6 +184,8 @@ function createLoadProtection(options = {}) {
   // Scheduler pacing is independent of room.cycleSpeed (which is also used by
   // existing network timing). Higher lag targets a slower start-to-start tick
   // cadence; recovery is deliberately gradual to prevent threshold flapping.
+  // These environment suffixes are legacy escalation-level names retained for
+  // compatibility; the actual millisecond thresholds are configured above.
   const runSpeedMultipliers = [
     1,
     positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_75, 1.05),
@@ -215,6 +220,14 @@ function createLoadProtection(options = {}) {
     200: { durationMs: onScreenCleanupDelayMs, since: null, triggered: false },
   };
   let naturalSpawnsPaused = false;
+  // When lagResponse declares a sustained recovery, spawn gates should resume
+  // immediately rather than wait for the separate telemetry stage to cool down.
+  // A new lag episode or renewed slowdown clears this override.
+  let naturalSpawnRecoveryOverride = false;
+  const spawnRecoverySpeedPercent = Math.max(
+    0,
+    Math.min(100, positiveNumber(env.RANAR_LAG_RECOVERY_SPEED_PERCENT, 75))
+  );
   let below100Since = null;
   // Unknown entities are cleaned once per upward crossing of 100ms. Keep this
   // independent from the 10-second natural-spawn pause policy.
@@ -777,7 +790,7 @@ function createLoadProtection(options = {}) {
   function getNaturalPopulationState(entityList) {
     const cached = refreshNaturalPopulationCache(entityList);
     const count = cached.count;
-    const currentStage = effectiveStage();
+    const currentStage = naturalSpawnRecoveryOverride ? 0 : effectiveStage();
     const healthy = currentStage === 0 &&
       currentRunSpeedPercent >= 90 &&
       !naturalSpawnsPaused &&
@@ -1808,6 +1821,13 @@ function createLoadProtection(options = {}) {
 
   function syncLagResponseSnapshot(snapshot) {
     if (!snapshot) return;
+    if (
+      snapshot.stageIndex >= 0 ||
+      (Number.isFinite(snapshot.runSpeedPercent) &&
+        snapshot.runSpeedPercent < spawnRecoverySpeedPercent)
+    ) {
+      naturalSpawnRecoveryOverride = false;
+    }
     naturalSpawnsPaused = snapshot.naturalSpawnsPaused === true;
     lastMetrics.naturalSpawnsPaused = naturalSpawnsPaused;
     lastMetrics.emergencyMitigation = snapshot.emergencyMitigation === true;
@@ -1837,6 +1857,7 @@ function createLoadProtection(options = {}) {
     },
     onRecovery(details) {
       naturalSpawnsPaused = false;
+      naturalSpawnRecoveryOverride = true;
       restoreAllSuspendedEntities(details && details.reason || "lag recovered");
       suspensionEpisodeStartedAt = null;
       criticalLagSince = null;
@@ -2072,6 +2093,7 @@ function createLoadProtection(options = {}) {
     snapshot.targetTickRatePercent = Math.round(100 / getRunSpeedMultiplier());
     snapshot.cycleStage = cycleStage;
     snapshot.naturalSpawnsPaused = naturalSpawnsPaused;
+    snapshot.naturalSpawnRecoveryOverride = naturalSpawnRecoveryOverride;
     const populationEntities = lastEntityList || getEntities();
     const naturalPopulation = getNaturalPopulationState(populationEntities);
     snapshot.naturalPopulationCacheReady = naturalPopulation.ready;
@@ -2114,7 +2136,7 @@ function createLoadProtection(options = {}) {
     // Do not stop food from being replenished during the natural-enemy pass:
     // its off-screen removal is the next stage in the ordered mitigation ladder.
     if (lagResponse && lagResponse.activeStageIndex >= 2) return false;
-    const currentStage = effectiveStage();
+    const currentStage = naturalSpawnRecoveryOverride ? 0 : effectiveStage();
     if (currentStage < 2) return true;
     foodSpawnTick++;
     return foodSpawnTick % 2 === 0;
@@ -2123,7 +2145,7 @@ function createLoadProtection(options = {}) {
   function shouldSpawnBot() {
     // Bot spawning stays available until the bot cleanup stage itself begins.
     if (lagResponse && lagResponse.activeStageIndex >= 3) return false;
-    const currentStage = effectiveStage();
+    const currentStage = naturalSpawnRecoveryOverride ? 0 : effectiveStage();
     if (currentStage < 2) return true;
     botSpawnTick++;
     return botSpawnTick % 2 === 0;

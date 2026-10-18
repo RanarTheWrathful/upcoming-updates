@@ -3,18 +3,21 @@
 // Lag response is ordered deliberately: cheap/off-screen cleanup first, then
 // increasingly disruptive actions only after sustained server slowdowns.
 const DEFAULT_STEPS = Object.freeze([
-  { id: "offscreen-projectiles", category: "projectile", visibility: "offscreen", action: "destroy", speed: 85, durationMs: 5000, minActiveMs: 2500 },
-  { id: "offscreen-natural-enemies", category: "naturalEnemy", visibility: "offscreen", action: "destroy", speed: 80, durationMs: 7000, minActiveMs: 3000 },
-  { id: "offscreen-food", category: "food", visibility: "offscreen", action: "destroy", speed: 75, durationMs: 8000, minActiveMs: 3500 },
-  { id: "offscreen-bots", category: "bot", visibility: "offscreen", action: "destroy", speed: 70, durationMs: 9000, minActiveMs: 3500 },
-  { id: "offscreen-natural-bosses", category: "naturalBoss", visibility: "offscreen", action: "destroy", speed: 65, durationMs: 10000, minActiveMs: 4000 },
-  { id: "onscreen-entities", category: "general", visibility: "onscreen", action: "suspend", speed: 20, durationMs: 10000, minActiveMs: 8000 },
-  { id: "onscreen-projectiles", category: "projectile", visibility: "onscreen", action: "destroy", speed: 18, durationMs: 10000, minActiveMs: 6000 },
-  { id: "onscreen-food", category: "food", visibility: "onscreen", action: "suspend", speed: 16, durationMs: 10000, minActiveMs: 6000 },
-  { id: "onscreen-natural-enemies", category: "naturalEnemy", visibility: "onscreen", action: "suspend", speed: 14, durationMs: 10000, minActiveMs: 6000 },
-  { id: "onscreen-bots", category: "bot", visibility: "onscreen", action: "suspend", speed: 12, durationMs: 12000, minActiveMs: 6500 },
-  { id: "onscreen-natural-bosses", category: "naturalBoss", visibility: "onscreen", action: "suspend", speed: 10, durationMs: 12000, minActiveMs: 7000 },
-  { id: "soft-reset", category: "all", visibility: "any", action: "reset", speed: 5, durationMs: 15000, minActiveMs: 0 },
+  // `speed` is throughput as a percentage of target; lower values mean more
+  // severe lag. Cleanup now waits until roughly 75-80 ms/cycle on a 30 Hz target
+  // instead of reacting to a comparatively small 15% throughput dip.
+  { id: "offscreen-projectiles", category: "projectile", visibility: "offscreen", action: "destroy", speed: 42, durationMs: 5000, minActiveMs: 2500 },
+  { id: "offscreen-natural-enemies", category: "naturalEnemy", visibility: "offscreen", action: "destroy", speed: 38, durationMs: 7000, minActiveMs: 3000 },
+  { id: "offscreen-food", category: "food", visibility: "offscreen", action: "destroy", speed: 34, durationMs: 8000, minActiveMs: 3500 },
+  { id: "offscreen-bots", category: "bot", visibility: "offscreen", action: "destroy", speed: 30, durationMs: 9000, minActiveMs: 3500 },
+  { id: "offscreen-natural-bosses", category: "naturalBoss", visibility: "offscreen", action: "destroy", speed: 27, durationMs: 10000, minActiveMs: 4000 },
+  { id: "onscreen-entities", category: "general", visibility: "onscreen", action: "suspend", speed: 22, durationMs: 10000, minActiveMs: 8000 },
+  { id: "onscreen-projectiles", category: "projectile", visibility: "onscreen", action: "destroy", speed: 20, durationMs: 10000, minActiveMs: 6000 },
+  { id: "onscreen-food", category: "food", visibility: "onscreen", action: "suspend", speed: 18, durationMs: 10000, minActiveMs: 6000 },
+  { id: "onscreen-natural-enemies", category: "naturalEnemy", visibility: "onscreen", action: "suspend", speed: 16, durationMs: 10000, minActiveMs: 6000 },
+  { id: "onscreen-bots", category: "bot", visibility: "onscreen", action: "suspend", speed: 14, durationMs: 12000, minActiveMs: 6500 },
+  { id: "onscreen-natural-bosses", category: "naturalBoss", visibility: "onscreen", action: "suspend", speed: 12, durationMs: 12000, minActiveMs: 7000 },
+  { id: "soft-reset", category: "all", visibility: "any", action: "reset", speed: 8, durationMs: 15000, minActiveMs: 0 },
 ]);
 
 function positive(value, fallback) {
@@ -58,12 +61,17 @@ function createLagResponse(options = {}) {
   const destroyBatchSize = Math.max(1, Math.floor(positive(env.RANAR_LAG_RESPONSE_DESTROY_BATCH_SIZE, 3)));
   const rescanIntervalMs = positive(env.RANAR_LAG_RESPONSE_RESCAN_MS, 5000);
   const suspendIntervalMs = positive(env.RANAR_LAG_RESPONSE_SUSPEND_INTERVAL_MS, 2500);
-  const recoverySpeed = percent(env.RANAR_LAG_RECOVERY_SPEED_PERCENT, 88);
+  // Do not require near-ideal throughput to recover on a naturally heavy map.
+  const recoverySpeed = percent(env.RANAR_LAG_RECOVERY_SPEED_PERCENT, 75);
   const recoveryMs = positive(env.RANAR_LAG_RESPONSE_RECOVERY_MS, 10000);
   const memoryCleanupIntervalMs = positive(env.RANAR_LAG_MEMORY_CLEANUP_INTERVAL_MS, 30000);
   const memoryWarningRatio = ratio(env.RANAR_LOAD_WARNING_MEMORY, 0.75);
   const memoryHighRatio = ratio(env.RANAR_LOAD_HIGH_MEMORY, 0.86);
   const memoryCriticalRatio = ratio(env.RANAR_LOAD_CRITICAL_MEMORY, 0.94);
+  // Permit spawn recovery when heap use remains high-but-not-critical after a
+  // lag episode. Requiring the heap to fall below 90% could keep spawners
+  // disabled forever because a healthy Node.js heap does not necessarily shrink.
+  const recoveryMemoryRatio = ratio(env.RANAR_LAG_RECOVERY_MEMORY_RATIO, memoryCriticalRatio);
   const memoryWarningGrowthMb = positive(env.RANAR_LOAD_WARNING_GROWTH_MB, 64);
   const memoryHighGrowthMb = positive(env.RANAR_LOAD_HIGH_GROWTH_MB, 128);
   const memoryCriticalGrowthMb = positive(env.RANAR_LOAD_CRITICAL_GROWTH_MB, 256);
@@ -195,6 +203,8 @@ function createLagResponse(options = {}) {
       stageElapsedMs: activeSince === null ? 0 : Math.max(0, now - activeSince),
       stageAction: active ? active.action : "none",
       runSpeedPercent: Number.isFinite(speed) ? speed : undefined,
+      recoverySpeedPercent: recoverySpeed,
+      recoveryMemoryRatio,
       naturalSpawnsPaused: activeIndex >= 1,
       emergencyMitigation: activeIndex >= 5,
       softResetRequested,
@@ -225,7 +235,9 @@ function createLagResponse(options = {}) {
     }
 
     const mem = Number(metrics && metrics.memoryRatio);
-    const memoryHealthy = !Number.isFinite(mem) || mem < memoryHighRatio;
+    // High-but-not-critical heap usage should not permanently lock out respawns
+    // after the measured runtime slowdown has recovered.
+    const memoryHealthy = !Number.isFinite(mem) || mem < recoveryMemoryRatio;
     if (speed >= recoverySpeed && memoryHealthy) {
       if (recoverySince === null) recoverySince = now;
       if (activeIndex >= 0 && now - recoverySince >= recoveryMs) {

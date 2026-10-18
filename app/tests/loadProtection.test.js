@@ -80,16 +80,81 @@ function makeEntity(overrides = {}) {
   test.protection.reportCycle(5, natural, 0);
   const baseline = test.protection.getSnapshot().naturalPopulationBaseline;
   assert.strictEqual(baseline, 10, "the healthy population should establish a stable baseline");
+  // A sustained 220 ms execution cycle is above the newly raised threshold.
+  // Three samples should lower the cap, while the persistence timer still keeps
+  // the cleanup ladder from deleting entities immediately.
   test.setNow(33);
-  test.protection.reportCycle(110, natural, 33);
+  test.protection.reportCycle(220, natural, 33);
   test.setNow(66);
-  test.protection.reportCycle(110, natural, 66);
+  test.protection.reportCycle(220, natural, 66);
   test.setNow(99);
-  test.protection.reportCycle(110, natural, 99);
+  test.protection.reportCycle(220, natural, 99);
   assert.strictEqual(natural.every((entity) => !entity.destroyed), true,
     "the new anti-lag ladder does not destroy natural enemies before its persistence timer");
   assert(test.protection.getSnapshot().naturalPopulationCap < baseline,
     "reduced simulation throughput should still lower the natural population cap");
+}
+
+// Once throughput recovers, every natural spawn gate reopens even if the
+// slower diagnostic-stage cooldown has not yet returned to its normal level.
+{
+  let now = 0;
+  const env = {
+    RANAR_LOAD_RUNTIME_EMA_ALPHA: "1",
+    RANAR_LAG_RECOVERY_SPEED_PERCENT: "75",
+    RANAR_LAG_RESPONSE_RECOVERY_MS: "10",
+  };
+  const { DEFAULT_STEPS } = require("../lib/lagResponse");
+  for (const step of DEFAULT_STEPS) {
+    const prefix = "RANAR_LAG_STEP_" + step.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+    env[prefix + "_SPEED_PERCENT"] = "100";
+    env[prefix + "_DURATION_MS"] = "1";
+    env[prefix + "_MIN_ACTIVE_MS"] = "0";
+  }
+  const test = makeProtection({
+    env,
+    options: {
+      // A high-but-not-critical heap should not prevent lag gates reopening once
+      // simulation throughput is healthy again.
+      sampleProvider: () => ({
+        memoryRatio: 0.92, rssMb: 450, heapUsedMb: 420, heapLimitMb: 456, externalMb: 0,
+        eventLoopP95Ms: 0, eventLoopMaxMs: 0, memoryGrowthMb: 0, memoryTrendReady: false,
+      }),
+    },
+  });
+  for (let tick = 0; tick < 20 && test.protection.getSnapshot().lagResponseStage < 3; tick++) {
+    now += 2;
+    test.setNow(now);
+    test.protection.reportCycle(220, [], now - 220);
+  }
+  assert(test.protection.getSnapshot().lagResponseStage >= 3,
+    "sustained server lag should reach the bot-throttling stage in this short-timer test");
+  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), false,
+    "natural enemies and bosses should be gated while their mitigation stage is active");
+  assert.strictEqual(test.protection.shouldSpawnFood(), false, "food spawning pauses at its mitigation stage");
+  assert.strictEqual(test.protection.shouldSpawnBot(), false, "bot spawning pauses at its mitigation stage");
+
+  // Supply the current high-but-not-critical heap sample while runtime speed is
+  // still poor; it must not bypass the active mitigation stage on its own.
+  test.protection.sample();
+  assert.notStrictEqual(test.protection.getSnapshot().lagResponseStageId, "normal",
+    "high memory alone must not prematurely release active lag mitigation");
+
+  for (let tick = 0; tick < 20 && test.protection.getSnapshot().lagResponseStage !== -1; tick++) {
+    now += 5;
+    test.setNow(now);
+    test.protection.reportCycle(1, [], now - 1);
+  }
+  const recovered = test.protection.getSnapshot();
+  assert.strictEqual(recovered.lagResponseStageId, "normal", "the mitigation ladder should reset after sustained recovery");
+  assert.strictEqual(recovered.naturalSpawnRecoveryOverride, true,
+    "natural spawning should be explicitly released on lag recovery");
+  assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true,
+    "natural enemies and bosses should spawn again after lag subsides");
+  assert.strictEqual(test.protection.shouldSpawnFood(), true, "food spawning should resume after lag subsides");
+  assert.strictEqual(test.protection.shouldSpawnBot(), true, "bot spawning should resume after lag subsides");
+  assert.strictEqual(test.protection.canSpawnNaturalEntity(), true,
+    "the natural population cap should no longer use a stale anti-lag stage after recovery");
 }
 
 // Off-screen culling rechecks visibility, and only runs after the duration configured for that stage.
