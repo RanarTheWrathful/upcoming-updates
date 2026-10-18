@@ -9280,7 +9280,7 @@ exports.miniNeutronMissile = {
 };
 exports.beenade = {
   PARENT: [exports.bullet],
-  LABEL: "Beenade Chucker",
+  LABEL: "Beenade",
   DEATH_THROES: "beenadeExplosion",
   INDEPENDENT: true,
   BODY: {
@@ -37610,7 +37610,7 @@ exports.Chucker = {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
     POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreDamage, g.greaterSpeed]),
       TYPE: exports.launcherMissile,
     },
   }
@@ -37643,7 +37643,7 @@ exports.grenadier = {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
     POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreDamage, g.greaterSpeed]),
       TYPE: exports.grenadierMissile,
     },
   }
@@ -37681,7 +37681,7 @@ exports.beenader = {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
     POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.greaterReload, g.destroy]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.greaterReload, g.destroy, g.bitmoreDamage, g.greaterSpeed]),
       TYPE: exports.beenade,
     },
   }
@@ -37718,7 +37718,7 @@ exports.neutron = {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
     POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreDamage, g.greaterSpeed]),
       TYPE: exports.neutronMissile,
     },
   }
@@ -37754,7 +37754,7 @@ exports.fieldartillery = {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
     POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreDamage, g.greaterSpeed]),
       TYPE: exports.launcherMissile,
     },
   }
@@ -37794,13 +37794,13 @@ exports.hurler = {
   DANGER: 7,
   GUNS: [
     {
-      POSITION: [18, 3.55, 5, 2, 0, 0, 0],
+      POSITION: [18, 3, 5, 2, 0, 0, 0],
     },
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-      POSITION: [18, 14.85, -1.5, 0, 0, 0, 0],
+      POSITION: [18, 14.3, -1.3, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreDamage, g.greaterSpeed]),
         TYPE: exports.twisterMissile,
       },
     },
@@ -37857,7 +37857,7 @@ exports.firework = {
           g.missile,
           g.halfDamage,
           g.bitmoreSpeed,
-          g.destroy
+          g.destroy, g.bitmoreDamage, g.greaterSpeed
         ]),
         TYPE: exports.rocket,
         STAT_CALCULATOR: gunCalcNames.sustained,
@@ -37930,9 +37930,9 @@ exports.striker = {
       POSITION: [10, 15.55, -0.5, 10, 0, 0, 0],
     },
     {
-      POSITION: [11, 16.55, 1, 0, 0, 0, 0],
+      POSITION: [18, 16.55, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreDamage, g.greaterSpeed]),
         TYPE: exports.missile,
         STAT_CALCULATOR: gunCalcNames.sustained,
       },
@@ -38187,7 +38187,7 @@ exports.hiveling = {
           g.missile,
           g.lesserDamage,
           g.greaterReload,
-          g.destroy
+          g.destroy, g.bitmoreDamage, g.greaterSpeed
         ]),
         TYPE: exports.hive,
       },
@@ -97776,6 +97776,7 @@ exports.swarmer.UPGRADES_TIER_4 = [exports.hexaswarm, exports.hiveling];
 exports.grenadier.UPGRADES_TIER_5 = [exports.beenader, exports.neutron];
 exports.fieldgun.UPGRADES_TIER_4 = [
 exports.lobber,
+exports.fieldartillery,
   ];
   
 exports.director.UPGRADES_TIER_2 = [
