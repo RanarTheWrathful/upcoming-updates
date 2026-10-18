@@ -328,6 +328,24 @@ function generateWorldMaze({
   const allowed = Array.from({ length: rows }, () => Array(columns).fill(false));
   const candidates = [];
 
+  // Reserve two gently meandering, three-cell-wide travel corridors across the
+  // map. They guarantee that the generated wall field cannot seal the world
+  // into isolated regions, while the random walk keeps them from looking like
+  // rigid cross-shaped highways. Corridors only affect generated walls.
+  const reserved = Array.from({ length: rows }, () => Array(columns).fill(false));
+  let corridorY = Math.floor(rows / 2);
+  for (let x = 0; x < columns; x++) {
+    if (unit() < 0.34) corridorY += intBetween(0, 1) ? 1 : -1;
+    corridorY = Math.max(2, Math.min(rows - 3, corridorY));
+    for (let dy = -1; dy <= 1; dy++) reserved[corridorY + dy][x] = true;
+  }
+  let corridorX = Math.floor(columns / 2);
+  for (let y = 0; y < rows; y++) {
+    if (unit() < 0.34) corridorX += intBetween(0, 1) ? 1 : -1;
+    corridorX = Math.max(2, Math.min(columns - 3, corridorX));
+    for (let dx = -1; dx <= 1; dx++) reserved[y][corridorX + dx] = true;
+  }
+
   for (let gridY = 0; gridY < rows; gridY++) {
     for (let gridX = 0; gridX < columns; gridX++) {
       const x = (gridX + 0.5) * cellWidth;
@@ -347,13 +365,17 @@ function generateWorldMaze({
           break;
         }
       }
-      if (nearSpecialRoom) continue;
+      const roomTile = getRoomTileAtPoint(roomSetup, x, y, width, height);
+      const isObstacleTile = typeof roomTile === "string" &&
+        ["nest", "rock", "roid"].includes(roomTile.toLowerCase());
+      if (nearSpecialRoom || (reserved[gridY][gridX] && !isObstacleTile)) continue;
 
       allowed[gridY][gridX] = true;
+      const placementWeight = getPlacementWeight(x, y, width, height, minDimension);
       candidates.push([
         gridX,
         gridY,
-        getPlacementWeight(x, y, width, height, minDimension),
+        isObstacleTile ? placementWeight * 2.5 : placementWeight,
       ]);
     }
   }
