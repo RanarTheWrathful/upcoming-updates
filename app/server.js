@@ -397,7 +397,7 @@ if (c.MODE === "theDistance") c.startingClass = "racer";
 if (c.MODE === "theRestless") c.startingClass = "highlordLegendaryClasses";
 if (c.MODE === "theAwakening") c.startingClass = "arenaguardpl";
 if (c.MODE === "theAssault") c.startingClass = "swarmProtector2";
-//if (serverType === "testing") c.startingClass = "testbed";
+if (c.MODE === "Sandbox") c.startingClass = "testbed";
 c.DomxClass = "minibois";
 function removeMuted(socketIP) {
   console.log("Removing from muteList:", socketIP);
@@ -6452,6 +6452,9 @@ class Entity {
           case "Auto-Cruiser":
           case "Armor Piercer":
           case "Auto-5":
+          case "Auto-4":
+          case "Armsman":
+          case "Quad-Twin-Engineer":
             this.sendMessage(
               "When 1 Million score is achieved, you may use the '~' button(or ??? button) to transform!"
             );
@@ -6469,6 +6472,9 @@ class Entity {
             break;
           case "Conductor":
             this.sendMessage("You: (Havent had fun with this in a while.)");
+            break;
+          case "Creationist":
+            this.sendMessage("You: (Time to show how it's truly made.)");
             break;
         }
       }
@@ -12699,6 +12705,11 @@ class Entity {
               "You have unlocked the legendary class, Mechanist. Press '~' to become it!"
             );
             break;
+            case "Auto-4":
+            case "Armsman":
+            case "Quad-Twin-Engineer":
+              this.sendMessage(You have unlocked the legendary class, Creationist. Press '~' to become it!");
+              break;
         }
       }
       if (this.team === -4 || c.MODE === "siege") {
