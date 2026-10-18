@@ -73,7 +73,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Maze Fort Domination";
+if (serverType === "testing") chosenMode = "Sandbox";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -137,14 +137,16 @@ const { mergeModeSettings, validateModeSettings } = require("./lib/modeSettings"
 const config = require("./config.js");
 const gameMode = require("./Game Modes/" + chosenMode);
 const mergedSettings = mergeModeSettings(config, gameMode);
-if (mazeGenerator.shouldRandomizeMaze({ serverType, modeName: chosenMode, settings: mergedSettings })) {
-  // Discard hand-authored wall placements first, then generate one fresh maze
-  // layout on the tile grid. Named gameplay tiles (bases, nests, objectives,
-  // etc.) are preserved by clearAuthoredWalls()/randomizeMaze().
-  const mazeTemplate = mazeGenerator.clearAuthoredWalls(mergedSettings.ROOM_SETUP);
-  mergedSettings.ROOM_SETUP = mazeGenerator.randomizeMaze(mazeTemplate);
-  // Room wall entities are spawned from the finalized grid exactly once.
-  mergedSettings.MAZE_GENERATION = false;
+const generateWorldMaze = mazeGenerator.shouldRandomizeMaze({
+  serverType,
+  modeName: chosenMode,
+  settings: mergedSettings,
+});
+if (generateWorldMaze) {
+  // Remove any hand-authored wall cells, but don't randomize ROOM_SETUP. Maze
+  // walls are generated later from world-space x/y coordinates so bases,
+  // nests, objectives, and the authored room layout remain unchanged.
+  mergedSettings.ROOM_SETUP = mazeGenerator.clearAuthoredWalls(mergedSettings.ROOM_SETUP);
 }
 const c = validateModeSettings(mergedSettings, chosenMode);
 //util.log(JSON.stringify(c, null, 2));
@@ -461,6 +463,19 @@ room.findType = () => {
   });
 };
 room.findType();
+if (generateWorldMaze) {
+  const generatedMaze = mazeGenerator.generateWorldMaze({
+    width: room.width,
+    height: room.height,
+    roomSetup: room.setup,
+  });
+  room.generatedMazeWalls = generatedMaze.walls;
+  util.log(
+    `Generated world-grid maze: ${generatedMaze.walls.length} wall blocks ` +
+    `on a ${generatedMaze.columns}x${generatedMaze.rows} grid ` +
+    `(${generatedMaze.candidateCells} available cells).`
+  );
+}
 
 room.nestFoodAmount = 0;
 if (room.nest) {
@@ -2153,22 +2168,22 @@ function makepentagonWorkbench() {
 function makeMazeWalls() {
   const gridWidth = room.width / room.xgrid;
   const gridHeight = room.height / room.ygrid;
-  const wallLocations = room.wall;
+  const generatedWalls = Array.isArray(room.generatedMazeWalls) ? room.generatedMazeWalls : null;
+  const wallLocations = generatedWalls || room.wall;
   if (!Array.isArray(wallLocations) || !wallLocations.length) return;
 
-  // Keep one logical wall-cell per ROOM_SETUP tile. If grid cells are not
-  // square, tile that cell with overlapping square blocks along its long axis
-  // so randomized sizing never leaves a projectile-sized seam.
-  const spawnedCells = new Set();
   const shortSide = Math.min(gridWidth, gridHeight);
   const baseSize = shortSide / 2;
+  const spawnedCells = new Set();
 
-  const spawnBlock = (x, y, gridX, gridY) => {
+  const spawnBlock = (x, y, gridX, gridY, generatedSize) => {
     const o = new Entity({ x, y });
     o.define(Class.wall);
-    // Randomize wall size while never shrinking below a cell-covering block.
-    // Slight oversizing also seals small seams between adjacent clusters.
-    o.SIZE = baseSize * ran.randomRange(1.0, 1.25);
+    // Generated walls carry their own size from the independent world grid.
+    // Authored walls keep the old room-cell sizing behavior.
+    o.SIZE = Number.isFinite(generatedSize) && generatedSize > 0
+      ? generatedSize
+      : baseSize * ran.randomRange(1.0, 1.25);
     o.coreSize = o.SIZE;
     o.spawnLoc = { x, y };
     o.protect();
@@ -2184,6 +2199,18 @@ function makeMazeWalls() {
     o.ACCEL.y = 0;
   };
 
+  if (generatedWalls) {
+    // Each generated entry already represents one independent world-grid
+    // cell. Don't deduplicate by ROOM_SETUP cell or force the walls back onto
+    // that coarser lattice.
+    for (const loc of generatedWalls) {
+      if (!loc || !Number.isFinite(loc.x) || !Number.isFinite(loc.y)) continue;
+      spawnBlock(loc.x, loc.y, loc.gridX, loc.gridY, loc.size);
+    }
+    return;
+  }
+
+  // Legacy support for maps that directly author 'wall' room tiles.
   for (const loc of wallLocations) {
     if (!loc || !Number.isFinite(loc.x) || !Number.isFinite(loc.y)) continue;
     const gridX = Math.floor(loc.x / gridWidth);
