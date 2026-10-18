@@ -64,7 +64,23 @@ const alternate = maze.generateWorldMaze({
 assert(generated.columns > cleared[0].length, "world-grid resolution should be independent of, and finer than, ROOM_SETUP");
 assert(generated.rows > cleared.length, "world-grid row count should not be copied from ROOM_SETUP");
 assert(generated.walls.length > 25, "the generator should make a meaningful number of wall blocks");
-assert(generated.walls.length <= generated.candidateCells * 0.24, "wall density should remain bounded");
+assert(generated.targetWalls > generated.candidateCells * 0.30, "default maze density should be significantly denser than the old 23% setting");
+assert(generated.walls.length === generated.targetWalls, "the planner should fill its requested wall target when space remains available");
+assert(generated.walls.length <= generated.candidateCells * 0.36, "default wall density should remain bounded near 35%");
+assert(
+  Math.abs(generated.cellWidth - (4000 / 15 / 2)) < 10,
+  "world-grid cell scale should be based on roughly half an in-game room tile"
+);
+const sizeValues = generated.walls.map((wall) => wall.size);
+assert(Math.max(...sizeValues) / Math.min(...sizeValues) > 2.0, "generated wall sizes should have substantial variation");
+const emptyMaze = maze.generateWorldMaze({
+  width: 4000,
+  height: 4000,
+  roomSetup: cleared,
+  density: 0,
+  random: seededRandom(99),
+});
+assert.strictEqual(emptyMaze.walls.length, 0, "an explicit zero wall density should generate no wall entities");
 assert.notDeepStrictEqual(generated.walls, alternate.walls, "different random seeds should generate different wall layouts");
 assert.strictEqual(JSON.stringify(source), sourceBefore, "world maze generation must not mutate ROOM_SETUP");
 
