@@ -73,7 +73,36 @@ assert(generated.columns > cleared[0].length, "world-grid resolution should be i
 assert(generated.rows > cleared.length, "world-grid row count should not be copied from ROOM_SETUP");
 assert(generated.walls.length > 25, "the generator should make a meaningful number of wall blocks");
 assert(generated.targetWalls > generated.candidateCells * 0.30, "default maze density should be significantly denser than the old 23% setting");
-assert(generated.walls.length === generated.targetWalls, "the planner should fill its requested wall target when space remains available");
+assert(generated.walls.length < generated.targetWalls, "connectivity repair should carve openings when random formations enclose regions");
+const occupiedCells = new Set(generated.walls.map((wall) => `${wall.gridX}:${wall.gridY}`));
+const reachable = new Set();
+const queue = [];
+const addOpen = (x, y) => {
+  const key = `${x}:${y}`;
+  if (x < 0 || y < 0 || x >= generated.columns || y >= generated.rows || occupiedCells.has(key) || reachable.has(key)) return;
+  reachable.add(key);
+  queue.push([x, y]);
+};
+for (let x = 0; x < generated.columns; x++) {
+  addOpen(x, 0);
+  addOpen(x, generated.rows - 1);
+}
+for (let y = 0; y < generated.rows; y++) {
+  addOpen(0, y);
+  addOpen(generated.columns - 1, y);
+}
+for (let i = 0; i < queue.length; i++) {
+  const [x, y] = queue[i];
+  addOpen(x + 1, y);
+  addOpen(x - 1, y);
+  addOpen(x, y + 1);
+  addOpen(x, y - 1);
+}
+for (let y = 1; y < generated.rows - 1; y++) {
+  for (let x = 1; x < generated.columns - 1; x++) {
+    assert(occupiedCells.has(`${x}:${y}`) || reachable.has(`${x}:${y}`), "no open region should be sealed off from the map perimeter");
+  }
+}
 assert(generated.walls.length <= generated.candidateCells * 0.36, "default wall density should remain bounded near 35%");
 assert(
   Math.abs(generated.cellWidth - (4000 / 15 / 2)) < 10,

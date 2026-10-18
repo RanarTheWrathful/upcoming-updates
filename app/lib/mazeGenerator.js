@@ -268,6 +268,91 @@ function closeNarrowOpenings(walls, {
   }
 }
 
+
+/**
+ * Ensure every open grid region can reach the map perimeter. Random clusters can
+ * accidentally form a complete ring; carve a two-cell-wide route through the
+ * cheapest wall cells whenever a free-space component is enclosed. A two-cell
+ * route is intentional: a single grid-cell corridor can be pinched by the
+ * collision radii of the wall entities even when its tile is technically open.
+ */
+function connectOpenRegions(walls, { columns, rows }) {
+  if (!walls.length || columns < 3 || rows < 3) return;
+  const wallByCell = new Map(walls.map((wall) => [`${wall.gridX}:${wall.gridY}`, wall]));
+  const key = (x, y) => `${x}:${y}`;
+  const inBounds = (x, y) => x >= 0 && y >= 0 && x < columns && y < rows;
+  const directions = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+  const flood = () => {
+    const seen = new Set();
+    const queue = [];
+    const add = (x, y) => {
+      const k = key(x, y);
+      if (inBounds(x, y) && !wallByCell.has(k) && !seen.has(k)) {
+        seen.add(k);
+        queue.push([x, y]);
+      }
+    };
+    for (let x = 0; x < columns; x++) { add(x, 0); add(x, rows - 1); }
+    for (let y = 0; y < rows; y++) { add(0, y); add(columns - 1, y); }
+    for (let i = 0; i < queue.length; i++) {
+      const [x, y] = queue[i];
+      for (const [dx, dy] of directions) add(x + dx, y + dy);
+    }
+    return { seen, queue };
+  };
+
+  // Repeat because carving one route can expose another previously enclosed region.
+  for (let pass = 0; pass < columns * rows; pass++) {
+    const { seen: exteriorReachable } = flood();
+    let enclosed = null;
+    for (let y = 1; y < rows - 1 && !enclosed; y++) {
+      for (let x = 1; x < columns - 1; x++) {
+        const k = key(x, y);
+        if (wallByCell.has(k) || exteriorReachable.has(k)) continue;
+        enclosed = [x, y];
+        break;
+      }
+    }
+    if (!enclosed) break;
+
+    // BFS through open cells at zero cost and wall cells at one cost is not
+    // needed here: a normal BFS finds a short route, then only wall cells on it
+    // are removed. This keeps the repair deterministic and bounded.
+    const queue = [enclosed];
+    const previous = new Map([[key(...enclosed), null]]);
+    let exit = null;
+    for (let i = 0; i < queue.length && !exit; i++) {
+      const [x, y] = queue[i];
+      if (x === 0 || y === 0 || x === columns - 1 || y === rows - 1) {
+        exit = [x, y];
+        break;
+      }
+      for (const [dx, dy] of directions) {
+        const nx = x + dx, ny = y + dy, nk = key(nx, ny);
+        if (!inBounds(nx, ny) || previous.has(nk)) continue;
+        previous.set(nk, [x, y]);
+        queue.push([nx, ny]);
+      }
+    }
+    if (!exit) break;
+
+    const route = [];
+    for (let point = exit; point; point = previous.get(key(...point))) route.push(point);
+    const carve = new Set();
+    for (const [x, y] of route) {
+      carve.add(key(x, y));
+      // Widen the route so adjacent wall radii cannot pinch it shut.
+      for (const [dx, dy] of directions) if (inBounds(x + dx, y + dy)) carve.add(key(x + dx, y + dy));
+    }
+    for (const k of carve) wallByCell.delete(k);
+    if (wallByCell.size === 0) break;
+  }
+
+  const kept = walls.filter((wall) => wallByCell.has(key(wall.gridX, wall.gridY)));
+  walls.splice(0, walls.length, ...kept);
+}
+
 /**
  * Create a randomized maze on a world-space grid unrelated to ROOM_SETUP's
  * dimensions. ROOM_SETUP is used as a placement mask: walls can appear in
@@ -328,24 +413,6 @@ function generateWorldMaze({
   const allowed = Array.from({ length: rows }, () => Array(columns).fill(false));
   const candidates = [];
 
-  // Reserve two gently meandering, three-cell-wide travel corridors across the
-  // map. They guarantee that the generated wall field cannot seal the world
-  // into isolated regions, while the random walk keeps them from looking like
-  // rigid cross-shaped highways. Corridors only affect generated walls.
-  const reserved = Array.from({ length: rows }, () => Array(columns).fill(false));
-  let corridorY = Math.floor(rows / 2);
-  for (let x = 0; x < columns; x++) {
-    if (unit() < 0.34) corridorY += intBetween(0, 1) ? 1 : -1;
-    corridorY = Math.max(2, Math.min(rows - 3, corridorY));
-    for (let dy = -1; dy <= 1; dy++) reserved[corridorY + dy][x] = true;
-  }
-  let corridorX = Math.floor(columns / 2);
-  for (let y = 0; y < rows; y++) {
-    if (unit() < 0.34) corridorX += intBetween(0, 1) ? 1 : -1;
-    corridorX = Math.max(2, Math.min(columns - 3, corridorX));
-    for (let dx = -1; dx <= 1; dx++) reserved[y][corridorX + dx] = true;
-  }
-
   for (let gridY = 0; gridY < rows; gridY++) {
     for (let gridX = 0; gridX < columns; gridX++) {
       const x = (gridX + 0.5) * cellWidth;
@@ -365,17 +432,13 @@ function generateWorldMaze({
           break;
         }
       }
-      const roomTile = getRoomTileAtPoint(roomSetup, x, y, width, height);
-      const isObstacleTile = typeof roomTile === "string" &&
-        ["nest", "rock", "roid"].includes(roomTile.toLowerCase());
-      if (nearSpecialRoom || (reserved[gridY][gridX] && !isObstacleTile)) continue;
+      if (nearSpecialRoom) continue;
 
       allowed[gridY][gridX] = true;
-      const placementWeight = getPlacementWeight(x, y, width, height, minDimension);
       candidates.push([
         gridX,
         gridY,
-        isObstacleTile ? placementWeight * 2.5 : placementWeight,
+        getPlacementWeight(x, y, width, height, minDimension),
       ]);
     }
   }
@@ -520,6 +583,7 @@ function generateWorldMaze({
     height,
     shortCellSide,
   });
+  connectOpenRegions(walls, { columns, rows });
 
   return {
     columns,
