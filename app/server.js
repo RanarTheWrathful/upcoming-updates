@@ -24088,7 +24088,7 @@ if (c.MODE === "execution") {
 const server = http.createServer((req, res) => {
   // Receiving the data:
   let { pathname, query } = url.parse(req.url, true),
-    totalSeconds = (7200000 - c.timeLeft) / 1000,
+    totalSeconds = (21600000 - c.timeLeft) / 1000,
     hours = Math.floor(totalSeconds / 3600),
     minutes = Math.floor((totalSeconds % 3600) / 60),
     hourLabel = hours === 1 ? "hour" : "hours",
