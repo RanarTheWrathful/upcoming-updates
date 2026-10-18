@@ -12708,8 +12708,10 @@ class Entity {
             case "Auto-4":
             case "Armsman":
             case "Quad-Twin-Engineer":
-              this.sendMessage(You have unlocked the legendary class, Creationist. Press '~' to become it!");
-              break;
+            this.sendMessage(
+              "You have unlocked the legendary class, Creationist. Press '~' to become it!"
+            );
+            break;
         }
       }
       if (this.team === -4 || c.MODE === "siege") {
@@ -17168,6 +17170,30 @@ const sockets = (() => {
                             ": BE BLINDED BY THE POWER OF SCIENCE YOU EVIL FIENDS!"
                         );
                         player.body.define(Class.operator);
+                        player.body.maxChildren = 0;
+                        player.body.intangibility = false;
+                        player.body.invisible = [100, 0];
+                        player.body.alpha = 100;
+                        player.body.ignoreCollision = false;
+                        player.body.skill.setCaps([
+                          9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+                        ]);
+                        player.body.skill.points += 10;
+                      }
+                    }
+                    if (player.body.team === -3 || c.MODE === "siege") {
+                      if (
+                        player.body.label === "Armsman" ||
+                        player.body.label === "Quad-Twin-Engineer" ||
+                        player.body.label === "Auto-4"
+                      ) {
+                        player.body.upgrades = [];
+
+                        sockets.broadcast(
+                          dude +
+                            ": Lay your witness to the Creationist creating your demise!"
+                        );
+                        player.body.define(Class.creation);
                         player.body.maxChildren = 0;
                         player.body.intangibility = false;
                         player.body.invisible = [100, 0];
