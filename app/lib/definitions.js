@@ -37591,6 +37591,32 @@ exports.launcher = {
   DANGER: 7,
   GUNS: [...launcherGun],
 };
+exports.Chucker = {
+  PARENT: [exports.genericTank],
+  LABEL: "Chucker",
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.8,
+    FOV: base.FOV * 1.2,
+  },
+  DANGER: 7,
+  GUNS: [
+  {
+    POSITION: [21, 11.55, 1, , 0, , 0],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([g.basic]),
+    },
+  },
+  {
+    /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+    POSITION: [19, 14.55, 1, 0, 0, 0, 0],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
+      TYPE: exports.launcherMissile,
+    },
+  }
+
+  ],
+};
 exports.grenadier = {
   PARENT: [exports.genericTank],
   LABEL: "Grenadier",
@@ -37608,16 +37634,16 @@ exports.grenadier = {
   ],
   GUNS: [
   {
-    POSITION: [20, 10, 1, , 0, , 0],
+    POSITION: [21, 11.55, 1, , 0, , 0],
     PROPERTIES: {
       SHOOT_SETTINGS: combineStats([g.basic]),
     },
   },
   {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [18, 13, 1, 0, 0, 0, 0],
+    POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
       TYPE: exports.grenadierMissile,
     },
   }
@@ -37646,16 +37672,16 @@ exports.beenader = {
   ],
   GUNS: [
   {
-    POSITION: [20, 10, 1, , 0, , 0],
+    POSITION: [21, 11.55, 1, , 0, , 0],
     PROPERTIES: {
       SHOOT_SETTINGS: combineStats([g.basic]),
     },
   },
   {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [18, 13, 1, 0, 0, 0, 0],
+    POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.greaterReload]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.greaterReload, g.destroy]),
       TYPE: exports.beenade,
     },
   }
@@ -37683,16 +37709,16 @@ exports.neutron = {
   ],
   GUNS: [
   {
-    POSITION: [20, 10, 1, , 0, , 0],
+    POSITION: [21, 11.55, 1, , 0, , 0],
     PROPERTIES: {
       SHOOT_SETTINGS: combineStats([g.basic]),
     },
   },
   {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-    POSITION: [18, 13, 1, 0, 0, 0, 0],
+    POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
       TYPE: exports.neutronMissile,
     },
   }
@@ -37708,7 +37734,33 @@ exports.fieldgun = {
   DANGER: 7,
   GUNS: [...sideGuns, ...launcherGun],
 };
+exports.fieldartillery = {
+  PARENT: [exports.genericTank],
+  LABEL: "Field Artillery",
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.8,
+    FOV: base.FOV * 1.2,
+  },
+  DANGER: 7,
+  GUNS: [
+    ...sideGuns,
+  {
+    POSITION: [21, 11.55, 1, , 0, , 0],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([g.basic]),
+    },
+  },
+  {
+    /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+    POSITION: [19, 14.55, 1, 0, 0, 0, 0],
+    PROPERTIES: {
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
+      TYPE: exports.launcherMissile,
+    },
+  }
 
+  ],
+};
 exports.twister = {
   PARENT: [exports.genericTank],
   LABEL: "Twister",
@@ -37732,6 +37784,28 @@ exports.twister = {
   ],
 };
 
+exports.hurler = {
+  PARENT: [exports.genericTank],
+  LABEL: "Hurler",
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.8,
+    FOV: base.FOV * 1.2,
+  },
+  DANGER: 7,
+  GUNS: [
+    {
+      POSITION: [18, 3.55, 5, 2, 0, 0, 0],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [18, 14.85, -1.5, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
+        TYPE: exports.twisterMissile,
+      },
+    },
+  ],
+};
 exports.rocketeer = {
   PARENT: [exports.genericTank],
   LABEL: "Rocketeer",
@@ -37761,6 +37835,36 @@ exports.rocketeer = {
   ],
 };
 
+exports.firework = {
+  PARENT: [exports.genericTank],
+  LABEL: "Firework",
+  BODY: {
+    ACCELERATION: base.ACCEL * 0.8,
+    FOV: base.FOV * 1.2,
+  },
+  DANGER: 7,
+  GUNS: [
+    {
+      POSITION: [20, 3, 4, 1, 0, 0, 0],
+    },
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [18, 11.5, -1.6, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.pound,
+          g.missile,
+          g.halfDamage,
+          g.bitmoreSpeed,
+          g.destroy
+        ]),
+        TYPE: exports.rocket,
+        STAT_CALCULATOR: gunCalcNames.sustained,
+      },
+    },
+  ],
+};
 exports.sidewind = {
   PARENT: [exports.genericTank],
   LABEL: "Sidewinder",
@@ -37806,6 +37910,29 @@ exports.skimmer = {
       POSITION: [17, 15, 1, 0, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile]),
+        TYPE: exports.missile,
+        STAT_CALCULATOR: gunCalcNames.sustained,
+      },
+    },
+  ],
+};
+
+exports.striker = {
+  PARENT: [exports.genericTank],
+  BODY: {
+    FOV: base.FOV * 1.15,
+  },
+  LABEL: "Striker",
+  DANGER: 7,
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [10, 15.55, -0.5, 10, 0, 0, 0],
+    },
+    {
+      POSITION: [11, 16.55, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy]),
         TYPE: exports.missile,
         STAT_CALCULATOR: gunCalcNames.sustained,
       },
@@ -38032,6 +38159,35 @@ exports.swarmer = {
           g.missile,
           g.lesserDamage,
           g.doubleReload,
+        ]),
+        TYPE: exports.hive,
+      },
+    },
+    {
+      POSITION: [15, 12, 1, 5, 0, 0, 0],
+    },
+  ],
+};
+
+exports.hiveling = {
+  PARENT: [exports.genericTank],
+  DANGER: 7,
+  BODY: {
+    SPEED: base.SPEED * 1.2,
+  },
+  LABEL: "Hiveling",
+  GUNS: [
+    {
+      /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
+      POSITION: [14, 14, -1.2, 5, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.pound,
+          g.missile,
+          g.lesserDamage,
+          g.greaterReload,
+          g.destroy
         ]),
         TYPE: exports.hive,
       },
@@ -97331,8 +97487,8 @@ exports.hybrid.UPGRADES_TIER_4 = [exports.syphon, exports.mutant];
 exports.overlord.UPGRADES_TIER_5 = [exports.corrupter, exports.lordtrap];
 exports.barricade.UPGRADES_TIER_4 = [exports.stackedMegaTrapper];
 exports.megatrap.UPGRADES_TIER_4 = [exports.stackedMegaTrapper];
-exports.twister.UPGRADES_TIER_4 = [exports.armata];
-exports.skimmer.UPGRADES_TIER_4 = [exports.hyperSkimmer, exports.skimmerMech];
+exports.twister.UPGRADES_TIER_4 = [exports.armata, exports.hurler,];
+exports.skimmer.UPGRADES_TIER_4 = [exports.hyperSkimmer, exports.skimmerMech, exports.striker];
 exports.launcherMech.UPGRADES_TIER_4 = [exports.skimmerMech];
 exports.twin.UPGRADES_TIER_2 = [
   exports.double,
@@ -97601,10 +97757,20 @@ exports.launcher.UPGRADES_TIER_3 = [
   exports.sidewind,
   exports.rocketeer,
   exports.fieldgun,
-  exports.grenadier,
+  exports.Chucker,
 ];
-exports.swarmer.UPGRADES_TIER_4 = [exports.hexaswarm]
-exports.grenadier.UPGRADES_TIER_4 = [exports.beenader, exports.neutron];
+exports.rocketeer.UPGRADES_TIER_4 = [
+  exports.firework,
+];
+exports.Chucker.UPGRADES_TIER_4 = [
+  exports.grenadier,
+  exports.striker,
+  exports.firework,
+  exports.hurler,
+  exports.hiveling,
+];
+exports.swarmer.UPGRADES_TIER_4 = [exports.hexaswarm, exports.hiveling];
+exports.grenadier.UPGRADES_TIER_5 = [exports.beenader, exports.neutron];
 exports.fieldgun.UPGRADES_TIER_4 = [
 exports.lobber,
   ];
