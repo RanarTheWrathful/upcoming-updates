@@ -143,9 +143,9 @@ const generateWorldMaze = mazeGenerator.shouldRandomizeMaze({
   settings: mergedSettings,
 });
 if (generateWorldMaze) {
-  // Remove any hand-authored wall cells, but don't randomize ROOM_SETUP. Maze
-  // walls are generated later from world-space x/y coordinates so bases,
-  // nests, objectives, and the authored room layout remain unchanged.
+  // Remove hand-authored wall cells, but preserve the mode's room layout.
+  // The world-grid generator may place walls in norm, nest, rock, and roid
+  // areas; bases, objectives, gates, and other special zones keep clearances.
   mergedSettings.ROOM_SETUP = mazeGenerator.clearAuthoredWalls(mergedSettings.ROOM_SETUP);
 }
 const c = validateModeSettings(mergedSettings, chosenMode);

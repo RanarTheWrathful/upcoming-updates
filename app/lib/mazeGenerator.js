@@ -8,10 +8,10 @@ const DEFAULTS = Object.freeze({
   minCellSize: 115,
   maxCellSize: 230,
   wallDensity: 0.35,
-  maxWallSizeScale: 0.76,
+  maxWallSizeScale: 0.48,
   borderMarginRatio: 0.035,
-  centerClearRatio: 0.055,
-  positionJitterRatio: 0.055,
+  centerClearRatio: 0.06,
+  positionJitterRatio: 0.012,
 });
 
 function isPlainGrid(grid) {
@@ -33,8 +33,8 @@ function shouldRandomizeMaze({ serverType, modeName, settings } = {}) {
 }
 
 // Remove hand-authored wall cells when a mode opts into generated walls.
-// The other room types remain untouched, and none of them dictates where a
-// generated wall is placed; they are only used as a clearance mask later.
+// All area markers remain intact: nest/rock/roid tiles are eligible wall zones,
+// while bases and other special markers act as clearance zones.
 function clearAuthoredWalls(roomSetup) {
   if (!isPlainGrid(roomSetup)) {
     throw new TypeError("Maze generation requires a rectangular ROOM_SETUP grid.");
@@ -59,10 +59,18 @@ function makeRandomTools(random) {
   };
 }
 
+// Maze walls may occupy normal terrain, nests, and obstacle/resource tiles.
+// Bases, objectives, portals, gates, and other named special tiles remain protected.
 function isSpecialRoomTile(tile) {
   if (typeof tile !== "string") return true;
-  const normalized = tile.toLowerCase();
-  return normalized !== "norm" && normalized !== "wall";
+  return !["norm", "wall", "nest", "rock", "roid"].includes(tile.toLowerCase());
+}
+
+function getRoomTileAtPoint(roomSetup, x, y, width, height) {
+  if (!isPlainGrid(roomSetup)) return null;
+  const row = Math.min(roomSetup.length - 1, Math.max(0, Math.floor((y / height) * roomSetup.length)));
+  const column = Math.min(roomSetup[0].length - 1, Math.max(0, Math.floor((x / width) * roomSetup[0].length)));
+  return roomSetup[row][column];
 }
 
 function getSpecialRoomBounds(roomSetup, width, height) {
@@ -76,16 +84,11 @@ function getSpecialRoomBounds(roomSetup, width, height) {
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < columns; x++) {
       if (!isSpecialRoomTile(roomSetup[y][x])) continue;
-      const normalizedTile = String(roomSetup[y][x]).toLowerCase();
-      // Resource tiles still keep their footprint clear, but shouldn't create
-      // the same broad no-wall halo as bases, nests, or objectives.
-      const resourceTile = normalizedTile === "rock" || normalizedTile === "roid";
       bounds.push({
         left: (x * width) / columns,
         right: ((x + 1) * width) / columns,
         top: (y * height) / rows,
         bottom: ((y + 1) * height) / rows,
-        resourceTile,
       });
     }
   }
@@ -144,8 +147,8 @@ function makePattern(tools) {
     }
   }
 
-  // Rotate and mirror each formation so the patterns are not all axis-aligned
-  // in the same direction. Normalize offsets so the chosen anchor is stable.
+  // Rotate and mirror each formation around its anchor. Keeping negative
+  // offsets allows shapes to grow in every direction instead of always down-right.
   const turns = intBetween(0, 3);
   const mirrorX = unit() < 0.5;
   const transformed = cells.map(([originalX, originalY]) => {
@@ -154,19 +157,18 @@ function makePattern(tools) {
     for (let i = 0; i < turns; i++) [x, y] = [-y, x];
     return [x, y];
   });
-  const minX = Math.min(...transformed.map(([x]) => x));
-  const minY = Math.min(...transformed.map(([, y]) => y));
-  return transformed.map(([x, y]) => [x - minX, y - minY]);
+  return transformed;
 }
 
 /**
  * Create a randomized maze on a world-space grid unrelated to ROOM_SETUP's
- * dimensions. ROOM_SETUP is consulted only to keep walls clear of named map
- * areas such as bases, nests, rocks, objectives, and gates.
+ * dimensions. ROOM_SETUP is used as a placement mask: walls can appear in
+ * normal, nest, and obstacle/resource tiles, while bases/objectives/gates and
+ * other special tiles keep a clearance zone.
  *
  * The output contains one wall entity position per occupied world-grid cell.
- * Coordinates are gently jittered off cell centers, while their grid indices
- * preserve the chunky, connected layouts that give the walls a maze-like feel.
+ * Small position jitter and tighter size bounds keep formations aligned and
+ * reduce accidental overlaps while preserving chunky, connected layouts.
  */
 function generateWorldMaze({
   width,
@@ -229,22 +231,24 @@ function generateWorldMaze({
         y > height - borderMargin - maxWallRadius - maxJitterY
       ) continue;
 
-      // Deliberately reserve a generous middle pocket, not just one room tile.
-      if (Math.abs(x - width / 2) < centerClearX && Math.abs(y - height / 2) < centerClearY) continue;
+      const roomTile = getRoomTileAtPoint(roomSetup, x, y, width, height);
+      const tileAllowsWalls = typeof roomTile === "string" && ["nest", "rock", "roid"].includes(roomTile.toLowerCase());
 
-      // Keep named gameplay areas clear, with a smaller halo for ordinary
-      // resource rooms so rocks/roids don't make the whole map feel empty.
+      // Keep a usable center pocket in open/special areas, but don't let that
+      // blanket rule override a mode's explicit nest or obstacle placement.
+      if (
+        !tileAllowsWalls &&
+        Math.abs(x - width / 2) < centerClearX &&
+        Math.abs(y - height / 2) < centerClearY
+      ) continue;
+
+      // Named special areas retain a clearance halo; nest and obstacle/resource
+      // tiles are intentionally omitted from this list and can host wall blocks.
       let nearSpecialRoom = false;
       for (const bounds of specialBounds) {
-        const padX = bounds.resourceTile
-          ? Math.max(cellWidth * 0.12, maxWallRadius + maxJitterX - cellWidth * 0.5 + cellWidth * 0.03)
-          : clearanceX;
-        const padY = bounds.resourceTile
-          ? Math.max(cellHeight * 0.12, maxWallRadius + maxJitterY - cellHeight * 0.5 + cellHeight * 0.03)
-          : clearanceY;
         if (
-          x >= bounds.left - padX && x <= bounds.right + padX &&
-          y >= bounds.top - padY && y <= bounds.bottom + padY
+          x >= bounds.left - clearanceX && x <= bounds.right + clearanceX &&
+          y >= bounds.top - clearanceY && y <= bounds.bottom + clearanceY
         ) {
           nearSpecialRoom = true;
           break;
@@ -264,9 +268,6 @@ function generateWorldMaze({
   const targetWalls = Math.floor(candidates.length * wallDensity);
   const occupied = Array.from({ length: rows }, () => Array(columns).fill(false));
   const walls = [];
-  const maxAttempts = Math.max(100, candidates.length * 8);
-  let attempts = 0;
-
   const addWall = (gridX, gridY) => {
     if (
       gridX < 0 || gridY < 0 || gridX >= columns || gridY >= rows ||
@@ -276,20 +277,19 @@ function generateWorldMaze({
     occupied[gridY][gridX] = true;
     const jitterX = (unit() * 2 - 1) * maxJitterX;
     const jitterY = (unit() * 2 - 1) * maxJitterY;
-    // Mix tiny, standard, chunky, and oversized blocks. Scale is relative to
-    // the world-grid cell, whose size is itself derived from ROOM_SETUP, so
-    // wall dimensions remain meaningful as map dimensions/grid counts change.
+    // Keep wall blocks within roughly one grid cell. A few small blocks add
+    // texture, while the bulk remain large enough to form recognizable runs.
     const sizeRoll = unit();
     let minScale;
     let maxScale;
-    if (sizeRoll < 0.18) {
-      [minScale, maxScale] = [0.25, 0.35];
-    } else if (sizeRoll < 0.46) {
-      [minScale, maxScale] = [0.35, 0.46];
-    } else if (sizeRoll < 0.79) {
-      [minScale, maxScale] = [0.46, 0.61];
+    if (sizeRoll < 0.10) {
+      [minScale, maxScale] = [0.22, 0.29];
+    } else if (sizeRoll < 0.30) {
+      [minScale, maxScale] = [0.29, 0.36];
+    } else if (sizeRoll < 0.78) {
+      [minScale, maxScale] = [0.36, 0.43];
     } else {
-      [minScale, maxScale] = [0.61, DEFAULTS.maxWallSizeScale];
+      [minScale, maxScale] = [0.43, DEFAULTS.maxWallSizeScale];
     }
     const size = shortCellSide * (minScale + unit() * (maxScale - minScale));
     walls.push({
@@ -302,41 +302,68 @@ function generateWorldMaze({
     return true;
   };
 
-  while (walls.length < targetWalls && attempts++ < maxAttempts) {
-    const openCandidates = candidates.filter(([x, y]) => !occupied[y][x]);
-    if (!openCandidates.length) break;
+  const canPlacePattern = (anchorX, anchorY, pattern) => pattern.every(([offsetX, offsetY]) => {
+    const gridX = anchorX + offsetX;
+    const gridY = anchorY + offsetY;
+    return gridX >= 0 && gridY >= 0 && gridX < columns && gridY < rows &&
+      allowed[gridY][gridX] && !occupied[gridY][gridX];
+  });
 
-    // Sample several free cells and prefer the one with fewer nearby walls.
-    // This spreads formations around the map while still letting each chosen
-    // pattern create local corridors and clusters.
-    let anchor = openCandidates[Math.floor(unit() * openCandidates.length)];
-    let bestNearbyWalls = Infinity;
-    const sampleCount = Math.min(12, openCandidates.length);
+  const chooseAnchor = (openCandidates) => {
+    let best = openCandidates[Math.floor(unit() * openCandidates.length)];
+    let bestScore = Infinity;
+    const sampleCount = Math.min(16, openCandidates.length);
     for (let sample = 0; sample < sampleCount; sample++) {
       const candidate = openCandidates[Math.floor(unit() * openCandidates.length)];
+      let adjacentWalls = 0;
       let nearbyWalls = 0;
       for (let dy = -2; dy <= 2; dy++) {
         for (let dx = -2; dx <= 2; dx++) {
+          if (dx === 0 && dy === 0) continue;
           const nx = candidate[0] + dx;
           const ny = candidate[1] + dy;
-          if (nx >= 0 && ny >= 0 && nx < columns && ny < rows && occupied[ny][nx]) nearbyWalls++;
+          if (nx < 0 || ny < 0 || nx >= columns || ny >= rows || !occupied[ny][nx]) continue;
+          nearbyWalls++;
+          if (Math.abs(dx) + Math.abs(dy) === 1) adjacentWalls++;
         }
       }
-      if (nearbyWalls < bestNearbyWalls || (nearbyWalls === bestNearbyWalls && unit() < 0.35)) {
-        anchor = candidate;
-        bestNearbyWalls = nearbyWalls;
+      // Prefer to occasionally connect formations into longer runs, without
+      // selecting already-cluttered pockets too often.
+      const score = Math.abs(adjacentWalls - 1) * 1.5 + Math.max(0, nearbyWalls - 7) * 0.18 + unit() * 0.8;
+      if (score < bestScore) {
+        best = candidate;
+        bestScore = score;
       }
     }
-    const [anchorX, anchorY] = anchor;
-    const pattern = makePattern(tools);
-    const before = walls.length;
-    for (const [offsetX, offsetY] of pattern) {
-      if (walls.length >= targetWalls) break;
-      addWall(anchorX + offsetX, anchorY + offsetY);
+    return best;
+  };
+
+  while (walls.length < targetWalls) {
+    const openCandidates = candidates.filter(([x, y]) => !occupied[y][x]);
+    if (!openCandidates.length) break;
+
+    let placedPattern = false;
+    let fallbackAnchor = openCandidates[Math.floor(unit() * openCandidates.length)];
+    const attemptsForPattern = Math.min(12, openCandidates.length);
+    const remainingBudget = targetWalls - walls.length;
+
+    // Only place complete formations. The old behavior silently dropped any
+    // pattern cells masked by protected areas or existing walls, which left
+    // awkward partial rectangles and corridors along clearance-zone edges.
+    for (let attempt = 0; attempt < attemptsForPattern; attempt++) {
+      const [anchorX, anchorY] = chooseAnchor(openCandidates);
+      fallbackAnchor = [anchorX, anchorY];
+      let pattern = makePattern(tools);
+      if (pattern.length > remainingBudget) pattern = [[0, 0]];
+      if (!canPlacePattern(anchorX, anchorY, pattern)) continue;
+      for (const [offsetX, offsetY] of pattern) addWall(anchorX + offsetX, anchorY + offsetY);
+      placedPattern = true;
+      break;
     }
-    // Patterns can be entirely masked at their far end. Always make progress
-    // with their empty anchor to keep generation bounded and predictable.
-    if (walls.length === before) addWall(anchorX, anchorY);
+
+    // Every fallback anchor comes from an unoccupied, allowed cell, so this
+    // path guarantees progress even when no complete multi-cell pattern fits.
+    if (!placedPattern) addWall(fallbackAnchor[0], fallbackAnchor[1]);
   }
 
   return {

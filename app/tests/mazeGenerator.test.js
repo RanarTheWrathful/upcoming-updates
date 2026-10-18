@@ -20,8 +20,16 @@ source[1][1] = "bas1";
 source[1][13] = "bas2";
 source[13][1] = "bas3";
 source[13][13] = "bas4";
+// A compact obstacle region makes sure generated walls are permitted in it,
+// rather than testing a single resource tile that random distribution may miss.
 source[3][5] = "rock";
+source[3][6] = "rock";
+source[4][5] = "rock";
+source[4][6] = "rock";
+source[10][10] = "roid";
 source[10][11] = "roid";
+source[11][10] = "roid";
+source[11][11] = "roid";
 source[4][4] = "wall";
 
 assert.strictEqual(
@@ -98,24 +106,50 @@ for (const wall of generated.walls) {
   if (keys.has(`${wall.gridX + 1}:${wall.gridY}`) || keys.has(`${wall.gridX - 1}:${wall.gridY}`) ||
       keys.has(`${wall.gridX}:${wall.gridY + 1}`) || keys.has(`${wall.gridX}:${wall.gridY - 1}`)) adjacentWallPairs++;
 
-  // A square, not circular, clearance zone around the map center is kept open.
-  assert(
-    !(Math.abs(wall.x - 2000) < 300 && Math.abs(wall.y - 2000) < 300),
-    "maze walls should leave a usable central pocket"
-  );
-
-  // The central nest is a 2x2 room-tile region; keep a generous margin clear.
-  const nestLeft = (6 / 15) * 4000;
-  const nestRight = (8 / 15) * 4000;
-  const nestTop = (6 / 15) * 4000;
-  const nestBottom = (8 / 15) * 4000;
-  assert(
-    !(wall.x >= nestLeft - 110 && wall.x <= nestRight + 110 &&
-      wall.y >= nestTop - 110 && wall.y <= nestBottom + 110),
-    "generated walls should not intrude into or crowd the nest room"
-  );
+  // A central pocket remains open on ordinary terrain. Nests and resource
+  // tiles explicitly opt out of that rule so they can host maze walls too.
+  const tileX = Math.min(14, Math.floor((wall.x / 4000) * 15));
+  const tileY = Math.min(14, Math.floor((wall.y / 4000) * 15));
+  const roomTile = cleared[tileY][tileX];
+  const tileAllowsWalls = ["nest", "rock", "roid"].includes(String(roomTile).toLowerCase());
+  if (!tileAllowsWalls) {
+    assert(
+      !(Math.abs(wall.x - 2000) < 300 && Math.abs(wall.y - 2000) < 300),
+      "maze walls should leave a usable central pocket on ordinary terrain"
+    );
+  }
 }
 assert(adjacentWallPairs > 10, "wall layouts should include connected blocky runs and clusters");
+
+const tileBounds = (column, row) => ({
+  left: (column / 15) * 4000,
+  right: ((column + 1) / 15) * 4000,
+  top: (row / 15) * 4000,
+  bottom: ((row + 1) / 15) * 4000,
+});
+const insideTile = (wall, bounds) => wall.x >= bounds.left && wall.x < bounds.right &&
+  wall.y >= bounds.top && wall.y < bounds.bottom;
+assert(
+  generated.walls.some((wall) => insideTile(wall, tileBounds(6, 6))),
+  "maze walls should be allowed inside nest areas"
+);
+assert(
+  [[5, 3], [6, 3], [5, 4], [6, 4], [10, 10], [11, 10], [10, 11], [11, 11]].some(([x, y]) =>
+    generated.walls.some((wall) => insideTile(wall, tileBounds(x, y))
+  )),
+  "maze walls should be allowed inside rock/roid obstacle areas"
+);
+
+const openCenterMaze = maze.generateWorldMaze({
+  width: 4000,
+  height: 4000,
+  roomSetup: Array.from({ length: 15 }, () => Array(15).fill("norm")),
+  random: seededRandom(0xC0FFEE),
+});
+assert(
+  !openCenterMaze.walls.some((wall) => Math.abs(wall.x - 2000) < 300 && Math.abs(wall.y - 2000) < 300),
+  "the center pocket should still be preserved when no nest/resource area claims it"
+);
 
 // Test non-square world coordinates as well; row/column counts should follow
 // world dimensions and not ROOM_SETUP's fixed 15x15 layout.
