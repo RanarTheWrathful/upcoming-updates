@@ -37643,7 +37643,7 @@ exports.grenadier = {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
     POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreDamage, g.bitmoreSpeed]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreSpeed]),
       TYPE: exports.grenadierMissile,
     },
   }
@@ -37681,7 +37681,7 @@ exports.beenader = {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
     POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.greaterReload, g.destroy, g.bitmoreDamage, g.bitmoreSpeed]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.greaterReload, g.destroy, g.bitmoreSpeed]),
       TYPE: exports.beenade,
     },
   }
@@ -37718,7 +37718,7 @@ exports.neutron = {
     /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
     POSITION: [19, 14.55, 1, 0, 0, 0, 0],
     PROPERTIES: {
-      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreDamage, g.bitmoreSpeed]),
+      SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.missile, g.destroy, g.bitmoreSpeed]),
       TYPE: exports.neutronMissile,
     },
   }
@@ -38187,7 +38187,7 @@ exports.hiveling = {
           g.missile,
           g.lesserDamage,
           g.greaterReload,
-          g.destroy, g.bitmoreDamage, g.bitmoreSpeed
+          g.destroy, g.bitmoreDamage, g.bitmoreSpeed, g.bitmoreRange,
         ]),
         TYPE: exports.hive,
       },
@@ -97772,6 +97772,7 @@ exports.Chucker.UPGRADES_TIER_4 = [
   exports.firework,
   exports.hurler,
   exports.hiveling,
+  exports.fieldartillery,
 ];
 exports.swarmer.UPGRADES_TIER_4 = [exports.hexaswarm, exports.hiveling];
 exports.grenadier.UPGRADES_TIER_5 = [exports.beenader, exports.neutron];
