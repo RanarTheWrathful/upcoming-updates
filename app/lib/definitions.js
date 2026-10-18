@@ -43986,7 +43986,7 @@ exports.creation = makeMulti({
   BODY: {
     SPEED: base.SPEED * 1,
     HEALTH: base.HEALTH * 2.5,
-    DAMAGE: base.DAMAGE * 0.5,
+    DAMAGE: base.DAMAGE * 0.25,
     SHIELD: base.SHIELD * 3,
     REGEN: base.REGEN * 1.5,
   },
