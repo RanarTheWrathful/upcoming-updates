@@ -2156,26 +2156,21 @@ function makeMazeWalls() {
   const wallLocations = room.wall;
   if (!Array.isArray(wallLocations) || !wallLocations.length) return;
 
-  // Some rectangular grids previously emitted multiple wall entities for one
-  // tile to fill its long axis. Spawn exactly one wall per unique map cell.
+  // Keep one logical wall-cell per ROOM_SETUP tile. If grid cells are not
+  // square, tile that cell with overlapping square blocks along its long axis
+  // so randomized sizing never leaves a projectile-sized seam.
   const spawnedCells = new Set();
-  const baseSize = Math.min(gridWidth, gridHeight) / 2;
+  const shortSide = Math.min(gridWidth, gridHeight);
+  const baseSize = shortSide / 2;
 
-  for (const loc of wallLocations) {
-    if (!loc || !Number.isFinite(loc.x) || !Number.isFinite(loc.y)) continue;
-    const gridX = Math.floor(loc.x / gridWidth);
-    const gridY = Math.floor(loc.y / gridHeight);
-    const cellKey = `${gridX}:${gridY}`;
-    if (spawnedCells.has(cellKey)) continue;
-    spawnedCells.add(cellKey);
-
-    const o = new Entity(loc);
+  const spawnBlock = (x, y, gridX, gridY) => {
+    const o = new Entity({ x, y });
     o.define(Class.wall);
-    // Vary size slightly while keeping each block at least cell-sized so
-    // neighboring walls don't leave unintended gaps in the maze.
-    o.SIZE = baseSize * ran.randomRange(1.0, 1.12);
+    // Randomize wall size while never shrinking below a cell-covering block.
+    // Slight oversizing also seals small seams between adjacent clusters.
+    o.SIZE = baseSize * ran.randomRange(1.0, 1.25);
     o.coreSize = o.SIZE;
-    o.spawnLoc = loc;
+    o.spawnLoc = { x, y };
     o.protect();
     o.team = -101;
     o.color = 16;
@@ -2187,6 +2182,33 @@ function makeMazeWalls() {
     o.VELOCITY.y = 0;
     o.ACCEL.x = 0;
     o.ACCEL.y = 0;
+  };
+
+  for (const loc of wallLocations) {
+    if (!loc || !Number.isFinite(loc.x) || !Number.isFinite(loc.y)) continue;
+    const gridX = Math.floor(loc.x / gridWidth);
+    const gridY = Math.floor(loc.y / gridHeight);
+    const cellKey = `${gridX}:${gridY}`;
+    if (spawnedCells.has(cellKey)) continue;
+    spawnedCells.add(cellKey);
+
+    if (gridWidth > gridHeight) {
+      const start = loc.x - gridWidth / 2 + gridHeight / 2;
+      const end = loc.x + gridWidth / 2 - gridHeight / 2;
+      for (let x = start; ; x += gridHeight) {
+        spawnBlock(Math.min(x, end), loc.y, gridX, gridY);
+        if (x >= end) break;
+      }
+    } else if (gridHeight > gridWidth) {
+      const start = loc.y - gridHeight / 2 + gridWidth / 2;
+      const end = loc.y + gridHeight / 2 - gridWidth / 2;
+      for (let y = start; ; y += gridWidth) {
+        spawnBlock(loc.x, Math.min(y, end), gridX, gridY);
+        if (y >= end) break;
+      }
+    } else {
+      spawnBlock(loc.x, loc.y, gridX, gridY);
+    }
   }
 }
 

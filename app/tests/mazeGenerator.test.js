@@ -4,7 +4,7 @@ const assert = require("assert");
 const maze = require("../lib/mazeGenerator");
 
 const source = [
-  ["wall", "norm", "norm", "norm", "wall", "norm", "norm", "norm", "wall"],
+  ["Wall", "norm", "norm", "norm", "wall", "norm", "norm", "norm", "wall"],
   ["norm", "wall", "norm", "norm", "norm", "wall", "norm", "wall", "norm"],
   ["norm", "norm", "norm", "wall", "norm", "norm", "norm", "norm", "norm"],
   ["norm", "wall", "norm", "norm", "nest", "norm", "wall", "norm", "norm"],
@@ -32,6 +32,10 @@ assert(regeneratedFromClearedTemplate.some((row) => row.includes("wall")), "rand
 const generated = maze.randomizeMaze(source, { random: () => 0.1 });
 const alternate = maze.randomizeMaze(source, { random: () => 0.9 });
 assert.notDeepStrictEqual(generated, alternate, "different random sources should make different maze layouts");
+assert(
+  alternate.some((row, y) => row.some((tile, x) => tile === "wall" && (row[x + 1] === "wall" || alternate[y + 1]?.[x] === "wall"))),
+  "randomized walls should form connected clusters of varied sizes, not only isolated cells"
+);
 assert.strictEqual(JSON.stringify(source), before, "generation must not mutate the source map");
 assert.strictEqual(generated[3][4], "nest", "special gameplay tiles must be preserved");
 for (let x = 0; x < generated[0].length; x++) {
@@ -51,4 +55,17 @@ for (let y = centerY - 1; y <= centerY + 1; y++) {
 }
 const passable = generated.reduce((count, row) => count + row.filter((tile) => tile !== "wall").length, 0);
 assert.strictEqual(maze.floodFill(generated, centerX, centerY).size, passable, "all walkable map sections must remain connected");
+// The modes with automatic maze generation should not retain hand-authored
+// wall locations in ROOM_SETUP; those tiles are regenerated from norm cells.
+for (const modeName of [
+  "Maze Execution", "Maze 4TDM", "FFA Maze", "Maze Fort Domination",
+  "Maze Domination", "Maze Graveyard", "Maze Plague"
+]) {
+  const settings = require(`../Game Modes/${modeName}`);
+  assert(
+    !settings.ROOM_SETUP.flat().some((tile) => String(tile).toLowerCase() === "wall"),
+    `${modeName} should not hard-code wall tiles in ROOM_SETUP`
+  );
+}
+
 console.log("Maze generation tests passed.");

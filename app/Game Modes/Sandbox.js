@@ -41,5 +41,4 @@ module.exports =
   "SPAWN_CRASHER": false,
   "SPAWN_SENTINEL": false,
   SPAWN_THRASHERS: true,
-  MAZE_GENERATION: true,
 }
