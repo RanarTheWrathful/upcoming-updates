@@ -93,4 +93,39 @@ support.applyInteraction(noDamageAura, enemyTrap, 50, 0);
 assert.strictEqual(enemyTrap.damageRecieved, 0,
   "unsupported target types must receive no heal/repair effect damage");
 
+
+
+// Repair effects must restore resources instead of merely returning a heal action.
+const repairHealthBeam = makeEntity({
+  type: "bullet", isProjectile: true, repairEffect: true, team: 1, damageRecieved: 0,
+});
+const alliedTankNeedingRepair = makeEntity({
+  team: 1, isWall: true, health: { amount: 40, max: 100 }, shield: { amount: 20, max: 20 },
+});
+support.applyInteraction(repairHealthBeam, alliedTankNeedingRepair, 10, 4);
+assert.strictEqual(alliedTankNeedingRepair.health.amount, 45,
+  "repair beams should restore allied health when shields are full");
+assert.strictEqual(repairHealthBeam.damageRecieved, 4,
+  "repair beams should be consumed after restoring health");
+
+const repairAuraSource = makeEntity({ type: "atmosphere", repairEffect: true, team: 1 });
+const alliedTankNeedingAuraRepair = makeEntity({
+  team: 1, isWall: true, health: { amount: 40, max: 100 }, shield: { amount: 20, max: 20 },
+});
+support.applyInteraction(repairAuraSource, alliedTankNeedingAuraRepair, 10, 0);
+assert.strictEqual(alliedTankNeedingAuraRepair.health.amount, 42.5,
+  "repair auras should restore health at the passive repair rate");
+
+const healShieldBeam = makeEntity({
+  type: "bullet", isProjectile: true, healEffect: true, team: 1, damageRecieved: 0,
+});
+const alliedTankNeedingShieldHeal = makeEntity({
+  team: 1, health: { amount: 100, max: 100 }, shield: { amount: 10, max: 20 },
+});
+support.applyInteraction(healShieldBeam, alliedTankNeedingShieldHeal, 10, 2);
+assert.strictEqual(alliedTankNeedingShieldHeal.shield.amount, 12,
+  "healing beams should restore shields when health is full");
+assert.strictEqual(healShieldBeam.damageRecieved, 2,
+  "healing beams should be consumed after restoring shields");
+
 console.log("Support effect tests passed.");

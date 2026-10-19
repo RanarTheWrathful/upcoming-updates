@@ -21,6 +21,7 @@ const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup
 const isEntityVisibleToAnyClient = require("./lib/clientVisibility");
 const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
+const siegeWaveProgress = require("./lib/siegeWaveProgress");
 const legendaryBranches = require("./lib/legendaryBranches");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
 const droneInfection = require("./lib/droneInfection");
@@ -814,6 +815,57 @@ function isValidSiegeEnemy(candidate) {
     Class[candidate.name] && typeof Class[candidate.name] === "object"));
 }
 
+function countLiveSiegeHostiles() {
+  let count = 0;
+  entities.forEach((entity) => {
+    if (entity && entity.siegeProgress && entity.team === -100 &&
+        !(typeof entity.isDead === "function" && entity.isDead())) {
+      count += 1;
+    }
+  });
+  return count;
+}
+
+// All Siege wave completion paths funnel through one idempotent scheduler.
+// This covers empty/invalid theme selections and spawn deferrals as well as
+// ordinary waves that end when their last hostile is killed.
+function scheduleSiegeWaveAdvance(expectedWave = c.bossWave, delay = 5432) {
+  if (c.MODE !== "siege" || expectedWave !== c.bossWave) return false;
+  if (c.siegeAdvanceScheduledWave === expectedWave || c.siegeLastAdvancedWave === expectedWave) {
+    return false;
+  }
+
+  c.siegeAdvanceScheduledWave = expectedWave;
+  const timer = setTimeout(() => {
+    if (c.siegeAdvanceScheduledWave === expectedWave) {
+      c.siegeAdvanceScheduledWave = null;
+    }
+    const liveHostileCount = countLiveSiegeHostiles();
+    if (!siegeWaveProgress.shouldAdvanceSiegeWave({
+      mode: c.MODE,
+      currentWave: c.bossWave,
+      expectedWave,
+      budget: c.bossCounter,
+      liveHostileCount,
+      lastAdvancedWave: c.siegeLastAdvancedWave,
+    })) return;
+
+    c.siegeLastAdvancedWave = expectedWave;
+    c.preparedCounter = expectedWave * 5 + 50;
+    c.bossWave = expectedWave + 1;
+    c.continueWave = true;
+    c.dontSpam = true;
+    c.bossAmount = 1;
+    c.initiateEpicWave = false;
+    c.pingBack = false;
+    c.uniqueBossList = [];
+    currentState.bossWaves = c.bossWave + 1;
+    sockets.broadcast("Wave " + c.bossWave + " has started!");
+  }, Math.max(0, Number(delay) || 0));
+  if (timer && typeof timer.unref === "function") timer.unref();
+  return true;
+}
+
 function spawnSiegeAlly(enemy, delayIndex, assignedName) {
   const delay = Math.max(0, Number(delayIndex) || 0) * 900;
   setTimeout(() => {
@@ -877,7 +929,12 @@ function spawnSiegeAllyWave(theme, budget) {
     remaining -= enemy.cost;
   }
   c.bossCounter = 0;
-  if (!selected.length) return;
+  const completedWave = c.bossWave;
+  if (!selected.length) {
+    util.log(`[Siege] Wave ${completedWave} had no eligible reinforcements; scheduling wave advance.`);
+    scheduleSiegeWaveAdvance(completedWave, 5432);
+    return;
+  }
 
   const names = selected.map((enemy) => {
     if (enemy.name === "bot") return "a reinforcement bot";
@@ -897,22 +954,10 @@ function spawnSiegeAllyWave(theme, budget) {
     announcement = "False alarm, " + joinedNames + " have arrived as our backup!";
   }
   sockets.broadcast(announcement);
-  const completedWave = c.bossWave;
   util.log("[Siege] Reinforcements for wave " + completedWave + ": " + names.join(", "));
   selected.forEach((enemy, i) => spawnSiegeAlly(enemy, i, names[i]));
-  // No hostile team -100 entities exist in an ally-only wave, so advance it
-  // explicitly once its reinforcements have arrived rather than soft-locking.
-  const advanceTimer = setTimeout(() => {
-    if (c.MODE !== "siege" || c.bossWave !== completedWave || c.bossCounter > 0) return;
-    c.preparedCounter = c.bossWave * 5 + 50;
-    c.bossWave += 1;
-    c.continueWave = true;
-    c.dontSpam = true;
-    c.bossAmount = 1;
-    currentState.bossWaves = c.bossWave + 1;
-    sockets.broadcast("Wave " + c.bossWave + " has started!");
-  }, Math.max(5432, selected.length * 900 + 250));
-  if (advanceTimer && typeof advanceTimer.unref === "function") advanceTimer.unref();
+  // Ally-only waves have no hostile death event to trigger progression.
+  scheduleSiegeWaveAdvance(completedWave, Math.max(5432, selected.length * 900 + 250));
 }
 
 function spawnSiegeEnemyFromBudget() {
@@ -921,7 +966,6 @@ function spawnSiegeEnemyFromBudget() {
     c.bossCounter = 0;
     return;
   }
-
   const themes = getSiegeThemesForCurrentWave();
   const allyTheme = themes.find((theme) => theme.id === "spawnAllies");
   if (allyTheme) {
@@ -931,17 +975,21 @@ function spawnSiegeEnemyFromBudget() {
 
   const enemy = siegeWavePlanner.chooseEnemy(themes, budget, Math.random, isValidSiegeEnemy);
   if (!enemy) {
-    // The remaining budget is smaller than every available enemy in the
-    // selected themes. End the budget cleanly rather than leaving the wave stuck.
+    // No selected theme has a valid, affordable enemy. End the budget and
+    // advance only after any already-spawned hostiles from this wave are gone.
     c.bossCounter = 0;
+    util.log(`[Siege] Wave ${c.bossWave} has no eligible enemy for remaining budget ${budget}.`);
+    scheduleSiegeWaveAdvance(c.bossWave, 5432);
     return;
   }
 
   const spawnCount = siegePolygonSpawnCounts[enemy.name] || 1;
-  c.bossCounter = Math.max(0, budget - enemy.cost);
+  let spawnedCount = 0;
   for (let i = 0; i < spawnCount; i++) {
     if (!loadProtection.canSpawnNaturalEntity()) break;
-    const o = new Entity(room.randomType("spw0"));
+    const spawnLocation = room.randomType("spw0");
+    if (!spawnLocation) break;
+    const o = new Entity(spawnLocation);
     o.rarity = Math.random() * 10000;
     o.define(Class[enemy.name]);
     applySiegeRareEnemyVariant(o);
@@ -952,6 +1000,7 @@ function spawnSiegeEnemyFromBudget() {
     if (siegeLowPolygonNames.has(enemy.name)) {
       o.siegeIgnoreAllyTargeting = true;
     }
+    spawnedCount += 1;
     // Food-like generic polygon swarms are intentional objective obstacles, not
     // guarded enemy tanks. All ordinary Siege enemies retain their guard AI.
     if (!siegePolygonSpawnCounts[enemy.name]) {
@@ -960,6 +1009,11 @@ function spawnSiegeEnemyFromBudget() {
       }, 7500);
     }
   }
+  if (spawnedCount === 0) {
+    // Failed location/cap checks must not silently consume the wave's budget.
+    return;
+  }
+  c.bossCounter = Math.max(0, budget - enemy.cost);
 }
 
 //Makenpc functions
@@ -14143,21 +14197,8 @@ console.log('Lore mode sequence advanced.');*/
         });
         c.bossAmount -= 1;
         //console.log(c.bossAmount);
-        if (this.siegeProgress) {
-          if (c.bossAmount <= 0) {
-            setTimeout(() => {
-              if (c.bossAmount <= 0) {
-                c.preparedCounter = c.bossWave * 5 + 50;
-                c.bossWave += 1;
-                c.continueWave = true;
-                c.dontSpam = true;
-                c.bossAmount = 1;
-                currentState.bossWaves = c.bossWave + 1;
-                //     util.log(currentState.bossWaves);
-                sockets.broadcast("Wave " + c.bossWave + " has started!");
-              }
-            }, 5432);
-          }
+        if (this.siegeProgress && c.bossAmount <= 0 && Number(c.bossCounter) <= 0) {
+          scheduleSiegeWaveAdvance(c.bossWave, 5432);
         }
       }
       if (c.PLAGUE || this.infected) {
