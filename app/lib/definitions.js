@@ -34707,6 +34707,7 @@ exports.pen = {
     },
   ]
 };
+exports.autopen = makeAuto(exports.pen)
 exports.inkpod = makeHybrid(exports.pen, "Ink Pod")
 exports.outpost = {
   PARENT: [exports.genericTank],
@@ -35358,7 +35359,7 @@ exports.trident = {
     {
       POSITION: [3, 7, 1.7, 13, 5.5, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.lesserHealth]),
         TYPE: exports.trap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -35368,7 +35369,7 @@ exports.trident = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, -2, -5.5, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.triple]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.triple,]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -35380,7 +35381,7 @@ exports.trident = {
     {
       POSITION: [3, 7, 1.7, 13, -5.5, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.lesserHealth]),
         TYPE: exports.trap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -96142,13 +96143,15 @@ exports.hexaento.UPGRADES_TIER_6 = [exports.hexapen]
 exports.pen.UPGRADES_TIER_4 = [
   exports.quill,
   exports.breeze,
-  exports.inker,
   exports.printer,
   exports.anvil,
-  exports.penception,
   exports.outpost,
   exports.overpen,
   exports.underpen,
+];
+exports.autopen.UPGRADES_TIER_5 = [
+  exports.inker,
+  exports.penception,
 ];
 exports.underpen.UPGRADES_TIER_6 = [exports.eggpen, exports.quadpen, exports.tripen, exports.pentapen, exports.hexapen,]
 exports.outpost.UPGRADES_TIER_5 = [exports.watchtower, exports.rampart]
@@ -97707,6 +97710,7 @@ exports.flanktrap.UPGRADES_TIER_3 = [
   exports.conq,
   exports.bulwark,
   exports.autoflanktrap,
+  exports.pen,
 ];
 exports.tritrapper.UPGRADES_TIER_3 = [
   exports.fortress,
