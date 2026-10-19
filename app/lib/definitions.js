@@ -34841,7 +34841,7 @@ exports.inkfountain = makeMulti({
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.flank]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -34853,7 +34853,7 @@ exports.inkfountain = makeMulti({
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
         TYPE: exports.trap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -34863,7 +34863,7 @@ exports.inkfountain = makeMulti({
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, 0, 0, 60, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.flank]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -34875,7 +34875,7 @@ exports.inkfountain = makeMulti({
     {
       POSITION: [3, 7, 1.7, 15, 0, 60, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.hexatrap]),
         TYPE: exports.trap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -34944,9 +34944,9 @@ exports.demolitionist = {
   GUNS: [
     {
   /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
-  POSITION: [23.5, 10, 1, 0, 0, 0, 0],
+  POSITION: [24.5, 11.55, 1, 0, 0, 0, 0],
   PROPERTIES: {
-    SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.bitmoreSize, g.bitLessSize]),
+    SHOOT_SETTINGS: combineStats([g.basic, g.pound, g.bitmoreSize, g.bitLessSize, g.destroy, g.missile, g.bitmoreSpeed,]),
     TYPE: exports.grenadierMissile,
   },
 },
@@ -35181,6 +35181,7 @@ exports.printer = {
         SHOOT_SETTINGS: combineStats([
           g.trap,
           g.halfDamage,
+          g.halfHealth,
           g.halfReload,
         ]),
         TYPE: exports.trap,
@@ -35201,6 +35202,7 @@ exports.printer = {
         SHOOT_SETTINGS: combineStats([
           g.trap,
           g.halfDamage,
+          g.halfHealth,
           g.halfReload,
         ]),
         TYPE: exports.trap,
@@ -35221,6 +35223,7 @@ exports.printer = {
         SHOOT_SETTINGS: combineStats([
           g.trap,
           g.halfDamage,
+          g.halfHealth,
           g.halfReload,
         ]),
         TYPE: exports.trap,
@@ -35239,7 +35242,7 @@ exports.quill = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, 0, 5.5, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -35261,7 +35264,7 @@ exports.quill = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, 0, -5.5, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -35289,7 +35292,7 @@ exports.plume = makeMulti({
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, 0, 5.5, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.double]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -35311,7 +35314,7 @@ exports.plume = makeMulti({
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, 0, -5.5, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.double]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -35343,7 +35346,7 @@ exports.trident = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, -2, 5.5, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.triple]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -35365,7 +35368,7 @@ exports.trident = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, -2, -5.5, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.triple]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -35386,7 +35389,7 @@ exports.trident = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [24, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.twin, g.triple]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
