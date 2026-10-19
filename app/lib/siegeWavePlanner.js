@@ -1,5 +1,16 @@
 "use strict";
 
+const POLYGON_SPAWN_COUNTS = Object.freeze({
+  egg: 25,
+  square: 25,
+  triangle: 25,
+  pentagon: 25,
+  hexagon: 5,
+  septagon: 5,
+  octagon: 2,
+  nonagon: 2,
+});
+
 function randomUnit(random) {
   const value = Number(random());
   if (!Number.isFinite(value)) return 0;
@@ -315,8 +326,7 @@ const THEME_DEFINITIONS = [
     id: "closers",
     label: "Arena Bosses",
     enemies: [
-"arenaguard",
-      "damagedArenaCloser", "arenaslayer",
+      "arenaguard", "damagedArenaCloser", "arenaslayer", "bot",
     ],
   },
   {
@@ -339,6 +349,7 @@ const THEME_DEFINITIONS = [
 ];
 
 module.exports = {
+  POLYGON_SPAWN_COUNTS,
   THEME_DEFINITIONS,
   createEnemyCatalog,
   chooseRandomThemes,

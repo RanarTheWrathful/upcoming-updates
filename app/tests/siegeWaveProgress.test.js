@@ -21,6 +21,8 @@ assert.strictEqual(shouldAdvanceSiegeWave({ ...wave, budget: 1 }), false,
   "a wave with unspent budget must not advance");
 assert.strictEqual(shouldAdvanceSiegeWave({ ...wave, liveHostileCount: 1 }), false,
   "a wave with live hostiles must not advance");
+assert.strictEqual(shouldAdvanceSiegeWave({ ...wave, pendingAllyCount: 1 }), false,
+  "an ally-only wave must not advance before its scheduled reinforcements spawn or time out");
 assert.strictEqual(shouldAdvanceSiegeWave({ ...wave, lastAdvancedWave: 3 }), false,
   "the same wave must not advance twice");
 assert.strictEqual(shouldAdvanceSiegeWave({ ...wave, budget: NaN }), false,

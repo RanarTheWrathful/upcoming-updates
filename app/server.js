@@ -176,6 +176,11 @@ c.playerz = 1;
 c.bossAmount = 0;
 c.whar = 0;
 c.uniqueBossList = [];
+c.siegeBotSpawnQueue = [];
+c.siegePendingAlliedBots = 0;
+c.siegePendingEnemyBots = 0;
+c.siegePendingAllySpawns = 0;
+c.siegePendingAllySpawnWave = null;
 let wE1 = [
   "eggCrasher",
   "squareCrasher",
@@ -303,11 +308,9 @@ const siegeCostTiers = [
   { cost: 15, enemies: t1B },
   { cost: 30, enemies: t2B },
   { cost: 45, enemies: t3B },
-  // Generic polygons have their own theme and each selection is charged once,
-  // even when it expands into a small swarm during spawning.
-  { cost: 1, enemies: ["egg", "square", "triangle", "pentagon"] },
-  { cost: 5, enemies: ["hexagon", "septagon"] },
-  { cost: 7, enemies: ["octagon", "nonagon"] },
+  // Each generic polygon type costs one budget point per selection; spawning
+  // its configured swarm does not multiply that cost.
+  { cost: 1, enemies: Object.keys(siegeWavePlanner.POLYGON_SPAWN_COUNTS) },
 ];
 const siegeEnemyCatalog = siegeWavePlanner.createEnemyCatalog(
   siegeCostTiers,
@@ -804,15 +807,70 @@ function applySiegeRareEnemyVariant(o) {
   }
 }
 
-const siegePolygonSpawnCounts = Object.freeze({
-  egg: 25, square: 25, triangle: 25, pentagon: 25,
-  hexagon: 5, septagon: 5, octagon: 2, nonagon: 2,
-});
+const siegePolygonSpawnCounts = siegeWavePlanner.POLYGON_SPAWN_COUNTS;
 const siegeLowPolygonNames = new Set(["egg", "square", "triangle", "pentagon", "hexagon"]);
 
 function isValidSiegeEnemy(candidate) {
   return !!(candidate && (candidate.name === "bot" ||
     Class[candidate.name] && typeof Class[candidate.name] === "object"));
+}
+
+function getSiegeBotSpawnQueue() {
+  if (!Array.isArray(c.siegeBotSpawnQueue)) c.siegeBotSpawnQueue = [];
+  return c.siegeBotSpawnQueue;
+}
+
+function syncSiegeBotQueueCounts() {
+  const queue = getSiegeBotSpawnQueue();
+  c.siegePendingAlliedBots = queue.filter((entry) => entry && entry.team === -1).length;
+  c.siegePendingEnemyBots = queue.filter((entry) => entry && entry.team === -100).length;
+  return queue;
+}
+
+function enqueueSiegeBot(team, wave, isAllyWaveBot = false) {
+  getSiegeBotSpawnQueue().push({
+    team,
+    wave,
+    isAllyWaveBot,
+    queuedAt: Date.now(),
+  });
+  syncSiegeBotQueueCounts();
+  c.botSpawn = true;
+}
+
+function finishSiegeAllySpawn(wave) {
+  if (
+    c.siegePendingAllySpawnWave !== wave ||
+    !(Number(c.siegePendingAllySpawns) > 0)
+  ) return;
+
+  c.siegePendingAllySpawns = Math.max(0, Math.floor(Number(c.siegePendingAllySpawns) || 0) - 1);
+  if (c.siegePendingAllySpawns === 0) {
+    c.siegePendingAllySpawnWave = null;
+    if (c.MODE === "siege" && c.bossWave === wave && Number(c.bossCounter) <= 0) {
+      scheduleSiegeWaveAdvance(wave, 5432);
+    }
+  }
+}
+
+function expireSiegeBotQueueEntries(now = Date.now()) {
+  const queue = getSiegeBotSpawnQueue();
+  const expired = [];
+  for (let i = queue.length - 1; i >= 0; i--) {
+    const entry = queue[i];
+    if (!entry || now - Number(entry.queuedAt || now) >= 30000) {
+      expired.push(queue.splice(i, 1)[0]);
+    }
+  }
+  syncSiegeBotQueueCounts();
+  for (const entry of expired) {
+    if (!entry) continue;
+    if (entry.isAllyWaveBot) finishSiegeAllySpawn(entry.wave);
+    else if (entry.wave === c.bossWave && Number(c.bossCounter) <= 0) {
+      scheduleSiegeWaveAdvance(entry.wave, 1000);
+    }
+    util.log(`[Siege] A queued ${entry.team === -1 ? "ally" : "hostile"} bot could not find an allowed spawn within 30 seconds; skipping it.`);
+  }
 }
 
 function countLiveSiegeHostiles() {
@@ -823,12 +881,17 @@ function countLiveSiegeHostiles() {
       count += 1;
     }
   });
-  return count;
+  // A queued hostile bot is part of the wave as soon as its budget is spent.
+  // Do not advance the wave while waiting for its capped, population-aware spawn.
+  const pendingHostileBots = getSiegeBotSpawnQueue().filter((entry) =>
+    entry && entry.team === -100 && Date.now() - Number(entry.queuedAt || Date.now()) < 30000
+  ).length;
+  return count + pendingHostileBots;
 }
 
 // All Siege wave completion paths funnel through one idempotent scheduler.
-// This covers empty/invalid theme selections and spawn deferrals as well as
-// ordinary waves that end when their last hostile is killed.
+// A failed early check is retried; a transient remaining hostile must not leave
+// the whole Siege run waiting forever for another death callback.
 function scheduleSiegeWaveAdvance(expectedWave = c.bossWave, delay = 5432) {
   if (c.MODE !== "siege" || expectedWave !== c.bossWave) return false;
   if (c.siegeAdvanceScheduledWave === expectedWave || c.siegeLastAdvancedWave === expectedWave) {
@@ -840,6 +903,10 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave, delay = 5432) {
     if (c.siegeAdvanceScheduledWave === expectedWave) {
       c.siegeAdvanceScheduledWave = null;
     }
+    expireSiegeBotQueueEntries();
+    const pendingAllySpawns = c.siegePendingAllySpawnWave === expectedWave
+      ? Math.max(0, Number(c.siegePendingAllySpawns) || 0)
+      : 0;
     const liveHostileCount = countLiveSiegeHostiles();
     if (!siegeWaveProgress.shouldAdvanceSiegeWave({
       mode: c.MODE,
@@ -847,8 +914,14 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave, delay = 5432) {
       expectedWave,
       budget: c.bossCounter,
       liveHostileCount,
+      pendingAllyCount: pendingAllySpawns,
       lastAdvancedWave: c.siegeLastAdvancedWave,
-    })) return;
+    })) {
+      if (c.MODE === "siege" && expectedWave === c.bossWave) {
+        scheduleSiegeWaveAdvance(expectedWave, 2500);
+      }
+      return;
+    }
 
     c.siegeLastAdvancedWave = expectedWave;
     c.preparedCounter = expectedWave * 5 + 50;
@@ -866,50 +939,68 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave, delay = 5432) {
   return true;
 }
 
-function spawnSiegeAlly(enemy, delayIndex, assignedName) {
+function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
   const delay = Math.max(0, Number(delayIndex) || 0) * 900;
   setTimeout(() => {
-    if (!loadProtection.shouldSpawnNaturalEntities()) {
-      spawnSiegeAlly(enemy, 1, assignedName);
+    if (c.MODE !== "siege" || !isValidSiegeEnemy(enemy)) {
+      finishSiegeAllySpawn(wave);
       return;
     }
-    // Siege bots use the same population-aware bot spawner as c.BOTS. This
-    // leaves their controller, skill, color, and respawn lifecycle consistent.
+
+    // Queued bots use the ordinary bot constructor/naming/skill lifecycle, but
+    // do not increase c.BOTS or accidentally enable unrelated random bots.
     if (enemy.name === "bot") {
-      c.siegePendingAlliedBots = Math.max(
-        0,
-        Math.floor(Number(c.siegePendingAlliedBots) || 0)
-      ) + 1;
-      const currentBotTarget = Math.max(0, Math.floor(Number(c.BOTS) || 0));
-      const playerOffset = c.REDUCE_BOTS_PER_PLAYER
-        ? Math.max(0, Math.floor(Number(c.playerCount) || 0))
-        : 0;
-      c.BOTS = Math.max(currentBotTarget + 1, playerOffset + 1);
-      c.botSpawn = true;
+      enqueueSiegeBot(-1, wave, true);
+      return;
+    }
+
+    const retryOrFinish = () => {
+      if (retries < 30) spawnSiegeAlly(enemy, 1, wave, retries + 1);
+      else {
+        util.log(`[Siege] Could not spawn ally ${enemy.name} in wave ${wave}; moving on safely.`);
+        finishSiegeAllySpawn(wave);
+      }
+    };
+
+    if (!loadProtection.shouldSpawnNaturalEntities()) {
+      retryOrFinish();
       return;
     }
 
     let spot;
     for (let attempt = 0; attempt < 30; attempt++) {
       spot = room.randomType("norm");
-      if (spot && !dirtyCheck(spot, 500)) break;
+      if (spot && !dirtyCheck(spot, 500) && !room.isIn("wall", spot)) break;
+      spot = null;
     }
-    if (!spot) spot = room.randomType("norm");
-    if (!spot) return;
+    if (!spot) {
+      spot = room.randomType("spw0") || room.randomType("norm") || room.random();
+    }
+    if (!spot || room.isIn("wall", spot) || !loadProtection.canSpawnNaturalEntity()) {
+      retryOrFinish();
+      return;
+    }
 
-    const o = new Entity(spot);
-    o.rarity = Math.random() * 10000;
-    o.define(Class[enemy.name]);
-    o.team = -1;
-    o.impervious = true;
-    o.showOnMap = true;
-    o.siegeProgress = true;
-    o._siegeAlly = true;
-    o.name = assignedName || o.label;
-    // Boss allies remain immune to border damage even if their controller or
-    // team bookkeeping changes later in the entity lifecycle.
-    o.addController(new io_guard1(o));
-    if (o.refreshBodyAttributes) o.refreshBodyAttributes();
+    try {
+      const o = new Entity(spot);
+      o._loadProtectionNaturalSpawn = true;
+      o.rarity = Math.random() * 10000;
+      o.define(Class[enemy.name]);
+      o.team = -1;
+      o.impervious = true;
+      o.showOnMap = true;
+      o.siegeProgress = true;
+      o._siegeAlly = true;
+      // Do not overwrite NAME from a definition: named bosses (e.g. Twilight)
+      // keep their identity; unnamed bosses remain unnamed instead of receiving
+      // a random player-style name.
+      o.addController(new io_guard1(o));
+      if (o.refreshBodyAttributes) o.refreshBodyAttributes();
+      finishSiegeAllySpawn(wave);
+    } catch (error) {
+      util.log(`[Siege] Failed to define ally ${enemy.name}: ${error.message}`);
+      finishSiegeAllySpawn(wave);
+    }
   }, delay);
 }
 
@@ -917,11 +1008,11 @@ function spawnSiegeAllyWave(theme, budget) {
   if (c.siegeAlliesSpawnedWave === c.bossWave) return;
   c.siegeAlliesSpawnedWave = c.bossWave;
 
+  const completedWave = c.bossWave;
   const selected = [];
   let remaining = budget;
-  // Build the whole reinforcement roster first, so the arrival announcement
-  // accurately reflects the units about to join instead of narrating them one
-  // by one after the wave has started. A hard guard protects malformed costs.
+  // The wave budget limits the roster; each bot still waits for the normal
+  // population cap instead of inflating the global random-bot target.
   for (let guard = 0; remaining > 0 && guard < 100; guard++) {
     const enemy = siegeWavePlanner.chooseEnemy([theme], remaining, Math.random, isValidSiegeEnemy);
     if (!enemy) break;
@@ -929,18 +1020,20 @@ function spawnSiegeAllyWave(theme, budget) {
     remaining -= enemy.cost;
   }
   c.bossCounter = 0;
-  const completedWave = c.bossWave;
   if (!selected.length) {
+    c.siegePendingAllySpawns = 0;
+    c.siegePendingAllySpawnWave = null;
     util.log(`[Siege] Wave ${completedWave} had no eligible reinforcements; scheduling wave advance.`);
     scheduleSiegeWaveAdvance(completedWave, 5432);
     return;
   }
 
+  c.siegePendingAllySpawnWave = completedWave;
+  c.siegePendingAllySpawns = selected.length;
   const names = selected.map((enemy) => {
     if (enemy.name === "bot") return "a reinforcement bot";
-    const randomName = ran.chooseBossName(enemy.name === "twilight" ? "Guardian" : "castle", 1);
-    return (Array.isArray(randomName) ? randomName[0] : randomName) ||
-      (Class[enemy.name] && Class[enemy.name].LABEL) || enemy.name;
+    const definition = Class[enemy.name] || {};
+    return definition.NAME || definition.LABEL || enemy.name;
   });
   let announcement;
   if (selected.length >= 4) {
@@ -955,9 +1048,7 @@ function spawnSiegeAllyWave(theme, budget) {
   }
   sockets.broadcast(announcement);
   util.log("[Siege] Reinforcements for wave " + completedWave + ": " + names.join(", "));
-  selected.forEach((enemy, i) => spawnSiegeAlly(enemy, i, names[i]));
-  // Ally-only waves have no hostile death event to trigger progression.
-  scheduleSiegeWaveAdvance(completedWave, Math.max(5432, selected.length * 900 + 250));
+  selected.forEach((enemy, i) => spawnSiegeAlly(enemy, i, completedWave));
 }
 
 function spawnSiegeEnemyFromBudget() {
@@ -980,6 +1071,15 @@ function spawnSiegeEnemyFromBudget() {
     c.bossCounter = 0;
     util.log(`[Siege] Wave ${c.bossWave} has no eligible enemy for remaining budget ${budget}.`);
     scheduleSiegeWaveAdvance(c.bossWave, 5432);
+    return;
+  }
+
+  if (enemy.name === "bot") {
+    // Arena-theme bots are hostile Siege units. Route them through the standard
+    // bot builder; Class.bot is not an actual definition, and hostile bots need
+    // a perimeter spawn instead of a team-relative dominator location.
+    enqueueSiegeBot(-100, c.bossWave, false);
+    c.bossCounter = Math.max(0, budget - enemy.cost);
     return;
   }
 
@@ -22720,6 +22820,7 @@ var maintainloop = (() => {
     // Return the spawning function
     let bots = [];
     return () => {
+      expireSiegeBotQueueEntries();
       let census = {
         crasher: 0,
         thrasher: 0,
@@ -22747,34 +22848,29 @@ var maintainloop = (() => {
       let ruh;
       if (c.REDUCE_BOTS_PER_PLAYER) ruh = Math.max(0, Number(c.playerCount) || 0);
       else ruh = 0;
-      // A reinforcement bot must be spawned in addition to the population that
-      // normally remains after the per-player bot allowance is subtracted.
-      const pendingSiegeAllyBots = c.MODE === "siege"
-        ? Math.max(0, Math.floor(Number(c.siegePendingAlliedBots) || 0))
-        : 0;
-      if (pendingSiegeAllyBots > 0) {
-        c.BOTS = Math.max(
-          Math.max(0, Math.floor(Number(c.BOTS) || 0)),
-          bots.length + ruh + pendingSiegeAllyBots
-        );
-        c.botSpawn = true;
-      }
-      // Bots
+      // Siege-event bots are explicit budgeted spawns. They may spawn even when
+      // the mode disables random bots (BOTS: 0), but they never inflate c.BOTS;
+      // both allies and hostiles still pass the dynamic natural-population cap.
+      const queuedSiegeBot = c.MODE === "siege"
+        ? getSiegeBotSpawnQueue()[0] || null
+        : null;
+      if (queuedSiegeBot) c.botSpawn = true;
+      const hasRegularBotSlot = bots.length < Math.max(0, Number(c.BOTS) - ruh);
       if (
         c.MODE !== "theDenied" &&
-        bots.length < c.BOTS - ruh &&
+        (hasRegularBotSlot || queuedSiegeBot) &&
         c.botSpawn === true &&
         loadProtection.shouldSpawnBot()
       ) {
         c.botCount = bots.length;
         let position;
         let team;
-        // A queued Siege reinforcement uses the ordinary c.BOTS spawn path,
-        // but must be allied rather than inheriting the random bot faction.
-        const spawnAsSiegeAllyBot = c.MODE === "siege" &&
-          Number(c.siegePendingAlliedBots) > 0;
+        const spawnAsSiegeAllyBot = !!(queuedSiegeBot && queuedSiegeBot.team === -1);
+        const spawnAsSiegeEnemyBot = !!(queuedSiegeBot && queuedSiegeBot.team === -100);
         if (spawnAsSiegeAllyBot) {
           team = -1;
+        } else if (spawnAsSiegeEnemyBot) {
+          team = -100;
         } else {
           switch (c.BOT_TEAMS) {
             case "none":
@@ -22784,24 +22880,31 @@ var maintainloop = (() => {
               team = -ran.choose(c.BOT_TEAMS);
           }
         }
-        switch (c.BOT_SPAWN_LOCATION) {
-          case "random":
-            position = room.random();
-            break;
-          default:
-            if (c.CONSIDER_BOT_TEAM_LOCATION) {
-              position = room.randomType(c.BOT_SPAWN_LOCATION + -team);
-            } else {
-              position = room.randomType(c.BOT_SPAWN_LOCATION);
-            }
-        }
-        if (!room.isIn("wall", position) && loadProtection.canSpawnNaturalEntity()) {
-          if (spawnAsSiegeAllyBot) {
-            c.siegePendingAlliedBots = Math.max(
-              0,
-              Math.floor(Number(c.siegePendingAlliedBots) || 0) - 1
-            );
+
+        if (spawnAsSiegeEnemyBot) {
+          // Hostile bots use the same perimeter spawn area as other Siege foes;
+          // the team-relative dominator location would become invalid (dom100).
+          position = room.randomType("spw0") || room.randomType("norm") || room.random();
+        } else {
+          switch (c.BOT_SPAWN_LOCATION) {
+            case "random":
+              position = room.random();
+              break;
+            default:
+              if (c.CONSIDER_BOT_TEAM_LOCATION && Number.isFinite(-team)) {
+                position = room.randomType(c.BOT_SPAWN_LOCATION + -team);
+              } else {
+                position = room.randomType(c.BOT_SPAWN_LOCATION);
+              }
           }
+          // A missing team-relative spawn region must not strand a queued ally.
+          if (!position) position = room.randomType("norm") || room.randomType("spw0") || room.random();
+        }
+
+        if (position && !room.isIn("wall", position) && loadProtection.canSpawnNaturalEntity()) {
+          // Keep the queue entry until the bot has been fully initialized and
+          // marked as a Siege entity. If construction fails, the queue remains
+          // available for retry/expiry instead of stranding an ally wave.
           let o = new Entity(position);
           o._loadProtectionNaturalSpawn = true;
 
@@ -23080,18 +23183,35 @@ var maintainloop = (() => {
                 o.color = 12;
             }
           }
-          // Apply after normal team/color setup so the configured bot color mode
-          // cannot accidentally turn a Siege reinforcement into a hostile team.
+          // Apply event allegiance after the normal color/team rules. These
+          // tags never mutate the global random-bot limit.
           if (spawnAsSiegeAllyBot) {
             o.team = -1;
             o.color = 10;
             o.impervious = true;
+            o.showOnMap = true;
             o._siegeAlly = true;
+            o.siegeProgress = true;
+          } else if (spawnAsSiegeEnemyBot) {
+            o.team = -100;
+            o.color = 3;
+            o.impervious = true;
+            o.showOnMap = true;
+            o.siegeProgress = true;
           } else if (c.MODE === "siege" && o.team === -1) {
             o.impervious = true;
             o._siegeAlly = true;
           }
+          if (queuedSiegeBot) {
+            const queue = getSiegeBotSpawnQueue();
+            const index = queue.indexOf(queuedSiegeBot);
+            if (index !== -1) queue.splice(index, 1);
+            syncSiegeBotQueueCounts();
+          }
           bots.push(o);
+          if (spawnAsSiegeAllyBot && queuedSiegeBot) {
+            finishSiegeAllySpawn(queuedSiegeBot.wave);
+          }
         }
       }
       // Remove dead ones

@@ -30,6 +30,8 @@ assert.strictEqual(action(source({ type: "tank" }), target({ type: "tank" })).mu
   "a combat entity that itself carries a support effect should deal normal damage to ordinary enemy tanks");
 assert.strictEqual(action(source({ team: -3 }), target({ team: -3, type: "tank" })).action, "heal",
   "repair effects should heal team -3 allies instead of damaging them");
+assert.strictEqual(action(source(), target({ team: 1, type: "tank" })).action, "heal",
+  "repair effects should restore allied combat entities as well as structures");
 assert.strictEqual(action(source({ team: 1 }), target({ team: 1, isProjectile: true })).action, "heal",
   "repair effects should repair allied projectiles");
 assert.strictEqual(action(source({ type: "atmosphere" }), target({ isProjectile: true })).multiplier, 0.2,
@@ -107,6 +109,26 @@ assert.strictEqual(alliedTankNeedingRepair.health.amount, 45,
   "repair beams should restore allied health when shields are full");
 assert.strictEqual(repairHealthBeam.damageRecieved, 4,
   "repair beams should be consumed after restoring health");
+
+const repairedAllyTank = makeEntity({
+  team: 1, type: "tank", health: { amount: 30, max: 100 }, shield: { amount: 20, max: 20 },
+});
+support.applyInteraction(repairHealthBeam, repairedAllyTank, 10, 0);
+assert.strictEqual(repairedAllyTank.health.amount, 35,
+  "repair beams should restore allied tank health, not only walls and gates");
+
+const dualSupport = makeEntity({
+  type: "tank", healEffect: true, repairEffect: true, team: 1,
+});
+const dualSupportWall = makeEntity({
+  type: "tank", team: 1, isWall: true,
+  health: { amount: 40, max: 100 }, shield: { amount: 20, max: 20 },
+});
+assert.strictEqual(support.resolveSupportInteraction(dualSupport, dualSupportWall).kind, "repair",
+  "combined heal/repair sources should fall back to repair for structures");
+support.applyInteraction(dualSupport, dualSupportWall, 10, 0);
+assert.strictEqual(dualSupportWall.health.amount, 42.5,
+  "combined heal/repair auras should actually repair friendly structures");
 
 const repairAuraSource = makeEntity({ type: "atmosphere", repairEffect: true, team: 1 });
 const alliedTankNeedingAuraRepair = makeEntity({

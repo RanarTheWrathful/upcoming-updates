@@ -82,6 +82,22 @@ assert.strictEqual(
   planner.THEME_DEFINITIONS.length,
   "theme ids must be unique"
 );
+const arenaTheme = planner.THEME_DEFINITIONS.find((theme) => theme.id === "closers");
+assert(arenaTheme && arenaTheme.enemies.includes("bot"),
+  "the Arena Bosses theme should support explicit Siege bot spawns");
+const polygonTheme = planner.THEME_DEFINITIONS.find((theme) => theme.id === "polygons");
+assert(polygonTheme, "the normal polygon theme must be defined");
+for (const name of Object.keys(planner.POLYGON_SPAWN_COUNTS)) {
+  assert(polygonTheme.enemies.includes(name), `the polygon theme is missing ${name}`);
+  assert(definitions[name] && typeof definitions[name] === "object", `missing normal polygon definition ${name}`);
+  assert(planner.POLYGON_SPAWN_COUNTS[name] > 1, `${name} should retain its multi-polygon spawn count`);
+}
+const onePointPolygonCatalog = planner.createEnemyCatalog(
+  [{ cost: 1, enemies: Object.keys(planner.POLYGON_SPAWN_COUNTS) }],
+  [polygonTheme]
+);
+assert(onePointPolygonCatalog[0].enemies.every((enemy) => enemy.cost === 1),
+  "each generic polygon type should cost one point regardless of the spawned swarm size");
 const backupTheme = planner.THEME_DEFINITIONS.find((theme) => theme.id === "spawnAllies");
 assert(backupTheme, "the ally theme must be defined");
 for (const name of [

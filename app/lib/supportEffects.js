@@ -32,7 +32,7 @@ function isRepairTarget(entity) {
       entity.isDominator === true ||
       entity.isWall === true ||
       entity.isGate === true ||
-      (entity.team === -3 && isCombatEntity(entity)))
+      isCombatEntity(entity))
   );
 }
 
@@ -53,11 +53,22 @@ function resolveSupportInteraction(source, target) {
   const projectile = isProjectile(target);
 
   if (sameTeam) {
-    if (kind === "repair" && isRepairTarget(target)) {
-      return { action: "heal", kind, multiplier: 0 };
+    // A source can carry both effects (for example, Supportsphere). Prefer its
+    // normal heal behavior for tanks, but fall back to repair for structures,
+    // gates, dominators, food, and allied projectiles instead of silently
+    // doing nothing because HEAL_EFFECT took precedence over REPAIR_EFFECT.
+    const structureNeedsRepair = Boolean(
+      isProjectile(target) || target.type === "food" || target.isDominator === true ||
+      target.isWall === true || target.isGate === true
+    );
+    if (source.repairEffect && structureNeedsRepair && isRepairTarget(target)) {
+      return { action: "heal", kind: "repair", multiplier: 0 };
     }
-    if (kind === "heal" && isHealTarget(target)) {
-      return { action: "heal", kind, multiplier: 0 };
+    if (source.healEffect && isHealTarget(target)) {
+      return { action: "heal", kind: "heal", multiplier: 0 };
+    }
+    if (source.repairEffect && isRepairTarget(target)) {
+      return { action: "heal", kind: "repair", multiplier: 0 };
     }
     return { action: "none", kind, multiplier: 0 };
   }
