@@ -58,7 +58,11 @@ function chooseRandomThemes(themes, random = Math.random) {
     const j = randomIndex(i + 1, random);
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
-  return pool.slice(0, count);
+  const selected = pool.slice(0, count);
+  // An ally/reinforcement wave is a special event: it replaces the normal
+  // enemy mix rather than being mixed into it.
+  const allyTheme = selected.find((theme) => theme.id === "spawnAllies");
+  return allyTheme ? [allyTheme] : selected;
 }
 
 /**
@@ -163,16 +167,6 @@ const THEME_DEFINITIONS = [
     ],
   },
   {
-    id: "thrashersAnomalies",
-    label: "Thrashers & Anomalies",
-    enemies: [
-      "thrasher", "glitch", "aoc", "aokaol", "anomaly",
-      "beeMechab", "machinegunMechab", "trapMechab", "trapMechabarab",
-      "swarmMechab", "buildMechab", "AlfabuildMechab",
-    ],
-  },
-  
-  {
     id: "voidBosses",
     label: "Void Bosses",
     enemies: [
@@ -205,14 +199,14 @@ const THEME_DEFINITIONS = [
     id: "pentagonBosses",
     label: "Pentagon Bosses",
     enemies: [
-     "nest_keep", "nest_ward", "nestguard", "exorcistor"
+     "nestkeep", "nestward", "nestguard", "exorcistor"
     ],
   },
   {
     id: "cultBosses",
     label: "Cult Bosses",
     enemies: [
-, "Pawn", "Rook", "bishop", "mortarLordCenturion", "hiveLordCenturion",
+      "Pawn", "Rook", "bishop", "mortarLordCenturion", "hiveLordCenturion",
     ],
   },
   {
@@ -270,7 +264,7 @@ const THEME_DEFINITIONS = [
     label: "Pentagon Entities",
     enemies: [
       "pentagon",
-     "nest_keep", "nest_ward", "nestguard", "exorcistor",
+     "nestkeep", "nestward", "nestguard", "exorcistor",
  "skimmerSentinel", "crossbowSentinel", "minigunSentinel",
 
     ],
@@ -331,7 +325,15 @@ const THEME_DEFINITIONS = [
     enemies: [
       "fallenhybrid", "fallenanni", "fallenflankguard", "fallenfalcon",
       "fallenoverlord", "fallenbooster", "fallenautodouble", "fallentyrant",
-   "enslaver",
+      "enslaver",
+    ],
+  },
+  {
+    id: "spawnAllies",
+    label: "Backup Allies",
+    enemies: [
+      "roguepalisade", "roguarmada", "RogueLibor", "roguemothership",
+      "castaway", "twilight", "bot",
     ],
   },
 ];

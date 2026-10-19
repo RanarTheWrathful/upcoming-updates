@@ -129,28 +129,28 @@ function makeEntity(overrides = {}) {
       RANAR_LAG_EMERGENCY_SPEED_PERCENT: "15",
     },
   });
-  emergency.protection.reportCycle(500, [], 0);
+  emergency.protection.reportCycle(1000, [], 0);
   let emergencySnapshot = emergency.protection.getSnapshot();
   assert(emergencySnapshot.runSpeedLevel < 5,
-    "a single 500ms cycle must not instantly max scheduler pacing");
-  assert.notStrictEqual(emergencySnapshot.lagResponseStageId, "soft-reset",
-    "a single 500ms cycle must not trigger the emergency mitigation tier");
+    "a single 1000ms cycle must not instantly max scheduler pacing");
+  assert.notStrictEqual(emergencySnapshot.lagResponseStageId, "emergency-shutdown",
+    "a single 1000ms cycle must not trigger the emergency mitigation tier");
   emergency.setNow(999);
-  emergency.protection.reportCycle(500, [], 999);
+  emergency.protection.reportCycle(1000, [], 999);
   emergencySnapshot = emergency.protection.getSnapshot();
-  assert.notStrictEqual(emergencySnapshot.lagResponseStageId, "soft-reset",
+  assert.notStrictEqual(emergencySnapshot.lagResponseStageId, "emergency-shutdown",
     "the emergency reset must wait for the complete persistence window");
   emergency.setNow(1000);
-  emergency.protection.reportCycle(500, [], 1000);
+  emergency.protection.reportCycle(1000, [], 1000);
   emergencySnapshot = emergency.protection.getSnapshot();
   assert.strictEqual(emergencySnapshot.runSpeedLevel, 5,
     "persistent severe lag may max scheduler pacing");
-  assert.strictEqual(emergencySnapshot.lagResponseStageId, "soft-reset",
+  assert.strictEqual(emergencySnapshot.lagResponseStageId, "emergency-shutdown",
     "persistent severe lag may activate emergency mitigation");
 }
 
-// The hard emergency boundary is exactly 500ms. A lower environment setting
-// must not make one 499ms cycle instantly max the scheduler or reset the world.
+// The hard emergency boundary is exactly 1000ms. A lower environment setting
+// must not make one 999ms cycle instantly max the scheduler or reset the world.
 {
   const test = makeProtection({
     env: {
@@ -162,24 +162,24 @@ function makeEntity(overrides = {}) {
       RANAR_LAG_EMERGENCY_SPEED_PERCENT: "15",
     },
   });
-  test.protection.reportCycle(499, [], 0);
+  test.protection.reportCycle(999, [], 0);
   let snapshot = test.protection.getSnapshot();
   assert(snapshot.runSpeedLevel < 5,
-    "a 499ms cycle must not instantly max scheduler pacing");
-  assert.notStrictEqual(snapshot.lagResponseStageId, "soft-reset",
-    "a 499ms cycle must not trigger the emergency world reset");
+    "a 999ms cycle must not instantly max scheduler pacing");
+  assert.notStrictEqual(snapshot.lagResponseStageId, "emergency-shutdown",
+    "a 999ms cycle must not trigger the emergency world reset");
   test.setNow(1);
-  test.protection.reportCycle(500, [], 1);
+  test.protection.reportCycle(1000, [], 1);
   snapshot = test.protection.getSnapshot();
-  assert(snapshot.runSpeedLevel < 5, "the first raw 500ms sample starts, but does not bypass, the persistence timer");
-  assert.notStrictEqual(snapshot.lagResponseStageId, "soft-reset");
+  assert(snapshot.runSpeedLevel < 5, "the first raw 1000ms sample starts, but does not bypass, the persistence timer");
+  assert.notStrictEqual(snapshot.lagResponseStageId, "emergency-shutdown");
   test.setNow(1001);
-  test.protection.reportCycle(500, [], 1001);
+  test.protection.reportCycle(1000, [], 1001);
   snapshot = test.protection.getSnapshot();
   assert.strictEqual(snapshot.runSpeedLevel, 5,
-    "a raw 500ms cycle must max scheduler pacing only after sustained emergency lag");
-  assert.strictEqual(snapshot.lagResponseStageId, "soft-reset",
-    "a raw 500ms cycle must activate emergency mitigation only after sustained emergency lag");
+    "a raw 1000ms cycle must max scheduler pacing only after sustained emergency lag");
+  assert.strictEqual(snapshot.lagResponseStageId, "emergency-shutdown",
+    "a raw 1000ms cycle must activate emergency mitigation only after sustained emergency lag");
 }
 
 // Once throughput recovers, every natural spawn gate reopens even if the

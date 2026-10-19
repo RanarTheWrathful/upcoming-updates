@@ -80,8 +80,8 @@ function fastEnv() {
     response.update(0, { memoryRatio: 0.1, cycleMs: 375 }, entities);
   }
   assert.strictEqual(response.activeStageId, "onscreen-natural-bosses",
-    "sub-500ms lag may progress through normal tiers but must not trigger a world reset");
-  assert.strictEqual(resets.length, 0, "sub-500ms lag never invokes emergency world reset");
+    "sub-1000ms lag may progress through normal tiers but must not trigger a world reset");
+  assert.strictEqual(resets.length, 0, "sub-1000ms lag never invokes emergency world reset");
   assert(removed.some(([id, stage]) => id === "projectile-off" && stage === "offscreen-projectiles"));
   assert(!removed.some(([id, stage]) => id === "unknown-view" && stage === "offscreen-projectiles"),
     "unknown visibility must never be treated as off-screen");
@@ -150,7 +150,7 @@ function fastEnv() {
     "poor throughput without a qualifying latency signal must not start mitigation");
 }
 
-// A single 500ms+ tick is not a reset condition. Sustained raw lag AND poor
+// A single 1000ms+ tick is not a reset condition. Sustained raw lag AND poor
 // throughput must persist for the configured emergency window.
 {
   let now = 0;
@@ -161,15 +161,15 @@ function fastEnv() {
     getEntities: () => [],
     onSoftReset: (details) => { resets.push(details); },
   });
-  response.update(10, { cycleMs: 500 }, []);
-  assert.notStrictEqual(response.activeStageId, "soft-reset", "one extreme tick must not reset the server");
+  response.update(10, { cycleMs: 1000 }, []);
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown", "one extreme tick must not reset the server");
   assert.strictEqual(resets.length, 0);
   now = 999;
-  response.update(10, { cycleMs: 500 }, []);
-  assert.notStrictEqual(response.activeStageId, "soft-reset", "the emergency timer must persist for its full duration");
+  response.update(10, { cycleMs: 1000 }, []);
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown", "the emergency timer must persist for its full duration");
   now = 1000;
-  response.update(10, { cycleMs: 500 }, []);
-  assert.strictEqual(response.activeStageId, "soft-reset");
+  response.update(10, { cycleMs: 1000 }, []);
+  assert.strictEqual(response.activeStageId, "emergency-shutdown");
   assert.strictEqual(response.softResetRequested, true);
   assert.strictEqual(resets.length, 1);
   assert.strictEqual(resets[0].emergency, true);
@@ -187,13 +187,13 @@ function fastEnv() {
     getEntities: () => [],
     onSoftReset: (details) => resets.push(details),
   });
-  response.update(100, { cycleMs: 500 }, []);
+  response.update(100, { cycleMs: 1000 }, []);
   now = 100;
-  response.update(100, { cycleMs: 500 }, []);
+  response.update(100, { cycleMs: 1000 }, []);
   now = 1000;
-  response.update(100, { cycleMs: 500 }, []);
+  response.update(100, { cycleMs: 1000 }, []);
   assert.strictEqual(resets.length, 0, "healthy throughput prevents emergency reset despite high raw-lag values");
-  assert.notStrictEqual(response.activeStageId, "soft-reset");
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown");
 }
 
 // An isolated extreme sample must not leave a stale emergency timer that can
@@ -207,17 +207,17 @@ function fastEnv() {
     getEntities: () => [],
     onSoftReset: (details) => resets.push(details),
   });
-  response.update(10, { cycleMs: 500 }, []);
+  response.update(10, { cycleMs: 1000 }, []);
   now = 100;
   response.update(100, { cycleMs: 20 }, []);
   now = 2000;
-  response.update(10, { cycleMs: 500 }, []);
+  response.update(10, { cycleMs: 1000 }, []);
   assert.strictEqual(resets.length, 0, "separated spikes must not accumulate into an emergency reset");
-  assert.notStrictEqual(response.activeStageId, "soft-reset");
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown");
 }
 
 // Environment overrides must not make the hard emergency threshold more sensitive
-// than the documented 500ms raw-latency boundary.
+// than the documented 1000ms raw-latency boundary.
 {
   let now = 0;
   const resets = [];
@@ -231,21 +231,21 @@ function fastEnv() {
     getEntities: () => [],
     onSoftReset: (details) => resets.push(details),
   });
-  response.update(0, { cycleMs: 499 }, []);
-  assert.notStrictEqual(response.activeStageId, "soft-reset",
-    "a configured lower threshold must not turn a sub-500ms cycle into an emergency reset");
+  response.update(0, { cycleMs: 999 }, []);
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown",
+    "a configured lower threshold must not turn a sub-1000ms cycle into an emergency reset");
   assert.strictEqual(resets.length, 0);
   now += 10;
-  response.update(0, { cycleMs: 500 }, []);
-  assert.notStrictEqual(response.activeStageId, "soft-reset", "the raw emergency must persist after its first sample");
+  response.update(0, { cycleMs: 1000 }, []);
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown", "the raw emergency must persist after its first sample");
   now += 10;
-  response.update(0, { cycleMs: 500 }, []);
-  assert.strictEqual(response.activeStageId, "soft-reset",
-    "the hard emergency activates after sustained 500ms lag even when a lower threshold override is present");
+  response.update(0, { cycleMs: 1000 }, []);
+  assert.strictEqual(response.activeStageId, "emergency-shutdown",
+    "the hard emergency activates after sustained 1000ms lag even when a lower threshold override is present");
   assert.strictEqual(resets.length, 1);
 }
 
-// Sustained but sub-500ms lag may progress through every normal cleanup stage,
+// Sustained but sub-1000ms lag may progress through every normal cleanup stage,
 // but never reaches the emergency-only world-reset stage by elapsed time alone.
 {
   let now = 0;
@@ -258,15 +258,15 @@ function fastEnv() {
   });
   for (let tick = 0; tick <= 90; tick++) {
     now = tick * 1000;
-    response.update(0, { cycleMs: 499 }, []);
+    response.update(0, { cycleMs: 999 }, []);
   }
-  assert.notStrictEqual(response.activeStageId, "soft-reset",
-    "prolonged sub-500ms latency may climb normal tiers but cannot masquerade as the emergency condition");
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown",
+    "prolonged sub-1000ms latency may climb normal tiers but cannot masquerade as the emergency condition");
   assert.strictEqual(resets.length, 0);
 }
 
 // Smoothed latency alone cannot trigger the emergency reset; regular mitigation
-// can still progress, but the reset is exclusive to a raw 500ms+ observation.
+// can still progress, but the reset is exclusive to a raw 1000ms+ observation.
 {
   let now = 0;
   const resets = [];
@@ -280,16 +280,16 @@ function fastEnv() {
     now = tick;
     response.update(0, { cycleMs: 200, smoothedCycleMs: 700 }, []);
   }
-  assert.notStrictEqual(response.activeStageId, "soft-reset",
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown",
     "an old or smoothed 700ms value must not reach the emergency-only reset tier");
   assert.strictEqual(resets.length, 0);
   now += 10;
-  response.update(0, { cycleMs: 500, smoothedCycleMs: 700 }, []);
-  assert.notStrictEqual(response.activeStageId, "soft-reset", "the first raw severe sample starts persistence");
+  response.update(0, { cycleMs: 1000, smoothedCycleMs: 700 }, []);
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown", "the first raw severe sample starts persistence");
   now += 10;
-  response.update(0, { cycleMs: 500, smoothedCycleMs: 700 }, []);
-  assert.strictEqual(response.activeStageId, "soft-reset",
-    "a raw 500ms cycle must activate the emergency reset only after the persistence window");
+  response.update(0, { cycleMs: 1000, smoothedCycleMs: 700 }, []);
+  assert.strictEqual(response.activeStageId, "emergency-shutdown",
+    "a raw 1000ms cycle must activate the emergency reset only after the persistence window");
   assert.strictEqual(resets.length, 1);
 }
 
@@ -311,11 +311,11 @@ function fastEnv() {
     onRecovery: (details) => recoveries.push(details),
     onRecoveryCancelled: (details) => cancellations.push(details),
   });
-  response.update(0, { cycleMs: 500 }, []);
-  assert.notStrictEqual(response.activeStageId, "soft-reset", "emergency persistence begins at the first stall");
+  response.update(0, { cycleMs: 1000 }, []);
+  assert.notStrictEqual(response.activeStageId, "emergency-shutdown", "emergency persistence begins at the first stall");
   now = 1;
-  response.update(0, { cycleMs: 500 }, []);
-  assert.strictEqual(response.activeStageId, "soft-reset");
+  response.update(0, { cycleMs: 1000 }, []);
+  assert.strictEqual(response.activeStageId, "emergency-shutdown");
   now = 5;
   let snapshot = response.update(100, { cycleMs: 20 }, []);
   assert.strictEqual(snapshot.stageIndex, createLagResponse.DEFAULT_STEPS.length - 2,

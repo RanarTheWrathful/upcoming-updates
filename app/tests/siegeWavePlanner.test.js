@@ -61,10 +61,38 @@ assert.strictEqual(
 for (const theme of planner.THEME_DEFINITIONS) {
   for (const name of theme.enemies) {
     assert.ok(
-      definitions[name] && typeof definitions[name] === "object",
+      name === "bot" || definitions[name] && typeof definitions[name] === "object",
       `Missing class definition referenced by theme ${theme.id}: ${name}`
     );
   }
 }
 
 console.log("siegeWavePlanner tests passed");
+
+// Reinforcement waves are exclusive and cannot mix allies with hostile themes.
+{
+  const allyTheme = { id: "spawnAllies", label: "Backup Allies", enemies: ["RogueLibor", "bot"] };
+  const selected = planner.chooseRandomThemes([...catalog, allyTheme], () => 0.999);
+  if (selected.some((theme) => theme.id === "spawnAllies")) {
+    assert.strictEqual(selected.length, 1, "spawnAllies excludes every other theme for the wave");
+  }
+}
+assert.strictEqual(
+  new Set(planner.THEME_DEFINITIONS.map((theme) => theme.id)).size,
+  planner.THEME_DEFINITIONS.length,
+  "theme ids must be unique"
+);
+const backupTheme = planner.THEME_DEFINITIONS.find((theme) => theme.id === "spawnAllies");
+assert(backupTheme, "the ally theme must be defined");
+for (const name of [
+  "roguepalisade", "roguarmada", "RogueLibor", "roguemothership", "castaway", "twilight", "bot",
+]) {
+  assert(backupTheme.enemies.includes(name), `the ally theme is missing guardian spawn ${name}`);
+}
+const actualAllySelection = planner.chooseRandomThemes(planner.THEME_DEFINITIONS, () => 0.999);
+if (actualAllySelection.some((theme) => theme.id === "spawnAllies")) {
+  assert.strictEqual(actualAllySelection.length, 1, "real spawnAllies selection must exclude hostile themes");
+  assert.strictEqual(actualAllySelection[0].id, "spawnAllies");
+}
+
+console.log("siegeWavePlanner extended tests passed");

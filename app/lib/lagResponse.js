@@ -16,10 +16,9 @@ const DEFAULT_STEPS = Object.freeze([
   { id: "onscreen-natural-enemies", category: "naturalEnemy", visibility: "onscreen", action: "suspend", speed: 16, lagMs: 300, durationMs: 5000, minActiveMs: 5000 },
   { id: "onscreen-bots", category: "bot", visibility: "onscreen", action: "suspend", speed: 14, lagMs: 325, durationMs: 5000, minActiveMs: 5000 },
   { id: "onscreen-natural-bosses", category: "naturalBoss", visibility: "onscreen", action: "suspend", speed: 12, lagMs: 350, durationMs: 5000, minActiveMs: 5000 },
-  // The reset stage is reserved for sustained raw extreme lag with very poor
-  // throughput. A sustained-but-subcritical slowdown may reach every normal
-  // mitigation tier, but must never trigger a full world reset by waiting alone.
-  { id: "soft-reset", category: "all", visibility: "any", action: "reset", speed: 8, lagMs: 500, durationMs: 5000, minActiveMs: 0 },
+  // Only sustained extreme lag and very poor throughput may trigger a full
+  // process shutdown. The server must not attempt a destructive in-game reset.
+  { id: "emergency-shutdown", category: "all", visibility: "any", action: "shutdown", speed: 5, lagMs: 1000, durationMs: 15000, minActiveMs: 0 },
 ]);
 
 function positive(value, fallback) {
@@ -81,7 +80,7 @@ function createLagResponse(options = {}) {
   const scoreEntity = options.scoreEntity || (() => 0);
   const onDestroy = options.onDestroy || (() => false);
   const onSuspend = options.onSuspend || (() => false);
-  const onSoftReset = options.onSoftReset || (() => false);
+  const onEmergencyShutdown = options.onEmergencyShutdown || options.onSoftReset || (() => false);
   const onRecovery = options.onRecovery || (() => {});
   const onRecoveryCancelled = options.onRecoveryCancelled || (() => {});
   const onMemoryPressure = options.onMemoryPressure || (() => {});
@@ -114,9 +113,9 @@ function createLagResponse(options = {}) {
   // lag episode. Requiring the heap to fall below 90% could keep spawners
   // disabled forever because a healthy Node.js heap does not necessarily shrink.
   const recoveryMemoryRatio = ratio(env.RANAR_LAG_RECOVERY_MEMORY_RATIO, 0.98);
-  const emergencyLagMs = 500; // Fixed safety boundary; sustained pressure is required before resetting.
-  const emergencyPersistenceMs = positive(env.RANAR_LAG_EMERGENCY_PERSIST_MS, 10000);
-  const emergencySpeedPercent = percent(env.RANAR_LAG_EMERGENCY_SPEED_PERCENT, 15);
+  const emergencyLagMs = 1000; // Fixed safety boundary; only sustained extreme lag can shut the process down.
+  const emergencyPersistenceMs = positive(env.RANAR_LAG_EMERGENCY_PERSIST_MS, 15000);
+  const emergencySpeedPercent = percent(env.RANAR_LAG_EMERGENCY_SPEED_PERCENT, 10);
   const memoryWarningGrowthMb = positive(env.RANAR_LOAD_WARNING_GROWTH_MB, 64);
   const memoryHighGrowthMb = positive(env.RANAR_LOAD_HIGH_GROWTH_MB, 128);
   const memoryCriticalGrowthMb = positive(env.RANAR_LOAD_CRITICAL_GROWTH_MB, 256);
@@ -127,7 +126,7 @@ function createLagResponse(options = {}) {
   let recoverySince = null;
   let recoveryNotified = false;
   let lastMemoryCleanupAt = -Infinity;
-  let softResetRequested = false;
+  let emergencyShutdownRequested = false;
   let completedSweeps = 0;
   let destroyedByMitigation = 0;
   let suspendedByMitigation = 0;
@@ -238,7 +237,7 @@ function createLagResponse(options = {}) {
     activeSince = null;
     recoverySince = null;
     recoveryNotified = false;
-    softResetRequested = false;
+    emergencyShutdownRequested = false;
     emergencyClearSince = null;
     emergencyLagSince = null;
     stepSince.fill(null);
@@ -282,7 +281,10 @@ function createLagResponse(options = {}) {
       recoveryPending: recoverySince !== null && !recoveryNotified,
       naturalSpawnsPaused: !recoveryNotified && activeIndex >= 1,
       emergencyMitigation: !recoveryNotified && activeIndex >= 5,
-      softResetRequested,
+      emergencyShutdownRequested,
+      // Backward-compatible snapshot alias; this now means shutdown requested,
+      // not an in-game soft reset.
+      softResetRequested: emergencyShutdownRequested,
       sweepActive: !!(sweep && !sweep.complete),
       sweepCursor: sweep ? sweep.cursor : 0,
       sweepLength: sweep ? sweep.list.length : 0,
@@ -320,17 +322,17 @@ function createLagResponse(options = {}) {
 
     if (emergencyConfirmed) {
       activeIndex = steps.length - 1;
-      if (activeSince === null || !softResetRequested) activeSince = now;
+      if (activeSince === null || !emergencyShutdownRequested) activeSince = now;
       recoverySince = null;
       emergencyClearSince = null;
       stepSince.fill(now);
       clearSweep();
       cancelRecovery(now, "sustained extreme lag interrupted recovery");
       recoveryNotified = false;
-      if (!softResetRequested) {
-        softResetRequested = true;
+      if (!emergencyShutdownRequested) {
+        emergencyShutdownRequested = true;
         try {
-          onSoftReset({
+          onEmergencyShutdown({
             stepId: steps[activeIndex].id,
             runSpeedPercent: speed,
             observedLagMs: rawEmergencyLagMs,
@@ -345,7 +347,7 @@ function createLagResponse(options = {}) {
     }
 
     // Once the raw emergency signal clears, fall back to the strongest normal
-    // tier instead of leaving the controller parked at the reset-only tier.
+    // tier instead of leaving the controller parked at the shutdown-only tier.
     if (activeIndex === steps.length - 1) {
       activeIndex = steps.length - 2;
       activeSince = now;
@@ -356,13 +358,13 @@ function createLagResponse(options = {}) {
 
     // Re-arm after the raw emergency signal clears and remains clear. A new
     // reset must establish a fresh persistence window; stale samples cannot do it.
-    if (softResetRequested) {
+    if (emergencyShutdownRequested) {
       if (emergencyClearSince === null) emergencyClearSince = now;
-      if (now - emergencyClearSince >= emergencyRearmMs) softResetRequested = false;
+      if (now - emergencyClearSince >= emergencyRearmMs) emergencyShutdownRequested = false;
     }
 
-    // The soft-reset stage is intentionally excluded from the normal timed
-    // ladder; only the raw emergency branch above may enter it.
+    // The emergency-shutdown stage is intentionally excluded from the normal
+    // timed ladder; only the raw emergency branch above may enter it.
     for (let i = 0; i < steps.length - 1; i++) {
       const conditionMet = speed <= steps[i].speed && lagMs >= steps[i].lagMs;
       if (conditionMet) {
@@ -442,10 +444,10 @@ function createLagResponse(options = {}) {
 
     if (activeIndex >= 0 && recoverySince === null) {
       const step = steps[activeIndex];
-      if (step.action === "reset") {
-        if (!softResetRequested) {
-          softResetRequested = true;
-          try { onSoftReset({ stepId: step.id, runSpeedPercent: speed, metrics, at: now }); } catch (_) {}
+      if (step.action === "shutdown" || step.action === "reset") {
+        if (!emergencyShutdownRequested) {
+          emergencyShutdownRequested = true;
+          try { onEmergencyShutdown({ stepId: step.id, runSpeedPercent: speed, metrics, at: now }); } catch (_) {}
         }
       } else {
         processSweep(step, now, source);
@@ -461,7 +463,8 @@ function createLagResponse(options = {}) {
     get activeStageId() { return activeIndex >= 0 ? steps[activeIndex].id : "normal"; },
     get naturalSpawnsPaused() { return activeIndex >= 1; },
     get emergencyMitigation() { return activeIndex >= 5; },
-    get softResetRequested() { return softResetRequested; },
+    get emergencyShutdownRequested() { return emergencyShutdownRequested; },
+    get softResetRequested() { return emergencyShutdownRequested; },
     get steps() { return steps.map((step) => Object.assign({}, step)); },
   };
 }

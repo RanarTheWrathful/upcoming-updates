@@ -84,9 +84,9 @@ function createLoadProtection(options = {}) {
   const criticalDelayMs = positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 300);
   // A single long tick may be garbage collection or host jitter. The emergency
   // path now requires sustained raw lag and genuinely poor throughput.
-  const emergencyLagMs = 500;
-  const emergencyLagPersistenceMs = positiveNumber(env.RANAR_LOAD_EMERGENCY_PERSIST_MS, 10000);
-  const emergencySpeedPercent = Math.max(1, Math.min(100, Number(env.RANAR_LOAD_EMERGENCY_SPEED_PERCENT) || 15));
+  const emergencyLagMs = 1000;
+  const emergencyLagPersistenceMs = positiveNumber(env.RANAR_LOAD_EMERGENCY_PERSIST_MS, 15000);
+  const emergencySpeedPercent = Math.max(1, Math.min(100, Number(env.RANAR_LOAD_EMERGENCY_SPEED_PERCENT) || 10));
   const suspensionIntervalMs = positiveNumber(env.RANAR_LOAD_SUSPEND_INTERVAL_MS, 2500);
   const suspensionWindowMs = positiveNumber(env.RANAR_LOAD_SUSPEND_WINDOW_MS, 60000);
   const entityFadeMs = positiveNumber(env.RANAR_LOAD_ENTITY_FADE_MS, 2500);

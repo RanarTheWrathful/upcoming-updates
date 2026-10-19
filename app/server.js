@@ -21,6 +21,7 @@ const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup
 const isEntityVisibleToAnyClient = require("./lib/clientVisibility");
 const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
+const legendaryBranches = require("./lib/legendaryBranches");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
 const droneInfection = require("./lib/droneInfection");
 const supportEffects = require("./lib/supportEffects");
@@ -73,7 +74,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Sandbox";
+if (serverType === "testing") chosenMode = "Siege";
 //change this to play a specifict mode
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -254,6 +255,13 @@ let t2B = [
   "hiveLordCenturion",
   "cultist",
   "arenaguard",
+  "bot",
+  "roguepalisade",
+  "roguarmada",
+  "RogueLibor",
+  "roguemothership",
+  "castaway",
+  "twilight",
   "elite_fortress",
   "defector",
   "witch",
@@ -294,6 +302,11 @@ const siegeCostTiers = [
   { cost: 15, enemies: t1B },
   { cost: 30, enemies: t2B },
   { cost: 45, enemies: t3B },
+  // Generic polygons have their own theme and each selection is charged once,
+  // even when it expands into a small swarm during spawning.
+  { cost: 1, enemies: ["egg", "square", "triangle", "pentagon"] },
+  { cost: 5, enemies: ["hexagon", "septagon"] },
+  { cost: 7, enemies: ["octagon", "nonagon"] },
 ];
 const siegeEnemyCatalog = siegeWavePlanner.createEnemyCatalog(
   siegeCostTiers,
@@ -711,6 +724,18 @@ const branchTierLevels = { 0: 0, god: c.TIER_GOD };
 for (let tier = 1; tier <= 15; tier++) branchTierLevels[tier] = c[`TIER_${tier}`];
 entityBranches.validateDefinitions(Class);
 
+function syncLegendaryBranchOptions(entity) {
+  if (!entity || entity.isPlayer !== true || entity.type !== "tank" || !Array.isArray(entity.upgrades)) return;
+  const unlocked = legendaryBranches.syncUpgradeOptions(
+    entity, c.MODE, Class, hasSpecialEffect(entity, "Legend")
+  );
+  for (const branch of unlocked) {
+    entity.sendMessage(
+      "You have unlocked the legendary class, " + branch.name +
+      "! It is now available in your upgrade choices."
+    );
+  }
+}
 
 function getSiegeThemesForCurrentWave() {
   if (c.siegeSelectedWave !== c.bossWave || !Array.isArray(c.siegeSelectedThemes)) {
@@ -719,7 +744,8 @@ function getSiegeThemesForCurrentWave() {
         id: theme.id,
         label: theme.label,
         enemies: theme.enemies.filter(
-          (enemy) => Class[enemy.name] && typeof Class[enemy.name] === "object"
+          (enemy) => enemy.name === "bot" ||
+            Class[enemy.name] && typeof Class[enemy.name] === "object"
         ),
       }))
       .filter((theme) => theme.enemies.length > 0);
@@ -777,6 +803,118 @@ function applySiegeRareEnemyVariant(o) {
   }
 }
 
+const siegePolygonSpawnCounts = Object.freeze({
+  egg: 25, square: 25, triangle: 25, pentagon: 25,
+  hexagon: 5, septagon: 5, octagon: 2, nonagon: 2,
+});
+const siegeLowPolygonNames = new Set(["egg", "square", "triangle", "pentagon", "hexagon"]);
+
+function isValidSiegeEnemy(candidate) {
+  return !!(candidate && (candidate.name === "bot" ||
+    Class[candidate.name] && typeof Class[candidate.name] === "object"));
+}
+
+function spawnSiegeAlly(enemy, delayIndex, assignedName) {
+  const delay = Math.max(0, Number(delayIndex) || 0) * 900;
+  setTimeout(() => {
+    if (!loadProtection.shouldSpawnNaturalEntities()) {
+      spawnSiegeAlly(enemy, 1, assignedName);
+      return;
+    }
+    // Siege bots use the same population-aware bot spawner as c.BOTS. This
+    // leaves their controller, skill, color, and respawn lifecycle consistent.
+    if (enemy.name === "bot") {
+      c.siegePendingAlliedBots = Math.max(
+        0,
+        Math.floor(Number(c.siegePendingAlliedBots) || 0)
+      ) + 1;
+      const currentBotTarget = Math.max(0, Math.floor(Number(c.BOTS) || 0));
+      const playerOffset = c.REDUCE_BOTS_PER_PLAYER
+        ? Math.max(0, Math.floor(Number(c.playerCount) || 0))
+        : 0;
+      c.BOTS = Math.max(currentBotTarget + 1, playerOffset + 1);
+      c.botSpawn = true;
+      return;
+    }
+
+    let spot;
+    for (let attempt = 0; attempt < 30; attempt++) {
+      spot = room.randomType("norm");
+      if (spot && !dirtyCheck(spot, 500)) break;
+    }
+    if (!spot) spot = room.randomType("norm");
+    if (!spot) return;
+
+    const o = new Entity(spot);
+    o.rarity = Math.random() * 10000;
+    o.define(Class[enemy.name]);
+    o.team = -1;
+    o.impervious = true;
+    o.showOnMap = true;
+    o.siegeProgress = true;
+    o._siegeAlly = true;
+    o.name = assignedName || o.label;
+    // Boss allies remain immune to border damage even if their controller or
+    // team bookkeeping changes later in the entity lifecycle.
+    o.addController(new io_guard1(o));
+    if (o.refreshBodyAttributes) o.refreshBodyAttributes();
+  }, delay);
+}
+
+function spawnSiegeAllyWave(theme, budget) {
+  if (c.siegeAlliesSpawnedWave === c.bossWave) return;
+  c.siegeAlliesSpawnedWave = c.bossWave;
+
+  const selected = [];
+  let remaining = budget;
+  // Build the whole reinforcement roster first, so the arrival announcement
+  // accurately reflects the units about to join instead of narrating them one
+  // by one after the wave has started. A hard guard protects malformed costs.
+  for (let guard = 0; remaining > 0 && guard < 100; guard++) {
+    const enemy = siegeWavePlanner.chooseEnemy([theme], remaining, Math.random, isValidSiegeEnemy);
+    if (!enemy) break;
+    selected.push(enemy);
+    remaining -= enemy.cost;
+  }
+  c.bossCounter = 0;
+  if (!selected.length) return;
+
+  const names = selected.map((enemy) => {
+    if (enemy.name === "bot") return "a reinforcement bot";
+    const randomName = ran.chooseBossName(enemy.name === "twilight" ? "Guardian" : "castle", 1);
+    return (Array.isArray(randomName) ? randomName[0] : randomName) ||
+      (Class[enemy.name] && Class[enemy.name].LABEL) || enemy.name;
+  });
+  let announcement;
+  if (selected.length >= 4) {
+    announcement = "False alarm, many allies have arrived to join in the fight!";
+  } else if (names.length === 1) {
+    announcement = "False alarm, " + names[0] + " has arrived as our backup!";
+  } else {
+    const joinedNames = names.length === 2
+      ? names[0] + " and " + names[1]
+      : names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
+    announcement = "False alarm, " + joinedNames + " have arrived as our backup!";
+  }
+  sockets.broadcast(announcement);
+  const completedWave = c.bossWave;
+  util.log("[Siege] Reinforcements for wave " + completedWave + ": " + names.join(", "));
+  selected.forEach((enemy, i) => spawnSiegeAlly(enemy, i, names[i]));
+  // No hostile team -100 entities exist in an ally-only wave, so advance it
+  // explicitly once its reinforcements have arrived rather than soft-locking.
+  const advanceTimer = setTimeout(() => {
+    if (c.MODE !== "siege" || c.bossWave !== completedWave || c.bossCounter > 0) return;
+    c.preparedCounter = c.bossWave * 5 + 50;
+    c.bossWave += 1;
+    c.continueWave = true;
+    c.dontSpam = true;
+    c.bossAmount = 1;
+    currentState.bossWaves = c.bossWave + 1;
+    sockets.broadcast("Wave " + c.bossWave + " has started!");
+  }, Math.max(5432, selected.length * 900 + 250));
+  if (advanceTimer && typeof advanceTimer.unref === "function") advanceTimer.unref();
+}
+
 function spawnSiegeEnemyFromBudget() {
   const budget = Number(c.bossCounter);
   if (!Number.isFinite(budget) || budget <= 0) {
@@ -785,13 +923,13 @@ function spawnSiegeEnemyFromBudget() {
   }
 
   const themes = getSiegeThemesForCurrentWave();
-  const enemy = siegeWavePlanner.chooseEnemy(
-    themes,
-    budget,
-    Math.random,
-    (candidate) => Class[candidate.name] && typeof Class[candidate.name] === "object"
-  );
+  const allyTheme = themes.find((theme) => theme.id === "spawnAllies");
+  if (allyTheme) {
+    spawnSiegeAllyWave(allyTheme, budget);
+    return;
+  }
 
+  const enemy = siegeWavePlanner.chooseEnemy(themes, budget, Math.random, isValidSiegeEnemy);
   if (!enemy) {
     // The remaining budget is smaller than every available enemy in the
     // selected themes. End the budget cleanly rather than leaving the wave stuck.
@@ -799,18 +937,29 @@ function spawnSiegeEnemyFromBudget() {
     return;
   }
 
-  const o = new Entity(room.randomType("spw0"));
-  o.rarity = Math.random() * 10000;
-  o.define(Class[enemy.name]);
-  applySiegeRareEnemyVariant(o);
-  c.bossCounter = Math.max(0, Number(c.bossCounter) - enemy.cost);
-  o.siegeProgress = true;
-  o.impervious = true;
-  o.showOnMap = true;
-  o.team = -100;
-  setTimeout(() => {
-    o.addController(new io_guard1(o));
-  }, 7500);
+  const spawnCount = siegePolygonSpawnCounts[enemy.name] || 1;
+  c.bossCounter = Math.max(0, budget - enemy.cost);
+  for (let i = 0; i < spawnCount; i++) {
+    if (!loadProtection.canSpawnNaturalEntity()) break;
+    const o = new Entity(room.randomType("spw0"));
+    o.rarity = Math.random() * 10000;
+    o.define(Class[enemy.name]);
+    applySiegeRareEnemyVariant(o);
+    o.siegeProgress = true;
+    o.impervious = true;
+    o.showOnMap = true;
+    o.team = -100;
+    if (siegeLowPolygonNames.has(enemy.name)) {
+      o.siegeIgnoreAllyTargeting = true;
+    }
+    // Food-like generic polygon swarms are intentional objective obstacles, not
+    // guarded enemy tanks. All ordinary Siege enemies retain their guard AI.
+    if (!siegePolygonSpawnCounts[enemy.name]) {
+      setTimeout(() => {
+        if (o && typeof o.valid === "function" && o.valid()) o.addController(new io_guard1(o));
+      }, 7500);
+    }
+  }
 }
 
 //Makenpc functions
@@ -3167,6 +3316,11 @@ class io_nearestDifferentMaster extends IO {
         // Only look at those within our view, and our parent's view, not dead, not our kind, not a bullet/trap/block etc
         if (!c.globalAIDisable && !this.body.master.AIDisable) {
           if (e.health.amount > 0 && e.team !== -101 && e.type !== "deity") {
+            const controllingBody = this.body.master && this.body.master.master;
+            if (c.MODE === "siege" && e.siegeIgnoreAllyTargeting &&
+                (this.body.team === -1 || controllingBody && controllingBody.team === -1)) {
+              return;
+            }
             if (!e.invuln && !this.body.excludedTargets.includes(e.type)) {
               switch (this.body.aiTarget) {
                 case "projectiles":
@@ -6739,9 +6893,24 @@ class Entity {
       number < this.upgrades.length &&
       this.skill.level >= this.upgrades[number].level
     ) {
-      let saveMe = this.upgrades[number].class;
+      const selectedUpgrade = this.upgrades[number];
+      let saveMe = selectedUpgrade.class;
       this.upgrades = [];
       this.define(saveMe);
+      if (selectedUpgrade.legendaryBranchKey) {
+        const branch = legendaryBranches.getBranch(selectedUpgrade.legendaryBranchKey);
+        if (branch) {
+          this.maxChildren = branch.maxChildrenZero ? 0 : this.maxChildren;
+          this.intangibility = false;
+          this.invisible = [100, 0];
+          this.alpha = 100;
+          this.ignoreCollision = false;
+          this.skill.setCaps([9, 9, 9, 9, 9, 9, 9, 9, 9, 9]);
+          this.skill.points += 10;
+          let playerName = this.name || "An unnamed player";
+          sockets.broadcast(branch.broadcast(playerName));
+        }
+      }
       this.sendMessage("You have upgraded to " + this.label + ".");
       /*  if (this.team === -1 || c.MODE === "siege") {
         if (this.label === "Spike") {
@@ -12626,143 +12795,7 @@ class Entity {
       }
       this.dayum = true;
     }
-    if (this.skill.score >= 1000000 && this.okGo !== true) {
-      if (this.team === -1 || c.MODE === "siege") {
-        switch (this.label) {
-          case "Spike":
-          case "Eagle":
-          case "Surfer":
-          case "Beekeeper":
-            this.sendMessage(
-              "You have unlocked the legendary class, Rebel. Press '~' to become it!"
-            );
-            break;
-          case "Collider":
-          case "Shotgun":
-          case "Twister":
-          case "Decimator":
-            this.sendMessage(
-              "You have unlocked the legendary class, Destructionist. Press '~' to become it!"
-            );
-            break;
-        }
-      }
-      if (this.team === -2 || c.MODE === "siege") {
-        switch (this.label) {
-          case "Necromancer":
-          case "Enchanter":
-          case "Exorcist":
-          case "Infestor":
-            this.sendMessage(
-              "You have unlocked the legendary class, Necro Tyrant. Press '~' to become it!"
-            );
-            break;
-          case "Hexa-Trapper":
-          case "Animator":
-          case "Constructor":
-          case "Skimmer":
-          case "Rocketeer":
-            this.sendMessage(
-              "You have unlocked the legendary class, Flesh. Press '~' to become it!"
-            );
-            break;
-        }
-      }
-      if (this.team === -3 || c.MODE === "siege") {
-        switch (this.label) {
-          case "Trilogy of Traps":
-          case "Constructionist":
-          case "Fragmentor":
-          case "Bombarder":
-          case "Originator":
-          case "Rebounder":
-          case "Warzone":
-          case "Castle":
-            this.sendMessage(
-              "You have unlocked the legendary class, Mass Producer. Press '~' to become it!"
-            );
-            break;
-          case "Interceptor":
-          case "Auto-Spawner":
-          case "Engineer":
-          case "Auto-Mech":
-            this.sendMessage(
-              "You have unlocked the legendary class, Operator. Press '~' to become it!"
-            );
-            break;
-          case "Auto-Cruiser":
-          case "Auto-Smasher":
-          case "Carrier":
-          case "Armor Piercer":
-            this.sendMessage(
-              "You have unlocked the legendary class, Conductor. Press '~' to become it!"
-            );
-            break;
-          case "Skimmer":
-          case "Hardshell Spawner":
-          case "Auto-5":
-            this.sendMessage(
-              "You have unlocked the legendary class, Mechanist. Press '~' to become it!"
-            );
-            break;
-            case "Auto-4":
-            case "Armsman":
-            case "Quad-Twin-Engineer":
-            this.sendMessage(
-              "You have unlocked the legendary class, Creationist. Press '~' to become it!"
-            );
-            break;
-        }
-      }
-      if (this.team === -4 || c.MODE === "siege") {
-        switch (this.label) {
-          case "Mortar":
-          case "Ordnance":
-          case "Poacher":
-          case "X-Hunter":
-            this.sendMessage(
-              "You have unlocked the legendary class, Reaper. Press '~' to become it!"
-            );
-            break;
-        }
-      }
-      if (this.team === -4 || c.MODE === "siege") {
-        switch (this.laber) {
-          case "Poltergeist":
-          case "Revenant":
-          case "Shade":
-          case "Skulker":
-            this.sendMessage(
-              "You have unlocked the legendary class, Hollow. Press '~' to become it!"
-            );
-            break;
-        }
-      }
-      if (this.team === -4 || c.MODE === "siege") {
-        switch (this.label) {
-          case "Master":
-          case "Hexanomaly":
-          case "Pulsar":
-          case "Overgunner":
-            this.sendMessage(
-              "You have unlocked the legendary class, Embodiment of Destruction. Press '~' to become it!"
-            );
-            break;
-        }
-
-        if (
-          this.team === -100 ||
-          (c.MODE === "siege" && this.label === "Master")
-        ) {
-          if (hasSpecialEffect(this, "Legend")) return;
-          this.sendMessage(
-            "You have unlocked the legendary class, Arena Guard. Press '~' to become it(at the cost of score)!"
-          );
-        }
-      }
-
-      this.okGo = true;
-    }
+    syncLegendaryBranchOptions(this);
     if (
       this.shield.amount > this.shield.max ||
       this.shield.amount === undefined
@@ -15646,110 +15679,20 @@ const offscreenTransientCleanup = createOffscreenTransientCleanup({
   },
 });
 
-let antiLagSoftResetInProgress = false;
+let emergencyShutdownInitiated = false;
 
-function beginAntiLagSoftReset(details = {}) {
-  if (antiLagSoftResetInProgress || c.ANTILAG_SOFT_RESET_ACTIVE === true) return false;
-  antiLagSoftResetInProgress = true;
+function beginEmergencyServerShutdown(details = {}) {
+  if (emergencyShutdownInitiated || cleanupStarted) return false;
+  emergencyShutdownInitiated = true;
+  // Reuse this flag to block new player actions while sockets and the HTTP
+  // listener shut down; no entity or player is soft-reset.
   c.ANTILAG_SOFT_RESET_ACTIVE = true;
-  const warning = "Emergency server reset: you are being moved to spectator temporarily. Your score will be preserved.";
-  try { sockets.broadcast(warning); } catch (_) {}
-
-  const playerBodies = new Set();
-  const resetPlayers = [];
-  for (const socket of (sockets.clients || [])) {
-    if (!socket || !socket.player || !socket.player.body) continue;
-    const player = socket.player;
-    const originalBody = player.body;
-    const score = Number(originalBody.skill && originalBody.skill.score) || 0;
-    socket.savedScore = Math.max(Number(socket.savedScore) || 0, score);
-    socket._preserveNextDeathScore = true;
-    socket.status.deceased = false;
-
-    // Dominator bodies are map structures. Release control of the dominator and
-    // give the user a separate spectator body rather than deleting the structure.
-    let spectatorBody = originalBody;
-    if (originalBody.isDominator === true) {
-      originalBody.isTaken = false;
-      originalBody.controllers.length = 0;
-      if (typeof io_Dominator === "function") originalBody.addController(new io_Dominator(originalBody));
-      spectatorBody = new Entity({ x: originalBody.x, y: originalBody.y });
-      spectatorBody.define(Class.spectator);
-    } else {
-      spectatorBody.define(Class.spectator);
-    }
-
-    spectatorBody.isPlayer = true;
-    spectatorBody.keep = true;
-    spectatorBody.invuln = true;
-    spectatorBody.died = false;
-    spectatorBody.trulyDead = false;
-    spectatorBody.team = player.team;
-    spectatorBody.controllers.length = 0;
-    spectatorBody.addController(new io_listenToPlayer(spectatorBody, player));
-    spectatorBody.sendMessage = (content) => messenger(socket, content);
-    if (spectatorBody.health) spectatorBody.health.amount = spectatorBody.health.max;
-    if (spectatorBody.shield) spectatorBody.shield.amount = spectatorBody.shield.max;
-    if (player.command && typeof player.command === "object") {
-      for (const key of Object.keys(player.command)) {
-        if (typeof player.command[key] === "boolean") player.command[key] = false;
-      }
-    }
-    player.body = spectatorBody;
-    playerBodies.add(spectatorBody);
-    resetPlayers.push({ socket, player, body: spectatorBody, originalBody, score });
-    try { spectatorBody.sendMessage("Emergency server reset in progress. Your score is saved."); } catch (_) {}
-  }
-
-  // Preserve only structural world entities. Combatants, projectiles, bots,
-  // natural bosses, food, and temporary effects are destroyed without kill()
-  // side-effects so the reset doesn't recursively trigger more spawns.
-  const structures = new Set(["wall", "base", "fortWall", "fortGate", "dominator", "grid", "mazeWall"]);
-  for (const entity of entities.slice()) {
-    if (!entity || playerBodies.has(entity) || entity.isPlayer === true) continue;
-    if (entity.isMazeWall === true || entity.isWall === true || entity.isGate === true ||
-        entity.isDominator === true || structures.has(entity.type)) continue;
-    try {
-      if (typeof entity.destroy === "function" && (!entity.valid || entity.valid())) entity.destroy();
-    } catch (_) {}
-  }
-
-  let roomState = null;
-  try { roomState = room.reevaluate(); } catch (_) {}
-  try { sockets.changeroom(); } catch (_) {}
-  util.log("[ANTI-LAG] Soft reset started at " + Math.round(Number(details.runSpeedPercent) || 0) +
-    "% run speed; room re-evaluated " + JSON.stringify(roomState || {}) + ".");
-
-  const finishReset = () => {
-    for (const entry of resetPlayers) {
-      const { socket, player, body, originalBody, score } = entry;
-      socket.savedScore = Math.max(Number(socket.savedScore) || 0, score,
-        Number(body.skill && body.skill.score) || 0);
-      socket._preserveNextDeathScore = false;
-      if (player.body === body) {
-        // Normally gazeUpon() sends this packet. A fallback keeps users from
-        // getting stuck if the game loop is so degraded that it hasn't run.
-        try {
-          if (socket.status.deceased !== true) socket.talk("F", ...player.records(), 100000000000);
-        } catch (_) {}
-        player.body = null;
-      }
-      socket.status.deceased = true;
-      if (body !== originalBody) {
-        try { if (body && body.valid && body.valid()) body.destroy(); } catch (_) {}
-      } else if (!body.isDominator) {
-        try { if (body && body.valid && body.valid()) body.destroy(); } catch (_) {}
-      }
-    }
-    try { room.reevaluate(); } catch (_) {}
-    try { sockets.changeroom(); } catch (_) {}
-    c.ANTILAG_SOFT_RESET_ACTIVE = false;
-    antiLagSoftResetInProgress = false;
-    try { sockets.broadcast("Emergency reset complete. Respawn when ready; your score has been preserved."); } catch (_) {}
-    util.log("[ANTI-LAG] Soft reset complete.");
-  };
-  const timer = setTimeout(finishReset, 1800);
-  if (timer && typeof timer.unref === "function") timer.unref();
+  util.log(
+    "[EMERGENCY-SHUTDOWN] Sustained extreme lag detected: " +
+    Math.round(Number(details.observedLagMs) || 0) + "ms raw lag at " +
+    Math.round(Number(details.runSpeedPercent) || 0) + "% run speed. Closing server."
+  );
+  cleanup();
   return true;
 }
 
@@ -15800,8 +15743,8 @@ const loadProtection = createLoadProtection({
       " | target-tick-rate=" + Math.round(100 / (metrics.runSpeedMultiplier || 1)) + "%"
     );*/
   },
-  onSoftReset(details) {
-    beginAntiLagSoftReset(details);
+  onEmergencyShutdown(details) {
+    beginEmergencyServerShutdown(details);
   },
 });
 
@@ -17099,7 +17042,9 @@ const sockets = (() => {
                   }
                   if (
                     !hasSpecialEffect(player.body, "Legend") &&
-                    player.body.skill.score >= 1000000
+                    player.body.skill.score >= 1000000 &&
+                    c.MODE !== "ffa" &&
+                    c.MODE !== "ffaPoly"
                   ) {
                     let dude = player.body.name;
                     if (player.body.name === "") dude = "An unnamed player";
@@ -22759,8 +22704,20 @@ var maintainloop = (() => {
         }
       }
       let ruh;
-      if (c.REDUCE_BOTS_PER_PLAYER) ruh = c.playerCount;
+      if (c.REDUCE_BOTS_PER_PLAYER) ruh = Math.max(0, Number(c.playerCount) || 0);
       else ruh = 0;
+      // A reinforcement bot must be spawned in addition to the population that
+      // normally remains after the per-player bot allowance is subtracted.
+      const pendingSiegeAllyBots = c.MODE === "siege"
+        ? Math.max(0, Math.floor(Number(c.siegePendingAlliedBots) || 0))
+        : 0;
+      if (pendingSiegeAllyBots > 0) {
+        c.BOTS = Math.max(
+          Math.max(0, Math.floor(Number(c.BOTS) || 0)),
+          bots.length + ruh + pendingSiegeAllyBots
+        );
+        c.botSpawn = true;
+      }
       // Bots
       if (
         c.MODE !== "theDenied" &&
@@ -22771,12 +22728,20 @@ var maintainloop = (() => {
         c.botCount = bots.length;
         let position;
         let team;
-        switch (c.BOT_TEAMS) {
-          case "none":
-          case "color":
-            break;
-          default:
-            team = -ran.choose(c.BOT_TEAMS);
+        // A queued Siege reinforcement uses the ordinary c.BOTS spawn path,
+        // but must be allied rather than inheriting the random bot faction.
+        const spawnAsSiegeAllyBot = c.MODE === "siege" &&
+          Number(c.siegePendingAlliedBots) > 0;
+        if (spawnAsSiegeAllyBot) {
+          team = -1;
+        } else {
+          switch (c.BOT_TEAMS) {
+            case "none":
+            case "color":
+              break;
+            default:
+              team = -ran.choose(c.BOT_TEAMS);
+          }
         }
         switch (c.BOT_SPAWN_LOCATION) {
           case "random":
@@ -22790,6 +22755,12 @@ var maintainloop = (() => {
             }
         }
         if (!room.isIn("wall", position) && loadProtection.canSpawnNaturalEntity()) {
+          if (spawnAsSiegeAllyBot) {
+            c.siegePendingAlliedBots = Math.max(
+              0,
+              Math.floor(Number(c.siegePendingAlliedBots) || 0) - 1
+            );
+          }
           let o = new Entity(position);
           o._loadProtectionNaturalSpawn = true;
 
@@ -23020,7 +22991,7 @@ var maintainloop = (() => {
             }
           }, 12500);
           setTimeout(() => {
-            if (room.isIn("bas" + -o.team, o)) {
+            if (c.MODE !== "siege" && room.isIn("bas" + -o.team, o)) {
               o.kill();
             }
           }, 100000);
@@ -23033,7 +23004,7 @@ var maintainloop = (() => {
           }
 
           o.team = team;
-          if (c.BOT_TEAMS === "color") {
+          if (c.BOT_TEAMS === "color" && !spawnAsSiegeAllyBot) {
             o.team = o.color;
           } else {
             switch (team) {
@@ -23067,6 +23038,17 @@ var maintainloop = (() => {
               default:
                 o.color = 12;
             }
+          }
+          // Apply after normal team/color setup so the configured bot color mode
+          // cannot accidentally turn a Siege reinforcement into a hostile team.
+          if (spawnAsSiegeAllyBot) {
+            o.team = -1;
+            o.color = 10;
+            o.impervious = true;
+            o._siegeAlly = true;
+          } else if (c.MODE === "siege" && o.team === -1) {
+            o.impervious = true;
+            o._siegeAlly = true;
           }
           bots.push(o);
         }
@@ -25641,7 +25623,9 @@ function cleanup() {
   if (speedcheckLoopTimer !== null) { clearInterval(speedcheckLoopTimer); speedcheckLoopTimer = null; }
 
   sockets.broadcast(
-    "Server Shutting Down! Possible Error May have occurred, please rejoin in 30 seconds!"
+    c.ANTILAG_SOFT_RESET_ACTIVE === true
+      ? "Server shutting down due to sustained extreme lag. Please rejoin in 30 seconds."
+      : "Server Shutting Down! Possible Error may have occurred; please rejoin in 30 seconds."
   );
   sockets.stop();
   loadProtection.stop();
@@ -25649,13 +25633,52 @@ function cleanup() {
   c.extinction = true;
   c.DEADLY_BORDERS = true;
 
+  // Close upgraded WebSocket connections too; closing only the HTTP listener
+  // can otherwise hang while existing clients remain connected.
+  try {
+    if (websockets && websockets.clients) {
+      for (const client of Array.from(websockets.clients)) {
+        try { client.close(1012, "Server shutting down"); } catch (_) {}
+        const forceClientClose = setTimeout(() => {
+          try { client.terminate(); } catch (_) {}
+        }, 2500);
+        if (forceClientClose && typeof forceClientClose.unref === "function") {
+          forceClientClose.unref();
+        }
+      }
+      try { websockets.close(); } catch (_) {}
+    }
+  } catch (error) {
+    util.warn("[SHUTDOWN] WebSocket close warning: " + error.message);
+  }
+
+  // Never leave a broken process running indefinitely if a connection refuses
+  // to close. The normal path exits as soon as the HTTP server has closed.
+  shutdownExitTimer = setTimeout(() => {
+    shutdownExitTimer = null;
+    try {
+      if (websockets && websockets.clients) {
+        for (const client of Array.from(websockets.clients)) {
+          try { client.terminate(); } catch (_) {}
+        }
+      }
+      if (typeof server.closeAllConnections === "function") server.closeAllConnections();
+    } catch (_) {}
+    process.exit(0);
+  }, 15000);
+
   server.close(() => {
     console.log("Server closed.");
-    if (fs.existsSync(lockFilePath)) fs.unlinkSync(lockFilePath);
-    shutdownExitTimer = setTimeout(() => {
+    try {
+      if (fs.existsSync(lockFilePath)) fs.unlinkSync(lockFilePath);
+    } catch (error) {
+      util.warn("[SHUTDOWN] Could not remove server lock file: " + error.message);
+    }
+    if (shutdownExitTimer !== null) {
+      clearTimeout(shutdownExitTimer);
       shutdownExitTimer = null;
-      process.exit(0);
-    }, 15000);
+    }
+    process.exit(0);
   });
 }
 let websockets = (() => {
