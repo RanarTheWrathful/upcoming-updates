@@ -4142,7 +4142,7 @@ exports.penTurret = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.superReload]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.superReload, g.greaterReload]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -4154,7 +4154,7 @@ exports.penTurret = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.superReload]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.superReload, g.greaterReload]),
         TYPE: exports.trap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -34896,7 +34896,7 @@ exports.penception = {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.bitmoreReload]),
         TYPE: exports.bullet,
         LABEL: "Front",
       },
@@ -34908,7 +34908,7 @@ exports.penception = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.bitmoreReload]),
         TYPE: exports.trap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -35130,12 +35130,19 @@ exports.inker = {
   DANGER: 7,
   STAT_NAMES: statnames.trap,
   LABEL: "Inker",
+    TURRETS: [
+      {
+        /*********  SIZE     X       Y     ANGLE    ARC */
+        POSITION: [9, 0, 0, 0, 360, 1],
+        TYPE: [exports.driveSymbol, { INDEPENDENT: true, COLOR: 16 }],
+      },
+    ],
   GUNS: [
     {
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [21, 8, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic]),
+        SHOOT_SETTINGS: combineStats([g.basic, g.greaterReload]),
         TYPE: exports.autoBullet,
         LABEL: "Front",
       },
@@ -35147,7 +35154,7 @@ exports.inker = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap]),
+        SHOOT_SETTINGS: combineStats([g.trap, g.greaterReload]),
         TYPE: exports.mechtrap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -96170,8 +96177,6 @@ exports.overpen.UPGRADES_TIER_6 = [exports.lordpen]
 exports.breeze.UPGRADES_TIER_5 = [
   exports.boosttrap,
 ];
-exports.breeze.UPGRADES_TIER_6 = [exports.tyrant, exports.tritri,];
-exports.boosttrap.UPGRADES_TIER_6 = [exports.resister];
 exports.kriswarks.UPGRADES_TIER_1 = [
   exports.hewnwark,
   exports.autoBulwark,
