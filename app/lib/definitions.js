@@ -34833,7 +34833,7 @@ exports.beacon = {
 };
 
 
-exports.inkfountain = makeMulti({
+exports.inkfount = makeMulti({
   PARENT: [exports.genericTank],
   DANGER: 7,
   STAT_NAMES: statnames.trap,
@@ -34886,6 +34886,7 @@ exports.inkfountain = makeMulti({
 3,
 "Ink Fountain"
 );
+exports.inkfountain = (makeAuto(exports.inkfount, "Ink Fountain"));
 exports.penception = {
   PARENT: [exports.genericTank],
   DANGER: 7,
