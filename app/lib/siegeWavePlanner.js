@@ -97,8 +97,8 @@ function chooseEnemy(themes, remainingBudget, random = Math.random, isValid = ()
 
 const THEME_DEFINITIONS = [
   {
-    id: "crashersSentries",
-    label: "Crashers & Sentries",
+    id: "crashers",
+    label: "Crashers",
     enemies: [
       "eggCrasher", "squareCrasher", "triangleCrasher", "pentagonCrasher",
       "triangleSentry", "trianglePounderSentry", "triangleTrapperSentry",
@@ -106,11 +106,42 @@ const THEME_DEFINITIONS = [
     ],
   },
   {
-    id: "sentinels",
-    label: "Sentinels & Unawakened",
+    id: "sentries",
+    label: "Sentries",
     enemies: [
-      "skimmerSentinel", "crossbowSentinel", "minigunSentinel",
+      "triangleSentry", "eggSentry", "squareSentry", "pentagonSentry", "trianglePounderSentry", "triangleTrapperSentry",
+      "triangleSwarmSentry",
+                        "pentagonSwarmerSentry",
+                        "pentagonTriAngleSentry",
+                        "pentagonHunterSentry",
+                        "squareTwinSentry",
+                        "squareSniperSentry",
+                        "squareAuto2Sentry",
+                        "eggSorcererSentry",
+                        "eggAutoSentry",
+                        "eggBasicSentry",
+    ],
+  },
+  {
+    id: "sentinels",
+    label: "Sentinel",
+    enemies: [
+ "skimmerSentinel", "crossbowSentinel", "minigunSentinel",
+    ],
+  },
+  {
+    id: "unawakened",
+    label: "Unawakened",
+    enemies: [
       "Unawakened1", "Unawakened2", "Unawakened3",
+    ],
+  },
+  {
+    id: "aether",
+    label: "Aether Bosses",
+    enemies: [ 
+      "lesserCaster", "lesserCreed", "lesserAetherAspect",
+      "lesserlightFinder", "lesserConstant",
     ],
   },
   {
@@ -118,8 +149,7 @@ const THEME_DEFINITIONS = [
     label: "Spellcasters & Summoners",
     enemies: [
       "sorcerer", "summoner", "enchantress", "witch", "cultist",
-      "exorcistor", "lesserCaster", "lesserCreed", "lesserAetherAspect",
-      "lesserlightFinder", "lesserConstant", "plaguedoc",
+      "exorcistor",
     ],
   },
   {
@@ -127,27 +157,154 @@ const THEME_DEFINITIONS = [
     label: "Thrashers & Anomalies",
     enemies: [
       "thrasher", "glitch", "aoc", "aokaol", "anomaly", "nulltype",
-      "amalgam", "oblivion",
+      "amalgam",
+      "beeMechab", "machinegunMechab", "trapMechab", "trapMechabarab",
+      "swarmMechab", "buildMechab", "AlfabuildMechab",
+    ],
+  },
+  {
+    id: "thrashersAnomalies",
+    label: "Thrashers & Anomalies",
+    enemies: [
+      "thrasher", "glitch", "aoc", "aokaol", "anomaly",
+      "beeMechab", "machinegunMechab", "trapMechab", "trapMechabarab",
+      "swarmMechab", "buildMechab", "AlfabuildMechab",
+    ],
+  },
+  
+  {
+    id: "voidBosses",
+    label: "Void Bosses",
+    enemies: [
+      "elder", "nulltype", "hiveMind", "abyssthrasher",
+      "amalgam",
+    ],
+  },
+  {
+    id: "eggBosses",
+    label: "Egg Bosses",
+    enemies: [
+     "oblivion", "sorcerer",
+    ],
+  },
+  {
+    id: "squareBosses",
+    label: "Square Bosses",
+    enemies: [
+     "hellwark", "summoner", "squaredpelleter",
+    ],
+  },
+  {
+    id: "triangleBosses",
+    label: "Triangle Bosses",
+    enemies: [
+     "elite_skimmer", "witch", "enchantress", "defender", "defector"
+    ],
+  },
+  {
+    id: "pentagonBosses",
+    label: "Pentagon Bosses",
+    enemies: [
+     "nest_keep", "nest_ward", "nestguard", "exorcistor"
+    ],
+  },
+  {
+    id: "cultBosses",
+    label: "Cult Bosses",
+    enemies: [
+, "Pawn", "Rook", "bishop", "mortarLordCenturion", "hiveLordCenturion",
+    ],
+  },
+  {
+    id: "crasherEntities",
+    label: "Crasher Entities",
+    enemies: [
+      "hexagonCrasher",
+      "eggCrasher", "squareCrasher", "triangleCrasher", "pentagonCrasher",
+      "triangleSentry", "trianglePounderSentry", "triangleTrapperSentry",
+      "triangleSwarmSentry", "eggSentry", "squareSentry", "pentagonSentry",
+  "elite_machine", "elite_destroyer", "elite_gunner",
+      "elite_spawner", "elite_battleship",
+      "elite_spinner", "elite_sprayer", "elite_swarmer", "elite_fortress",
+                        "pentagonSwarmerSentry",
+                        "pentagonTriAngleSentry",
+                        "pentagonHunterSentry",
+                        "squareTwinSentry",
+                        "squareSniperSentry",
+                        "squareAuto2Sentry",
+                        "eggSorcererSentry",
+                        "eggAutoSentry",
+                        "eggBasicSentry",
+    ],
+  },
+  {
+    id: "eggs",
+    label: "Egg Entities",
+    enemies: [
+      "egg", 
+      "auto3Guard", "bansheeGuard", "spawnerGuard",
+     "oblivion", "sorcerer",
+    ],
+  },
+  {
+    id: "squares",
+    label: "Square Entities",
+    enemies: [
+      "square",
+     "hellwark", "summoner", "squaredpelleter","swarmerProtector",
+      "cruiserProtector", "beekeeperProtector",
+    ],
+  },
+  {
+    id: "triangles",
+    label: "Triangle Entities",
+    enemies: [
+      "triangle",
+     "elite_skimmer", "witch", "enchantress", "defender", "defector", "commanderKeeper",
+      "directorKeeper", "overKeeper",
+
+    ],
+  },
+  {
+    id: "pentagons",
+    label: "Pentagon Entities",
+    enemies: [
+      "pentagon",
+     "nest_keep", "nest_ward", "nestguard", "exorcistor",
+ "skimmerSentinel", "crossbowSentinel", "minigunSentinel",
+
     ],
   },
   {
     id: "polygons",
-    label: "Polygons & Shape Variants",
+    label: "Polygons",
     enemies: [
-      "eggCrasher", "squareCrasher", "triangleCrasher", "pentagonCrasher",
-      "hexagonCrasher", "Pawn", "Rook", "squaredpelleter",
+      "egg", "square", "triangle", "pentagon",
+      "hexagon", "septagon", "octagon", "nonagon"
+    ],
+  },
+   {
+    id: "diepBosses",
+    label: "Diep Bosses",
+    enemies: [
+      "defender", "fallenoverlord", "fallenbooster", "summoner",
+      "elite_swarmer"
+    ],
+  },
+  {
+    id: "elites",
+    label: "Elite Crashers",
+    enemies: [
+  "elite_machine", "elite_destroyer", "elite_gunner",
+      "elite_spawner", "elite_battleship",
+      "elite_spinner", "elite_sprayer", "elite_swarmer", "elite_fortress",
     ],
   },
   {
     id: "machines",
     label: "Mechs & Machines",
     enemies: [
-      "beeMechab", "machinegunMechab", "trapMechab", "trapMechabarab",
-      "swarmMechab", "buildMechab", "AlfabuildMechab", "contraption",
-      "elite_skimmer", "elite_machine", "elite_destroyer", "elite_gunner",
-      "elite_spawner", "elite_battleship", "elite_warkspawner",
-      "elite_spinner", "elite_sprayer", "elite_swarmer", "elite_fortress",
-      "hellwark",
+      "contraption", "elite_warkspawner",
     ],
   },
   {
@@ -156,18 +313,25 @@ const THEME_DEFINITIONS = [
     enemies: [
       "auto3Guard", "bansheeGuard", "spawnerGuard", "swarmerProtector",
       "cruiserProtector", "beekeeperProtector", "commanderKeeper",
-      "directorKeeper", "overKeeper", "defender", "nestkeep", "nestward",
-      "nestguard", "arenaguard", "mortarLordCenturion", "hiveLordCenturion",
-      "damagedArenaCloser", "elder", "exterminator",
+      "directorKeeper", "overKeeper",
+ "skimmerSentinel", "crossbowSentinel", "minigunSentinel",
     ],
   },
   {
-    id: "fallenCorrupted",
-    label: "Fallen & Corrupted",
+    id: "closers",
+    label: "Arena Bosses",
+    enemies: [
+"arenaguard",
+      "damagedArenaCloser", "arenaslayer",
+    ],
+  },
+  {
+    id: "fallen",
+    label: "Fallen",
     enemies: [
       "fallenhybrid", "fallenanni", "fallenflankguard", "fallenfalcon",
       "fallenoverlord", "fallenbooster", "fallenautodouble", "fallentyrant",
-      "defector", "enslaver",
+   "enslaver",
     ],
   },
 ];
