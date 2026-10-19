@@ -71,8 +71,9 @@ function resolveSupportInteraction(source, target) {
 
   let multiplier = 0;
   if (kind === "repair") {
-    if (projectile) multiplier = 2;
-    else if (target.isDominator === true) multiplier = 25;
+    if (projectile && isCombatEntity(target)) multiplier = 2;
+    else if (projectile && !isCombatEntity(target)) multiplier = 0.5;
+    else if (target.isDominator === true) multiplier = 10;
     else if (target.isWall === true || target.isGate === true) multiplier = 10;
     else if (target.type === "food") multiplier = 1;
     else if (target.team === -3 && isCombatEntity(target)) multiplier = 2;
@@ -86,7 +87,7 @@ function resolveSupportInteraction(source, target) {
     if (multiplier > 0 && projectile && source.type === "atmosphere") {
       multiplier *= 0.1;
     }
-  } else {
+  } if (kind === "heal") {
     if (projectile) multiplier = 1;
     else if (target.type === "food") multiplier = 1;
     else if (target.team === -4 && isCombatEntity(target)) multiplier = 2;
@@ -96,7 +97,7 @@ function resolveSupportInteraction(source, target) {
     ) multiplier = 1;
     
     if (multiplier > 0 && projectile && source.type === "atmosphere") {
-      multiplier *= 0.1;
+      multiplier *= 0.01;
     }
   }
 
@@ -126,15 +127,17 @@ function applyInteraction(source, target, baseDamage, incomingDamage) {
       const healAmount = amount * (source.isProjectile ? 1 : 0.25);
       target.health.amount = Math.min(target.health.max, target.health.amount + healAmount);
     } else if (hasMissingShield) {
-      target.shield.amount = Math.min(target.shield.max, target.shield.amount + target.shield.max / 3);
+      target.shield.amount = Math.min(target.shield.max, target.shield.amount + healAmount / 5);
     }
-  } else if (hasMissingShield) {
-    target.shield.amount = Math.min(target.shield.max, target.shield.amount + target.shield.max / 10);
+  }
+  if (decision.kind === "heal") {
+   if (hasMissingShield) {
+    target.shield.amount = Math.min(target.shield.max, target.shield.amount + repairAmount / 10);
   } else if (hasMissingHealth) {
     const repairAmount = amount * (source.isProjectile ? 5 : 1.25);
-    target.health.amount = Math.min(target.health.max, target.health.amount + repairAmount);
+    target.health.amount = Math.min(target.health.max, target.health.amount + repairAmount/2);
   }
-
+  }
   if (source.isProjectile && Number.isFinite(incomingDamage)) {
     source.damageRecieved = (Number(source.damageRecieved) || 0) + Math.max(0, incomingDamage);
   }
