@@ -96148,6 +96148,7 @@ exports.pen.UPGRADES_TIER_4 = [
   exports.outpost,
   exports.overpen,
   exports.underpen,
+  exports.autopen,
 ];
 exports.autopen.UPGRADES_TIER_5 = [
   exports.inker,
