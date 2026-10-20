@@ -96158,6 +96158,22 @@ exports.pen.UPGRADES_TIER_4 = [
   exports.underpen,
   exports.autopen,
 ];
+exports.hexanomaly.UPGRADES_TIER_5 = [
+  exports.inkfountain
+];
+exports.autohexa.UPGRADES_TIER_5 = [
+  exports.inkfountain
+];
+exports.hexatrap.UPGRADES_TIER_5 = [
+  exports.inkfountain
+];
+exports.barricade.UPGRADES_TIER_4 = [
+  exports.printer
+];
+exports.triple.UPGRADES_TIER_5 = [
+  exports.trident,
+];
+exports.wrecker.UPGRADES_TIER_5 = [exports.demolitionist];
 exports.autopen.UPGRADES_TIER_5 = [
   exports.inker,
   exports.penception,
@@ -97529,7 +97545,8 @@ exports.bulwark.UPGRADES_TIER_4 = [
   exports.bentBulwark,
   exports.hewnBulwark,
   exports.frontier,
-  exports.bulwarkThrasher
+  exports.bulwarkThrasher,
+  exports.quill
 ];
 exports.bent.UPGRADES_TIER_3 = [
   exports.penta,
@@ -97682,10 +97699,16 @@ exports.splatterer,
 ];
 exports.fighter.UPGRADES_TIER_5 = [
 exports.woodpecker,
+exports.tritri
 ];
 exports.booster.UPGRADES_TIER_4 = [
 exports.replicator,
+exports.breeze
 ];
+exports.bomber.UPGRADES_TIER_4 = [
+  exports.breeze
+];
+
 exports.falcon.UPGRADES_TIER_5 = [
 exports.woodpecker,
 ];
@@ -97789,7 +97812,7 @@ exports.Chucker.UPGRADES_TIER_4 = [
   exports.fieldartillery,
 ];
 exports.swarmer.UPGRADES_TIER_4 = [exports.hexaswarm, exports.hiveling];
-exports.grenadier.UPGRADES_TIER_5 = [exports.beenader, exports.neutron];
+exports.grenadier.UPGRADES_TIER_5 = [exports.beenader, exports.neutron, exports.demolitionist];
 exports.fieldgun.UPGRADES_TIER_4 = [
 exports.lobber,
 exports.fieldartillery,
@@ -97969,6 +97992,10 @@ exports.builder.UPGRADES_TIER_3 = [
   exports.quadbuilder,
   exports.slinger,
 ];
+exports.builder.UPGRADES_TIER_4 = [
+  exports.anvil,
+];
+exports.constructer.UPGRADES_TIER_5 = [exports.monolith];
 exports.autobuilder.UPGRADES_TIER_4 = [exports.autoconstructer];
 exports.constructer.UPGRADES_TIER_4 = [exports.autoconstructer];
 exports.autoconstructer.UPGRADES_TIER_5 = [exports.roadblock];
