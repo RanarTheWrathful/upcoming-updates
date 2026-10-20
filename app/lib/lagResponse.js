@@ -10,12 +10,7 @@ const DEFAULT_STEPS = Object.freeze([
   { id: "offscreen-food", category: "food", visibility: "offscreen", action: "destroy", speed: 34, lagMs: 150, durationMs: 5000, minActiveMs: 5000 },
   { id: "offscreen-bots", category: "bot", visibility: "offscreen", action: "destroy", speed: 30, lagMs: 175, durationMs: 5000, minActiveMs: 5000 },
   { id: "offscreen-natural-bosses", category: "naturalBoss", visibility: "offscreen", action: "destroy", speed: 27, lagMs: 200, durationMs: 5000, minActiveMs: 5000 },
-  { id: "onscreen-entities", category: "general", visibility: "onscreen", action: "suspend", speed: 22, lagMs: 225, durationMs: 5000, minActiveMs: 5000 },
   { id: "onscreen-projectiles", category: "projectile", visibility: "onscreen", action: "destroy", speed: 20, lagMs: 250, durationMs: 5000, minActiveMs: 5000 },
-  { id: "onscreen-food", category: "food", visibility: "onscreen", action: "suspend", speed: 18, lagMs: 275, durationMs: 5000, minActiveMs: 5000 },
-  { id: "onscreen-natural-enemies", category: "naturalEnemy", visibility: "onscreen", action: "suspend", speed: 16, lagMs: 300, durationMs: 5000, minActiveMs: 5000 },
-  { id: "onscreen-bots", category: "bot", visibility: "onscreen", action: "suspend", speed: 14, lagMs: 325, durationMs: 5000, minActiveMs: 5000 },
-  { id: "onscreen-natural-bosses", category: "naturalBoss", visibility: "onscreen", action: "suspend", speed: 12, lagMs: 350, durationMs: 5000, minActiveMs: 5000 },
   // Only sustained extreme lag and very poor throughput may trigger a full
   // process shutdown. The server must not attempt a destructive in-game reset.
   { id: "emergency-shutdown", category: "all", visibility: "any", action: "shutdown", speed: 5, lagMs: 1000, durationMs: 15000, minActiveMs: 0 },

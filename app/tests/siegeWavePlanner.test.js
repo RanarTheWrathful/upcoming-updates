@@ -67,6 +67,47 @@ for (const theme of planner.THEME_DEFINITIONS) {
   }
 }
 
+
+// Spawn-allies is ignored about half the time when selected; the other selected
+// themes remain active, or a regular theme is picked as a fallback.
+{
+  const normal = { id: "normal", enemies: [{ name: "eggCrasher", cost: 1 }] };
+  const ally = { id: "spawnAllies", enemies: [{ name: "RogueLibor", cost: 30 }, { name: "bot", cost: 30 }] };
+  const sequence = (values) => {
+    let i = 0;
+    return () => values[i++] === undefined ? 0 : values[i - 1];
+  };
+  const ignored = planner.chooseRandomThemes([normal, ally], sequence([0, 0, 0]));
+  assert(ignored.length >= 1 && ignored.every((theme) => theme.id !== "spawnAllies"),
+    "the 50% ignore outcome falls back to normal wave themes");
+  const triggered = planner.chooseRandomThemes([normal, ally], sequence([0, 0, 0.999]));
+  assert.strictEqual(triggered.length, 1);
+  assert.strictEqual(triggered[0].id, "spawnAllies", "the other half still produces an ally event");
+}
+
+// A reinforcement roster can contain one unique boss and several bots without
+// spending beyond its budget or repeating multiple uniquely named bosses.
+{
+  const theme = { id: "spawnAllies", enemies: [
+    { name: "RogueLibor", cost: 30 },
+    { name: "twilight", cost: 35 },
+    { name: "bot", cost: 30 },
+    { name: "RogueLibor", cost: 30 },
+  ] };
+  const roster = planner.planAllyRoster(theme, 50, () => 0, () => true);
+  assert.strictEqual(roster.filter((enemy) => enemy.name !== "bot").length, 1,
+    "at most one named boss can be chosen for an ally wave");
+  assert.strictEqual(roster.filter((enemy) => enemy.name === "bot").length, 2,
+    "remaining budget can purchase bots alongside a boss");
+  assert(roster.reduce((total, enemy) => total + enemy.cost, 0) <= 50,
+    "the combined boss and bot roster must fit the budget");
+  const noBoss = planner.planAllyRoster(theme, 20, () => 0.999, () => true);
+  assert(noBoss.every((enemy) => enemy.name === "bot"), "budgets can also produce bots without a boss");
+  const lateWave = planner.planAllyRoster(theme, 500, () => 0, () => true);
+  assert(lateWave.filter((enemy) => enemy.name === "bot").length <= 3,
+    "large late-wave budgets must not turn into an unlimited reinforcement-bot flood");
+}
+
 console.log("siegeWavePlanner tests passed");
 
 // Reinforcement waves are exclusive and cannot mix allies with hostile themes.

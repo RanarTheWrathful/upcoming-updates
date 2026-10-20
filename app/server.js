@@ -75,8 +75,8 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Siege";
-//change this to play a specifict mode
+if (serverType === "testing") chosenMode = "Sandbox";
+//change this to play a specifict mode.
 else if (serverType === "normal") {
   //dont change these - J.J.
   modeList = [
@@ -873,13 +873,19 @@ function expireSiegeBotQueueEntries(now = Date.now()) {
   }
 }
 
-function countLiveSiegeHostiles() {
+function isCountedLiveSiegeHostile(entity, excludedEntity = null) {
+  if (!entity || entity === excludedEntity || !entity.siegeProgress ||
+      entity.team !== -100 || entity.siegeCountsTowardWave === false || entity.type === "food") return false;
+  if (typeof entity.isDead === "function") {
+    try { if (entity.isDead()) return false; } catch (_) { return false; }
+  }
+  return true;
+}
+
+function countLiveSiegeHostiles(excludedEntity = null) {
   let count = 0;
   entities.forEach((entity) => {
-    if (entity && entity.siegeProgress && entity.team === -100 &&
-        !(typeof entity.isDead === "function" && entity.isDead())) {
-      count += 1;
-    }
+    if (isCountedLiveSiegeHostile(entity, excludedEntity)) count += 1;
   });
   // A queued hostile bot is part of the wave as soon as its budget is spent.
   // Do not advance the wave while waiting for its capped, population-aware spawn.
@@ -1009,16 +1015,11 @@ function spawnSiegeAllyWave(theme, budget) {
   c.siegeAlliesSpawnedWave = c.bossWave;
 
   const completedWave = c.bossWave;
-  const selected = [];
-  let remaining = budget;
-  // The wave budget limits the roster; each bot still waits for the normal
-  // population cap instead of inflating the global random-bot target.
-  for (let guard = 0; remaining > 0 && guard < 100; guard++) {
-    const enemy = siegeWavePlanner.chooseEnemy([theme], remaining, Math.random, isValidSiegeEnemy);
-    if (!enemy) break;
-    selected.push(enemy);
-    remaining -= enemy.cost;
-  }
+  // Reinforcement bosses are unique per event; bots can fill the remaining
+  // budget, allowing a boss and backup bots to arrive in the same wave.
+  const selected = siegeWavePlanner.planAllyRoster(
+    theme, budget, Math.random, isValidSiegeEnemy
+  );
   c.bossCounter = 0;
   if (!selected.length) {
     c.siegePendingAllySpawns = 0;
@@ -1097,6 +1098,41 @@ function spawnSiegeEnemyFromBudget() {
     o.impervious = true;
     o.showOnMap = true;
     o.team = -100;
+    const isPolygonSpawn = !!siegePolygonSpawnCounts[enemy.name] || o.type === "food";
+    o.siegeCountsTowardWave = !isPolygonSpawn;
+    if (isPolygonSpawn && o.velocity) {
+      const center = {
+        x: Number.isFinite(room.width) ? room.width / 2 : 0,
+        y: Number.isFinite(room.height) ? room.height / 2 : 0,
+      };
+      const dx = center.x - o.x;
+      const dy = center.y - o.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance > 0) {
+        const launchSpeed = 14;
+        o.velocity.x = (dx / distance) * launchSpeed;
+        o.velocity.y = (dy / distance) * launchSpeed;
+      }
+      // Food-derived polygons default to a drifting-in-circles controller that
+      // would immediately turn away from the center and brake the launch. Give
+      // them a simple center-seeking controller and enough speed/acceleration
+      // to carry the initial launch through the arena.
+      o.motionType = "chase";
+      // Set the underlying class stats too, so periodic body refreshes retain
+      // the centerward speed instead of restoring food's default zero speed.
+      o.SPEED = Math.max(14, Number(o.SPEED) || 0);
+      o.ACCELERATION = Math.max(1, Number(o.ACCELERATION) || 0);
+      if (o.refreshBodyAttributes) o.refreshBodyAttributes();
+      o.topSpeed = Math.max(14, Number(o.topSpeed) || 0);
+      o.acceleration = Math.max(1, Number(o.acceleration) || 0);
+      o.damp = 0.05;
+      o.controllers = [{
+        acceptsFromTop: false,
+        think() {
+          return { goal: center, main: false, alt: false, fire: false, power: 1 };
+        },
+      }];
+    }
     if (siegeLowPolygonNames.has(enemy.name)) {
       o.siegeIgnoreAllyTargeting = true;
     }
@@ -1114,6 +1150,9 @@ function spawnSiegeEnemyFromBudget() {
     return;
   }
   c.bossCounter = Math.max(0, budget - enemy.cost);
+  if (c.bossCounter <= 0 && countLiveSiegeHostiles() <= 0) {
+    scheduleSiegeWaveAdvance(c.bossWave, 5432);
+  }
 }
 
 //Makenpc functions
@@ -7974,8 +8013,7 @@ class Entity {
       if (!c.waveCount) {
         c.bossAmount = 0;
         entities.forEach((entity) => {
-          if (entity.siegeProgress && entity.team === -100 && !entity.isDead())
-            c.bossAmount += 1;
+          if (isCountedLiveSiegeHostile(entity)) c.bossAmount += 1;
         });
         //console.log(c.bossAmount);
         let o = new Entity(room.type("spw0"));
@@ -9396,12 +9434,7 @@ class Entity {
         if (c.bossCounter <= 0) {
           c.bossAmount = 0;
           entities.forEach((entity) => {
-            if (
-              entity.siegeProgress &&
-              entity.team === -100 &&
-              !entity.isDead()
-            )
-              c.bossAmount += 1;
+            if (isCountedLiveSiegeHostile(entity)) c.bossAmount += 1;
           });
           // console.log(c.bossAmount);
           c.initiateEpicWave = false;
@@ -14289,15 +14322,12 @@ console.log('Lore mode sequence advanced.');*/
         }, 67000);
         o.team = -100;
       }
-      if (c.MODE === "siege" && !this.isProjectile && this.team === -100) {
-        c.bossAmount = 0;
-        entities.forEach((entity) => {
-          if (entity.siegeProgress && entity.team === -100 && !entity.isDead())
-            c.bossAmount += 1;
-        });
-        c.bossAmount -= 1;
-        //console.log(c.bossAmount);
-        if (this.siegeProgress && c.bossAmount <= 0 && Number(c.bossCounter) <= 0) {
+      if (c.MODE === "siege" && !this.isProjectile && this.team === -100 &&
+          this.siegeProgress && this.type !== "food" && this.siegeCountsTowardWave !== false) {
+        // Exclude the dying entity explicitly rather than counting it and
+        // subtracting one, which can underflow if death timing varies.
+        c.bossAmount = countLiveSiegeHostiles(this);
+        if (c.bossAmount <= 0 && Number(c.bossCounter) <= 0) {
           scheduleSiegeWaveAdvance(c.bossWave, 5432);
         }
       }
@@ -19475,15 +19505,6 @@ player.color = easy;
 // Define how the game lives
 // The most important loop. Fast looping.
 var gameloop = (() => {
-  // Bound turrets are driven by their parent. Suspending the parent must also
-  // freeze those bound components without changing their identity or protocol.
-  const isLoadSuspended = (entity) => !!(
-    entity && (
-      entity._loadDisabled === true ||
-      (entity.bond && entity.bond._loadDisabled === true)
-    )
-  );
-
   // Collision stuff
   let collide = (() => {
     function simplecollide(my, n) {
@@ -21314,11 +21335,6 @@ var gameloop = (() => {
           check[i] = false;
           continue;
         }
-        if (isLoadSuspended(entities[i])) {
-          check[i] = false;
-          timer[i] = 15;
-          continue;
-        }
         if (!check[i]) {
           // Remove bullets and swarm
           // if (entities[i].settings.diesAtRange) entities[i].kill();
@@ -21339,7 +21355,7 @@ var gameloop = (() => {
         let x = soaEntity.x;
         let y = soaEntity.y;
         for (let i = 0; i < entities.length; i++) {
-          if (!entities[i] || isLoadSuspended(entities[i])) continue;
+          if (!entities[i]) continue;
           let minDistance = 4;
           views.forEach((view) => {
             let distance = Math.max(
@@ -21372,7 +21388,7 @@ var gameloop = (() => {
 
     activeEntities = [];
     for (let i = 0; i < entities.length; i++) {
-      if (check[i] && entities[i] && !isLoadSuspended(entities[i])) {
+      if (check[i] && entities[i]) {
         let e = entities[i];
         if (e.valid() && e.bond == null) {
           activeEntities.push(e);
@@ -21424,7 +21440,7 @@ var gameloop = (() => {
     let check = soaEntity.activationCheck;
 
     for (let i = 0; i < entities.length; i++) {
-      if (!entities[i] || isLoadSuspended(entities[i])) continue;
+      if (!entities[i]) continue;
       if (c.ACTIVATION_MODE === "distance" && !check[i]) continue;
       velocityX[i] += accelX[i];
       velocityY[i] += accelY[i];
@@ -21439,12 +21455,6 @@ var gameloop = (() => {
   let liveIteration = () => {
     entities.forEach((e) => {
       if (e.valid()) {
-        // Emergency-suspended entities stay registered and visible but do not
-        // think, fire, collide, move, or regenerate until lag has recovered.
-        if (isLoadSuspended(e)) {
-          e.collisionArray = [];
-          return;
-        }
         // Consider death.
         if (e.contemplationOfMortality()) {
           e.destroy();
@@ -22779,12 +22789,14 @@ var maintainloop = (() => {
   };
   c.KNOCKBACK_CONSTANT += 0.75;
   if (c.MODE !== "siege") {
+    c.arenaStartedAt = Date.now();
+    c.arenaClosesAt = c.arenaStartedAt + 21600000;
     setInterval(() => {
-      c.timeLeft += 1000;
+      c.timeLeft = Math.min(21600000, Date.now() - c.arenaStartedAt);
     }, 1000);
     setTimeout(() => {
       closeArena();
-    }, 21600000);
+    }, Math.max(0, c.arenaClosesAt - Date.now()));
   }
   // The NPC function
   let makenpcs = (() => {
@@ -24123,7 +24135,7 @@ var maintainloop = (() => {
       // This lifecycle cleanup is independent of load-protection thresholds:
       // any projectile/aura unseen by every client for 2.5 seconds is retired.
       offscreenTransientCleanup.check(instance, transientCleanupNow);
-      if (!instance || instance._loadDisabled === true || (instance.bond && instance.bond._loadDisabled === true)) return;
+      if (!instance) return;
       if (instance.health.amount > 0 || instance.health.max > 0) {
         if (instance.valid()) {
           const regenValue = Number(instance.REGEN);
@@ -24231,12 +24243,22 @@ if (c.MODE === "execution") {
 const server = http.createServer((req, res) => {
   // Receiving the data:
   let { pathname, query } = url.parse(req.url, true),
-    totalSeconds = (21600000 - c.timeLeft) / 1000,
+    remainingSeconds = Number.isFinite(c.arenaClosesAt)
+      ? Math.max(0, Math.ceil((c.arenaClosesAt - Date.now()) / 1000))
+      : null,
+    totalSeconds = remainingSeconds === null ? 0 : remainingSeconds,
     hours = Math.floor(totalSeconds / 3600),
     minutes = Math.floor((totalSeconds % 3600) / 60),
+    seconds = totalSeconds % 60,
     hourLabel = hours === 1 ? "hour" : "hours",
     minuteLabel = minutes === 1 ? "minute" : "minutes",
-    timeString = `${hours} ${hourLabel} and ${minutes} ${minuteLabel}`,
+    secondLabel = seconds === 1 ? "second" : "seconds",
+    timeString = remainingSeconds === null
+      ? "No scheduled closure"
+      : `${hours} ${hourLabel}, ${minutes} ${minuteLabel}, ${seconds} ${secondLabel}`,
+    timeDisplay = remainingSeconds === null
+      ? timeString
+      : '<span id="arena-countdown" data-closes-at-ms="' + c.arenaClosesAt + '">' + timeString + '</span>',
     title = "Unknown",
     extra = "Unknown";
   switch (serverType) {
@@ -24340,7 +24362,7 @@ const server = http.createServer((req, res) => {
     <b>Players:</b> ` +
           c.playerCount +
           `.<br>
-<b>Estimated Time Before Server Refreshes:</b> ${timeString}.<br><br>
+<b>Estimated Time Before Server Refreshes:</b> ${timeDisplay}.<br><br>
 You must have the chat site and the game site open at the same time for your chats to be sent.
     </p>
     </div>
@@ -24882,6 +24904,24 @@ You must have the chat site and the game site open at the same time for your cha
     <li>ChatGPT and It's Creators: Overall just very helpful tool, got Kris trough 9 assignments</li>
   </ul>
     </div>
+<script>
+(function () {
+  var display = document.getElementById("arena-countdown");
+  if (!display) return;
+  var closesAt = Number(display.getAttribute("data-closes-at-ms")) || Date.now();
+  function renderCountdown() {
+    var remaining = Math.max(0, Math.ceil((closesAt - Date.now()) / 1000));
+    var hours = Math.floor(remaining / 3600);
+    var minutes = Math.floor((remaining % 3600) / 60);
+    var seconds = remaining % 60;
+    display.textContent = hours + (hours === 1 ? " hour, " : " hours, ") +
+      minutes + (minutes === 1 ? " minute, " : " minutes, ") +
+      seconds + (seconds === 1 ? " second" : " seconds");
+  }
+  renderCountdown();
+  window.setInterval(renderCountdown, 1000);
+})();
+</script>
 </body>
 </html>
 

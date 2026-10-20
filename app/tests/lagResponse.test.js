@@ -79,8 +79,8 @@ function fastEnv() {
     now++;
     response.update(0, { memoryRatio: 0.1, cycleMs: 375 }, entities);
   }
-  assert.strictEqual(response.activeStageId, "onscreen-natural-bosses",
-    "sub-1000ms lag may progress through normal tiers but must not trigger a world reset");
+  assert.strictEqual(response.activeStageId, "onscreen-projectiles",
+    "the response ladder stops after onscreen projectile cleanup; it never disables live entities");
   assert.strictEqual(resets.length, 0, "sub-1000ms lag never invokes emergency world reset");
   assert(removed.some(([id, stage]) => id === "projectile-off" && stage === "offscreen-projectiles"));
   assert(!removed.some(([id, stage]) => id === "unknown-view" && stage === "offscreen-projectiles"),
@@ -89,12 +89,10 @@ function fastEnv() {
   assert(removed.some(([id, stage]) => id === "food-off" && stage === "offscreen-food"));
   assert(removed.some(([id, stage]) => id === "bot-off" && stage === "offscreen-bots"));
   assert(removed.some(([id, stage]) => id === "boss-off" && stage === "offscreen-natural-bosses"));
-  assert(suspended.some(([id, stage]) => id === "general-on" && stage === "onscreen-entities"));
   assert(removed.some(([id, stage]) => id === "projectile-on" && stage === "onscreen-projectiles"));
-  assert(suspended.some(([id, stage]) => id === "food-on" && stage === "onscreen-food"));
-  assert(suspended.some(([id, stage]) => id === "enemy-on" && stage === "onscreen-natural-enemies"));
-  assert(suspended.some(([id, stage]) => id === "bot-on" && stage === "onscreen-bots"));
-  assert(suspended.some(([id, stage]) => id === "boss-on" && stage === "onscreen-natural-bosses"));
+  assert.strictEqual(suspended.length, 0, "lag response must never disable or rename on-screen entities");
+  assert(createLagResponse.DEFAULT_STEPS.every((step) => step.action !== "suspend"),
+    "the mitigation ladder must not include disable/restore stages");
   let previousRecoveryIndex = response.activeStageIndex;
   let recoverySteps = 0;
   for (let tick = 0; tick < 13; tick++) {
@@ -108,8 +106,8 @@ function fastEnv() {
     }
   }
   assert.strictEqual(response.activeStageId, "normal", "sustained healthy speed gradually resets the response ladder");
-  assert(recoverySteps >= 10, "the recovery ramp should pass through the active tiers instead of snapping to normal");
-  assert.strictEqual(recovery.length, 1, "restoration begins once the first recovery interval is sustained");
+  assert(recoverySteps >= 5, "the recovery ramp should pass through each remaining mitigation tier");
+  assert.strictEqual(recovery.length, 1, "the recovery event fires after healthy performance is sustained");
 }
 
 // Runtime mitigation needs both poor throughput and a measured latency signal.

@@ -70,10 +70,16 @@ function chooseRandomThemes(themes, random = Math.random) {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   const selected = pool.slice(0, count);
-  // An ally/reinforcement wave is a special event: it replaces the normal
-  // enemy mix rather than being mixed into it.
+  // Reinforcements are a rare event: when selected, there is a 50% chance
+  // to ignore them and continue with ordinary enemy themes instead.
   const allyTheme = selected.find((theme) => theme.id === "spawnAllies");
-  return allyTheme ? [allyTheme] : selected;
+  if (!allyTheme) return selected;
+  if (randomUnit(random) >= 0.5) return [allyTheme];
+
+  const ordinaryThemes = selected.filter((theme) => theme.id !== "spawnAllies");
+  if (ordinaryThemes.length) return ordinaryThemes;
+  const ordinaryPool = pool.filter((theme) => theme.id !== "spawnAllies");
+  return ordinaryPool.length ? [ordinaryPool[randomIndex(ordinaryPool.length, random)]] : [];
 }
 
 /**
@@ -108,6 +114,61 @@ function chooseEnemy(themes, remainingBudget, random = Math.random, isValid = ()
   const candidates = Array.from(candidatesByName.values());
   if (!candidates.length) return null;
   return candidates[randomIndex(candidates.length, random)];
+}
+
+/**
+ * Plan a reinforcement roster under the wave budget. A reinforcement event may
+ * include at most one uniquely defined boss, plus any bots the remaining budget
+ * can pay for. Bots have a lower event cost so bosses and bots can arrive together.
+ */
+function planAllyRoster(theme, budget, random = Math.random, isValid = () => true, botBudgetCost = 10, maxBots = 3) {
+  const availableBudget = Number(budget);
+  const botCost = Number(botBudgetCost);
+  const botLimit = Number.isFinite(Number(maxBots)) ? Math.max(0, Math.floor(Number(maxBots))) : 3;
+  if (!Number.isFinite(availableBudget) || availableBudget <= 0 || !Number.isFinite(botCost) || botCost <= 0) return [];
+
+  const eligible = [];
+  const seenNames = new Set();
+  for (const enemy of (theme && theme.enemies) || []) {
+    if (!enemy || typeof enemy.name !== "string" || !Number.isFinite(enemy.cost) || enemy.cost <= 0) continue;
+    if (enemy.name !== "bot" && seenNames.has(enemy.name)) continue;
+    if (!isValid(enemy)) continue;
+    if (enemy.name !== "bot") seenNames.add(enemy.name);
+    eligible.push(enemy.name === "bot" ? { name: "bot", cost: botCost } : enemy);
+  }
+
+  const bot = eligible.find((enemy) => enemy.name === "bot");
+  const bosses = eligible.filter((enemy) => enemy.name !== "bot" && enemy.cost <= availableBudget);
+  const bossesThatCanBringBots = bot
+    ? bosses.filter((enemy) => enemy.cost + botCost <= availableBudget)
+    : [];
+
+  let boss = null;
+  if (bossesThatCanBringBots.length) {
+    boss = bossesThatCanBringBots[randomIndex(bossesThatCanBringBots.length, random)];
+  } else if (bosses.length && (!bot || availableBudget < botCost || randomUnit(random) < 0.5)) {
+    boss = bosses[randomIndex(bosses.length, random)];
+  }
+
+  const roster = [];
+  let remaining = availableBudget;
+  if (boss) {
+    roster.push({ name: boss.name, cost: boss.cost });
+    remaining -= boss.cost;
+  }
+  if (bot) {
+    let botsAdded = 0;
+    while (remaining >= botCost && botsAdded < botLimit) {
+      roster.push({ name: "bot", cost: botCost });
+      remaining -= botCost;
+      botsAdded++;
+    }
+  }
+  if (!roster.length && bosses.length) {
+    const fallback = bosses[randomIndex(bosses.length, random)];
+    roster.push({ name: fallback.name, cost: fallback.cost });
+  }
+  return roster;
 }
 
 const THEME_DEFINITIONS = [
@@ -354,4 +415,5 @@ module.exports = {
   createEnemyCatalog,
   chooseRandomThemes,
   chooseEnemy,
+  planAllyRoster,
 };

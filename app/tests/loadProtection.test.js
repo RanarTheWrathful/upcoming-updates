@@ -344,7 +344,7 @@ function makeEntity(overrides = {}) {
   assert.strictEqual(test.protection.shouldSpawnNaturalEntities(), true);
 }
 
-// Recovery after temporary suspension restores opacity, names, and gameplay state.
+// Lag mitigation must never rename, fade, or disable on-screen gameplay entities.
 {
   let now = 0;
   const ownedProjectile = makeEntity({
@@ -358,17 +358,13 @@ function makeEntity(overrides = {}) {
   ownedProjectile.source = visibleEnemy;
   const entities = [visibleEnemy, ownedProjectile];
   const env = {};
-  // Use the real staged sequence with short timings; one visible general entity is
-  // suspended only after the five off-screen sweeps have been completed.
   const { DEFAULT_STEPS } = require("../lib/lagResponse");
   for (const step of DEFAULT_STEPS) {
     const prefix = "RANAR_LAG_STEP_" + step.id.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
     env[prefix + "_DURATION_MS"] = "1";
     env[prefix + "_MIN_ACTIVE_MS"] = "0";
   }
-  env.RANAR_LOAD_ENTITY_FADE_MS = "2";
   env.RANAR_LOAD_RUNTIME_EMA_ALPHA = "1";
-  env.RANAR_LAG_RESPONSE_RECOVERY_MS = "5";
   const test = makeProtection({
     env,
     options: {
@@ -381,21 +377,13 @@ function makeEntity(overrides = {}) {
     test.setNow(now);
     test.protection.reportCycle(260, entities, now - 260);
   }
-  assert.strictEqual(visibleEnemy._loadDisabled, true,
-    "an on-screen ordinary entity is disabled only after earlier mitigation stages");
-  assert.strictEqual(ownedProjectile._loadDisabled, true,
-    "owned projectiles are suspended together with their visible owner");
-  for (let tick = 0; tick < 8; tick++) {
-    now += 10;
-    test.setNow(now);
-    test.protection.reportCycle(5, entities, now - 5);
-  }
   assert.strictEqual(visibleEnemy._loadDisabled, undefined,
-    "sustained healthy throughput restores suspended entities");
+    "on-screen entities are never marked disabled during lag mitigation");
   assert.strictEqual(ownedProjectile._loadDisabled, undefined,
-    "owned projectiles are restored with their owner when load recovers");
-  assert.strictEqual(visibleEnemy.name, "Visible Enemy");
-  assert.strictEqual(visibleEnemy.destroyed, false);
+    "owned entities are never suspended with their owner");
+  assert.strictEqual(visibleEnemy.name, "Visible Enemy", "entity identity is preserved");
+  assert.strictEqual(visibleEnemy.alpha, 1, "entity opacity is not modified by lag mitigation");
+  assert.strictEqual(visibleEnemy.destroyed, false, "on-screen general entities remain live");
 }
 
 console.log("loadProtection tests passed");

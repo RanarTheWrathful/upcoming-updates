@@ -1329,44 +1329,9 @@ function createLoadProtection(options = {}) {
     }
   }
 
-  function suspendEntity(entity, reason, kind, score, suspensionOptions = {}) {
-    if (!entity || !isEntityLive(entity) || isDisabledOrRespawning(entity) ||
-        suspendedEntities.has(entity) || shouldKeepEntity(entity, suspensionOptions)) return null;
-    if (typeof entity.isDead === "function") {
-      let dead = false;
-      try { dead = entity.isDead(); } catch (_) { dead = true; }
-      if (dead) return null;
-    }
-    const originalAlpha = typeof entity.alpha === "number" && Number.isFinite(entity.alpha) ? entity.alpha : 1;
-    const state = {
-      kind: kind || "critical",
-      originalName: entity.name,
-      originalAlpha,
-      targetAlpha: clampVisualAlpha(originalAlpha),
-      hadAllowPlate: Object.prototype.hasOwnProperty.call(entity, "allowPlate"),
-      originalAllowPlate: entity.allowPlate,
-      phase: "fadingOut",
-      transitionStartedAt: nowProvider(),
-      startAlpha: clampVisualAlpha(originalAlpha),
-      restoreReason: null,
-      allowNaturalBoss: suspensionOptions.allowNaturalBoss === true,
-      root: suspensionOptions.root || entity,
-      allowedOwnedEntities: suspensionOptions.allowedOwnedEntities || null,
-    };
-    suspendedEntities.set(entity, state);
-    entity._loadDisabled = true;
-    entity.name = "[Disabled]";
-    entity.allowPlate = true;
-    entity.alpha = state.startAlpha;
-    callEntityChange(entity, true, {
-      reason: reason || "load policy suspended entity",
-      score: Number.isFinite(score) ? score : entityCostScore(entity),
-      cycleMs: lastCycleMs,
-      stage: effectiveStage(),
-      fadeMs: entityFadeMs,
-      kind: state.kind,
-    });
-    return entity;
+  function suspendEntity() {
+    // Legacy safeguard: lag handling must never rename, fade, or disable live entities.
+    return null;
   }
 
   function resetSuspensionSearch() {
@@ -1918,7 +1883,7 @@ function createLoadProtection(options = {}) {
     isCandidate: isLagResponseCandidate,
     scoreEntity: entityCostScore,
     onDestroy: destroyLagEntity,
-    onSuspend: suspendLagUnit,
+    onSuspend: () => false,
     onSoftReset(details) {
       if (typeof options.onSoftReset === "function") options.onSoftReset(details);
     },
