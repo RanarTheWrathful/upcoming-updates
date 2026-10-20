@@ -97699,7 +97699,7 @@ exports.splatterer,
 ];
 exports.fighter.UPGRADES_TIER_5 = [
 exports.woodpecker,
-exports.tritri
+exports.boosttrap
 ];
 exports.booster.UPGRADES_TIER_4 = [
 exports.replicator,
