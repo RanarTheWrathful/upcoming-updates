@@ -36708,7 +36708,6 @@ exports.roadblock = {
           g.uberHealth,
           g.lesserDamage,
           g.minorSpeed,
-          g.superPenetration,
           g.superSize,
           g.halfRange,
         ]),
@@ -89467,7 +89466,8 @@ exports.dominator_single = {
           g.superReload,
           g.superReload,
           g.doubleReload,
-          g.halfSpeed,
+          g.lesserSpeed,
+          g.doubleRange,
         ]),
         TYPE: exports.bullet,
       },
@@ -89505,6 +89505,7 @@ for (let i = 0; i < 8; i++) {
           g.minorDamage,
           g.greaterHealth,
           g.greaterReload,
+          g.doubleRange,
         ]),
         TYPE: exports.trap,
         STAT_CALCULATOR: gunCalcNames.trap,
@@ -89516,7 +89517,7 @@ for (let i = 0; i < 8; i++) {
 exports.dominator_nail = {
   PARENT: [exports.dominator],
   BODY: {
-    FOV: 0.75,
+    FOV: 0.85,
   },
   GUNS: [
     {
@@ -89532,6 +89533,7 @@ exports.dominator_nail = {
           g.halfReload,
           g.lesserSize,
           g.doubleDamage,
+          g.greaterSpeed
         ]),
         TYPE: exports.bullet,
       },

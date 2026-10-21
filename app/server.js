@@ -723,8 +723,12 @@ entityBranches.validateDefinitions(Class);
 function getSiegeDefinitionCost(name) {
   if (name === "bot") return siegeBudgetMath.MIN_BOT_SCORE;
   const score = siegeBudgetMath.getDefinitionScore(Class && Class[name]);
-  // Zero-score candidates would be free and could create an unbounded wave.
-  return Number.isFinite(score) && score > 0 ? score : null;
+  // Polygon choices spawn packs. Price the full pack, not just one polygon;
+  // otherwise a 25-polygon swarm consumes the budget of a single entity and
+  // can multiply the actual entity count by 25, causing severe lag.
+  const packSize = Math.max(1, Number(siegeWavePlanner.POLYGON_SPAWN_COUNTS[name]) || 1);
+  const totalCost = Number(score) * packSize;
+  return Number.isFinite(totalCost) && totalCost > 0 ? totalCost : null;
 }
 
 function buildSiegeEnemyCatalog() {
@@ -1064,13 +1068,13 @@ function countLiveSiegeHostiles(excludedEntity = null) {
 // the whole Siege run waiting forever for another death callback.
 function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
   if (c.MODE !== "siege" || expectedWave !== c.bossWave) return false;
+  // Do not let an empty/prepared wave schedule another transition while its
+  // ten-second announcement countdown is still running.
+  if (c.siegeAdvancePhase === "countdown") return false;
   if (c.siegeAdvanceScheduledWave === expectedWave || c.siegeLastAdvancedWave === expectedWave) {
     return false;
   }
 
-  // Keep exactly one wave-transition timer alive. A wave must be truly empty
-  // for five seconds before announcing the ten-second countdown, and must still
-  // be empty when that countdown expires.
   c.siegeAdvanceScheduledWave = expectedWave;
   c.siegeAdvancePhase = "checking";
 
@@ -1078,10 +1082,10 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
     if (c.siegeAdvanceTimer) clearTimeout(c.siegeAdvanceTimer);
     c.siegeAdvanceTimer = null;
   };
-  const finishSchedule = () => {
+  const finishSchedule = (phase = null) => {
     clearTimer();
     if (c.siegeAdvanceScheduledWave === expectedWave) c.siegeAdvanceScheduledWave = null;
-    c.siegeAdvancePhase = null;
+    c.siegeAdvancePhase = phase;
   };
   const isCurrentWave = () => c.MODE === "siege" && c.bossWave === expectedWave;
   const canAdvance = () => {
@@ -1117,6 +1121,7 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
       return;
     }
 
+    // Five-second grace period after the last hostile is gone.
     c.siegeAdvancePhase = "clear-grace";
     schedule(5000, () => {
       if (!isCurrentWave()) {
@@ -1129,31 +1134,40 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
         return;
       }
 
-      c.siegeAdvancePhase = "countdown";
+      // Prepare the next wave at the beginning of its ten-second countdown,
+      // not after it. This lets the server calculate the budget and start
+      // creating enemies while the countdown is running.
+      const nextWave = expectedWave + 1;
+      c.siegeLastAdvancedWave = expectedWave;
+      finishSchedule("countdown");
+      c.bossWave = nextWave;
+      c.siegeAlliesSpawnedWave = null;
+      c.dontSpam = true;
+      c.bossAmount = 1;
+      c.initiateEpicWave = false;
+      c.pingBack = true;
+      c.continueWave = false;
+      c.uniqueBossList = [];
+      currentState.bossWaves = nextWave + 1;
+
+      // Calculate the budget synchronously now so spawning can begin during
+      // the countdown rather than waiting for a later game-loop tick.
+      c.bossCounter = calculateSiegeWaveBudget(nextWave);
       sockets.broadcast("The next wave will start in 10 seconds.");
+
       schedule(10000, () => {
-        if (!isCurrentWave()) {
+        if (c.MODE !== "siege" || c.bossWave !== nextWave) {
           finishSchedule();
           return;
         }
-        if (!canAdvance()) {
-          // Never advance into a live enemy or pending reinforcement.
-          waitUntilClear();
-          return;
-        }
-
-        c.siegeLastAdvancedWave = expectedWave;
         finishSchedule();
-        c.bossWave = expectedWave + 1;
-        c.siegeAlliesSpawnedWave = null;
-        c.continueWave = true;
-        c.dontSpam = true;
-        c.bossAmount = 1;
-        c.initiateEpicWave = false;
-        c.pingBack = false;
-        c.uniqueBossList = [];
-        currentState.bossWaves = c.bossWave + 1;
-        sockets.broadcast("Wave " + c.bossWave + " has started!");
+        sockets.broadcast("Wave " + nextWave + " has started!");
+        // A wave can spend its entire budget on non-counted polygon scenery.
+        // If nothing hostile remains after the countdown, resume transitions
+        // rather than waiting for a death callback that will never arrive.
+        if (Number(c.bossCounter) <= 0 && countLiveSiegeHostiles() <= 0) {
+          scheduleSiegeWaveAdvance(nextWave);
+        }
       });
     });
   };
@@ -1368,8 +1382,8 @@ function spawnSiegeEnemyFromBudget() {
 
   const configuredPolygonCount = siegePolygonSpawnCounts[enemy.name] || 0;
   const isPolygonSwarm = configuredPolygonCount > 0;
-  // A polygon selection is one score-priced choice. Its configured swarm is
-  // spawned as a pack; the pack does not multiply the selection's budget cost.
+  // Polygon packs are priced by their combined entity score in the catalog,
+  // so a swarm's full entity count is charged against the wave budget.
   const spawnCount = isPolygonSwarm ? configuredPolygonCount : 1;
   let spawnedCount = 0;
   let spawnedEntityScore = null;
@@ -1415,8 +1429,8 @@ function spawnSiegeEnemyFromBudget() {
         o.velocity.x = (dx / distance) * impulse;
         o.velocity.y = (dy / distance) * impulse;
       }
-      // Prevent food's circling AI from steering against the one-time impulse.
-      o.controllers = [];
+      // Keep the polygon's inherited moveInCircles controller. Clearing the
+      // controller list here made Siege-spawned polygons permanently lose it.
       o.damp = 0.05;
     }
     if (siegeLowPolygonNames.has(enemy.name)) {
@@ -1435,9 +1449,9 @@ function spawnSiegeEnemyFromBudget() {
     // Failed location/cap checks must not silently consume the wave's budget.
     return;
   }
-  // Polygon packs cost the score of one polygon regardless of pack size.
-  // For other enemies charge their post-definition score (normally identical
-  // to enemy.cost), retaining affordability if a definition changes later.
+  // Polygon catalog costs already include every entity in the pack. For other
+  // enemies charge their post-definition score (normally enemy.cost), retaining
+  // affordability if a definition changes later.
   const spawnedCost = isPolygonSwarm
     ? enemy.cost
     : Math.max(0, Number(spawnedEntityScore) || Number(enemy.cost) || 0);
@@ -1450,6 +1464,9 @@ function spawnSiegeEnemyFromBudget() {
   if (c.bossCounter <= 0 && countLiveSiegeHostiles() <= 0) {
     scheduleSiegeWaveAdvance(c.bossWave);
   }
+  // A polygon choice may create a large pack; the countdown batcher must not
+  // immediately create several more packs in the same maintain cycle.
+  return isPolygonSwarm;
 }
 
 //Makenpc functions
@@ -3365,35 +3382,28 @@ function siegeCountdown() {
 
 function sortByDistance(array, location) {
   array.sort((a, b) => {
-    let ad = Math.pow(a.x - location.x, 2) + Math.pow(a.y - location.y, 2);
-    let bd = Math.pow(b.x - location.x, 2) + Math.pow(b.y - location.y, 2);
-    if (a < b) {
-      return -1;
-    } else if (b < a) {
-      return 1;
-    } else {
-      return 0;
-    }
+    const ad = (a.x - location.x) ** 2 + (a.y - location.y) ** 2;
+    const bd = (b.x - location.x) ** 2 + (b.y - location.y) ** 2;
+    return ad - bd;
   });
 }
 
 function getEntitiesFromRange(location, range) {
-  let box = [
+  const box = [
     location.x - range,
     location.y - range,
     location.x + range,
     location.y + range,
   ];
-  return boxIntersect([box], activeAabb)
-    .map((v) => {
-      let e = activeEntities[v[1]];
-      if (e.valid()) {
-        return e;
-      }
-    })
-    .filter((e) => {
-      return e;
-    });
+  const intersections = boxIntersect([box], activeAabb);
+  const found = [];
+  // Avoid the two intermediate arrays created by map().filter() on this hot
+  // AI path, which can run for many entities every simulation tick.
+  for (let i = 0; i < intersections.length; i++) {
+    const entity = activeEntities[intersections[i][1]];
+    if (entity && entity.valid()) found.push(entity);
+  }
+  return found;
 }
 
 // Define IOs (AI)
@@ -4643,6 +4653,13 @@ class io_Dominator extends IO {
     // Filter through everybody...
     let out = getEntitiesFromRange(m, range)
       .map((e) => {
+        // Dominators and sanctuaries should only prioritize septagons and larger
+        // polygons. Small food/polygon entities are scenery, not objectives.
+        if (
+          e.type === "food" &&
+          Number.isFinite(Number(e.shape)) &&
+          Number(e.shape) < 7
+        ) return;
         // Only look at those within our view, and our parent's view, not dead, not our kind, not a bullet/trap/block etc
         if (e.health.amount > 0) {
           if (!e.invuln) {
@@ -24445,7 +24462,17 @@ var maintainloop = (() => {
     // Siege's budget is global mode state. Spawn at most one budgeted unit or
     // swarm per maintain cycle (200 ms), never once for every active entity.
     if (c.MODE === "siege" && c.bossCounter > 0) {
-      spawnSiegeEnemyFromBudget();
+      const isPreparingWave = c.siegeAdvancePhase === "countdown";
+      const selectedThemes = c.siegeSelectedThemes || [];
+      const isAllyWave = selectedThemes.some((theme) => theme && theme.id === "spawnAllies");
+      // Build ordinary waves faster during the ten-second countdown, but keep
+      // the regular one-spawn cadence during combat and never batch polygon packs.
+      const spawnLimit = isPreparingWave && !isAllyWave ? 4 : 1;
+      for (let i = 0; i < spawnLimit && c.bossCounter > 0; i++) {
+        const budgetBeforeSpawn = c.bossCounter;
+        const spawnedPolygonPack = spawnSiegeEnemyFromBudget();
+        if (spawnedPolygonPack === true || c.bossCounter >= budgetBeforeSpawn) break;
+      }
     }
     if (c.SPAWN_FOOD !== false && room.maxFood > 0) makefood(loadProtection.shouldSpawnFood());
     // Regen health and update the grid. Positive REGEN restores resources;
