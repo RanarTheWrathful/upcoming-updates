@@ -181,6 +181,8 @@ c.siegePendingAlliedBots = 0;
 c.siegePendingEnemyBots = 0;
 c.siegePendingAllySpawns = 0;
 c.siegePendingAllySpawnWave = null;
+c.siegePendingAllyBudget = null;
+c.siegeAllySpawnSuccessCount = 0;
 let wE1 = [
   "eggCrasher",
   "squareCrasher",
@@ -308,8 +310,8 @@ const siegeCostTiers = [
   { cost: 15, enemies: t1B },
   { cost: 30, enemies: t2B },
   { cost: 45, enemies: t3B },
-  // Each generic polygon type costs one budget point per selection; spawning
-  // its configured swarm does not multiply that cost.
+  // Generic polygons are charged per body actually spawned; the chosen class
+  // still uses its configured swarm size, capped by the remaining wave budget.
   { cost: 1, enemies: Object.keys(siegeWavePlanner.POLYGON_SPAWN_COUNTS) },
 ];
 const siegeEnemyCatalog = siegeWavePlanner.createEnemyCatalog(
@@ -815,6 +817,38 @@ function isValidSiegeEnemy(candidate) {
     Class[candidate.name] && typeof Class[candidate.name] === "object"));
 }
 
+function getSiegeFallbackThemes() {
+  return siegeEnemyCatalog
+    .filter((theme) => theme.id !== "spawnAllies")
+    .map((theme) => ({
+      id: theme.id,
+      label: theme.label,
+      enemies: theme.enemies.filter(isValidSiegeEnemy),
+    }))
+    .filter((theme) => theme.enemies.length > 0);
+}
+
+function fallbackToSiegeHostileWave(wave, budget, reason) {
+  if (c.MODE !== "siege" || c.bossWave !== wave) return false;
+  const fallbackThemes = getSiegeFallbackThemes();
+  const remainingBudget = Math.max(0, Math.floor(Number(budget) || 0));
+  if (!fallbackThemes.length || remainingBudget <= 0) return false;
+
+  // Keep the budget alive and use all valid non-ally themes so the fallback
+  // cannot immediately choose another unaffordable subset.
+  c.siegeSelectedWave = wave;
+  c.siegeSelectedThemes = fallbackThemes;
+  c.siegeSelectedThemeNames = fallbackThemes.map((theme) => theme.label);
+  c.siegeAlliesSpawnedWave = wave;
+  c.siegePendingAllySpawnWave = null;
+  c.siegePendingAllySpawns = 0;
+  c.siegePendingAllyBudget = null;
+  c.siegeAllySpawnSuccessCount = 0;
+  c.bossCounter = remainingBudget;
+  util.log(`[Siege] Wave ${wave} switched to hostile enemies: ${reason}.`);
+  return true;
+}
+
 function getSiegeBotSpawnQueue() {
   if (!Array.isArray(c.siegeBotSpawnQueue)) c.siegeBotSpawnQueue = [];
   return c.siegeBotSpawnQueue;
@@ -846,7 +880,13 @@ function finishSiegeAllySpawn(wave) {
 
   c.siegePendingAllySpawns = Math.max(0, Math.floor(Number(c.siegePendingAllySpawns) || 0) - 1);
   if (c.siegePendingAllySpawns === 0) {
+    if (Number(c.siegeAllySpawnSuccessCount) <= 0) {
+      const fallbackBudget = Number(c.siegePendingAllyBudget) || Number(c.preparedCounter) || 50;
+      if (fallbackToSiegeHostileWave(wave, fallbackBudget, "all reinforcement spawns failed")) return;
+    }
     c.siegePendingAllySpawnWave = null;
+    c.siegePendingAllyBudget = null;
+    c.siegeAllySpawnSuccessCount = 0;
     if (c.MODE === "siege" && c.bossWave === wave && Number(c.bossCounter) <= 0) {
       scheduleSiegeWaveAdvance(wave, 5432);
     }
@@ -858,9 +898,24 @@ function expireSiegeBotQueueEntries(now = Date.now()) {
   const expired = [];
   for (let i = queue.length - 1; i >= 0; i--) {
     const entry = queue[i];
-    if (!entry || now - Number(entry.queuedAt || now) >= 30000) {
-      expired.push(queue.splice(i, 1)[0]);
+    if (!entry) {
+      queue.splice(i, 1);
+      continue;
     }
+    if (now - Number(entry.queuedAt || now) < 30000) continue;
+
+    // A Siege bot has already consumed wave budget (or is part of a paid ally
+    // roster). Do not silently discard it merely because load protection is
+    // temporarily pausing natural spawns; doing so produced empty bot/ally waves.
+    if (c.MODE === "siege" && entry.wave === c.bossWave) {
+      entry.queuedAt = now;
+      if (!entry.stallWarningAt || now - entry.stallWarningAt >= 30000) {
+        util.log(`[Siege] A queued ${entry.team === -1 ? "ally" : "hostile"} bot is waiting for an allowed spawn.`);
+        entry.stallWarningAt = now;
+      }
+      continue;
+    }
+    expired.push(queue.splice(i, 1)[0]);
   }
   syncSiegeBotQueueCounts();
   for (const entry of expired) {
@@ -869,7 +924,7 @@ function expireSiegeBotQueueEntries(now = Date.now()) {
     else if (entry.wave === c.bossWave && Number(c.bossCounter) <= 0) {
       scheduleSiegeWaveAdvance(entry.wave, 1000);
     }
-    util.log(`[Siege] A queued ${entry.team === -1 ? "ally" : "hostile"} bot could not find an allowed spawn within 30 seconds; skipping it.`);
+    util.log(`[Siege] Removed a stale queued ${entry.team === -1 ? "ally" : "hostile"} bot from wave ${entry.wave}.`);
   }
 }
 
@@ -932,6 +987,7 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave, delay = 5432) {
     c.siegeLastAdvancedWave = expectedWave;
     c.preparedCounter = expectedWave * 5 + 50;
     c.bossWave = expectedWave + 1;
+    c.siegeAlliesSpawnedWave = null;
     c.continueWave = true;
     c.dontSpam = true;
     c.bossAmount = 1;
@@ -997,6 +1053,7 @@ function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
       o.showOnMap = true;
       o.siegeProgress = true;
       o._siegeAlly = true;
+      c.siegeAllySpawnSuccessCount = (Number(c.siegeAllySpawnSuccessCount) || 0) + 1;
       // Do not overwrite NAME from a definition: named bosses (e.g. Twilight)
       // keep their identity; unnamed bosses remain unnamed instead of receiving
       // a random player-style name.
@@ -1020,15 +1077,20 @@ function spawnSiegeAllyWave(theme, budget) {
   const selected = siegeWavePlanner.planAllyRoster(
     theme, budget, Math.random, isValidSiegeEnemy
   );
-  c.bossCounter = 0;
   if (!selected.length) {
+    // Never turn a bad/empty reinforcement roster into a blank wave.
+    if (fallbackToSiegeHostileWave(completedWave, budget, "no eligible reinforcement roster")) return;
+    c.bossCounter = 0;
     c.siegePendingAllySpawns = 0;
     c.siegePendingAllySpawnWave = null;
-    util.log(`[Siege] Wave ${completedWave} had no eligible reinforcements; scheduling wave advance.`);
+    util.log(`[Siege] Wave ${completedWave} had no valid enemy or reinforcement definitions.`);
     scheduleSiegeWaveAdvance(completedWave, 5432);
     return;
   }
+  c.bossCounter = 0;
 
+  c.siegePendingAllyBudget = budget;
+  c.siegeAllySpawnSuccessCount = 0;
   c.siegePendingAllySpawnWave = completedWave;
   c.siegePendingAllySpawns = selected.length;
   const names = selected.map((enemy) => {
@@ -1052,12 +1114,31 @@ function spawnSiegeAllyWave(theme, budget) {
   selected.forEach((enemy, i) => spawnSiegeAlly(enemy, i, completedWave));
 }
 
+function getSiegeEnemySpawnLocation() {
+  // Siege normally uses perimeter spawn points. Some custom maps do not have
+  // a usable spw0 cell, so fall back to normal arena cells rather than leaving
+  // a budgeted wave unable to spawn anything.
+  for (const region of ["spw0", "norm"]) {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const point = room.randomType(region);
+      if (point && !room.isIn("wall", point)) return point;
+    }
+  }
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const point = room.random();
+    if (point && !room.isIn("wall", point)) return point;
+  }
+  return null;
+}
+
 function spawnSiegeEnemyFromBudget() {
   const budget = Number(c.bossCounter);
   if (!Number.isFinite(budget) || budget <= 0) {
     c.bossCounter = 0;
     return;
   }
+  if (!loadProtection.shouldSpawnNaturalEntities()) return;
+
   const themes = getSiegeThemesForCurrentWave();
   const allyTheme = themes.find((theme) => theme.id === "spawnAllies");
   if (allyTheme) {
@@ -1065,14 +1146,23 @@ function spawnSiegeEnemyFromBudget() {
     return;
   }
 
-  const enemy = siegeWavePlanner.chooseEnemy(themes, budget, Math.random, isValidSiegeEnemy);
+  let enemy = siegeWavePlanner.chooseEnemy(themes, budget, Math.random, isValidSiegeEnemy);
   if (!enemy) {
-    // No selected theme has a valid, affordable enemy. End the budget and
-    // advance only after any already-spawned hostiles from this wave are gone.
-    c.bossCounter = 0;
-    util.log(`[Siege] Wave ${c.bossWave} has no eligible enemy for remaining budget ${budget}.`);
-    scheduleSiegeWaveAdvance(c.bossWave, 5432);
-    return;
+    // The random theme subset may contain only expensive classes that no longer
+    // fit the leftover budget. Rescue the wave using the valid global catalog
+    // rather than silently consuming the remaining budget and showing an empty wave.
+    const fallbackThemes = getSiegeFallbackThemes();
+    enemy = siegeWavePlanner.chooseEnemy(fallbackThemes, budget, Math.random, isValidSiegeEnemy);
+    if (enemy) {
+      c.siegeSelectedThemes = fallbackThemes;
+      c.siegeSelectedThemeNames = fallbackThemes.map((candidateTheme) => candidateTheme.label);
+      util.log(`[Siege] Wave ${c.bossWave} expanded its theme pool to spend remaining budget ${budget}.`);
+    } else {
+      c.bossCounter = 0;
+      util.log(`[Siege] Wave ${c.bossWave} has no valid affordable enemy for remaining budget ${budget}.`);
+      scheduleSiegeWaveAdvance(c.bossWave, 5432);
+      return;
+    }
   }
 
   if (enemy.name === "bot") {
@@ -1081,14 +1171,22 @@ function spawnSiegeEnemyFromBudget() {
     // a perimeter spawn instead of a team-relative dominator location.
     enqueueSiegeBot(-100, c.bossWave, false);
     c.bossCounter = Math.max(0, budget - enemy.cost);
+    util.log(`[Siege] Queued hostile Bot for wave ${c.bossWave}; budget ${budget} -> ${c.bossCounter}.`);
     return;
   }
 
-  const spawnCount = siegePolygonSpawnCounts[enemy.name] || 1;
+  const configuredPolygonCount = siegePolygonSpawnCounts[enemy.name] || 0;
+  const isPolygonSwarm = configuredPolygonCount > 0;
+  // Generic food-derived polygons cost one budget point per actual polygon,
+  // not one point for an entire 25-entity swarm. Partial spawns under load are
+  // charged only for the entities that were really created.
+  const spawnCount = isPolygonSwarm
+    ? Math.min(configuredPolygonCount, Math.max(1, Math.floor(budget)))
+    : 1;
   let spawnedCount = 0;
   for (let i = 0; i < spawnCount; i++) {
     if (!loadProtection.canSpawnNaturalEntity()) break;
-    const spawnLocation = room.randomType("spw0");
+    const spawnLocation = getSiegeEnemySpawnLocation();
     if (!spawnLocation) break;
     const o = new Entity(spawnLocation);
     o.rarity = Math.random() * 10000;
@@ -1149,7 +1247,8 @@ function spawnSiegeEnemyFromBudget() {
     // Failed location/cap checks must not silently consume the wave's budget.
     return;
   }
-  c.bossCounter = Math.max(0, budget - enemy.cost);
+  const budgetSpent = isPolygonSwarm ? spawnedCount : enemy.cost;
+  c.bossCounter = Math.max(0, budget - budgetSpent);
   if (c.bossCounter <= 0 && countLiveSiegeHostiles() <= 0) {
     scheduleSiegeWaveAdvance(c.bossWave, 5432);
   }
@@ -8981,9 +9080,9 @@ class Entity {
               break;
           } //just let* me cook
         } //wdym unsystactic break
-        if (c.bossCounter > 0 && c.MODE === "siege") {
-          spawnSiegeEnemyFromBudget();
-        } else if (c.bossCounter > 0) {
+        // Siege budget spawning runs once per maintain-loop below, not once
+        // per entity life. Keep the legacy per-entity path for other modes only.
+        if (c.bossCounter > 0 && c.MODE !== "siege") {
           let o = new Entity(room.randomType("spw0"));
           // o.bossTier = ran.choose(bt);
           o.rarity = Math.random() * 10000;
@@ -22872,7 +22971,7 @@ var maintainloop = (() => {
         c.MODE !== "theDenied" &&
         (hasRegularBotSlot || queuedSiegeBot) &&
         c.botSpawn === true &&
-        loadProtection.shouldSpawnBot()
+        (queuedSiegeBot || loadProtection.shouldSpawnBot())
       ) {
         c.botCount = bots.length;
         let position;
@@ -23221,7 +23320,11 @@ var maintainloop = (() => {
             syncSiegeBotQueueCounts();
           }
           bots.push(o);
+          if (queuedSiegeBot) {
+            util.log(`[Siege] Spawned ${spawnAsSiegeAllyBot ? "ally" : "hostile"} Bot for wave ${queuedSiegeBot.wave}.`);
+          }
           if (spawnAsSiegeAllyBot && queuedSiegeBot) {
+            c.siegeAllySpawnSuccessCount = (Number(c.siegeAllySpawnSuccessCount) || 0) + 1;
             finishSiegeAllySpawn(queuedSiegeBot.wave);
           }
         }
@@ -24126,6 +24229,11 @@ var maintainloop = (() => {
     logs.maintainloop.set();
     // Do stuff
     makenpcs();
+    // Siege's budget is global mode state. Spawn at most one budgeted unit or
+    // swarm per maintain cycle (200 ms), never once for every active entity.
+    if (c.MODE === "siege" && c.bossCounter > 0) {
+      spawnSiegeEnemyFromBudget();
+    }
     if (c.SPAWN_FOOD !== false && room.maxFood > 0) makefood(loadProtection.shouldSpawnFood());
     // Regen health and update the grid. Positive REGEN restores resources;
     // negative REGEN drains them. Existing no-regen sentinels are normalized

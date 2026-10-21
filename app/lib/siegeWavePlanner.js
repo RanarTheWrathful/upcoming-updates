@@ -391,6 +391,13 @@ const THEME_DEFINITIONS = [
     ],
   },
   {
+    id: "bots",
+    label: "AI Bots",
+    // Keep Bot as a standalone theme as well as a reinforcement option. Class.bot
+    // is intentionally virtual; server.js routes it through the bot constructor.
+    enemies: ["bot"],
+  },
+  {
     id: "fallen",
     label: "Fallen",
     enemies: [
