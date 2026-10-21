@@ -3,14 +3,14 @@
 // Lag response is ordered deliberately: cheap/off-screen cleanup first, then
 // increasingly disruptive actions only after sustained server slowdowns.
 const DEFAULT_STEPS = Object.freeze([
-  // Ordinary mitigation must be backed by both low server throughput and a
-  // measured slow cycle/event-loop delay. Each step has a five-second dwell.
-  { id: "offscreen-projectiles", category: "projectile", visibility: "offscreen", action: "destroy", speed: 42, lagMs: 100, durationMs: 5000, minActiveMs: 5000 },
-  { id: "offscreen-natural-enemies", category: "naturalEnemy", visibility: "offscreen", action: "destroy", speed: 38, lagMs: 125, durationMs: 5000, minActiveMs: 5000 },
-  { id: "offscreen-food", category: "food", visibility: "offscreen", action: "destroy", speed: 34, lagMs: 150, durationMs: 5000, minActiveMs: 5000 },
-  { id: "offscreen-bots", category: "bot", visibility: "offscreen", action: "destroy", speed: 30, lagMs: 175, durationMs: 5000, minActiveMs: 5000 },
-  { id: "offscreen-natural-bosses", category: "naturalBoss", visibility: "offscreen", action: "destroy", speed: 27, lagMs: 200, durationMs: 5000, minActiveMs: 5000 },
-  { id: "onscreen-projectiles", category: "projectile", visibility: "onscreen", action: "destroy", speed: 20, lagMs: 250, durationMs: 5000, minActiveMs: 5000 },
+  // These are server-side simulation/event-loop measurements, not client ping.
+  // Wait until measured server-cycle cost reaches 100ms before any mitigation begins.
+  { id: "offscreen-projectiles", category: "projectile", visibility: "offscreen", action: "destroy", speed: 65, lagMs: 100, durationMs: 3000, minActiveMs: 3000 },
+  { id: "offscreen-natural-enemies", category: "naturalEnemy", visibility: "offscreen", action: "destroy", speed: 50, lagMs: 100, durationMs: 4000, minActiveMs: 4000 },
+  { id: "offscreen-food", category: "food", visibility: "offscreen", action: "destroy", speed: 38, lagMs: 140, durationMs: 5000, minActiveMs: 5000 },
+  { id: "offscreen-bots", category: "bot", visibility: "offscreen", action: "destroy", speed: 30, lagMs: 190, durationMs: 5000, minActiveMs: 5000 },
+  { id: "offscreen-natural-bosses", category: "naturalBoss", visibility: "offscreen", action: "destroy", speed: 25, lagMs: 230, durationMs: 5000, minActiveMs: 5000 },
+  { id: "onscreen-projectiles", category: "projectile", visibility: "onscreen", action: "destroy", speed: 18, lagMs: 300, durationMs: 5000, minActiveMs: 5000 },
   // Only sustained extreme lag and very poor throughput may trigger a full
   // process shutdown. The server must not attempt a destructive in-game reset.
   { id: "emergency-shutdown", category: "all", visibility: "any", action: "shutdown", speed: 5, lagMs: 1000, durationMs: 15000, minActiveMs: 0 },

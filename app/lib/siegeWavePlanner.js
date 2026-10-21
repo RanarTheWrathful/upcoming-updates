@@ -21,10 +21,7 @@ function randomIndex(length, random) {
   return Math.floor(randomUnit(random) * length);
 }
 
-/**
- * Build themed lists with costs inherited from Siege's existing budget tiers.
- * A class that appears in more than one tier keeps its cheapest listed cost.
- */
+/** Build themed lists from the score cost supplied for each enemy class. */
 function createEnemyCatalog(costTiers, themeDefinitions) {
   const costs = new Map();
 
@@ -116,58 +113,62 @@ function chooseEnemy(themes, remainingBudget, random = Math.random, isValid = ()
   return candidates[randomIndex(candidates.length, random)];
 }
 
-/**
- * Plan a reinforcement roster under the wave budget. A reinforcement event may
- * include at most one uniquely defined boss, plus any bots the remaining budget
- * can pay for. Bots have a lower event cost so bosses and bots can arrive together.
- */
+/** Plan one affordable reinforcement boss plus any individually affordable bots. */
 function planAllyRoster(theme, budget, random = Math.random, isValid = () => true, botBudgetCost = 10, maxBots = 3) {
   const availableBudget = Number(budget);
-  const botCost = Number(botBudgetCost);
   const botLimit = Number.isFinite(Number(maxBots)) ? Math.max(0, Math.floor(Number(maxBots))) : 3;
-  if (!Number.isFinite(availableBudget) || availableBudget <= 0 || !Number.isFinite(botCost) || botCost <= 0) return [];
+  if (!Number.isFinite(availableBudget) || availableBudget <= 0) return [];
 
-  const eligible = [];
+  const eligibleBosses = [];
+  let canSpawnBots = false;
   const seenNames = new Set();
   for (const enemy of (theme && theme.enemies) || []) {
-    if (!enemy || typeof enemy.name !== "string" || !Number.isFinite(enemy.cost) || enemy.cost <= 0) continue;
-    if (enemy.name !== "bot" && seenNames.has(enemy.name)) continue;
-    if (!isValid(enemy)) continue;
-    if (enemy.name !== "bot") seenNames.add(enemy.name);
-    eligible.push(enemy.name === "bot" ? { name: "bot", cost: botCost } : enemy);
-  }
-
-  const bot = eligible.find((enemy) => enemy.name === "bot");
-  const bosses = eligible.filter((enemy) => enemy.name !== "bot" && enemy.cost <= availableBudget);
-  const bossesThatCanBringBots = bot
-    ? bosses.filter((enemy) => enemy.cost + botCost <= availableBudget)
-    : [];
-
-  let boss = null;
-  if (bossesThatCanBringBots.length) {
-    boss = bossesThatCanBringBots[randomIndex(bossesThatCanBringBots.length, random)];
-  } else if (bosses.length && (!bot || availableBudget < botCost || randomUnit(random) < 0.5)) {
-    boss = bosses[randomIndex(bosses.length, random)];
+    if (!enemy || typeof enemy.name !== "string" || !isValid(enemy)) continue;
+    if (enemy.name === "bot") {
+      canSpawnBots = true;
+      continue;
+    }
+    if (seenNames.has(enemy.name)) continue;
+    seenNames.add(enemy.name);
+    const cost = Number(enemy.cost);
+    if (Number.isFinite(cost) && cost > 0 && cost <= availableBudget) {
+      eligibleBosses.push({ name: enemy.name, cost });
+    }
   }
 
   const roster = [];
   let remaining = availableBudget;
-  if (boss) {
-    roster.push({ name: boss.name, cost: boss.cost });
+  if (eligibleBosses.length) {
+    const boss = eligibleBosses[randomIndex(eligibleBosses.length, random)];
+    roster.push(boss);
     remaining -= boss.cost;
   }
-  if (bot) {
-    let botsAdded = 0;
-    while (remaining >= botCost && botsAdded < botLimit) {
-      roster.push({ name: "bot", cost: botCost });
-      remaining -= botCost;
-      botsAdded++;
+
+  if (!canSpawnBots || botLimit <= 0) return roster;
+  const botCostFactory = typeof botBudgetCost === "function"
+    ? botBudgetCost
+    : () => Number(botBudgetCost);
+  let botCount = 0;
+  while (botCount < botLimit && remaining > 0) {
+    // Standard Siege bots have a random score with this minimum. Never queue a
+    // bot until its exact score is known and fits in the remaining budget.
+    const minExpectedBotScore = 26263;
+    if (remaining < minExpectedBotScore) break;
+
+    let affordableScore = null;
+    for (let attempt = 0; attempt < 32; attempt++) {
+      const rolled = Number(botCostFactory(remaining));
+      if (Number.isFinite(rolled) && rolled > 0 && rolled <= remaining) {
+        affordableScore = rolled;
+        break;
+      }
     }
+    if (affordableScore === null) break;
+    roster.push({ name: "bot", cost: affordableScore, score: affordableScore });
+    remaining -= affordableScore;
+    botCount++;
   }
-  if (!roster.length && bosses.length) {
-    const fallback = bosses[randomIndex(bosses.length, random)];
-    roster.push({ name: fallback.name, cost: fallback.cost });
-  }
+
   return roster;
 }
 

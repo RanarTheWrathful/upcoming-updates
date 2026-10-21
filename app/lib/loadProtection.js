@@ -10,8 +10,10 @@ const STAGE_NAMES = ["normal", "elevated", "high", "critical"];
 // Raise pacing thresholds so brief or modest slowdowns do not trigger the
 // anti-lag ladder. The more disruptive actions remain reserved for genuinely
 // expensive cycles.
-const RUN_SPEED_THRESHOLDS_MS = [100, 150, 200, 250, 350];
-const RUN_SPEED_MAX_PERCENT = [80, 65, 50, 35, 25];
+// These thresholds are cycle/event-loop latency measurements in milliseconds.
+// No anti-lag pacing tier starts before a measured 100ms cycle.
+const RUN_SPEED_THRESHOLDS_MS = [100, 140, 190, 260, 350];
+const RUN_SPEED_MAX_PERCENT = [65, 50, 38, 30, 22];
 
 function positiveNumber(value, fallback) {
   const number = Number(value);
@@ -79,9 +81,9 @@ function createLoadProtection(options = {}) {
   const highMemory = positiveNumber(env.RANAR_LOAD_HIGH_MEMORY, 0.86);
   const criticalMemory = positiveNumber(env.RANAR_LOAD_CRITICAL_MEMORY, 0.94);
   // Match actual simulation lag thresholds requested for this server.
-  const warningDelayMs = positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 100);
-  const highDelayMs = positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 200);
-  const criticalDelayMs = positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 300);
+  const warningDelayMs = Math.max(100, positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 100));
+  const highDelayMs = Math.max(100, positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 140));
+  const criticalDelayMs = Math.max(100, positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 220));
   // A single long tick may be garbage collection or host jitter. The emergency
   // path now requires sustained raw lag and genuinely poor throughput.
   const emergencyLagMs = 1000;
@@ -194,17 +196,18 @@ function createLoadProtection(options = {}) {
   // compatibility; the actual millisecond thresholds are configured above.
   const runSpeedMultipliers = [
     1,
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_75, 1.05),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_100, 1.1),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_150, 1.15),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_200, 1.25),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_250, 1.35),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_75, 1.08),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_100, 1.16),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_150, 1.28),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_200, 1.45),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_250, 1.65),
   ];
-  const runSpeedEscalationMs = positiveNumber(env.RANAR_LOAD_RUN_SPEED_ESCALATION_MS, 5000);
-  const runSpeedRecoveryMs = positiveNumber(env.RANAR_LOAD_RUN_SPEED_RECOVERY_MS, 10000);
+  const runSpeedEscalationMs = positiveNumber(env.RANAR_LOAD_RUN_SPEED_ESCALATION_MS, 3000);
+  const runSpeedRecoveryMs = positiveNumber(env.RANAR_LOAD_RUN_SPEED_RECOVERY_MS, 8000);
   let runSpeedLevel = 0;
   let runSpeedEscalationSince = null;
   let runSpeedRecoverySince = null;
+  let lastLoggedLagResponseState = "normal:none";
   let lastNoCandidateWarningAt = 0;
   const suspensionSearch = {
     active: false,
@@ -1659,15 +1662,31 @@ function createLoadProtection(options = {}) {
     return desired;
   }
 
+  function logRunSpeedLevelChange(previousLevel, reason) {
+    if (previousLevel === runSpeedLevel) return;
+    const oldMultiplier = runSpeedMultipliers[previousLevel] || 1;
+    const newMultiplier = runSpeedMultipliers[runSpeedLevel] || 1;
+    console.log(
+      `[ANTI-LAG] Server scheduler pacing ${oldMultiplier.toFixed(2)}x -> ${newMultiplier.toFixed(2)}x` +
+      ` (${reason}); cycle=${Math.round(Number(lastCycleMs) || 0)}ms` +
+      `, smoothed=${Math.round(Number(smoothedCycleMs) || 0)}ms` +
+      `, target=${Math.round(targetCycleIntervalMs)}ms` +
+      `, event-loop p95=${Math.round(Number(lastMetrics.eventLoopP95Ms) || 0)}ms` +
+      `, server run speed=${Math.round(Number(currentRunSpeedPercent) || 0)}%`
+    );
+  }
+
   function updateRunSpeed(lagMs, allowRecovery, rawObservedLagMs = 0, emergencyConfirmed = false) {
     const now = nowProvider();
     const safeLagMs = Number.isFinite(lagMs) && lagMs >= 0 ? lagMs : 0;
     const desired = desiredRunSpeedLevel(safeLagMs, currentRunSpeedPercent);
 
     if (emergencyConfirmed) {
+      const previousLevel = runSpeedLevel;
       runSpeedLevel = runSpeedMultipliers.length - 1;
       runSpeedEscalationSince = null;
       runSpeedRecoverySince = null;
+      logRunSpeedLevelChange(previousLevel, "confirmed extreme server load");
       return;
     }
 
@@ -1676,8 +1695,10 @@ function createLoadProtection(options = {}) {
       if (runSpeedEscalationSince === null) runSpeedEscalationSince = now;
       if (now - runSpeedEscalationSince >= runSpeedEscalationMs) {
         // Advance one rung at a time even when several thresholds are crossed.
+        const previousLevel = runSpeedLevel;
         runSpeedLevel = Math.min(desired, runSpeedLevel + 1);
         runSpeedEscalationSince = now;
+        logRunSpeedLevelChange(previousLevel, `server latency tier ${desired}`);
       }
       return;
     }
@@ -1687,8 +1708,10 @@ function createLoadProtection(options = {}) {
       if (!allowRecovery) return;
       if (runSpeedRecoverySince === null) runSpeedRecoverySince = now;
       if (now - runSpeedRecoverySince >= runSpeedRecoveryMs) {
+        const previousLevel = runSpeedLevel;
         runSpeedLevel = Math.max(desired, runSpeedLevel - 1);
         runSpeedRecoverySince = now;
+        logRunSpeedLevelChange(previousLevel, "server load recovery");
       }
       return;
     }
@@ -1844,6 +1867,23 @@ function createLoadProtection(options = {}) {
 
   function syncLagResponseSnapshot(snapshot) {
     if (!snapshot) return;
+    const responseStageId = snapshot.stageId || "normal";
+    const responseAction = snapshot.recovering === true ? "recovery" : (snapshot.stageAction || "none");
+    const responseState = `${responseStageId}:${responseAction}`;
+    if (responseState !== lastLoggedLagResponseState) {
+      const previousState = lastLoggedLagResponseState;
+      lastLoggedLagResponseState = responseState;
+      console.log(
+        `[ANTI-LAG] ${previousState.replace(":none", "")} -> ${responseState.replace(":none", "")}` +
+        ` | server cycle=${Math.round(Number(lastMetrics.cycleMs) || 0)}ms` +
+        ` | observed tick interval=${Math.round(Number(observedCycleIntervalMs) || 0)}ms` +
+        ` | event-loop p95=${Math.round(Number(lastMetrics.eventLoopP95Ms) || 0)}ms` +
+        ` | smoothed cycle=${Math.round(Number(smoothedCycleMs) || 0)}ms` +
+        ` | target interval=${Math.round(targetCycleIntervalMs)}ms` +
+        ` | server run speed=${Math.round(Number(snapshot.runSpeedPercent) || 0)}%` +
+        ` | scheduler=${getRunSpeedMultiplier().toFixed(2)}x`
+      );
+    }
     if (snapshot.recovering === true) {
       // The response ladder is unwinding one tier at a time. Entity restoration
       // is already fading in, so do not re-pause spawning just because the

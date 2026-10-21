@@ -21,6 +21,7 @@ const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup
 const isEntityVisibleToAnyClient = require("./lib/clientVisibility");
 const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
 const siegeWavePlanner = require("./lib/siegeWavePlanner");
+const siegeBudgetMath = require("./lib/siegeBudget");
 const siegeWaveProgress = require("./lib/siegeWaveProgress");
 const legendaryBranches = require("./lib/legendaryBranches");
 const hasClearLineOfSight = require("./lib/aiLineOfSight");
@@ -183,6 +184,11 @@ c.siegePendingAllySpawns = 0;
 c.siegePendingAllySpawnWave = null;
 c.siegePendingAllyBudget = null;
 c.siegeAllySpawnSuccessCount = 0;
+c.siegeBudgetLoggedWave = null;
+c.siegeBudgetInitial = 0;
+c.siegeBudgetSpent = 0;
+c.siegeCarryoverBudget = 0;
+c.siegeBudgetStartedWave = null;
 let wE1 = [
   "eggCrasher",
   "squareCrasher",
@@ -299,25 +305,9 @@ let t3B = [
 ];
 
 
-// Siege enemies retain the original budget costs, but are selected from a
-// random subset of themed pools for each wave instead of one global rarity roll.
-const siegeCostTiers = [
-  { cost: 1, enemies: wE1 },
-  { cost: 2, enemies: wE2 },
-  { cost: 3, enemies: wE3 },
-  { cost: 5, enemies: nE1 },
-  { cost: 7, enemies: nE2 },
-  { cost: 15, enemies: t1B },
-  { cost: 30, enemies: t2B },
-  { cost: 45, enemies: t3B },
-  // Generic polygons are charged per body actually spawned; the chosen class
-  // still uses its configured swarm size, capped by the remaining wave budget.
-  { cost: 1, enemies: Object.keys(siegeWavePlanner.POLYGON_SPAWN_COUNTS) },
-];
-const siegeEnemyCatalog = siegeWavePlanner.createEnemyCatalog(
-  siegeCostTiers,
-  siegeWavePlanner.THEME_DEFINITIONS
-);
+// Built after Class is loaded so each Siege candidate is priced by the score
+// that Entity.define() assigns, rather than by arbitrary rarity-tier costs.
+let siegeEnemyCatalog = [];
 const currentDate = new Date();
 const currentMonth = currentDate.getMonth(); // 0 = January, 11 = December
 
@@ -730,6 +720,33 @@ const branchTierLevels = { 0: 0, god: c.TIER_GOD };
 for (let tier = 1; tier <= 15; tier++) branchTierLevels[tier] = c[`TIER_${tier}`];
 entityBranches.validateDefinitions(Class);
 
+function getSiegeDefinitionCost(name) {
+  if (name === "bot") return siegeBudgetMath.MIN_BOT_SCORE;
+  const score = siegeBudgetMath.getDefinitionScore(Class && Class[name]);
+  // Zero-score candidates would be free and could create an unbounded wave.
+  return Number.isFinite(score) && score > 0 ? score : null;
+}
+
+function buildSiegeEnemyCatalog() {
+  const costTiers = [];
+  const seen = new Set();
+  for (const theme of siegeWavePlanner.THEME_DEFINITIONS) {
+    for (const name of theme.enemies || []) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      const cost = getSiegeDefinitionCost(name);
+      if (cost == null) continue;
+      costTiers.push({ cost, enemies: [name] });
+    }
+  }
+  return siegeWavePlanner.createEnemyCatalog(
+    costTiers,
+    siegeWavePlanner.THEME_DEFINITIONS
+  );
+}
+
+siegeEnemyCatalog = buildSiegeEnemyCatalog();
+
 function syncLegendaryBranchOptions(entity) {
   if (!entity || entity.isPlayer !== true || entity.type !== "tank" || !Array.isArray(entity.upgrades)) return;
   const unlocked = legendaryBranches.syncUpgradeOptions(
@@ -765,7 +782,95 @@ function getSiegeThemesForCurrentWave() {
       );
     }
   }
+
+  // Reinforcements can only be purchased once per wave. If their roster leaves
+  // budget unused, spend the remainder on the other themes selected for the wave.
+  if (c.siegeAlliesSpawnedWave === c.bossWave) {
+    return (c.siegeSelectedThemes || []).filter((theme) => theme.id !== "spawnAllies");
+  }
   return c.siegeSelectedThemes || [];
+}
+
+function beginSiegeBudgetAccounting(wave, budget, reason = "wave start") {
+  const startingBudget = Math.max(0, Math.floor(Number(budget) || 0));
+  c.siegeBudgetLoggedWave = wave;
+  c.siegeBudgetInitial = startingBudget;
+  c.siegeBudgetSpent = 0;
+  const themeNames = Array.isArray(c.siegeSelectedThemeNames) && c.siegeSelectedThemeNames.length
+    ? c.siegeSelectedThemeNames.join(", ")
+    : "none resolved yet";
+  util.log(
+    `[Siege Budget] Wave ${wave} ${reason}: ${startingBudget} points available; ` +
+    `themes=${themeNames}. Costs use the selected entity score.`
+  );
+}
+
+function recordSiegeBudgetSpend(wave, name, cost, budgetBefore, budgetAfter) {
+  const spent = Math.max(0, Number(cost) || 0);
+  c.siegeBudgetSpent = Math.max(0, Number(c.siegeBudgetSpent) || 0) + spent;
+  util.log(
+    `[Siege Budget] Wave ${wave}: selected ${name}; entity score cost=${spent}; ` +
+    `budget ${budgetBefore} -> ${budgetAfter}; cumulative cost=${c.siegeBudgetSpent}/${c.siegeBudgetInitial}.`
+  );
+}
+
+function refundSiegeBudgetReservation(wave, enemy, reason) {
+  if (c.MODE !== "siege" || c.bossWave !== wave || !enemy) return;
+  const refund = Math.max(0, Number(enemy.cost) || 0);
+  if (refund <= 0) return;
+  const before = Math.max(0, Number(c.bossCounter) || 0);
+  c.bossCounter = before + refund;
+  c.siegeBudgetSpent = Math.max(0, (Number(c.siegeBudgetSpent) || 0) - refund);
+  util.log(
+    `[Siege Budget] Wave ${wave}: refunded ${refund} score for ${enemy.name} (${reason}); ` +
+    `budget ${before} -> ${c.bossCounter}.`
+  );
+}
+
+function priceSiegeThemes(themes, botScore) {
+  return (themes || []).map((theme) => ({
+    id: theme.id,
+    label: theme.label,
+    enemies: (theme.enemies || []).map((enemy) => {
+      const cost = enemy.name === "bot" ? botScore : getSiegeDefinitionCost(enemy.name);
+      if (!Number.isFinite(cost) || cost <= 0) return null;
+      return Object.assign({}, enemy, { cost, score: enemy.name === "bot" ? cost : undefined });
+    }).filter(Boolean),
+  })).filter((theme) => theme.enemies.length > 0);
+}
+
+function calculateSiegeWaveBudget(wave) {
+  const carryover = Math.max(0, Number(c.siegeCarryoverBudget) || 0);
+  const scoreTotal = siegeBudgetMath.sumBudgetContributorScores(entities);
+  const budget = siegeBudgetMath.calculateWaveBudget({
+    wave,
+    entities,
+    carryover,
+    scorePerWave: 20000,
+  });
+  // Carryover is consumed once. If this wave can't spend its budget, that
+  // remainder is explicitly saved for the next wave below.
+  c.siegeCarryoverBudget = 0;
+  c.siegeBudgetStartedWave = wave;
+  getSiegeThemesForCurrentWave();
+  beginSiegeBudgetAccounting(wave, budget, "score-based wave start");
+  util.log(
+    `[Siege Budget] Wave ${wave}: 20000 x wave (${20000 * Math.max(0, Math.floor(Number(wave) || 0))}) + ` +
+    `eligible entity scores (${scoreTotal}) + carryover (${carryover}) = ${budget}.`
+  );
+  return budget;
+}
+
+function carrySiegeBudgetForward(wave, budget, reason) {
+  const leftover = Math.max(0, Math.floor(Number(budget) || 0));
+  if (leftover > 0) {
+    c.siegeCarryoverBudget = Math.max(0, Number(c.siegeCarryoverBudget) || 0) + leftover;
+    util.log(
+      `[Siege Budget] Wave ${wave}: ${leftover} unaffordable points carried into wave ${wave + 1} (${reason}).`
+    );
+  }
+  c.bossCounter = 0;
+  scheduleSiegeWaveAdvance(wave, 5432);
 }
 
 function applySiegeRareEnemyVariant(o) {
@@ -845,6 +950,7 @@ function fallbackToSiegeHostileWave(wave, budget, reason) {
   c.siegePendingAllyBudget = null;
   c.siegeAllySpawnSuccessCount = 0;
   c.bossCounter = remainingBudget;
+  beginSiegeBudgetAccounting(wave, remainingBudget, `budget restored for fallback (${reason})`);
   util.log(`[Siege] Wave ${wave} switched to hostile enemies: ${reason}.`);
   return true;
 }
@@ -861,11 +967,13 @@ function syncSiegeBotQueueCounts() {
   return queue;
 }
 
-function enqueueSiegeBot(team, wave, isAllyWaveBot = false) {
+function enqueueSiegeBot(team, wave, isAllyWaveBot = false, score = null) {
+  const reservedScore = Number(score);
   getSiegeBotSpawnQueue().push({
     team,
     wave,
     isAllyWaveBot,
+    score: Number.isFinite(reservedScore) && reservedScore > 0 ? reservedScore : null,
     queuedAt: Date.now(),
   });
   syncSiegeBotQueueCounts();
@@ -881,8 +989,9 @@ function finishSiegeAllySpawn(wave) {
   c.siegePendingAllySpawns = Math.max(0, Math.floor(Number(c.siegePendingAllySpawns) || 0) - 1);
   if (c.siegePendingAllySpawns === 0) {
     if (Number(c.siegeAllySpawnSuccessCount) <= 0) {
-      const fallbackBudget = Number(c.siegePendingAllyBudget) || Number(c.preparedCounter) || 50;
-      if (fallbackToSiegeHostileWave(wave, fallbackBudget, "all reinforcement spawns failed")) return;
+      const fallbackBudget = Math.max(0, Number(c.bossCounter) || 0);
+      if (fallbackBudget > 0 && fallbackToSiegeHostileWave(wave, fallbackBudget, "all reinforcement spawns failed")) return;
+      if (fallbackBudget > 0) carrySiegeBudgetForward(wave, fallbackBudget, "reinforcements failed and no fallback was available");
     }
     c.siegePendingAllySpawnWave = null;
     c.siegePendingAllyBudget = null;
@@ -985,7 +1094,7 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave, delay = 5432) {
     }
 
     c.siegeLastAdvancedWave = expectedWave;
-    c.preparedCounter = expectedWave * 5 + 50;
+    if (c.MODE !== "siege") c.preparedCounter = expectedWave * 5 + 50;
     c.bossWave = expectedWave + 1;
     c.siegeAlliesSpawnedWave = null;
     c.continueWave = true;
@@ -1005,6 +1114,7 @@ function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
   const delay = Math.max(0, Number(delayIndex) || 0) * 900;
   setTimeout(() => {
     if (c.MODE !== "siege" || !isValidSiegeEnemy(enemy)) {
+      refundSiegeBudgetReservation(wave, enemy, "invalid or unavailable definition");
       finishSiegeAllySpawn(wave);
       return;
     }
@@ -1012,7 +1122,7 @@ function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
     // Queued bots use the ordinary bot constructor/naming/skill lifecycle, but
     // do not increase c.BOTS or accidentally enable unrelated random bots.
     if (enemy.name === "bot") {
-      enqueueSiegeBot(-1, wave, true);
+      enqueueSiegeBot(-1, wave, true, enemy.score || enemy.cost);
       return;
     }
 
@@ -1020,6 +1130,7 @@ function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
       if (retries < 30) spawnSiegeAlly(enemy, 1, wave, retries + 1);
       else {
         util.log(`[Siege] Could not spawn ally ${enemy.name} in wave ${wave}; moving on safely.`);
+        refundSiegeBudgetReservation(wave, enemy, "spawn retries exhausted");
         finishSiegeAllySpawn(wave);
       }
     };
@@ -1062,6 +1173,7 @@ function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
       finishSiegeAllySpawn(wave);
     } catch (error) {
       util.log(`[Siege] Failed to define ally ${enemy.name}: ${error.message}`);
+      refundSiegeBudgetReservation(wave, enemy, "definition failed");
       finishSiegeAllySpawn(wave);
     }
   }, delay);
@@ -1075,24 +1187,37 @@ function spawnSiegeAllyWave(theme, budget) {
   // Reinforcement bosses are unique per event; bots can fill the remaining
   // budget, allowing a boss and backup bots to arrive in the same wave.
   const selected = siegeWavePlanner.planAllyRoster(
-    theme, budget, Math.random, isValidSiegeEnemy
+    theme, budget, Math.random, isValidSiegeEnemy,
+    () => siegeBudgetMath.rollBotScore()
   );
   if (!selected.length) {
     // Never turn a bad/empty reinforcement roster into a blank wave.
     if (fallbackToSiegeHostileWave(completedWave, budget, "no eligible reinforcement roster")) return;
-    c.bossCounter = 0;
     c.siegePendingAllySpawns = 0;
     c.siegePendingAllySpawnWave = null;
     util.log(`[Siege] Wave ${completedWave} had no valid enemy or reinforcement definitions.`);
-    scheduleSiegeWaveAdvance(completedWave, 5432);
+    carrySiegeBudgetForward(completedWave, budget, "no affordable reinforcement roster");
     return;
   }
-  c.bossCounter = 0;
+  // Reserve each selected entity's score cost before its asynchronous spawn.
+  // Any unspent points remain available for ordinary hostiles afterward.
+  let remainingBudget = budget;
+  for (const enemy of selected) {
+    const before = remainingBudget;
+    const cost = Math.max(0, Number(enemy.cost) || 0);
+    remainingBudget = Math.max(0, remainingBudget - cost);
+    recordSiegeBudgetSpend(completedWave, enemy.name, cost, before, remainingBudget);
+  }
+  c.bossCounter = remainingBudget;
 
   c.siegePendingAllyBudget = budget;
   c.siegeAllySpawnSuccessCount = 0;
   c.siegePendingAllySpawnWave = completedWave;
   c.siegePendingAllySpawns = selected.length;
+  util.log(
+    `[Siege Budget] Wave ${completedWave}: reinforcement roster cost=${Math.max(0, budget - remainingBudget)}; ` +
+    `remaining budget=${remainingBudget}.`
+  );
   const names = selected.map((enemy) => {
     if (enemy.name === "bot") return "a reinforcement bot";
     const definition = Class[enemy.name] || {};
@@ -1137,53 +1262,63 @@ function spawnSiegeEnemyFromBudget() {
     c.bossCounter = 0;
     return;
   }
+  const themes = getSiegeThemesForCurrentWave();
+  if (c.siegeBudgetLoggedWave !== c.bossWave) {
+    beginSiegeBudgetAccounting(c.bossWave, budget);
+  }
+  // Budget/theme diagnostics run even when anti-lag temporarily blocks spawning.
   if (!loadProtection.shouldSpawnNaturalEntities()) return;
 
-  const themes = getSiegeThemesForCurrentWave();
   const allyTheme = themes.find((theme) => theme.id === "spawnAllies");
   if (allyTheme) {
     spawnSiegeAllyWave(allyTheme, budget);
     return;
   }
 
-  let enemy = siegeWavePlanner.chooseEnemy(themes, budget, Math.random, isValidSiegeEnemy);
+  // A bot's actual score is random. Roll once only if these themes can select
+  // a bot, then reuse that exact value for affordability and the spawn queue.
+  let reservedBotScore = themes.some((theme) => (theme.enemies || []).some((enemy) => enemy.name === "bot"))
+    ? siegeBudgetMath.rollBotScore()
+    : null;
+  const pricedThemes = priceSiegeThemes(themes, reservedBotScore);
+  let enemy = siegeWavePlanner.chooseEnemy(pricedThemes, budget, Math.random, isValidSiegeEnemy);
   if (!enemy) {
-    // The random theme subset may contain only expensive classes that no longer
-    // fit the leftover budget. Rescue the wave using the valid global catalog
-    // rather than silently consuming the remaining budget and showing an empty wave.
-    const fallbackThemes = getSiegeFallbackThemes();
+    // Try all valid themes before giving up. If even the global catalog has no
+    // affordable candidate, preserve the unspent points for the next wave.
+    const fallbackSourceThemes = getSiegeFallbackThemes();
+    if (reservedBotScore === null && fallbackSourceThemes.some((theme) =>
+      (theme.enemies || []).some((candidate) => candidate.name === "bot"))) {
+      reservedBotScore = siegeBudgetMath.rollBotScore();
+    }
+    const fallbackThemes = priceSiegeThemes(fallbackSourceThemes, reservedBotScore);
     enemy = siegeWavePlanner.chooseEnemy(fallbackThemes, budget, Math.random, isValidSiegeEnemy);
     if (enemy) {
       c.siegeSelectedThemes = fallbackThemes;
       c.siegeSelectedThemeNames = fallbackThemes.map((candidateTheme) => candidateTheme.label);
       util.log(`[Siege] Wave ${c.bossWave} expanded its theme pool to spend remaining budget ${budget}.`);
     } else {
-      c.bossCounter = 0;
       util.log(`[Siege] Wave ${c.bossWave} has no valid affordable enemy for remaining budget ${budget}.`);
-      scheduleSiegeWaveAdvance(c.bossWave, 5432);
+      carrySiegeBudgetForward(c.bossWave, budget, "no enemy score fits");
       return;
     }
   }
 
   if (enemy.name === "bot") {
-    // Arena-theme bots are hostile Siege units. Route them through the standard
-    // bot builder; Class.bot is not an actual definition, and hostile bots need
-    // a perimeter spawn instead of a team-relative dominator location.
-    enqueueSiegeBot(-100, c.bossWave, false);
+    // Reserve and debit the bot's exact randomized score before queuing it.
+    enqueueSiegeBot(-100, c.bossWave, false, enemy.score || enemy.cost);
     c.bossCounter = Math.max(0, budget - enemy.cost);
-    util.log(`[Siege] Queued hostile Bot for wave ${c.bossWave}; budget ${budget} -> ${c.bossCounter}.`);
+    recordSiegeBudgetSpend(c.bossWave, enemy.name, enemy.cost, budget, c.bossCounter);
+    util.log(`[Siege] Queued hostile Bot for wave ${c.bossWave}; score cost=${enemy.cost}; budget ${budget} -> ${c.bossCounter}.`);
     return;
   }
 
   const configuredPolygonCount = siegePolygonSpawnCounts[enemy.name] || 0;
   const isPolygonSwarm = configuredPolygonCount > 0;
-  // Generic food-derived polygons cost one budget point per actual polygon,
-  // not one point for an entire 25-entity swarm. Partial spawns under load are
-  // charged only for the entities that were really created.
-  const spawnCount = isPolygonSwarm
-    ? Math.min(configuredPolygonCount, Math.max(1, Math.floor(budget)))
-    : 1;
+  // A polygon selection is one score-priced choice. Its configured swarm is
+  // spawned as a pack; the pack does not multiply the selection's budget cost.
+  const spawnCount = isPolygonSwarm ? configuredPolygonCount : 1;
   let spawnedCount = 0;
+  let spawnedEntityScore = null;
   for (let i = 0; i < spawnCount; i++) {
     if (!loadProtection.canSpawnNaturalEntity()) break;
     const spawnLocation = getSiegeEnemySpawnLocation();
@@ -1192,6 +1327,20 @@ function spawnSiegeEnemyFromBudget() {
     o.rarity = Math.random() * 10000;
     o.define(Class[enemy.name]);
     applySiegeRareEnemyVariant(o);
+    let actualEntityScore = Number(o.skill && o.skill.score);
+    if (!Number.isFinite(actualEntityScore) || actualEntityScore <= 0) actualEntityScore = enemy.cost;
+    if (!isPolygonSwarm && actualEntityScore > budget) {
+      // Rare variants can be worth more than their base class. Keep the spawn
+      // affordable by falling back to the already-budgeted base definition.
+      o.define(Class[enemy.name]);
+      actualEntityScore = Number(o.skill && o.skill.score);
+    }
+    if (!isPolygonSwarm && (!Number.isFinite(actualEntityScore) || actualEntityScore > budget)) {
+      if (typeof o.destroy === "function") o.destroy();
+      util.log(`[Siege] Refused unaffordable ${enemy.name}; score=${actualEntityScore}, budget=${budget}.`);
+      return;
+    }
+    if (!isPolygonSwarm && spawnedEntityScore === null) spawnedEntityScore = actualEntityScore;
     o.siegeProgress = true;
     o.impervious = true;
     o.showOnMap = true;
@@ -1247,8 +1396,18 @@ function spawnSiegeEnemyFromBudget() {
     // Failed location/cap checks must not silently consume the wave's budget.
     return;
   }
-  const budgetSpent = isPolygonSwarm ? spawnedCount : enemy.cost;
-  c.bossCounter = Math.max(0, budget - budgetSpent);
+  // Polygon packs cost the score of one polygon regardless of pack size.
+  // For other enemies charge their post-definition score (normally identical
+  // to enemy.cost), retaining affordability if a definition changes later.
+  const spawnedCost = isPolygonSwarm
+    ? enemy.cost
+    : Math.max(0, Number(spawnedEntityScore) || Number(enemy.cost) || 0);
+  if (spawnedCost > budget) {
+    util.log(`[Siege] Refused ${enemy.name}: score cost ${spawnedCost} exceeds budget ${budget}.`);
+    return;
+  }
+  c.bossCounter = Math.max(0, budget - spawnedCost);
+  recordSiegeBudgetSpend(c.bossWave, enemy.name, spawnedCost, budget, c.bossCounter);
   if (c.bossCounter <= 0 && countLiveSiegeHostiles() <= 0) {
     scheduleSiegeWaveAdvance(c.bossWave, 5432);
   }
@@ -8327,7 +8486,9 @@ class Entity {
       }
 
       if (c.continueWave && c.bossWave > 0 && !c.pingBack) {
-        c.bossCounter = c.preparedCounter;
+        c.bossCounter = c.MODE === "siege"
+          ? calculateSiegeWaveBudget(c.bossWave)
+          : c.preparedCounter;
         c.pingBack = true;
         c.continueWave = false;
       }
@@ -8342,7 +8503,7 @@ class Entity {
           if (c.bossWave >= 50) {
             c.waveType = "final";
           }
-          if (c.bossWave <= 20 || c.bossWave >= 50) c.bossCounter = 0;
+          if (c.MODE !== "siege" && (c.bossWave <= 20 || c.bossWave >= 50)) c.bossCounter = 0;
           switch (c.waveType) {
             case "epic":
               c.waveRarity = Math.ceil(Math.random() * 6);
@@ -23028,14 +23189,27 @@ var maintainloop = (() => {
           if (c.MODE === "plague" || c.necro) {
             o.infector = true;
           }
-          o.skill.score =
-            Math.round(Math.random() * 1250000) -
-            Math.round(Math.random() * 1250000) +
-            26263;
-          if (o.skill.score < 26263 || c.MODE === "theDistance") {
-            o.skill.score = 26263;
+          const reservedSiegeBotScore = queuedSiegeBot &&
+            Number.isFinite(Number(queuedSiegeBot.score)) && Number(queuedSiegeBot.score) > 0
+            ? Number(queuedSiegeBot.score)
+            : null;
+          if (reservedSiegeBotScore !== null) {
+            o.skill.score = reservedSiegeBotScore;
+          } else {
+            o.skill.score =
+              Math.round(Math.random() * 1250000) -
+              Math.round(Math.random() * 1250000) +
+              26263;
+            if (o.skill.score < 26263 || c.MODE === "theDistance") {
+              o.skill.score = 26263;
+            }
           }
           o.define(Class[c.startingClass]);
+          if (reservedSiegeBotScore !== null) {
+            // This was pre-priced before queueing; prevent the starting class
+            // definition from overwriting the score charged to the wave budget.
+            o.skill.score = reservedSiegeBotScore;
+          }
           if (c.MODE === "theDistance" && c.startingClass === "racer") {
             o.isRacer = true;
           }
