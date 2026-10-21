@@ -11,9 +11,9 @@ const STAGE_NAMES = ["normal", "elevated", "high", "critical"];
 // anti-lag ladder. The more disruptive actions remain reserved for genuinely
 // expensive cycles.
 // These thresholds are cycle/event-loop latency measurements in milliseconds.
-// No anti-lag pacing tier starts before a measured 100ms cycle.
-const RUN_SPEED_THRESHOLDS_MS = [100, 140, 190, 260, 350];
-const RUN_SPEED_MAX_PERCENT = [65, 50, 38, 30, 22];
+// Begin pacing earlier so load has a chance to recover before cycles reach 100ms.
+const RUN_SPEED_THRESHOLDS_MS = [75, 90, 105, 130, 160];
+const RUN_SPEED_MAX_PERCENT = [85, 70, 55, 40, 25];
 
 function positiveNumber(value, fallback) {
   const number = Number(value);
@@ -64,7 +64,7 @@ function createLoadProtection(options = {}) {
   const getEntityVisibility = options.isEntityVisibleToAnyClient || null;
   const onEntityChange = options.onEntityChange || (() => {});
   const nowProvider = options.nowProvider || (() => performance.now());
-  const intervalMs = positiveNumber(env.RANAR_LOAD_SAMPLE_MS, 2000);
+  const intervalMs = positiveNumber(env.RANAR_LOAD_SAMPLE_MS, 1000);
   // Nominal interval between completed simulation cycles. Anti-lag policies use
   // observed throughput relative to this target; automatic pacing still uses ms.
   const targetCycleIntervalMs = positiveNumber(
@@ -81,9 +81,9 @@ function createLoadProtection(options = {}) {
   const highMemory = positiveNumber(env.RANAR_LOAD_HIGH_MEMORY, 0.86);
   const criticalMemory = positiveNumber(env.RANAR_LOAD_CRITICAL_MEMORY, 0.94);
   // Match actual simulation lag thresholds requested for this server.
-  const warningDelayMs = Math.max(100, positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 100));
-  const highDelayMs = Math.max(100, positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 140));
-  const criticalDelayMs = Math.max(100, positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 220));
+  const warningDelayMs = Math.max(50, positiveNumber(env.RANAR_LOAD_WARNING_DELAY_MS, 75));
+  const highDelayMs = Math.max(60, positiveNumber(env.RANAR_LOAD_HIGH_DELAY_MS, 90));
+  const criticalDelayMs = Math.max(70, positiveNumber(env.RANAR_LOAD_CRITICAL_DELAY_MS, 105));
   // A single long tick may be garbage collection or host jitter. The emergency
   // path now requires sustained raw lag and genuinely poor throughput.
   const emergencyLagMs = 1000;
@@ -111,17 +111,17 @@ function createLoadProtection(options = {}) {
   // simulation cycle and keep the last completed count until the next completes.
   const naturalPopulationRecountBatchSize = Math.max(
     100,
-    Math.floor(positiveNumber(env.RANAR_LAG_POPULATION_RECOUNT_BATCH_SIZE, 500))
+    Math.floor(positiveNumber(env.RANAR_LAG_POPULATION_RECOUNT_BATCH_SIZE, 250))
   );
   // Cleanup discovery itself is incremental. Large entity arrays must not be
   // classified, wrapped, and sorted all at once at the moment lag begins.
   const cleanupScanBatchSize = Math.max(
     1,
-    Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_SCAN_BATCH_SIZE, 500))
+    Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_SCAN_BATCH_SIZE, 300))
   );
   const entitySelectionScanBatchSize = Math.max(
     1,
-    Math.floor(positiveNumber(env.RANAR_LOAD_ENTITY_SELECTION_SCAN_BATCH_SIZE, 500))
+    Math.floor(positiveNumber(env.RANAR_LOAD_ENTITY_SELECTION_SCAN_BATCH_SIZE, 300))
   );
   const speedPercentForMs = (milliseconds) => Math.max(
     1,
@@ -196,13 +196,13 @@ function createLoadProtection(options = {}) {
   // compatibility; the actual millisecond thresholds are configured above.
   const runSpeedMultipliers = [
     1,
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_75, 1.08),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_100, 1.16),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_150, 1.28),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_200, 1.45),
-    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_250, 1.65),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_75, 1.12),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_100, 1.30),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_150, 1.55),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_200, 1.85),
+    positiveNumber(env.RANAR_LOAD_RUN_SPEED_MULTIPLIER_250, 2.20),
   ];
-  const runSpeedEscalationMs = positiveNumber(env.RANAR_LOAD_RUN_SPEED_ESCALATION_MS, 3000);
+  const runSpeedEscalationMs = positiveNumber(env.RANAR_LOAD_RUN_SPEED_ESCALATION_MS, 1000);
   const runSpeedRecoveryMs = positiveNumber(env.RANAR_LOAD_RUN_SPEED_RECOVERY_MS, 8000);
   let runSpeedLevel = 0;
   let runSpeedEscalationSince = null;
@@ -253,17 +253,17 @@ function createLoadProtection(options = {}) {
   // discovery is also sliced across cycles and prioritizes off-screen respawnables.
   const cleanupDestroyBatchSize = Math.max(
     1,
-    Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_DESTROY_BATCH_SIZE, 3))
+    Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_DESTROY_BATCH_SIZE, 5))
   );
   const emergencyCleanupDestroyBatchSize = Math.max(
     cleanupDestroyBatchSize,
-    Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_EMERGENCY_DESTROY_BATCH_SIZE, 10))
+    Math.floor(positiveNumber(env.RANAR_LAG_CLEANUP_EMERGENCY_DESTROY_BATCH_SIZE, 12))
   );
   const naturalCapRatios = {
-    warning: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_WARNING_RATIO) || 0.85)),
-    high: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_HIGH_RATIO) || 0.65)),
-    critical: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_CRITICAL_RATIO) || 0.4)),
-    emergency: Math.max(0.05, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_EMERGENCY_RATIO) || 0.25)),
+    warning: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_WARNING_RATIO) || 0.70)),
+    high: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_HIGH_RATIO) || 0.50)),
+    critical: Math.max(0.1, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_CRITICAL_RATIO) || 0.30)),
+    emergency: Math.max(0.05, Math.min(1, Number(env.RANAR_LAG_NATURAL_CAP_EMERGENCY_RATIO) || 0.15)),
   };
   const CLEAN_UNKNOWN = 1;
   const CLEAN_NATURAL_POPULATION = 2;

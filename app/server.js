@@ -870,7 +870,7 @@ function carrySiegeBudgetForward(wave, budget, reason) {
     );
   }
   c.bossCounter = 0;
-  scheduleSiegeWaveAdvance(wave, 5432);
+  scheduleSiegeWaveAdvance(wave);
 }
 
 function applySiegeRareEnemyVariant(o) {
@@ -997,7 +997,7 @@ function finishSiegeAllySpawn(wave) {
     c.siegePendingAllyBudget = null;
     c.siegeAllySpawnSuccessCount = 0;
     if (c.MODE === "siege" && c.bossWave === wave && Number(c.bossCounter) <= 0) {
-      scheduleSiegeWaveAdvance(wave, 5432);
+      scheduleSiegeWaveAdvance(wave);
     }
   }
 }
@@ -1031,7 +1031,7 @@ function expireSiegeBotQueueEntries(now = Date.now()) {
     if (!entry) continue;
     if (entry.isAllyWaveBot) finishSiegeAllySpawn(entry.wave);
     else if (entry.wave === c.bossWave && Number(c.bossCounter) <= 0) {
-      scheduleSiegeWaveAdvance(entry.wave, 1000);
+      scheduleSiegeWaveAdvance(entry.wave);
     }
     util.log(`[Siege] Removed a stale queued ${entry.team === -1 ? "ally" : "hostile"} bot from wave ${entry.wave}.`);
   }
@@ -1062,51 +1062,105 @@ function countLiveSiegeHostiles(excludedEntity = null) {
 // All Siege wave completion paths funnel through one idempotent scheduler.
 // A failed early check is retried; a transient remaining hostile must not leave
 // the whole Siege run waiting forever for another death callback.
-function scheduleSiegeWaveAdvance(expectedWave = c.bossWave, delay = 5432) {
+function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
   if (c.MODE !== "siege" || expectedWave !== c.bossWave) return false;
   if (c.siegeAdvanceScheduledWave === expectedWave || c.siegeLastAdvancedWave === expectedWave) {
     return false;
   }
 
+  // Keep exactly one wave-transition timer alive. A wave must be truly empty
+  // for five seconds before announcing the ten-second countdown, and must still
+  // be empty when that countdown expires.
   c.siegeAdvanceScheduledWave = expectedWave;
-  const timer = setTimeout(() => {
-    if (c.siegeAdvanceScheduledWave === expectedWave) {
-      c.siegeAdvanceScheduledWave = null;
-    }
+  c.siegeAdvancePhase = "checking";
+
+  const clearTimer = () => {
+    if (c.siegeAdvanceTimer) clearTimeout(c.siegeAdvanceTimer);
+    c.siegeAdvanceTimer = null;
+  };
+  const finishSchedule = () => {
+    clearTimer();
+    if (c.siegeAdvanceScheduledWave === expectedWave) c.siegeAdvanceScheduledWave = null;
+    c.siegeAdvancePhase = null;
+  };
+  const isCurrentWave = () => c.MODE === "siege" && c.bossWave === expectedWave;
+  const canAdvance = () => {
     expireSiegeBotQueueEntries();
     const pendingAllySpawns = c.siegePendingAllySpawnWave === expectedWave
       ? Math.max(0, Number(c.siegePendingAllySpawns) || 0)
       : 0;
-    const liveHostileCount = countLiveSiegeHostiles();
-    if (!siegeWaveProgress.shouldAdvanceSiegeWave({
+    return siegeWaveProgress.shouldAdvanceSiegeWave({
       mode: c.MODE,
       currentWave: c.bossWave,
       expectedWave,
       budget: c.bossCounter,
-      liveHostileCount,
+      liveHostileCount: countLiveSiegeHostiles(),
       pendingAllyCount: pendingAllySpawns,
       lastAdvancedWave: c.siegeLastAdvancedWave,
-    })) {
-      if (c.MODE === "siege" && expectedWave === c.bossWave) {
-        scheduleSiegeWaveAdvance(expectedWave, 2500);
-      }
+    });
+  };
+  const schedule = (delay, callback) => {
+    clearTimer();
+    c.siegeAdvanceTimer = setTimeout(callback, Math.max(0, delay));
+    if (c.siegeAdvanceTimer && typeof c.siegeAdvanceTimer.unref === "function") {
+      c.siegeAdvanceTimer.unref();
+    }
+  };
+  const waitUntilClear = () => {
+    if (!isCurrentWave()) {
+      finishSchedule();
+      return;
+    }
+    if (!canAdvance()) {
+      c.siegeAdvancePhase = "waiting-for-enemies";
+      schedule(1000, waitUntilClear);
       return;
     }
 
-    c.siegeLastAdvancedWave = expectedWave;
-    if (c.MODE !== "siege") c.preparedCounter = expectedWave * 5 + 50;
-    c.bossWave = expectedWave + 1;
-    c.siegeAlliesSpawnedWave = null;
-    c.continueWave = true;
-    c.dontSpam = true;
-    c.bossAmount = 1;
-    c.initiateEpicWave = false;
-    c.pingBack = false;
-    c.uniqueBossList = [];
-    currentState.bossWaves = c.bossWave + 1;
-    sockets.broadcast("Wave " + c.bossWave + " has started!");
-  }, Math.max(0, Number(delay) || 0));
-  if (timer && typeof timer.unref === "function") timer.unref();
+    c.siegeAdvancePhase = "clear-grace";
+    schedule(5000, () => {
+      if (!isCurrentWave()) {
+        finishSchedule();
+        return;
+      }
+      if (!canAdvance()) {
+        // A delayed spawn or queued bot appeared during the grace period.
+        waitUntilClear();
+        return;
+      }
+
+      c.siegeAdvancePhase = "countdown";
+      sockets.broadcast("The next wave will start in 10 seconds.");
+      schedule(10000, () => {
+        if (!isCurrentWave()) {
+          finishSchedule();
+          return;
+        }
+        if (!canAdvance()) {
+          // Never advance into a live enemy or pending reinforcement.
+          waitUntilClear();
+          return;
+        }
+
+        c.siegeLastAdvancedWave = expectedWave;
+        finishSchedule();
+        c.bossWave = expectedWave + 1;
+        c.siegeAlliesSpawnedWave = null;
+        c.continueWave = true;
+        c.dontSpam = true;
+        c.bossAmount = 1;
+        c.initiateEpicWave = false;
+        c.pingBack = false;
+        c.uniqueBossList = [];
+        currentState.bossWaves = c.bossWave + 1;
+        sockets.broadcast("Wave " + c.bossWave + " has started!");
+      });
+    });
+  };
+
+  // Begin immediately so the five-second grace starts as soon as the server
+  // observes that the final counted enemy has been defeated.
+  schedule(0, waitUntilClear);
   return true;
 }
 
@@ -1343,42 +1397,27 @@ function spawnSiegeEnemyFromBudget() {
     if (!isPolygonSwarm && spawnedEntityScore === null) spawnedEntityScore = actualEntityScore;
     o.siegeProgress = true;
     o.impervious = true;
-    o.showOnMap = true;
     o.team = -100;
     const isPolygonSpawn = !!siegePolygonSpawnCounts[enemy.name] || o.type === "food";
+    // Polygons are objective scenery for Siege: shove them once toward the
+    // arena center, then let physics/friction carry them naturally. They are
+    // neither wave objectives nor minimap markers.
+    o.showOnMap = !isPolygonSpawn;
     o.siegeCountsTowardWave = !isPolygonSpawn;
     if (isPolygonSpawn && o.velocity) {
-      const center = {
-        x: Number.isFinite(room.width) ? room.width / 2 : 0,
-        y: Number.isFinite(room.height) ? room.height / 2 : 0,
-      };
-      const dx = center.x - o.x;
-      const dy = center.y - o.y;
+      const centerX = Number.isFinite(room.width) ? room.width / 2 : 0;
+      const centerY = Number.isFinite(room.height) ? room.height / 2 : 0;
+      const dx = centerX - o.x;
+      const dy = centerY - o.y;
       const distance = Math.hypot(dx, dy);
       if (distance > 0) {
-        const launchSpeed = 14;
-        o.velocity.x = (dx / distance) * launchSpeed;
-        o.velocity.y = (dy / distance) * launchSpeed;
+        const impulse = 14;
+        o.velocity.x = (dx / distance) * impulse;
+        o.velocity.y = (dy / distance) * impulse;
       }
-      // Food-derived polygons default to a drifting-in-circles controller that
-      // would immediately turn away from the center and brake the launch. Give
-      // them a simple center-seeking controller and enough speed/acceleration
-      // to carry the initial launch through the arena.
-      o.motionType = "chase";
-      // Set the underlying class stats too, so periodic body refreshes retain
-      // the centerward speed instead of restoring food's default zero speed.
-      o.SPEED = Math.max(14, Number(o.SPEED) || 0);
-      o.ACCELERATION = Math.max(1, Number(o.ACCELERATION) || 0);
-      if (o.refreshBodyAttributes) o.refreshBodyAttributes();
-      o.topSpeed = Math.max(14, Number(o.topSpeed) || 0);
-      o.acceleration = Math.max(1, Number(o.acceleration) || 0);
+      // Prevent food's circling AI from steering against the one-time impulse.
+      o.controllers = [];
       o.damp = 0.05;
-      o.controllers = [{
-        acceptsFromTop: false,
-        think() {
-          return { goal: center, main: false, alt: false, fire: false, power: 1 };
-        },
-      }];
     }
     if (siegeLowPolygonNames.has(enemy.name)) {
       o.siegeIgnoreAllyTargeting = true;
@@ -1409,7 +1448,7 @@ function spawnSiegeEnemyFromBudget() {
   c.bossCounter = Math.max(0, budget - spawnedCost);
   recordSiegeBudgetSpend(c.bossWave, enemy.name, spawnedCost, budget, c.bossCounter);
   if (c.bossCounter <= 0 && countLiveSiegeHostiles() <= 0) {
-    scheduleSiegeWaveAdvance(c.bossWave, 5432);
+    scheduleSiegeWaveAdvance(c.bossWave);
   }
 }
 
@@ -14588,7 +14627,7 @@ console.log('Lore mode sequence advanced.');*/
         // subtracting one, which can underflow if death timing varies.
         c.bossAmount = countLiveSiegeHostiles(this);
         if (c.bossAmount <= 0 && Number(c.bossCounter) <= 0) {
-          scheduleSiegeWaveAdvance(c.bossWave, 5432);
+          scheduleSiegeWaveAdvance(c.bossWave);
         }
       }
       if (c.PLAGUE || this.infected) {

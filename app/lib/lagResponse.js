@@ -4,13 +4,13 @@
 // increasingly disruptive actions only after sustained server slowdowns.
 const DEFAULT_STEPS = Object.freeze([
   // These are server-side simulation/event-loop measurements, not client ping.
-  // Wait until measured server-cycle cost reaches 100ms before any mitigation begins.
-  { id: "offscreen-projectiles", category: "projectile", visibility: "offscreen", action: "destroy", speed: 65, lagMs: 100, durationMs: 3000, minActiveMs: 3000 },
-  { id: "offscreen-natural-enemies", category: "naturalEnemy", visibility: "offscreen", action: "destroy", speed: 50, lagMs: 100, durationMs: 4000, minActiveMs: 4000 },
-  { id: "offscreen-food", category: "food", visibility: "offscreen", action: "destroy", speed: 38, lagMs: 140, durationMs: 5000, minActiveMs: 5000 },
-  { id: "offscreen-bots", category: "bot", visibility: "offscreen", action: "destroy", speed: 30, lagMs: 190, durationMs: 5000, minActiveMs: 5000 },
-  { id: "offscreen-natural-bosses", category: "naturalBoss", visibility: "offscreen", action: "destroy", speed: 25, lagMs: 230, durationMs: 5000, minActiveMs: 5000 },
-  { id: "onscreen-projectiles", category: "projectile", visibility: "onscreen", action: "destroy", speed: 18, lagMs: 300, durationMs: 5000, minActiveMs: 5000 },
+  // Start low-impact cleanup before the 100ms target is exceeded.
+  { id: "offscreen-projectiles", category: "projectile", visibility: "offscreen", action: "destroy", speed: 80, lagMs: 75, durationMs: 1500, minActiveMs: 1500 },
+  { id: "offscreen-natural-enemies", category: "naturalEnemy", visibility: "offscreen", action: "destroy", speed: 70, lagMs: 85, durationMs: 2000, minActiveMs: 2000 },
+  { id: "offscreen-food", category: "food", visibility: "offscreen", action: "destroy", speed: 60, lagMs: 100, durationMs: 3000, minActiveMs: 3000 },
+  { id: "offscreen-bots", category: "bot", visibility: "offscreen", action: "destroy", speed: 50, lagMs: 120, durationMs: 3500, minActiveMs: 3500 },
+  { id: "offscreen-natural-bosses", category: "naturalBoss", visibility: "offscreen", action: "destroy", speed: 40, lagMs: 145, durationMs: 4000, minActiveMs: 4000 },
+  { id: "onscreen-projectiles", category: "projectile", visibility: "onscreen", action: "destroy", speed: 30, lagMs: 180, durationMs: 5000, minActiveMs: 5000 },
   // Only sustained extreme lag and very poor throughput may trigger a full
   // process shutdown. The server must not attempt a destructive in-game reset.
   { id: "emergency-shutdown", category: "all", visibility: "any", action: "shutdown", speed: 5, lagMs: 1000, durationMs: 15000, minActiveMs: 0 },
@@ -89,8 +89,8 @@ function createLagResponse(options = {}) {
       minActiveMs: Number.isFinite(minActive) && minActive >= 0 ? minActive : base.minActiveMs,
     });
   });
-  const scanBatchSize = Math.max(25, Math.floor(positive(env.RANAR_LAG_RESPONSE_SCAN_BATCH_SIZE, 300)));
-  const destroyBatchSize = Math.max(1, Math.floor(positive(env.RANAR_LAG_RESPONSE_DESTROY_BATCH_SIZE, 3)));
+  const scanBatchSize = Math.max(25, Math.floor(positive(env.RANAR_LAG_RESPONSE_SCAN_BATCH_SIZE, 350)));
+  const destroyBatchSize = Math.max(1, Math.floor(positive(env.RANAR_LAG_RESPONSE_DESTROY_BATCH_SIZE, 6)));
   const rescanIntervalMs = positive(env.RANAR_LAG_RESPONSE_RESCAN_MS, 5000);
   const suspendIntervalMs = positive(env.RANAR_LAG_RESPONSE_SUSPEND_INTERVAL_MS, 2500);
   // Do not require near-ideal throughput to recover on a naturally heavy map.
