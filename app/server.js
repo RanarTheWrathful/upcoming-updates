@@ -23403,7 +23403,13 @@ var maintainloop = (() => {
           if (!position) position = room.randomType("norm") || room.randomType("spw0") || room.random();
         }
 
-        if (position && !room.isIn("wall", position) && loadProtection.canSpawnNaturalEntity()) {
+        // Explicitly queued Siege bots are scripted event spawns, not ambient
+        // natural bots. Let them bypass the global natural-spawn pause while
+        // retaining the shared live-population cap and scan-readiness checks.
+        const canSpawnThisBot = queuedSiegeBot
+          ? loadProtection.canSpawnNaturalEntity({ ignorePause: true })
+          : loadProtection.canSpawnNaturalEntity();
+        if (position && !room.isIn("wall", position) && canSpawnThisBot) {
           // Keep the queue entry until the bot has been fully initialized and
           // marked as a Siege entity. If construction fails, the queue remains
           // available for retry/expiry instead of stranding an ally wave.
