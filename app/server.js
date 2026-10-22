@@ -1393,10 +1393,8 @@ function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
       o.impervious = true;
       o.showOnMap = true;
       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
       o._siegeAlly = true;
       c.siegeAllySpawnSuccessCount = (Number(c.siegeAllySpawnSuccessCount) || 0) + 1;
-      announceSiegeWaveStarted(wave);
       // Do not overwrite NAME from a definition: named bosses (e.g. Twilight)
       // keep their identity; unnamed bosses remain unnamed instead of receiving
       // a random player-style name.
@@ -1596,7 +1594,6 @@ function spawnSiegeEnemyFromBudget() {
     }
     if (!isPolygonSwarm && spawnedEntityScore === null) spawnedEntityScore = actualEntityScore;
     o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
     o.impervious = true;
     o.team = -100;
     const isPolygonSpawn = !!siegePolygonSpawnCounts[enemy.name] || o.type === "food";
@@ -1646,7 +1643,6 @@ function spawnSiegeEnemyFromBudget() {
     }
     return;
   }
-  announceSiegeWaveStarted(c.bossWave);
   // Polygon catalog costs already include every entity in the pack. For other
   // enemies charge their post-definition score (normally enemy.cost), retaining
   // affordability if a definition changes later.
@@ -6624,6 +6620,16 @@ class Entity {
 
   life() {
     bringToLife(this);
+    // Announce only after the entity is registered and has entered the normal
+    // lifecycle. Merely attempting/queuing a spawn or tagging a not-yet-live
+    // object must not start the Siege wave announcement.
+    if (c.MODE === "siege" && this.siegeProgress === true && this.team === -100 &&
+        this.type !== "food" && this.isFood !== true && this.isPolygon !== true &&
+        this.isProjectile !== true && this.type !== "bullet" && this.type !== "drone" &&
+        this.type !== "swarm" && (typeof this.valid !== "function" || this.valid()) &&
+        (typeof this.isDead !== "function" || !this.isDead())) {
+      announceSiegeWaveStarted(c.bossWave, this);
+    }
   }
 
   addController(newIO) {
@@ -8534,7 +8540,6 @@ class Entity {
         //console.log(c.bossAmount);
         let o = new Entity(room.type("spw0"));
         o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
         o.kill();
         c.waveCount = true;
         setTimeout(() => {
@@ -8765,7 +8770,6 @@ class Entity {
                     let o = new Entity(room.randomType("spw0"));
                     o.define(Class.CX2);
                     o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                     o.impervious = true;
                     o.team = -100;
                     setTimeout(() => {
@@ -8809,7 +8813,6 @@ class Entity {
                               break;
                           }
                           o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                           o.impervious = true;
                           o.team = -100;
                           setTimeout(() => {
@@ -8857,7 +8860,6 @@ class Entity {
                               break;
                           }
                           o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                           o.impervious = true;
                           o.team = -100;
                           setTimeout(() => {
@@ -8926,7 +8928,6 @@ class Entity {
                           );
                       }
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -8944,7 +8945,6 @@ class Entity {
                     let o = new Entity(room.randomType("spw0"));
                     o.define(Class.zomblord2);
                     o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                     o.impervious = true;
                     o.team = -100;
                     setTimeout(() => {
@@ -8994,7 +8994,6 @@ class Entity {
                           );
                       }
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9026,7 +9025,6 @@ class Entity {
                           break;
                       }
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9097,7 +9095,6 @@ class Entity {
                       }
 
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9172,7 +9169,6 @@ class Entity {
                           break;
                       }
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9241,7 +9237,6 @@ class Entity {
                           );
                       }
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9300,7 +9295,6 @@ class Entity {
                       }
 
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9345,7 +9339,6 @@ class Entity {
                           break;
                       }
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9419,7 +9412,6 @@ class Entity {
                           );
                       }
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9477,7 +9469,6 @@ class Entity {
                           break;
                       }
                       o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9960,7 +9951,6 @@ class Entity {
             }
           }
           o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
           o.impervious = true;
           o.showOnMap = true;
           o.team = -100;
@@ -23822,14 +23812,12 @@ var maintainloop = (() => {
             o.showOnMap = true;
             o._siegeAlly = true;
             o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
           } else if (spawnAsSiegeEnemyBot) {
             o.team = -100;
             o.color = 3;
             o.impervious = true;
             o.showOnMap = true;
             o.siegeProgress = true;
-                    announceSiegeWaveStarted(c.bossWave, o);
           } else if (c.MODE === "siege" && o.team === -1) {
             o.impervious = true;
             o._siegeAlly = true;
@@ -23842,7 +23830,6 @@ var maintainloop = (() => {
           }
           bots.push(o);
           if (queuedSiegeBot) {
-            announceSiegeWaveStarted(queuedSiegeBot.wave);
             util.log(`[Siege] Spawned ${spawnAsSiegeAllyBot ? "ally" : "hostile"} Bot for wave ${queuedSiegeBot.wave}.`);
           }
           if (spawnAsSiegeAllyBot && queuedSiegeBot) {
