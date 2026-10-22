@@ -7,6 +7,21 @@ function isEpicWave(wave) {
   return Number.isFinite(value) && value > 0 && value % 10 === 0;
 }
 
+function shouldSpawnEpicEncounter(wave) {
+  const value = Number(wave);
+  return Number.isFinite(value) && value > 0 && (isEpicWave(value) || value > 100);
+}
+
+function isEpicOnlyWave(wave) {
+  const value = Number(wave);
+  return Number.isFinite(value) && value > 0 && value < 50 && value % 10 === 0 || value === 100;
+}
+
+function shouldSpawnNormalWave(wave) {
+  const value = Number(wave);
+  return Number.isFinite(value) && value > 0 && !isEpicOnlyWave(value);
+}
+
 /** Ally rosters are disabled on epic encounters, which have their own bosses. */
 function availableThemesForWave(themes, wave) {
   const pool = Array.isArray(themes) ? themes : [];
@@ -34,6 +49,9 @@ function themesForWave(themes, waveKind, alliesAlreadySpawned) {
 module.exports = {
   ALLY_THEME_ID,
   isEpicWave,
+  shouldSpawnEpicEncounter,
+  isEpicOnlyWave,
+  shouldSpawnNormalWave,
   availableThemesForWave,
   getWaveKind,
   themesForWave,

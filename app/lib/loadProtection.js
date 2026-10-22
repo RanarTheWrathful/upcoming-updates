@@ -909,8 +909,9 @@ function createLoadProtection(options = {}) {
     if (severeLag) {
       // Severe load removes every confirmed off-screen respawnable entity, not
       // merely enough entities to meet the population cap. Visible natural
-      // enemies are deliberately spared by this mode.
+      // entities are eligible only during a confirmed emergency/extreme spike.
       mode |= CLEAN_OFFSCREEN_RESPAWNABLE;
+      if (lastMetrics.emergencyMitigation) mode |= CLEAN_NATURAL_POPULATION;
     } else if (effectiveStage() > 0) {
       // Ordinary elevated load continues to reduce only excess natural population.
       mode |= CLEAN_NATURAL_POPULATION;
@@ -1020,15 +1021,16 @@ function createLoadProtection(options = {}) {
       }
 
       if (mode & CLEAN_OFFSCREEN_RESPAWNABLE) {
-        if (!isRespawnableCleanupCandidate(entity)) continue;
-        // Only a definitive false grants permission to delete: a missing/broken
-        // viewport calculation is not proof that every client is off-screen.
-        if (visibilityToAnyClient(entity) === false) {
-          cleanupSweep.respawnableOffscreenCandidates.push(entity);
+        if (isRespawnableCleanupCandidate(entity)) {
+          // Only a definitive false grants permission to delete: a missing/broken
+          // viewport calculation is not proof that every client is off-screen.
+          if (visibilityToAnyClient(entity) === false) {
+            cleanupSweep.respawnableOffscreenCandidates.push(entity);
+          }
         }
-        // This mode intentionally does not fall back to deleting visible natural
-        // entities just because the off-screen pool is too small.
-        continue;
+        // In non-emergency severe recovery, never fall back to visible entities.
+        // A confirmed extreme spike may continue into the excess-population path.
+        if (!lastMetrics.emergencyMitigation) continue;
       }
 
       // Transients have their own visibility-aware TTL outside severe-lag mode.
@@ -1046,7 +1048,10 @@ function createLoadProtection(options = {}) {
       let onScreen = false;
       try { onScreen = !!isEntityOnScreen(entity); } catch (_) { onScreen = false; }
       if (onScreen) {
-        if (cleanupSweep.onscreenCandidates.length < naturalExcess) {
+        // Visible entities are protected during ordinary and severe recovery.
+        // Only a confirmed emergency/extreme-lag response may even nominate
+        // one for deletion; ordinary cleanup always prefers off-screen items.
+        if (lastMetrics.emergencyMitigation && cleanupSweep.onscreenCandidates.length < naturalExcess) {
           cleanupSweep.onscreenCandidates.push(entity);
         }
       } else {
@@ -1068,6 +1073,17 @@ function createLoadProtection(options = {}) {
       }
       for (const entity of cleanupSweep.unknownCandidates) {
         candidates.push({ entity, kind: "unknown", priority: 1 });
+      }
+      if (lastMetrics.emergencyMitigation && (mode & CLEAN_NATURAL_POPULATION)) {
+        let remainingNatural = naturalExcess;
+        for (const entity of cleanupSweep.offscreenCandidates) {
+          if (remainingNatural-- <= 0) break;
+          candidates.push({ entity, kind: "natural-offscreen", priority: 2 });
+        }
+        for (const entity of cleanupSweep.onscreenCandidates) {
+          if (remainingNatural-- <= 0) break;
+          candidates.push({ entity, kind: "natural-onscreen", priority: 3 });
+        }
       }
     } else {
       let remainingNatural = naturalExcess;
@@ -1153,6 +1169,7 @@ function createLoadProtection(options = {}) {
       // moved into a client's view while the bounded sweep was being processed.
       if (candidate.kind === "respawnable-offscreen" &&
           visibilityToAnyClient(entity) !== false) continue;
+      if (candidate.kind === "natural-onscreen" && !lastMetrics.emergencyMitigation) continue;
       if (destroyForLoadProtection(entity)) {
         if (candidate.kind === "unknown") cleanupSweep.destroyedUnknown++;
         else if (candidate.kind === "respawnable-offscreen") cleanupSweep.destroyedRespawnableOffscreen++;

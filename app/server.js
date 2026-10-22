@@ -771,8 +771,32 @@ function buildSiegeEnemyCatalog() {
 
 siegeEnemyCatalog = buildSiegeEnemyCatalog();
 
+function syncLegendaryClassListOption(entity) {
+  if (!entity || entity.isPlayer !== true || entity.type !== "tank" || !Array.isArray(entity.upgrades)) return;
+  const eligible = Number(entity.skill && entity.skill.score) >= 2500000 &&
+    !entity.trueDev && !entity.invuln && entity.label !== "Spectator" &&
+    !hasSpecialEffect(entity, "Legend") && Class.currentLegendaryClasses;
+  entity.upgrades = entity.upgrades.filter((upgrade) => !upgrade || !upgrade.legendaryClassListUnlock || eligible);
+  if (!eligible) return;
+  if (!entity.upgrades.some((upgrade) => upgrade && upgrade.legendaryClassListUnlock)) {
+    const target = Class.currentLegendaryClasses;
+    entity.upgrades.push({
+      class: target,
+      tier: 0,
+      level: 0,
+      index: target.index,
+      legendaryClassListUnlock: true,
+    });
+    if (!entity._legendaryClassListNotified) {
+      entity.sendMessage("You have unlocked the Legendary Class List! It is now available in your upgrade choices.");
+      entity._legendaryClassListNotified = true;
+    }
+  }
+}
+
 function syncLegendaryBranchOptions(entity) {
   if (!entity || entity.isPlayer !== true || entity.type !== "tank" || !Array.isArray(entity.upgrades)) return;
+  syncLegendaryClassListOption(entity);
   const unlocked = legendaryBranches.syncUpgradeOptions(
     entity, c.MODE, Class, hasSpecialEffect(entity, "Legend")
   );
@@ -782,6 +806,57 @@ function syncLegendaryBranchOptions(entity) {
       "! It is now available in your upgrade choices."
     );
   }
+}
+
+function announceSiegeWaveStarted(wave = c.bossWave, spawnedEntity = null) {
+  if (c.MODE !== "siege") return false;
+  // The first entity tagged for an epic encounter is its leader. Scale it once
+  // per wave against the score of allied players, bots, and bosses.
+  if (spawnedEntity && c.initiateEpicWave && c.siegeEpicLeaderScaledWave !== wave) {
+    scaleSiegeEpicLeaderToAllyScore(spawnedEntity);
+    c.siegeEpicLeaderScaledWave = wave;
+  }
+  if (c.siegeAnnouncedStartedWave === wave) return false;
+  c.siegeAnnouncedStartedWave = wave;
+  sockets.broadcast("Wave " + wave + " has started!");
+  return true;
+}
+
+function getSiegeAllyTeamScore() {
+  let total = 0;
+  for (const entity of entities) {
+    if (!entity || entity.team !== -1 || typeof entity.valid === "function" && !entity.valid()) continue;
+    if (!(entity.isPlayer === true || entity.isBot === true || entity.isBoss === true)) continue;
+    const score = Number(entity.skill && entity.skill.score);
+    if (Number.isFinite(score) && score > 0) total += score;
+  }
+  return Number.isFinite(total) ? total : Number.MAX_SAFE_INTEGER;
+}
+
+function scaleSiegeEpicLeaderToAllyScore(entity) {
+  if (!entity || c.MODE !== "siege" || entity._siegeScoreScaled) return;
+  const allyScore = getSiegeAllyTeamScore();
+  if (!(allyScore > 0)) return;
+  // Logarithmic scaling gives team score meaningful influence without allowing
+  // the boss stats to grow exponentially without bound.
+  const scale = Math.min(8, 1 + Math.log10(1 + allyScore / 1000000));
+  const health = entity.health;
+  if (health && Number.isFinite(Number(health.max)) && health.max > 0) {
+    const ratio = Number(health.amount) / health.max;
+    health.max *= scale;
+    health.amount = Math.max(1, Math.min(health.max, health.max * (Number.isFinite(ratio) ? ratio : 1)));
+  }
+  if (Number.isFinite(Number(entity.damage))) entity.damage *= scale;
+  if (Number.isFinite(Number(entity.resist))) entity.resist *= Math.sqrt(scale);
+  if (Number.isFinite(Number(entity.spd))) entity.spd *= Math.min(1.75, Math.sqrt(scale));
+  entity._siegeScoreScaled = true;
+}
+
+function scaleSiegeRanarToAllyScore(entity) {
+  // Ranar can also be created outside the epic-wave path; do not scale him twice
+  // if he was already selected as that wave's leader.
+  if (!entity || c.MODE !== "siege" || entity.isRanar !== true || entity._siegeScoreScaled) return;
+  scaleSiegeEpicLeaderToAllyScore(entity);
 }
 
 function getSiegeThemesForCurrentWave() {
@@ -899,6 +974,12 @@ function calculateSiegeWaveBudget(wave) {
   c.siegeCarryoverBudget = 0;
   c.siegeBudgetStartedWave = wave;
   getSiegeThemesForCurrentWave();
+  if (!siegeWavePolicy.shouldSpawnNormalWave(wave)) {
+    c.siegeCarryoverBudget = Math.max(0, Number(c.siegeCarryoverBudget) || 0) + budget;
+    beginSiegeBudgetAccounting(wave, 0, "epic-only wave; normal budget carried forward");
+    util.log(`[Siege Budget] Wave ${wave}: epic-only wave; preserved ${budget} points for the next normal wave.`);
+    return 0;
+  }
   beginSiegeBudgetAccounting(wave, budget, "score-based wave start");
   util.log(
     `[Siege Budget] Wave ${wave}: 20000 x wave (${20000 * Math.max(0, Math.floor(Number(wave) || 0))}) + ` +
@@ -1223,6 +1304,7 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
       finishSchedule("countdown");
       c.bossWave = nextWave;
       c.siegeAlliesSpawnedWave = null;
+      c.siegeAnnouncedStartedWave = null;
       c.dontSpam = true;
       c.bossAmount = 1;
       c.initiateEpicWave = false;
@@ -1242,7 +1324,9 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
           return;
         }
         finishSchedule();
-        sockets.broadcast("Wave " + nextWave + " has started!");
+        // The wave-start message is emitted by the first successful spawn, not
+        // by the countdown timer. This avoids announcing waves while anti-lag or
+        // a spawn queue is still holding every entity back.
         // A wave can spend its entire budget on non-counted polygon scenery.
         // If nothing hostile remains after the countdown, resume transitions
         // rather than waiting for a death callback that will never arrive.
@@ -1284,11 +1368,8 @@ function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
       }
     };
 
-    if (!loadProtection.shouldSpawnNaturalEntities()) {
-      retryOrFinish();
-      return;
-    }
-
+    // Scripted Siege reinforcements are not ambient natural spawns. They may
+    // ignore the global spawn pause, but still obey the shared population cap.
     let spot;
     for (let attempt = 0; attempt < 30; attempt++) {
       spot = room.randomType("norm");
@@ -1298,7 +1379,7 @@ function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
     if (!spot) {
       spot = room.randomType("spw0") || room.randomType("norm") || room.random();
     }
-    if (!spot || room.isIn("wall", spot) || !loadProtection.canSpawnNaturalEntity()) {
+    if (!spot || room.isIn("wall", spot) || !loadProtection.canSpawnNaturalEntity({ ignorePause: true })) {
       retryOrFinish();
       return;
     }
@@ -1312,8 +1393,10 @@ function spawnSiegeAlly(enemy, delayIndex, wave, retries = 0) {
       o.impervious = true;
       o.showOnMap = true;
       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
       o._siegeAlly = true;
       c.siegeAllySpawnSuccessCount = (Number(c.siegeAllySpawnSuccessCount) || 0) + 1;
+      announceSiegeWaveStarted(wave);
       // Do not overwrite NAME from a definition: named bosses (e.g. Twilight)
       // keep their identity; unnamed bosses remain unnamed instead of receiving
       // a random player-style name.
@@ -1513,6 +1596,7 @@ function spawnSiegeEnemyFromBudget() {
     }
     if (!isPolygonSwarm && spawnedEntityScore === null) spawnedEntityScore = actualEntityScore;
     o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
     o.impervious = true;
     o.team = -100;
     const isPolygonSpawn = !!siegePolygonSpawnCounts[enemy.name] || o.type === "food";
@@ -1562,6 +1646,7 @@ function spawnSiegeEnemyFromBudget() {
     }
     return;
   }
+  announceSiegeWaveStarted(c.bossWave);
   // Polygon catalog costs already include every entity in the pack. For other
   // enemies charge their post-definition score (normally enemy.cost), retaining
   // affordability if a definition changes later.
@@ -4679,7 +4764,9 @@ class io_nearestDifferentMaster extends IO {
           this.validTargets.length === 1
             ? this.validTargets[0]
             : nearest(this.validTargets, { x: this.body.x, y: this.body.y });
-        this.tick = -90;
+        // Keep the acquired target active, but do not impose an extra 90-tick
+        // dead period before target selection can be reconsidered. While the
+        // normal refresh cadence runs, the current target remains locked.
       }
     }
     // Lock onto whoever's shooting me.
@@ -4905,7 +4992,9 @@ class io_Dominator extends IO {
           this.validTargets.length === 1
             ? this.validTargets[0]
             : nearest(this.validTargets, { x: this.body.x, y: this.body.y });
-        this.tick = -90;
+        // Keep the acquired target active, but do not impose an extra 90-tick
+        // dead period before target selection can be reconsidered. While the
+        // normal refresh cadence runs, the current target remains locked.
       }
     }
     // Lock onto whoever's shooting me.
@@ -8445,6 +8534,7 @@ class Entity {
         //console.log(c.bossAmount);
         let o = new Entity(room.type("spw0"));
         o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
         o.kill();
         c.waveCount = true;
         setTimeout(() => {
@@ -8541,6 +8631,7 @@ class Entity {
         this.y = this.master.y;
       }
       if (this.isRanar) {
+        scaleSiegeRanarToAllyScore(this);
         if (this.stage === undefined) this.stage = 0;
         if (this.label === "Disciple") {
           if (this.health.amount <= this.health.max / 1.5 && this.stage === 0) {
@@ -8625,31 +8716,18 @@ class Entity {
         !this.invuln &&
         this.label !== "Spectator"
       ) {
-        if (!hasSpecialEffect(this, "Legend")) {
-          this.sendMessage(
-            "You have gained access to the Legendary Class List!"
-          );
-          this.maxChildren = 0;
-          this.intangibility = false;
-          this.invisible = [100, 0];
-          this.alpha = 100;
-          this.upgrades = [];
-          this.define(Class.currentLegendaryClasses);
-          this.ignoreCollision = false;
-        } else {
+        if (hasSpecialEffect(this, "Legend")) {
           this.sendMessage("Your power grows");
           this.SIZE += 5;
           this.skill.points += 5;
           this.resist *= 5;
-          //this.heath.amount = this.health.max;
-          //this.shield.amount = this.shield.max;
         }
         this.skill.points += 10;
         this.gifted = true;
       }
       if (c.canProgress && c.ranarDialog === undefined) {
         c.bossAmount = 1;
-        sockets.broadcast("Wave " + c.bossWave + " has started!");
+        if (c.MODE !== "siege") sockets.broadcast("Wave " + c.bossWave + " has started!");
         c.continueWave = true;
         c.ranarDialog = Math.round(Math.random() * 3);
       }
@@ -8664,7 +8742,7 @@ class Entity {
       //    let countUp = 0;
       //  c.bossCounter = 1;
       if (c.pingBack) {
-        if (c.bossWave % 10 === 0 && c.bossWave !== 0 && !c.initiateEpicWave) {
+        if (siegeWavePolicy.shouldSpawnEpicEncounter(c.bossWave) && c.bossWave !== 0 && !c.initiateEpicWave) {
           c.initiateEpicWave = true;
           c.bonus += 3;
           c.disciple = true;
@@ -8676,15 +8754,18 @@ class Entity {
           switch (c.waveType) {
             case "epic":
               c.waveRarity = Math.ceil(Math.random() * 6);
-              sockets.broadcast(
-                "Wave " + c.bossWave + " has started, this is a dangerous wave!"
-              );
+              if (c.MODE !== "siege") {
+                sockets.broadcast(
+                  "Wave " + c.bossWave + " has started, this is a dangerous wave!"
+                );
+              }
               switch (c.waveRarity) {
                 case 1:
                   if (c.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
                     o.define(Class.CX2);
                     o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                     o.impervious = true;
                     o.team = -100;
                     setTimeout(() => {
@@ -8728,6 +8809,7 @@ class Entity {
                               break;
                           }
                           o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                           o.impervious = true;
                           o.team = -100;
                           setTimeout(() => {
@@ -8775,6 +8857,7 @@ class Entity {
                               break;
                           }
                           o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                           o.impervious = true;
                           o.team = -100;
                           setTimeout(() => {
@@ -8843,6 +8926,7 @@ class Entity {
                           );
                       }
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -8860,6 +8944,7 @@ class Entity {
                     let o = new Entity(room.randomType("spw0"));
                     o.define(Class.zomblord2);
                     o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                     o.impervious = true;
                     o.team = -100;
                     setTimeout(() => {
@@ -8909,6 +8994,7 @@ class Entity {
                           );
                       }
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -8940,6 +9026,7 @@ class Entity {
                           break;
                       }
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -8960,11 +9047,14 @@ class Entity {
               }
               break;
             case "final":
-              sockets.broadcast(
-                "Wave " + c.bossWave + " has started, survival is...unlikely..."
-              );
+              if (c.MODE !== "siege") {
+                sockets.broadcast(
+                  "Wave " + c.bossWave + " has started, survival is...unlikely..."
+                );
+              }
               c.waveRarity = Math.ceil(Math.random() * 8);
-              switch (c.waveRarity) {
+              const spawnFinalEpicPack = (rarity) => {
+                switch (rarity) {
                 case 1:
                   if (c.MODE === "siege") {
                     let o = new Entity(room.randomType("spw0"));
@@ -9007,6 +9097,7 @@ class Entity {
                       }
 
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9081,6 +9172,7 @@ class Entity {
                           break;
                       }
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9149,6 +9241,7 @@ class Entity {
                           );
                       }
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9207,6 +9300,7 @@ class Entity {
                       }
 
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9251,6 +9345,7 @@ class Entity {
                           break;
                       }
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9324,6 +9419,7 @@ class Entity {
                           );
                       }
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9381,6 +9477,7 @@ class Entity {
                           break;
                       }
                       o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
                       o.impervious = true;
                       o.team = -100;
                       setTimeout(() => {
@@ -9406,6 +9503,17 @@ class Entity {
                     );
                   }
                   break;
+                              }
+              };
+              if (c.MODE === "siege" && c.bossWave >= 100 && c.bossWave % 10 === 0) {
+                // Every tenth wave from 100 onward is the full epic gauntlet.
+                for (let rarity = 1; rarity <= 8; rarity++) {
+                  c.waveRarity = rarity;
+                  spawnFinalEpicPack(rarity);
+                }
+              } else {
+                c.waveRarity = Math.ceil(Math.random() * 8);
+                spawnFinalEpicPack(c.waveRarity);
               }
               break;
           } //just let* me cook
@@ -9852,6 +9960,7 @@ class Entity {
             }
           }
           o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
           o.impervious = true;
           o.showOnMap = true;
           o.team = -100;
@@ -23420,7 +23529,7 @@ var maintainloop = (() => {
           let tierOne = Math.random() * 50;
           o.isBot = true;
           o.addController(new io_fleeAtLowHealth(o));
-          o.define(Class["bot" + Math.round(Math.random() * 7)]);
+          o.define(Class["bot" + Math.floor(Math.random() * 8)]);
           o.name += ran.chooseBotName();
           if (c.MODE === "plague" || c.necro) {
             o.infector = true;
@@ -23451,7 +23560,7 @@ var maintainloop = (() => {
           }
           if (c.MODE === "theDenied") o.impervious = true;
           o.invuln = true;
-          o.leftoverUpgrades = ran.chooseChance(1, 5, 20, 37, 37);
+          o.leftoverUpgrades = Math.floor(Math.random() * 5);
           if (o.facingType !== "autospin") {
             o.facingType = ran.choose([
               "smoothToTarget",
@@ -23713,12 +23822,14 @@ var maintainloop = (() => {
             o.showOnMap = true;
             o._siegeAlly = true;
             o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
           } else if (spawnAsSiegeEnemyBot) {
             o.team = -100;
             o.color = 3;
             o.impervious = true;
             o.showOnMap = true;
             o.siegeProgress = true;
+                    announceSiegeWaveStarted(c.bossWave, o);
           } else if (c.MODE === "siege" && o.team === -1) {
             o.impervious = true;
             o._siegeAlly = true;
@@ -23731,6 +23842,7 @@ var maintainloop = (() => {
           }
           bots.push(o);
           if (queuedSiegeBot) {
+            announceSiegeWaveStarted(queuedSiegeBot.wave);
             util.log(`[Siege] Spawned ${spawnAsSiegeAllyBot ? "ally" : "hostile"} Bot for wave ${queuedSiegeBot.wave}.`);
           }
           if (spawnAsSiegeAllyBot && queuedSiegeBot) {
@@ -23747,24 +23859,24 @@ var maintainloop = (() => {
       for (let i = 0; i < bots.length; i++) {
         let o = bots[i];
         o.skill.maintain();
-        o.skillUp(
-          [
-            "atk",
-            "hlt",
-            "spd",
-            "str",
-            "pen",
-            "dam",
-            "rld",
-            "mob",
-            "rgn",
-            "shi",
-          ][ran.chooseChance(1, 1, 3, 4, 4, 4, 4, 2, 1, 1)]
-        );
+        if (c.MODE === "siege" && o.team === -100 && /turret/i.test(String(o.label || ""))) {
+          const now = Date.now();
+          if (!o._siegeTurretDecayAt) o._siegeTurretDecayAt = now;
+          if (now - o._siegeTurretDecayAt >= 1000) {
+            const elapsedSeconds = Math.floor((now - o._siegeTurretDecayAt) / 1000);
+            o._siegeTurretDecayAt += elapsedSeconds * 1000;
+            const maxHealth = Math.max(1, Number(o.health && o.health.max) || 1);
+            o.health.amount = Math.max(0, Number(o.health.amount) - maxHealth * 0.01 * elapsedSeconds);
+            if (o.health.amount <= 0 && typeof o.kill === "function") o.kill();
+          }
+        }
+        o.skillUp(ran.choose([
+          "atk", "hlt", "spd", "str", "pen", "dam", "rld", "mob", "rgn", "shi",
+        ]));
         if (
           o.leftoverUpgrades &&
           o.upgrade(
-            ran.irandomRange(Math.ceil(Math.random() * 10), o.upgrades.length)
+            ran.irandomRange(0, Math.max(0, o.upgrades.length - 1))
           )
         )
           o.leftoverUpgrades--;

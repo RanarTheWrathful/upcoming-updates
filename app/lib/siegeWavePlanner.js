@@ -67,16 +67,10 @@ function chooseRandomThemes(themes, random = Math.random) {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   const selected = pool.slice(0, count);
-  // Reinforcements are a rare event: when selected, there is a 50% chance
-  // to ignore them and continue with ordinary enemy themes instead.
+  // Reinforcements are an exclusive wave type. If selected, they cancel every
+  // other theme rather than being randomly discarded or mixed with hostiles.
   const allyTheme = selected.find((theme) => theme.id === "spawnAllies");
-  if (!allyTheme) return selected;
-  if (randomUnit(random) >= 0.5) return [allyTheme];
-
-  const ordinaryThemes = selected.filter((theme) => theme.id !== "spawnAllies");
-  if (ordinaryThemes.length) return ordinaryThemes;
-  const ordinaryPool = pool.filter((theme) => theme.id !== "spawnAllies");
-  return ordinaryPool.length ? [ordinaryPool[randomIndex(ordinaryPool.length, random)]] : [];
+  return allyTheme ? [allyTheme] : selected;
 }
 
 /**
