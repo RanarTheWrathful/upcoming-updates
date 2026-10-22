@@ -89505,7 +89505,7 @@ for (let i = 0; i < 8; i++) {
           g.minorDamage,
           g.greaterHealth,
           g.greaterReload,
-          g.bitmoreRange,
+          g.doubleRange,
         ]),
         TYPE: exports.trap,
         STAT_CALCULATOR: gunCalcNames.trap,

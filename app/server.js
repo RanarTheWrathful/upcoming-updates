@@ -193,14 +193,21 @@ c.siegeBudgetStartedWave = null;
 c.siegeWaveKind = "enemies";
 c.siegeBudgetSpendLogCount = 0;
 
-// Keep transitions responsive without letting a single-tick clear cause
-// repeated wave advancement. During the short countdown, the next wave can
-// already begin spawning so the arena does not sit idle.
-const SIEGE_WAVE_CLEAR_GRACE_MS = 1000;
-const SIEGE_WAVE_COUNTDOWN_MS = 3000;
+// Siege waits five seconds after the final counted neutral hostile is gone,
+// then announces a ten-second countdown. The next wave's budget is prepared
+// before the countdown, but enemies are not spawned until it ends.
+const SIEGE_WAVE_CLEAR_GRACE_MS = 5000;
+const SIEGE_WAVE_COUNTDOWN_MS = 10000;
 const SIEGE_WAVE_RECHECK_MS = 1000;
-const SIEGE_COUNTDOWN_SPAWN_BATCH = 3;
 const SIEGE_ALLY_SPAWN_SPACING_MS = 250;
+
+// Disconnected players retain their exact body for two minutes. Matching both
+// IP and normalized name allows a quick reload to reclaim that body.
+const disconnectedPlayerBodies = new Map();
+function reconnectBodyKey(socket, name) {
+  if (!socket || !socket.ip || typeof name !== "string" || !name.trim()) return null;
+  return String(socket.ip) + "\\u0000" + name.trim().toLowerCase();
+}
 
 let wE1 = [
   "eggCrasher",
@@ -1094,7 +1101,10 @@ function expireSiegeBotQueueEntries(now = Date.now()) {
 
 function isCountedLiveSiegeHostile(entity, excludedEntity = null) {
   if (!entity || entity === excludedEntity || !entity.siegeProgress ||
-      entity.team !== -100 || entity.siegeCountsTowardWave === false || entity.type === "food") return false;
+      entity.team !== -100 || entity.siegeCountsTowardWave === false ||
+      entity.type === "food" || entity.isFood === true || entity.isPolygon === true ||
+      entity.isProjectile === true || entity.type === "bullet" ||
+      entity.type === "drone" || entity.type === "swarm") return false;
   if (typeof entity.isDead === "function") {
     try { if (entity.isDead()) return false; } catch (_) { return false; }
   }
@@ -1182,9 +1192,9 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
           ? Math.max(0, Number(c.siegePendingAllySpawns) || 0) : 0;
         const queue = getSiegeBotSpawnQueue();
         const pendingHostileBots = queue.filter((entry) => entry && entry.team === -100).length;
-        console.warn(`[SIEGE] wave ${expectedWave} waiting: budget=${Number(c.bossCounter) || 0}, ` +
-          `liveHostiles=${countLiveSiegeHostiles()}, pendingAllies=${pendingAllies}, ` +
-          `queuedHostileBots=${pendingHostileBots}, phase=${c.siegeAdvancePhase || "unknown"}`);
+        // console.warn(`[SIEGE] wave ${expectedWave} waiting: budget=${Number(c.bossCounter) || 0}, ` +
+        //   `liveHostiles=${countLiveSiegeHostiles()}, pendingAllies=${pendingAllies}, ` +
+        //   `queuedHostileBots=${pendingHostileBots}, phase=${c.siegeAdvancePhase || "unknown"}`);
         c._siegeBlockerLog = { wave: expectedWave, at: now };
       }
       schedule(SIEGE_WAVE_RECHECK_MS, waitUntilClear);
@@ -1224,7 +1234,7 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
       // Calculate the budget synchronously now so spawning can begin during
       // the countdown rather than waiting for a later game-loop tick.
       c.bossCounter = calculateSiegeWaveBudget(nextWave);
-      sockets.broadcast("The next wave will start in 3 seconds.");
+      sockets.broadcast("The next wave will start in 10 seconds.");
 
       schedule(SIEGE_WAVE_COUNTDOWN_MS, () => {
         if (c.MODE !== "siege" || c.bossWave !== nextWave) {
@@ -17096,10 +17106,21 @@ const sockets = (() => {
             departingBody.isDominator !== true &&
             !departingBody.trueDev
           ) {
-            departingBody.invuln = false;
+            // Preserve the disconnected body for the full reclaim window.
+            departingBody.invuln = true;
+            const reconnectKey = reconnectBodyKey(socket, socket.name || departingBody.name || player.name);
+            const reconnectEntry = { body: departingBody, timer: null };
+            if (reconnectKey) {
+              const previousEntry = disconnectedPlayerBodies.get(reconnectKey);
+              if (previousEntry && previousEntry.timer) clearTimeout(previousEntry.timer);
+              disconnectedPlayerBodies.set(reconnectKey, reconnectEntry);
+            }
             const departureCleanup = setTimeout(() => {
-              // The player object may be reused or its body replaced before this
-              // grace period expires. Never kill/destroy a different body.
+              // A reconnect removes this exact cache entry and cancels this timer.
+              if (reconnectKey && disconnectedPlayerBodies.get(reconnectKey) === reconnectEntry) {
+                disconnectedPlayerBodies.delete(reconnectKey);
+              }
+              // Never kill a body that has already been reclaimed or destroyed.
               if (!departingBody || !keyManager.hasKey(departingBody.key)) return;
               if (departingBody.skill.score >= 500000 && c.MODE !== "siege") {
                 let o = new Entity(departingBody);
@@ -17111,7 +17132,8 @@ const sockets = (() => {
               }
               departingBody.kill();
               if (!departingBody.plagued) departingBody.destroy();
-            }, 10000);
+            }, 120000);
+            reconnectEntry.timer = departureCleanup;
             if (departureCleanup && typeof departureCleanup.unref === "function") departureCleanup.unref();
           }
           if (player.body != null && player.body.isDominator) {
@@ -18532,9 +18554,36 @@ const sockets = (() => {
               loc.y = c.anubLocY;
             }
             let body;
-            // Create and bind a body for the player host
-            body = new Entity(loc);
-            body.protect();
+            const reconnectKey = reconnectBodyKey(socket, name);
+            const reconnectEntry = reconnectKey ? disconnectedPlayerBodies.get(reconnectKey) : null;
+            const cachedBody = reconnectEntry && reconnectEntry.body;
+            const canRestoreBody = !!(
+              cachedBody &&
+              keyManager.hasKey(cachedBody.key) &&
+              !(typeof cachedBody.isDead === "function" && cachedBody.isDead())
+            );
+            if (canRestoreBody) {
+              if (reconnectEntry.timer) clearTimeout(reconnectEntry.timer);
+              disconnectedPlayerBodies.delete(reconnectKey);
+              body = cachedBody;
+              // The old socket's input controller must not survive a reconnect.
+              body.controllers = [];
+              body.addController(new io_listenToPlayer(body, player));
+              body.sendMessage = (content) => messenger(socket, content);
+              body.isPlayer = true;
+              body.keep = true;
+              player.body = body;
+              player.team = body.team;
+              player.color = body.color;
+              body.invuln = true;
+              const reconnectProtection = setTimeout(() => {
+                if (keyManager.hasKey(body.key)) body.invuln = false;
+              }, 2000);
+              if (reconnectProtection && typeof reconnectProtection.unref === "function") reconnectProtection.unref();
+            } else {
+              // Create and bind a fresh body only when no reclaimable body exists.
+              body = new Entity(loc);
+              body.protect();
             /* if (socket.id === undefined) socket.id = body.id;
             else body.id = socket.id;*/
             // Start as a basic tank
@@ -18601,6 +18650,7 @@ const sockets = (() => {
                 player.body.invuln = false;
               }
             }, 40000);
+            }
             let devList = [
               process.env.kris2,
               process.env.kris3,
@@ -19900,8 +19950,13 @@ var gameloop = (() => {
   // Collision stuff
   let collide = (() => {
     function simplecollide(my, n) {
-      if (util.getDistance(my, n) < 2 + my.realSize + n.realSize) {
-        let diff = (1 + util.getDistance(my, n) / 2) * roomSpeed;
+      const dx = my.x - n.x;
+      const dy = my.y - n.y;
+      const radius = 2 + my.realSize + n.realSize;
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared < radius * radius) {
+        const distance = Math.sqrt(distanceSquared);
+        let diff = (1 + distance / 2) * roomSpeed;
         let a = my.intangibility ? 1 : my.pushability,
           b = n.intangibility ? 1 : n.pushability,
           c = (0.05 * (my.x - n.x)) / diff,
@@ -19923,8 +19978,13 @@ var gameloop = (() => {
       }
     }
     function polycollide(my, n) {
-      if (util.getDistance(my, n) < 2 + my.realSize + n.realSize) {
-        let diff = (1 + util.getDistance(my, n)) * roomSpeed;
+      const dx = my.x - n.x;
+      const dy = my.y - n.y;
+      const radius = 2 + my.realSize + n.realSize;
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared < radius * radius) {
+        const distance = Math.sqrt(distanceSquared);
+        let diff = (1 + distance) * roomSpeed;
         let a = my.intangibility ? 1 : my.pushability * 5,
           b = n.intangibility ? 1 : n.pushability * 5,
           c = (0.5 * (my.x - n.x)) / diff,
@@ -19936,8 +19996,13 @@ var gameloop = (() => {
       }
     }
     function reversecollide(my, n) {
-      if (util.getDistance(my, n) < 2 + my.realSize + n.realSize) {
-        let diff = (1 + util.getDistance(my, n) / 2) * roomSpeed;
+      const dx = my.x - n.x;
+      const dy = my.y - n.y;
+      const radius = 2 + my.realSize + n.realSize;
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared < radius * radius) {
+        const distance = Math.sqrt(distanceSquared);
+        let diff = (1 + distance / 2) * roomSpeed;
         let a = my.intangibility ? 1 : my.pushability,
           b = n.intangibility ? 1 : n.pushability,
           c = (0.05 * (my.x - n.x)) / diff,
@@ -21790,14 +21855,20 @@ var gameloop = (() => {
   };
 
   let collisionIteration = () => {
-    let x1, y1, x2, y2;
-    activeAabb = activeEntities.map((e) => {
-      x1 = Math.min(e.x, e.x + e.velocity.x + e.accel.x) - e.realSize - 5;
-      y1 = Math.min(e.y, e.y + e.velocity.y + e.accel.y) - e.realSize - 5;
-      x2 = Math.max(e.x, e.x + e.velocity.x + e.accel.x) + e.realSize + 5;
-      y2 = Math.max(e.y, e.y + e.velocity.y + e.accel.y) + e.realSize + 5;
-      return [x1, y1, x2, y2];
-    });
+    // Reuse the broad-phase AABB buffers instead of allocating one array per
+    // active entity on every physics cycle (reduces GC pressure in busy waves).
+    const aabbCount = activeEntities.length;
+    activeAabb.length = aabbCount;
+    for (let i = 0; i < aabbCount; i++) {
+      const e = activeEntities[i];
+      const nextX = e.x + e.velocity.x + e.accel.x;
+      const nextY = e.y + e.velocity.y + e.accel.y;
+      const box = activeAabb[i] || (activeAabb[i] = [0, 0, 0, 0]);
+      box[0] = Math.min(e.x, nextX) - e.realSize - 5;
+      box[1] = Math.min(e.y, nextY) - e.realSize - 5;
+      box[2] = Math.max(e.x, nextX) + e.realSize + 5;
+      box[3] = Math.max(e.y, nextY) + e.realSize + 5;
+    }
     let e1, e2;
     boxIntersect(activeAabb, (i, j) => {
       e1 = activeEntities[i];
@@ -24537,15 +24608,10 @@ var maintainloop = (() => {
     makenpcs();
     // Siege's budget is global mode state. Spawn at most one budgeted unit or
     // swarm per maintain cycle (200 ms), never once for every active entity.
-    if (c.MODE === "siege" && c.bossCounter > 0) {
-      const isPreparingWave = c.siegeAdvancePhase === "countdown";
-      const selectedThemes = c.siegeSelectedThemes || [];
-      const isAllyWave = selectedThemes.some((theme) => theme && theme.id === "spawnAllies");
-      // Fill the short countdown at a modest batch size. Avoid large bursts
-      // when a high-budget wave is prepared, which can cause a one-tick lag spike.
-      const spawnLimit = isPreparingWave && !isAllyWave
-        ? SIEGE_COUNTDOWN_SPAWN_BATCH
-        : 1;
+    if (c.MODE === "siege" && c.bossCounter > 0 && c.siegeAdvancePhase !== "countdown") {
+      // Spawn only after the announced countdown has finished. Limit work per
+      // maintenance cycle to prevent a high-budget wave from causing a lag spike.
+      const spawnLimit = 1;
       for (let i = 0; i < spawnLimit && c.bossCounter > 0; i++) {
         const budgetBeforeSpawn = c.bossCounter;
         const spawnedPolygonPack = spawnSiegeEnemyFromBudget();
