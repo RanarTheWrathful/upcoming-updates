@@ -77,7 +77,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Sandbox";
+if (serverType === "testing") chosenMode = "Siege";
 //change this to play a specifict mode.
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -1173,6 +1173,20 @@ function scheduleSiegeWaveAdvance(expectedWave = c.bossWave) {
     }
     if (!canAdvance()) {
       c.siegeAdvancePhase = "waiting-for-enemies";
+      // Expose the exact blocker when diagnosing a wave that appears frozen.
+      // Rate-limited to once per wave per 15 seconds to avoid log spam.
+      const now = Date.now();
+      if (!c._siegeBlockerLog || c._siegeBlockerLog.wave !== expectedWave ||
+          now - c._siegeBlockerLog.at >= 15000) {
+        const pendingAllies = c.siegePendingAllySpawnWave === expectedWave
+          ? Math.max(0, Number(c.siegePendingAllySpawns) || 0) : 0;
+        const queue = getSiegeBotSpawnQueue();
+        const pendingHostileBots = queue.filter((entry) => entry && entry.team === -100).length;
+        console.warn(`[SIEGE] wave ${expectedWave} waiting: budget=${Number(c.bossCounter) || 0}, ` +
+          `liveHostiles=${countLiveSiegeHostiles()}, pendingAllies=${pendingAllies}, ` +
+          `queuedHostileBots=${pendingHostileBots}, phase=${c.siegeAdvancePhase || "unknown"}`);
+        c._siegeBlockerLog = { wave: expectedWave, at: now };
+      }
       schedule(SIEGE_WAVE_RECHECK_MS, waitUntilClear);
       return;
     }

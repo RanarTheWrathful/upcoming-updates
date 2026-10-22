@@ -1666,13 +1666,15 @@ function createLoadProtection(options = {}) {
     if (previousLevel === runSpeedLevel) return;
     const oldMultiplier = runSpeedMultipliers[previousLevel] || 1;
     const newMultiplier = runSpeedMultipliers[runSpeedLevel] || 1;
-    console.log(
-      `[ANTI-LAG] Server scheduler pacing ${oldMultiplier.toFixed(2)}x -> ${newMultiplier.toFixed(2)}x` +
-      ` (${reason}); cycle=${Math.round(Number(lastCycleMs) || 0)}ms` +
-      `, smoothed=${Math.round(Number(smoothedCycleMs) || 0)}ms` +
-      `, target=${Math.round(targetCycleIntervalMs)}ms` +
-      `, event-loop p95=${Math.round(Number(lastMetrics.eventLoopP95Ms) || 0)}ms` +
-      `, server run speed=${Math.round(Number(currentRunSpeedPercent) || 0)}%`
+    console.warn(
+      `[PERF] scheduler ${oldMultiplier.toFixed(2)}x -> ${newMultiplier.toFixed(2)}x; cause=${reason}; ` +
+      `cycle=${Math.round(Number(lastCycleMs) || 0)}ms; cycleEMA=${Math.round(Number(smoothedCycleMs) || 0)}ms; ` +
+      `eventLoopP95=${Math.round(Number(lastMetrics.eventLoopP95Ms) || 0)}ms; ` +
+      `eventLoopMax=${Math.round(Number(lastMetrics.eventLoopMaxMs) || 0)}ms; ` +
+      `tickInterval=${Math.round(Number(observedCycleIntervalMs) || 0)}ms; ` +
+      `runSpeed=${Math.round(Number(currentRunSpeedPercent) || 0)}%; ` +
+      `heapUsedMB=${Math.round(Number(lastMetrics.heapUsedMb) || 0)}; ` +
+      `rssMB=${Math.round(Number(lastMetrics.rssMb) || 0)}`
     );
   }
 
@@ -1873,15 +1875,18 @@ function createLoadProtection(options = {}) {
     if (responseState !== lastLoggedLagResponseState) {
       const previousState = lastLoggedLagResponseState;
       lastLoggedLagResponseState = responseState;
-      console.log(
-        `[ANTI-LAG] ${previousState.replace(":none", "")} -> ${responseState.replace(":none", "")}` +
-        ` | server cycle=${Math.round(Number(lastMetrics.cycleMs) || 0)}ms` +
-        ` | observed tick interval=${Math.round(Number(observedCycleIntervalMs) || 0)}ms` +
-        ` | event-loop p95=${Math.round(Number(lastMetrics.eventLoopP95Ms) || 0)}ms` +
-        ` | smoothed cycle=${Math.round(Number(smoothedCycleMs) || 0)}ms` +
-        ` | target interval=${Math.round(targetCycleIntervalMs)}ms` +
-        ` | server run speed=${Math.round(Number(snapshot.runSpeedPercent) || 0)}%` +
-        ` | scheduler=${getRunSpeedMultiplier().toFixed(2)}x`
+      console.warn(
+        `[PERF] mitigation ${previousState} -> ${responseState}; ` +
+        `cycle=${Math.round(Number(lastMetrics.cycleMs) || 0)}ms; ` +
+        `tickInterval=${Math.round(Number(observedCycleIntervalMs) || 0)}ms; ` +
+        `eventLoopP95=${Math.round(Number(lastMetrics.eventLoopP95Ms) || 0)}ms; ` +
+        `eventLoopMax=${Math.round(Number(lastMetrics.eventLoopMaxMs) || 0)}ms; ` +
+        `cycleEMA=${Math.round(Number(smoothedCycleMs) || 0)}ms; ` +
+        `target=${Math.round(targetCycleIntervalMs)}ms; ` +
+        `runSpeed=${Math.round(Number(snapshot.runSpeedPercent) || 0)}%; ` +
+        `scheduler=${getRunSpeedMultiplier().toFixed(2)}x; ` +
+        `heapUsedMB=${Math.round(Number(lastMetrics.heapUsedMb) || 0)}; ` +
+        `rssMB=${Math.round(Number(lastMetrics.rssMb) || 0)}`
       );
     }
     if (snapshot.recovering === true) {
