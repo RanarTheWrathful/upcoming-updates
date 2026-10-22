@@ -1420,8 +1420,16 @@ function spawnSiegeEnemyFromBudget() {
   if (c.siegeBudgetLoggedWave !== c.bossWave) {
     beginSiegeBudgetAccounting(c.bossWave, budget);
   }
-  // Budget/theme diagnostics run even when anti-lag temporarily blocks spawning.
-  if (!loadProtection.shouldSpawnNaturalEntities()) return;
+  // Siege is a scripted, budgeted wave system, not ambient natural spawning.
+  // Do not let the global natural-spawn pause silently freeze a wave after its
+  // start announcement. The population cap is still enforced per entity below.
+  if (!loadProtection.shouldSpawnNaturalEntities()) {
+    const now = Date.now();
+    if (!c._siegeNaturalPauseLogAt || now - c._siegeNaturalPauseLogAt >= 10000) {
+      c._siegeNaturalPauseLogAt = now;
+      // console.warn(`[SIEGE] Ignoring global natural-spawn pause for wave ${c.bossWave}; budget=${budget}.`);
+    }
+  }
 
   const allyTheme = themes.find((theme) => theme.id === "spawnAllies");
   if (allyTheme) {
@@ -1473,10 +1481,19 @@ function spawnSiegeEnemyFromBudget() {
   const spawnCount = isPolygonSwarm ? configuredPolygonCount : 1;
   let spawnedCount = 0;
   let spawnedEntityScore = null;
+  let spawnFailureReason = null;
   for (let i = 0; i < spawnCount; i++) {
-    if (!loadProtection.canSpawnNaturalEntity()) break;
+    // Resolve a location before reserving a population slot; otherwise a map
+    // with no usable spawn tile can leak reservations and block later spawns.
     const spawnLocation = getSiegeEnemySpawnLocation();
-    if (!spawnLocation) break;
+    if (!spawnLocation) {
+      spawnFailureReason = "no usable spawn location";
+      break;
+    }
+    if (!loadProtection.canSpawnNaturalEntity({ ignorePause: true })) {
+      spawnFailureReason = "population cap or population scan not ready";
+      break;
+    }
     const o = new Entity(spawnLocation);
     o.rarity = Math.random() * 10000;
     o.define(Class[enemy.name]);
@@ -1532,7 +1549,17 @@ function spawnSiegeEnemyFromBudget() {
     }
   }
   if (spawnedCount === 0) {
-    // Failed location/cap checks must not silently consume the wave's budget.
+    // Failed attempts do not consume budget. The maintenance loop retries, and
+    // this rate-limited diagnostic identifies why repeated attempts are failing.
+    const now = Date.now();
+    if (!c._siegeSpawnFailureLogAt || now - c._siegeSpawnFailureLogAt >= 5000) {
+      c._siegeSpawnFailureLogAt = now;
+      console.warn(
+        `[SIEGE SPAWN RETRY] wave=${c.bossWave} budget=${budget} enemy=${enemy.name} ` +
+        `reason=${spawnFailureReason || "unknown spawn failure"} ` +
+        `antiLagStage=${loadProtection.stage}`
+      );
+    }
     return;
   }
   // Polygon catalog costs already include every entity in the pack. For other
@@ -24608,15 +24635,10 @@ var maintainloop = (() => {
     makenpcs();
     // Siege's budget is global mode state. Spawn at most one budgeted unit or
     // swarm per maintain cycle (200 ms), never once for every active entity.
-    if (c.MODE === "siege" && c.bossCounter > 0 && c.siegeAdvancePhase !== "countdown") {
-      // Spawn only after the announced countdown has finished. Limit work per
-      // maintenance cycle to prevent a high-budget wave from causing a lag spike.
-      const spawnLimit = 1;
-      for (let i = 0; i < spawnLimit && c.bossCounter > 0; i++) {
-        const budgetBeforeSpawn = c.bossCounter;
-        const spawnedPolygonPack = spawnSiegeEnemyFromBudget();
-        if (spawnedPolygonPack === true || c.bossCounter >= budgetBeforeSpawn) break;
-      }
+    if (c.MODE === "siege" && Number(c.bossCounter) > 0 && c.siegeAdvancePhase !== "countdown") {
+      // One attempt per maintenance cycle keeps spawn cost bounded. Failed
+      // attempts preserve budget and are retried on the next cycle.
+      spawnSiegeEnemyFromBudget();
     }
     if (c.SPAWN_FOOD !== false && room.maxFood > 0) makefood(loadProtection.shouldSpawnFood());
     // Regen health and update the grid. Positive REGEN restores resources;

@@ -855,8 +855,10 @@ function createLoadProtection(options = {}) {
     };
   }
 
-  function canSpawnNaturalEntity() {
-    if (naturalSpawnsPaused) return false;
+  function canSpawnNaturalEntity(options = {}) {
+    // Scripted Siege waves have their own budget and pacing. They may ignore the
+    // global natural-spawn pause, but must still obey the live population cap.
+    if (naturalSpawnsPaused && options.ignorePause !== true) return false;
     const state = getNaturalPopulationState(getEntities());
 
     // A first-ever count can take multiple ticks on a huge world. While under
