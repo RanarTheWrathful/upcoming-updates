@@ -1,9 +1,0 @@
-node_modules/
-.env
-serv.lock
-.cache/
-.config/
-.data/
-.nano/
-npm-debug.log*
-pnpm-debug.log*
