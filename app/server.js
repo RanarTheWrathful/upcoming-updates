@@ -34,6 +34,7 @@ const entityBranches = require("./lib/entityBranches");
 const { normalizeSpecialEffects, hasSpecialEffect } = require("./lib/specialEffects");
 const mazeGenerator = require("./lib/mazeGenerator");
 const modeVoting = require("./lib/modeVoting");
+const siegeNeutralZonePenalty = require("./lib/siegeNeutralZonePenalty");
 const gunCalculator = require("./lib/gunCalculator");
 const { performance } = require("perf_hooks");
 
@@ -22059,24 +22060,29 @@ var gameloop = (() => {
         // Consider death.
         if (e.contemplationOfMortality()) {
           e.destroy();
-        } else if (e.activation.check()) {
-          logs.entities.tally();
-          // Think about my actions.
-          logs.life.set();
-          if (loadProtection.shouldProfileEntity()) {
-            const lifeStartedAt = performance.now();
-            try {
+        } else {
+          // This is deliberately outside activation.check(): entities beyond
+          // the active simulation radius still need their Siege zone timer.
+          siegeNeutralZonePenalty.update(e, { mode: c.MODE, room, now: Date.now() });
+          if (e.activation.check()) {
+            logs.entities.tally();
+            // Think about my actions.
+            logs.life.set();
+            if (loadProtection.shouldProfileEntity()) {
+              const lifeStartedAt = performance.now();
+              try {
+                e.life();
+              } finally {
+                loadProtection.recordEntityLifeCost(e, performance.now() - lifeStartedAt);
+              }
+            } else {
               e.life();
-            } finally {
-              loadProtection.recordEntityLifeCost(e, performance.now() - lifeStartedAt);
             }
-          } else {
-            e.life();
+            logs.life.mark();
+            // Apply friction.
+            e.friction();
+            e.confinementToTheseEarthlyShackles();
           }
-          logs.life.mark();
-          // Apply friction.
-          e.friction();
-          e.confinementToTheseEarthlyShackles();
         }
         // Update collisions.
 
@@ -24861,6 +24867,243 @@ var speedcheckloop = (() => {
 
 let message = "Send a message here to chat!",
   redirectLink = "/chat";
+
+// Chat uses Post/Redirect/Get semantics even though the legacy form submits
+// with GET. This prevents a browser refresh from repeating a command.
+const chatFlashMessages = new Map();
+
+function getRequestClientIp(req) {
+  const headers = req && req.headers ? req.headers : {};
+  const raw = headers["fastly-client-ip"] || headers["x-forwarded-for"] ||
+    headers["z-forwarded-for"] || headers["forwarded"] ||
+    headers["x-real-ip"] || (req && req.socket && req.socket.remoteAddress) ||
+    (req && req.connection && req.connection.remoteAddress) || "";
+  let ip = String(raw).split(",")[0].trim();
+  if (ip && !net.isIPv6(ip)) ip = ip.split(":")[0].trim();
+  return ip;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderChatMessage(rawMessage) {
+  const raw = String(rawMessage || "");
+  const parsed = raw.match(/^\[(DEV|PLAYER)\]\s*(.*?):\s([\s\S]*)$/i);
+  if (!parsed) {
+    return '<article class="message-row system-message" data-message-text="' + escapeHtml(raw.toLowerCase()) + '">' +
+      '<div class="message-meta"><span class="message-author">System</span><span class="role-badge system-badge">SYSTEM</span></div>' +
+      '<p class="message-body">' + escapeHtml(raw) + '</p></article>';
+  }
+  const role = parsed[1].toUpperCase() === "DEV" ? "DEV" : "PLAYER";
+  const name = parsed[2] || "Unnamed";
+  const text = parsed[3] || "";
+  const searchText = (name + " " + text + " " + role).toLowerCase();
+  return '<article class="message-row" data-message-text="' + escapeHtml(searchText) + '">' +
+    '<div class="message-meta"><span class="message-author">' + escapeHtml(name) + '</span>' +
+    '<span class="role-badge ' + (role === "DEV" ? "dev-badge" : "player-badge") + '">' + role + '</span></div>' +
+    '<p class="message-body">' + escapeHtml(text) + '</p></article>';
+}
+
+function renderChatPage(options) {
+  const opts = options || {};
+  const serverTitle = escapeHtml(opts.title || "Ranar's Prophecy");
+  const serverExtra = escapeHtml(opts.extra || "Game Server");
+  const gameMode = escapeHtml(opts.gameMode || "unknown");
+  const playerCount = Math.max(0, Number(opts.playerCount) || 0);
+  const connected = opts.connected === true;
+  const isDeveloper = opts.isDeveloper === true;
+  const statusText = String(opts.message || "Ready.");
+  const hasFlash = opts.hasFlash === true;
+  const recentMessages = Array.isArray(opts.messages) ? opts.messages : [];
+  const messageMarkup = recentMessages.length
+    ? recentMessages.map(renderChatMessage).join("\n")
+    : '<div class="empty-state" id="empty-state"><div class="empty-icon">◎</div><h3>Nothing on the relay yet</h3><p>Messages from the game will appear here. Join the game before sending one.</p></div>';
+  const statusClass = connected ? "connection-state is-online" : "connection-state is-offline";
+  const statusLabel = connected ? "GAME LINK DETECTED" : "GAME LINK OFFLINE";
+  const devPanel = isDeveloper ? `
+    <section class="command-group developer-group">
+      <div class="group-heading"><span class="group-icon">⌘</span><div><h3>Developer tools</h3><p>Restricted · authorized access only</p></div></div>
+      <button class="command-row" type="button" data-command="/dev help"><code>/dev help</code><span>Show developer reference</span></button>
+      <button class="command-row" type="button" data-command="/team setup ffa"><code>/team setup ffa</code><span>Use free-for-all teams</span></button>
+      <button class="command-row" type="button" data-command="/team setup tdm"><code>/team setup tdm</code><span>Use team deathmatch</span></button>
+      <button class="command-row" type="button" data-command="/toggle AI"><code>/toggle AI</code><span>Toggle global AI</span></button>
+      <button class="command-row" type="button" data-command="/toggle growth"><code>/toggle growth</code><span>Toggle growth rules</span></button>
+      <button class="command-row" type="button" data-command="/toggle graveyard"><code>/toggle graveyard</code><span>Toggle graveyard</span></button>
+    </section>` : `
+    <section class="command-group locked-group">
+      <div class="group-heading"><span class="group-icon">⌑</span><div><h3>Developer tools</h3><p>Restricted command set</p></div></div>
+      <p class="locked-copy">Developer commands appear here only for authorized sessions. Use <code>/help</code> for public commands.</p>
+    </section>`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10131d">
+  <meta name="description" content="Ranar's Prophecy live chat relay and command console.">
+  <title>${serverTitle} · Chat Relay</title>
+  <link rel="icon" type="image/png" href="https://cdn.glitch.global/5f27ad97-07cd-4f67-922e-41dfb3ef64a5/grgagegu.webp?v=1713072716793">
+  <style>
+    :root{color-scheme:dark;--bg:#0c0f17;--panel:#141925;--panel2:#191f2e;--line:#293347;--muted:#97a3b9;--text:#eef2fb;--accent:#a78bfa;--accent2:#7c6cf0;--cyan:#67e8f9;--good:#59dca6;--warn:#f6c66d;--bad:#fb7185;--radius:18px}
+    *{box-sizing:border-box}html{min-height:100%;background:var(--bg)}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 14% -10%,rgba(124,108,240,.18),transparent 36%),radial-gradient(ellipse at 94% 2%,rgba(103,232,249,.09),transparent 28%),var(--bg);color:var(--text);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    button,input{font:inherit}button{cursor:pointer}a{color:inherit}.shell{max-width:1440px;margin:0 auto;padding:22px 24px 34px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 4px 23px;border-bottom:1px solid rgba(151,163,185,.17)}.brand{display:flex;align-items:center;gap:13px;min-width:0}.brand-mark{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,#a78bfa,#5b55d9);box-shadow:0 8px 28px rgba(124,108,240,.25);font-size:20px;font-weight:900;color:#10131d}.brand-name{font-size:16px;font-weight:780;letter-spacing:.01em}.brand-sub{font-size:12px;color:var(--muted);margin-top:1px}.top-meta{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid var(--line);background:rgba(20,25,37,.8);border-radius:999px;color:#d9dfeb;font-size:11px;font-weight:750;letter-spacing:.055em;white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(89,220,166,.12)}.is-offline .dot{background:var(--warn);box-shadow:0 0 0 3px rgba(246,198,109,.12)}.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding:24px 4px 20px}.eyebrow{text-transform:uppercase;letter-spacing:.15em;font-size:10px;color:var(--accent);font-weight:850}.hero h1{font-size:clamp(24px,3vw,34px);line-height:1.1;letter-spacing:-.045em;margin:7px 0 8px}.hero p{color:var(--muted);margin:0;max-width:640px}.hero-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);border-radius:11px;padding:10px 13px;background:#1a2030;color:var(--text);font-weight:700;transition:transform .15s,border-color .15s,background .15s}.btn:hover{border-color:#7569c6;transform:translateY(-1px)}.btn-primary{background:linear-gradient(135deg,#9f87f6,#7668df);border-color:transparent;color:#111423;box-shadow:0 7px 20px rgba(124,108,240,.18)}.layout{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:18px;align-items:start}.sidebar,.main-panel{min-width:0;border:1px solid rgba(151,163,185,.16);border-radius:var(--radius);background:rgba(20,25,37,.91);box-shadow:0 18px 55px rgba(0,0,0,.16)}.sidebar{overflow:hidden}.sidebar-head{padding:18px 18px 14px;border-bottom:1px solid rgba(151,163,185,.13)}.panel-title{margin:0;font-size:13px;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.panel-caption{color:var(--muted);font-size:12px;margin:4px 0 0}.command-group{padding:15px 13px;border-bottom:1px solid rgba(151,163,185,.11)}.command-group:last-child{border-bottom:0}.group-heading{display:flex;gap:10px;align-items:center;padding:0 5px 10px}.group-icon{display:grid;place-items:center;width:31px;height:31px;border:1px solid #343b58;border-radius:10px;background:#20253a;color:var(--accent);font-weight:900}.group-heading h3{font-size:12px;margin:0;font-weight:850}.group-heading p{font-size:11px;color:var(--muted);margin:1px 0 0}.command-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:9px 10px;margin:2px 0;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--text)}.command-row:hover{background:#202637;border-color:#303950}.command-row code,.quick-chip code{font-size:11px;color:#d8ccff;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.2);border-radius:6px;padding:3px 5px;white-space:nowrap}.command-row span{font-size:11px;color:var(--muted);text-align:right}.locked-copy{color:var(--muted);font-size:12px;padding:0 5px 5px;margin:0}.main-panel{overflow:hidden}.main-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-bottom:1px solid rgba(151,163,185,.14)}.main-heading{display:flex;align-items:center;gap:11px}.main-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:rgba(103,232,249,.09);border:1px solid rgba(103,232,249,.21);color:var(--cyan);font-size:19px}.main-heading h2{font-size:15px;margin:0;font-weight:850}.main-heading p{font-size:11px;margin:2px 0 0;color:var(--muted)}.live-label{display:flex;align-items:center;gap:7px;color:var(--good);font-size:10px;font-weight:850;letter-spacing:.08em}.live-label .dot{width:6px;height:6px}.feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-bottom:1px solid rgba(151,163,185,.11)}.search-wrap{position:relative;flex:1;max-width:340px}.search-wrap input{width:100%;padding:9px 11px 9px 34px;border:1px solid #2a3448;border-radius:10px;background:#101521;color:var(--text);outline:none}.search-wrap input:focus,.chat-input:focus{border-color:#8b7cf0;box-shadow:0 0 0 3px rgba(139,124,240,.12)}.search-symbol{position:absolute;left:11px;top:8px;color:#78859c}.feed-count{font-size:11px;color:var(--muted);white-space:nowrap}.message-feed{height:min(52vh,550px);min-height:280px;overflow-y:auto;padding:12px 18px;scrollbar-color:#3a4358 transparent;scrollbar-width:thin}.message-row{padding:12px 13px;margin:5px 0;border:1px solid rgba(151,163,185,.09);background:rgba(28,34,49,.54);border-radius:13px;transition:background .15s}.message-row:hover{background:rgba(34,42,60,.8)}.message-meta{display:flex;align-items:center;gap:8px}.message-author{font-size:12px;font-weight:800;color:#edf0fb;overflow-wrap:anywhere}.role-badge{font-size:9px;font-weight:900;letter-spacing:.08em;padding:2px 6px;border-radius:5px}.player-badge{background:rgba(103,232,249,.1);color:#7ee9f3;border:1px solid rgba(103,232,249,.16)}.dev-badge{background:rgba(167,139,250,.12);color:#c4b5fd;border:1px solid rgba(167,139,250,.22)}.system-badge{background:rgba(246,198,109,.1);color:var(--warn)}.message-body{font-size:13px;color:#cbd4e6;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 0}.empty-state{display:flex;min-height:270px;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted)}.empty-icon{display:grid;place-items:center;width:54px;height:54px;border-radius:18px;border:1px solid #323852;background:#1c2234;color:var(--accent);font-size:27px}.empty-state h3{font-size:14px;color:#dce2f0;margin:14px 0 4px}.empty-state p{font-size:12px;max-width:300px;margin:0}.composer{padding:16px 18px 18px;background:rgba(13,17,27,.64);border-top:1px solid rgba(151,163,185,.15)}.composer-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;color:var(--muted);font-size:11px}.composer-row{display:flex;align-items:stretch;gap:9px}.chat-input{flex:1;min-width:0;border:1px solid #30394e;border-radius:12px;padding:12px 13px;background:#101521;color:var(--text);outline:none}.send-button{min-width:108px;display:flex;align-items:center;justify-content:center;gap:8px}.composer-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:10px;color:#7f8ba2}.composer-foot strong{font-weight:800;color:#b9c4da}.mode-indicator{color:var(--accent)}.status-bar{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin:0 0 16px;border:1px solid rgba(167,139,250,.22);border-radius:12px;background:rgba(124,108,240,.08);color:#d9d4fb;font-size:12px}.status-symbol{color:var(--accent);font-weight:900}.status-copy{min-width:0;overflow-wrap:anywhere}.status-copy p{margin:0;white-space:pre-wrap}.footer{display:flex;justify-content:space-between;gap:12px;margin:15px 4px 0;color:#69768e;font-size:10px}.footer a{color:#96a3bd;text-decoration:none}.footer a:hover{color:var(--cyan)}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{order:2}.main-panel{order:1}.message-feed{height:min(48vh,480px)}.hero{align-items:flex-start;flex-direction:column}.hero-actions{width:100%}}
+    @media(max-width:540px){.shell{padding:12px 10px 22px}.topbar{padding:8px 2px 17px;align-items:flex-start}.brand-mark{width:38px;height:38px}.brand-name{font-size:14px}.brand-sub{max-width:180px}.top-meta{gap:5px}.pill{font-size:9px;padding:6px 8px}.hero{padding:20px 2px 16px}.hero h1{font-size:27px}.main-header{padding:14px}.feed-toolbar{padding:10px 12px}.message-feed{padding:9px 10px;min-height:240px}.composer{padding:13px 11px}.composer-row{flex-direction:column}.send-button{width:100%;min-height:42px}.footer{padding:0 2px;flex-direction:column}.command-row{align-items:flex-start;flex-direction:column;gap:5px}.command-row span{text-align:left}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark">RP</div><div><div class="brand-name">Ranar's Prophecy</div><div class="brand-sub">${serverExtra} · Communication relay</div></div></div>
+      <div class="top-meta"><div class="pill ${connected ? "is-online" : "is-offline"} ${statusClass}"><span class="dot"></span>${statusLabel}</div><div class="pill"><span>◉</span><span id="player-count">${playerCount} ONLINE</span></div><div class="pill">MODE&nbsp; <span id="game-mode">${gameMode}</span></div></div>
+    </header>
+    <section class="hero"><div><div class="eyebrow">Live communication system</div><h1>Chat relay<span style="color:var(--accent)">.</span></h1><p>Read the latest messages, send a chat line, or run an available slash command. The feed refreshes automatically.</p></div><div class="hero-actions"><button class="btn" type="button" id="focus-chat">⌁ &nbsp;Focus composer</button><button class="btn btn-primary" type="button" data-command="/help">Open command guide&nbsp; ↗</button></div></section>
+    <div class="status-bar" role="status" aria-live="polite"><span class="status-symbol">◆</span><div class="status-copy"><p data-flash="${hasFlash ? "1" : "0"}">${statusCopy(statusText)}</p></div></div>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-head"><h2 class="panel-title">Command library</h2><p class="panel-caption">Select any command to insert it into the composer.</p></div>
+        <section class="command-group"><div class="group-heading"><span class="group-icon">⌕</span><div><h3>Navigation & help</h3><p>Useful starting points</p></div></div>
+          <button class="command-row" type="button" data-command="/help"><code>/help</code><span>Public command reference</span></button>
+          <button class="command-row" type="button" data-command="/players"><code>/players</code><span>Players currently online</span></button>
+          <button class="command-row" type="button" data-command="/modes"><code>/modes</code><span>Available game modes</span></button>
+          <button class="command-row" type="button" data-command="/where"><code>/where</code><span>Show your coordinates</span></button>
+          <button class="command-row" type="button" data-command="/my team"><code>/my team</code><span>Show your team ID</span></button>
+        </section>
+        <section class="command-group"><div class="group-heading"><span class="group-icon">⚑</span><div><h3>Player actions</h3><p>Common in-game commands</p></div></div>
+          <button class="command-row" type="button" data-command="/vote "><code>/vote [mode]</code><span>Vote for a mode, when enabled</span></button>
+          <button class="command-row" type="button" data-command="/set team "><code>/set team [ID]</code><span>Set your next-spawn team</span></button>
+          <button class="command-row" type="button" data-command="/reset"><code>/reset</code><span>Reset tank and stats when allowed</span></button>
+          <button class="command-row" type="button" data-command="/self destruct"><code>/self destruct</code><span>Self-destruct where permitted</span></button>
+          <button class="command-row" type="button" data-command="/score cheat "><code>/score cheat [score]</code><span>Set custom starting score</span></button>
+        </section>
+        ${devPanel}
+      </aside>
+      <main class="main-panel">
+        <header class="main-header"><div class="main-heading"><div class="main-icon">◈</div><div><h2>Recent messages</h2><p>Newest first · refreshes every 4 seconds</p></div></div><div class="live-label"><span class="dot"></span>LIVE FEED</div></header>
+        <div class="feed-toolbar"><label class="search-wrap"><span class="search-symbol">⌕</span><input id="message-search" type="search" placeholder="Search messages or players…" autocomplete="off" aria-label="Search messages"></label><span class="feed-count" id="feed-count">${recentMessages.length} loaded</span></div>
+        <section class="message-feed" id="message-feed" aria-label="Recent chat messages" aria-live="polite">${messageMarkup}</section>
+        <form class="composer" id="chat-form" action="/chat" method="get" autocomplete="off">
+          <div class="composer-label"><label for="chat-input">MESSAGE / COMMAND</label><span id="mode-indicator" class="mode-indicator">MESSAGE MODE</span></div>
+          <div class="composer-row"><input class="chat-input" id="chat-input" type="text" name="chat" maxlength="100" placeholder="Write a message or enter /help…" aria-label="Chat message or command" required><button class="btn btn-primary send-button" type="submit"><span>Send</span><span aria-hidden="true">➤</span></button></div>
+          <div class="composer-foot"><span>Press <strong>Enter</strong> to send · Slash commands start with <strong>/</strong></span><span><strong id="character-count">0</strong>/100 characters</span></div>
+        </form>
+      </main>
+    </div>
+    <footer class="footer"><span>Ranar's Prophecy · Chat Relay</span><span><a href="/">Server home</a> · Do not share private credentials in chat.</span></footer>
+  </div>
+<script>
+(function(){
+  'use strict';
+  const input=document.getElementById('chat-input');
+  const form=document.getElementById('chat-form');
+  const indicator=document.getElementById('mode-indicator');
+  const charCount=document.getElementById('character-count');
+  const feed=document.getElementById('message-feed');
+  const feedCount=document.getElementById('feed-count');
+  const search=document.getElementById('message-search');
+  let lastSignature='';
+  function updateComposer(){
+    const value=input.value||'';
+    charCount.textContent=String(value.length);
+    const command=value.trim().startsWith('/');
+    indicator.textContent=command?'COMMAND MODE':'MESSAGE MODE';
+    indicator.style.color=command?'var(--accent)':'var(--cyan)';
+  }
+  function applyFilter(){
+    const query=(search.value||'').trim().toLowerCase();
+    let visible=0;
+    feed.querySelectorAll('.message-row').forEach(function(row){
+      const match=!query || (row.getAttribute('data-message-text')||'').includes(query);
+      row.hidden=!match;
+      if(match)visible++;
+    });
+    const total=feed.querySelectorAll('.message-row').length;
+    feedCount.textContent=query?visible+' / '+total+' shown':total+' loaded';
+  }
+  function rowFor(raw){
+    const line=String(raw||'');
+    const match=line.match(/^\\[(DEV|PLAYER)\\]\\s*(.*?):\\s([\\s\\S]*)$/i);
+    const article=document.createElement('article');article.className='message-row';
+    const meta=document.createElement('div');meta.className='message-meta';
+    const author=document.createElement('span');author.className='message-author';
+    const badge=document.createElement('span');badge.className='role-badge';
+    const body=document.createElement('p');body.className='message-body';
+    let searchText=line; 
+    if(match){
+      author.textContent=match[2]||'Unnamed';
+      const dev=match[1].toUpperCase()==='DEV';
+      badge.textContent=dev?'DEV':'PLAYER';badge.classList.add(dev?'dev-badge':'player-badge');
+      body.textContent=match[3]||'';
+      searchText=author.textContent+' '+body.textContent+' '+badge.textContent;
+    }else{
+      author.textContent='System';badge.textContent='SYSTEM';badge.classList.add('system-badge');body.textContent=line;
+    }
+    meta.append(author,badge);article.append(meta,body);article.dataset.messageText=searchText.toLowerCase();return article;
+  }
+  async function refreshFeed(){
+    try{
+      const response=await fetch('/chat?feed=1',{cache:'no-store',headers:{'Accept':'application/json'}});
+      if(!response.ok)return;
+      const data=await response.json();
+      const messages=Array.isArray(data.messages)?data.messages:[];
+      const signature=messages.join('\\n')+'|'+data.playerCount+'|'+data.gameMode;
+      document.getElementById('player-count').textContent=(Number(data.playerCount)||0)+' ONLINE';
+      document.getElementById('game-mode').textContent=String(data.gameMode||'unknown');
+      if(signature!==lastSignature){
+        const atBottom=feed.scrollHeight-feed.scrollTop-feed.clientHeight<36;
+        const fragment=document.createDocumentFragment();
+        messages.forEach(function(line){if(String(line||'').trim())fragment.appendChild(rowFor(line));});
+        if(!fragment.childNodes.length){
+          const empty=document.createElement('div');empty.className='empty-state';
+          const icon=document.createElement('div');icon.className='empty-icon';icon.textContent='◎';
+          const heading=document.createElement('h3');heading.textContent='Nothing on the relay yet';
+          const paragraph=document.createElement('p');paragraph.textContent='Messages from the game will appear here. Join the game before sending one.';
+          empty.append(icon,heading,paragraph);fragment.appendChild(empty);
+        }
+        feed.replaceChildren(fragment);lastSignature=signature;
+        if(atBottom)feed.scrollTop=feed.scrollHeight;
+        applyFilter();
+      }
+      const statusP=document.querySelector('.status-copy p');
+      // Leave a command result visible unless this is a plain initial status.
+      if(statusP && statusP.dataset.flash !== '1') statusP.textContent=data.connected?'Game connection detected.':'Open the game in another tab to send messages.';
+      const connection=document.querySelector('.connection-state');
+      if(connection){connection.classList.toggle('is-online',!!data.connected);connection.classList.toggle('is-offline',!data.connected);connection.innerHTML='<span class="dot"></span>'+(data.connected?'GAME LINK DETECTED':'GAME LINK OFFLINE');}
+    }catch(_){/* Keep the last successfully loaded messages if polling fails. */}
+  }
+  input.addEventListener('input',updateComposer);
+  search.addEventListener('input',applyFilter);
+  form.addEventListener('submit',function(event){if(!input.value.trim()){event.preventDefault();input.focus();}});
+  document.getElementById('focus-chat').addEventListener('click',function(){input.focus();});
+  document.querySelectorAll('[data-command]').forEach(function(button){
+    button.addEventListener('click',function(){
+      input.value=button.getAttribute('data-command')||'';updateComposer();input.focus();
+      const end=input.value.length;input.setSelectionRange(end,end);
+    });
+  });
+  updateComposer();
+  lastSignature=Array.from(feed.querySelectorAll('.message-row')).map(function(row){return row.textContent;}).join('\\n');
+  applyFilter();
+  refreshFeed();
+  window.setInterval(refreshFeed,4000);
+})();
+</script>
+</body>
+</html>`;
+}
+
+function statusCopy(text) {
+  // The caller escapes message text before placing it in the HTML template.
+  return escapeHtml(text).replace(/\r?\n/g, "<br>");
+}
 if (c.MODE === "execution") {
   setTimeout(() => {
     c.doItNow = true;
@@ -25563,13 +25806,29 @@ You must have the chat site and the game site open at the same time for your cha
       res.writeHead(200);
       res.end(mockupJsonData);
       break;
-    case "/chat":
-      // Handle chat requests here
+    case "/chat": {
+      const ip = getRequestClientIp(req);
+      const socket = sockets.clients.find((s) => s.ip === ip);
+      let message = "Use chat for messages and slash commands for actions.";
+
+      // The browser polls this lightweight endpoint to keep the visible feed current.
+      if (query.feed === "1") {
+        res.writeHead(200, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store",
+        });
+        res.end(JSON.stringify({
+          messages: [c.recentMessage1, c.recentMessage2, c.recentMessage3, c.recentMessage4,
+            c.recentMessage5, c.recentMessage6, c.recentMessage7, c.recentMessage8,
+            c.recentMessage9, c.recentMessage10].filter((entry) => typeof entry === "string" && entry.trim()),
+          playerCount: Number(c.playerCount) || sockets.clients.length,
+          gameMode: c.MODE || "unknown",
+          connected: Boolean(socket),
+        }));
+        break;
+      }
+
       if (query.chat) {
-        let ip = req.headers["x-forwarded-for"].split(",")[0];
-        let socket = sockets.clients.filter((s) => {
-          return s.ip == ip;
-        })[0];
 
         if (!socket) {
           message = " You must first connect to the game!";
@@ -25592,7 +25851,8 @@ You must have the chat site and the game site open at the same time for your cha
                 let player = socket.player;
                 if (socket.isDeveloper) tag = "[DEV]";
                 if (
-                  chat.trim().replace(" ", "") == socket.lastMessage.content &&
+                  chat.trim().replace(/\s+/g, " ").toLowerCase() ===
+                    String(socket.lastMessage && socket.lastMessage.content || "").trim().replace(/\s+/g, " ").toLowerCase() &&
                   !socket.isDeveloper
                 ) {
                   message = "You can't send the same message twice!";
@@ -25625,33 +25885,38 @@ You must have the chat site and the game site open at the same time for your cha
                       // developer command arguments retain their original casing.
                       const alias = command.toLowerCase();
                       const aliases = {
-                        "commands": "help", "?": "help", "h": "help",
-                        "players": "player list", "who": "player list",
-                        "modes": "mode list", "where": "find loc",
-                        "location": "find loc", "my team": "see team",
-                        "team?": "see team", "suicide": "self destruct",
-                        "sd": "self destruct"
+                        "commands": "help", "?": "help", "h": "help", "cmd": "help",
+                        "players": "player list", "who": "player list", "online": "player list",
+                        "modes": "mode list", "where": "find loc", "pos": "find loc", "coordinates": "find loc",
+                        "location": "find loc", "my team": "see team", "team?": "see team",
+                        "suicide": "self destruct", "sd": "self destruct"
                       };
-                      if (aliases[alias]) command = aliases[alias];
-                      message = "Command Initiated!";
-                      if (command === "help") {
-                        message = `
-<div style="font-family:Arial,sans-serif;max-width:620px;color:#e9edf5;background:#171b25;border:1px solid #394155;border-radius:12px;padding:16px;line-height:1.45">
-  <div style="font-size:20px;font-weight:700;margin-bottom:4px">Command Guide</div>
-  <div style="color:#aab5ca;margin-bottom:12px">Type a command in chat. Commands beginning with <code>/</code> are not sent as normal chat.</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div style="background:#222938;border-radius:8px;padding:10px"><b>Help</b><br><code>/help</code> · <code>/commands</code><br><span style="color:#aab5ca">Show this guide.</span></div>
-    <div style="background:#222938;border-radius:8px;padding:10px"><b>Players</b><br><code>/players</code> · <code>/player list</code><br><span style="color:#aab5ca">List players online.</span></div>
-    <div style="background:#222938;border-radius:8px;padding:10px"><b>Modes</b><br><code>/modes</code> · <code>/mode list</code><br><span style="color:#aab5ca">Show available modes.</span></div>
-    <div style="background:#222938;border-radius:8px;padding:10px"><b>Vote</b><br><code>/vote [mode name]</code><br><span style="color:#aab5ca">Vote for the next mode when enabled.</span></div>
-    <div style="background:#222938;border-radius:8px;padding:10px"><b>Team</b><br><code>/set team [ID]</code> · <code>/my team</code><br><span style="color:#aab5ca">Choose your next-spawn team or view it.</span></div>
-    <div style="background:#222938;border-radius:8px;padding:10px"><b>Location</b><br><code>/where</code> · <code>/find loc</code><br><span style="color:#aab5ca">Show your current coordinates.</span></div>
-    <div style="background:#222938;border-radius:8px;padding:10px"><b>Reset</b><br><code>/reset</code><br><span style="color:#aab5ca">Reset your tank and stats when permitted.</span></div>
-    <div style="background:#222938;border-radius:8px;padding:10px"><b>Self-destruct</b><br><code>/suicide</code> · <code>/self destruct</code><br><span style="color:#aab5ca">Kill your current tank when permitted.</span></div>
-  </div>
-  <div style="margin-top:12px;color:#aab5ca;font-size:12px">Some commands require spawning, a safe area, or developer access. Developer commands are hidden from this public guide.</div>
-</div>`;
-                      } else if (command.includes("set team")) {
+                      if (aliases[alias]) {
+                        command = aliases[alias];
+                      } else {
+                        // Normalize command names case-insensitively while keeping argument
+                        // casing (class names and property names can be case-sensitive).
+                        const canonicalPrefixes = [
+                          "propertize entity", "propertize global", "toggle graveyard", "toggle growth",
+                          "toggle plague", "score cheat", "player list", "mode list", "self destruct",
+                          "close server", "define ID", "toggle AI", "team setup", "creation team",
+                          "set wave", "set team", "see team", "dev help", "find loc", "pUnmute",
+                          "pUnban", "pMute", "pKick", "pBan", "broadcast", "transform", "obliterate",
+                          "points", "score", "spawn", "repeat", "kill", "size", "heal", "color", "team",
+                          "tgm", "reset", "tda"
+                        ];
+                        const lowered = command.toLowerCase();
+                        const matchedPrefix = canonicalPrefixes.find((prefix) => {
+                          const prefixLower = prefix.toLowerCase();
+                          return lowered === prefixLower || lowered.startsWith(prefixLower + " ");
+                        });
+                        if (matchedPrefix) command = matchedPrefix + command.slice(matchedPrefix.length);
+                      }
+                      const commandLower = command.toLowerCase();
+                      message = "Command accepted.";
+                      if (commandLower === "help") {
+                        message = "Public command guide is shown in the Command Library.";
+                      } else if (commandLower.startsWith("set team")) {
                         socket.rememberedTeam =
                           command.slice(command.indexOf("m") + 2) * 1;
                         let goof;
@@ -25660,38 +25925,22 @@ You must have the chat site and the game site open at the same time for your cha
                         } else goof = -socket.rememberedTeam;
                         message =
                           "When you spawn your team ID will be: " + goof + ".";
-                      } else if (command.includes("score cheat")) {
+                      } else if (commandLower.startsWith("score cheat")) {
                         socket.customScore =
                           command.slice(command.indexOf("t") + 2) * 1;
                         if (socket.customScore > 26263 && !socket.trueDev) {
                           message = "Your base score cannot exceed 26263!";
                           socket.customScore = 26263;
                         }
-                      } else if (command.includes("player list")) {
-                        let list = [];
-                        let goof,
-                          thing1 = "",
-                          thing2 = "";
-                        sockets.clients.forEach((dude) => {
-                          if (socket.trueDev)
-                            thing1 =
-                              ", ID: " + dude.ID + ", IP: " + dude.ip + "</li>";
-
-                          if (dude.name === "") {
-                            goof = "Unnamed Player";
-                          } else goof = dude.name;
-                          list.push("<li>" + goof + thing1 + "</li>");
+                      } else if (commandLower.startsWith("player list")) {
+                        const list = sockets.clients.map((dude, index) => {
+                          const playerName = dude.name && dude.name.trim() ? dude.name : "Unnamed Player";
+                          const details = socket.trueDev ? ` (ID: ${dude.ID}, IP: ${dude.ip})` : "";
+                          return `${index + 1}. ${playerName}${details}`;
                         });
-                        let playerList = "<ul>" + list.join("") + "</ul>"; // Join elements without separator
-                        message =
-                          "There are " +
-                          c.playerCount +
-                          " players online:\n" +
-                          playerList;
-                      } else if (command.includes("mode list")) {
-                        message =
-                          `Here is the list of modes, type as they are for voting, if you are allowed to: <br><br>` +
-                          modeList.join(`<br><br>`);
+                        message = `There are ${sockets.clients.length} players online:\n${list.join("\n")}`;
+                      } else if (commandLower.startsWith("mode list")) {
+                        message = `Available modes (use their listed names when voting):\n\n${modeList.join("\n\n")}`;
                       } else if (/^vote(?:\s|$)/i.test(command.trim())) {
                         if (serverType === "normal") {
                           const voteText = command.trim().replace(/^vote\b/i, "").trim();
@@ -25727,7 +25976,7 @@ You must have the chat site and the game site open at the same time for your cha
                         } else {
                           message = "You cannot vote on modes in this server!";
                         }
-                      } else if (command.includes("reset")) {
+                      } else if (commandLower.startsWith("reset")) {
                         if (player.body) {
                           if (
                             room.isIn("bas" + -player.body.team, player.body) ||
@@ -25761,7 +26010,7 @@ You must have the chat site and the game site open at the same time for your cha
                         } else
                           message =
                             "You need to spawn for this command to work!";
-                      } else if (command.includes("self destruct")) {
+                      } else if (commandLower.startsWith("self destruct")) {
                         if (c.ANTILAG_SOFT_RESET_ACTIVE === true) {
                           message = "Self-destruct is disabled during the emergency server reset.";
                         } else if (player.body) {
@@ -25780,7 +26029,7 @@ You must have the chat site and the game site open at the same time for your cha
                         } else
                           message =
                             "You need to spawn for this command to work!";
-                      } else if (command.includes("tda")) {
+                      } else if (commandLower.startsWith("tda")) {
                         let parts = command.split(" "),
                           password = parts[1],
                           devList = [
@@ -25810,21 +26059,10 @@ You must have the chat site and the game site open at the same time for your cha
                           message =
                             "You do not have permission to use this command!";
                       } else if (socket.trueDev) {
-                        if (command.includes("dev help")) {
-                          message = `
-<div style="font-family:Arial,sans-serif;max-width:760px;color:#f0f2f8;background:#171b25;border:1px solid #7259a6;border-radius:12px;padding:16px;line-height:1.45">
-  <div style="font-size:20px;font-weight:700;color:#c6a8ff">Developer Console</div>
-  <div style="color:#b7bfd0;margin:4px 0 12px">Restricted tools. Check arguments carefully; world-wide actions affect every player.</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-    <section style="background:#222938;border-radius:8px;padding:10px"><b>World</b><br><code>/spawn [class] [x] [y]</code><br><code>/toggle AI</code><br><code>/team setup [ffa|tdm|1 team|2 teams|3 teams]</code><br><code>/set wave [number]</code></section>
-    <section style="background:#222938;border-radius:8px;padding:10px"><b>Player / Entity</b><br><code>/team [target] [ID]</code><br><code>/transform [target] [class]</code><br><code>/heal [target]</code><br><code>/kill [target]</code><br><code>/obliterate [target]</code><br><code>/color [target] [0–50]</code><br><code>/size [target] [value]</code><br><code>/score [target] [value]</code></section>
-    <section style="background:#222938;border-radius:8px;padding:10px"><b>Inspection / Properties</b><br><code>/see team</code> · <code>/find loc</code><br><code>/define x [number]</code> · <code>/define y [number]</code> · <code>/define ID [number]</code><br><code>/propertize entity [target] [property] [value]</code><br><code>/propertize global [c|room] [property] [value]</code><br><code>/creation team [ID]</code> · <code>/repeat [number]</code></section>
-    <section style="background:#222938;border-radius:8px;padding:10px"><b>Server / Moderation</b><br><code>/broadcast [message]</code><br><code>/pMute [IP]</code> · <code>/pUnmute [IP]</code><br><code>/pKick [IP]</code> · <code>/pBan [IP]</code> · <code>/pUnban [IP]</code><br><code>/close server</code></section>
-  </div>
-  <div style="margin-top:12px;color:#b7bfd0;font-size:12px">Target selectors supported by legacy tools may include projectiles, bots, bosses, enemies, polygons, walls, misc, self, players, or a player ID. Some tools retain legacy argument parsing.</div>
-</div>`;
-                        } else if (command.includes("team setup")) {
-                          let load = command.slice(command.indexOf("p") + 2);
+                        if (commandLower.startsWith("dev help")) {
+                          message = "Developer command reference is shown in the Command Library.";
+                        } else if (commandLower.startsWith("team setup")) {
+                          let load = command.slice(command.indexOf("p") + 2).trim().toLowerCase();
                           switch (load) {
                             case "tdm":
                               c.TEAMS = [1, 2, 3, 4];
@@ -25852,24 +26090,24 @@ You must have the chat site and the game site open at the same time for your cha
                               c.BOT_TEAMS = "color";
                               message = "Teams changed to ffa!";
                           }
-                        } else if (command.includes("broadcast")) {
+                        } else if (commandLower.startsWith("broadcast")) {
                           let load = command.slice(command.indexOf("t") + 2);
                           sockets.broadcast(load);
-                        } else if (command.includes("see team")) {
+                        } else if (commandLower.startsWith("see team")) {
                           if (player.body) {
                             message =
                               "Your team ID is: " + player.body.team + ".";
                           } else
                             message =
                               "You need to spawn for this command to work!";
-                        } else if (command.includes("close server")) {
+                        } else if (commandLower.startsWith("close server")) {
                           message = "You have closed the server!";
                           closeArena();
                           util.log(socket.name + " has closed the arena!");
-                        } else if (command.includes("define ID")) {
+                        } else if (commandLower.startsWith("define id")) {
                           let parts = command.split(" ");
                           ID = parts[2] * 1; // Join
-                        } else if (command.includes("toggle AI")) {
+                        } else if (commandLower.startsWith("toggle ai")) {
                           if (c.globalAIDisable) {
                             message = "AI enabled!";
                             setTimeout(() => {
@@ -25881,10 +26119,10 @@ You must have the chat site and the game site open at the same time for your cha
                               c.globalAIDisable = true;
                             }, 1000);
                           }
-                        } else if (command.includes("creation team")) {
+                        } else if (commandLower.startsWith("creation team")) {
                           let parts = command.split(" ");
                           socket.creationTeam = parts[2] * 1;
-                        } else if (command.includes("spawn")) {
+                        } else if (commandLower.startsWith("spawn")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let ex = parts[2] * 1; // Join
@@ -25895,7 +26133,7 @@ You must have the chat site and the game site open at the same time for your cha
                           o.team = socket.creationTeam;
 
                           //console.log(entity);
-                        } else if (command.includes("propertize entity")) {
+                        } else if (commandLower.startsWith("propertize entity")) {
                           let parts = command.split(" ");
                           let entity = parts[2]; // This should be "polygons", "players", etc.
                           let property = parts[3];
@@ -25927,7 +26165,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance[property] = value;
                             }
                           });
-                        } else if (command.includes("propertize global")) {
+                        } else if (commandLower.startsWith("propertize global")) {
                           let parts = command.split(" ");
                           let global = parts[2];
                           let property = parts[3];
@@ -25940,7 +26178,7 @@ You must have the chat site and the game site open at the same time for your cha
                             c[property] = value;
                           }
                           sockets.changeroom();
-                        } else if (command.includes("find loc")) {
+                        } else if (commandLower.startsWith("find loc")) {
                           if (player.body) {
                             message =
                               "Your location is: x; " +
@@ -25951,28 +26189,28 @@ You must have the chat site and the game site open at the same time for your cha
                           } else
                             message =
                               "You need to spawn for this command to work!";
-                        } else if (command.includes("pMute")) {
+                        } else if (commandLower.startsWith("pmute")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("mute", playerIP);
-                        } else if (command.includes("pKick")) {
+                        } else if (commandLower.startsWith("pkick")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("kick", playerIP);
-                        } else if (command.includes("pBan")) {
+                        } else if (commandLower.startsWith("pban")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("kick", playerIP);
                           sockets.runPunishments("ban", playerIP);
-                        } else if (command.includes("pUnmute")) {
+                        } else if (commandLower.startsWith("punmute")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("unmute", playerIP);
-                        } else if (command.includes("pUnban")) {
+                        } else if (commandLower.startsWith("punban")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("unban", playerIP);
-                        } else if (command.includes("kill")) {
+                        } else if (commandLower.startsWith("kill")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts.slice(2).join(" "); // Join
@@ -26001,12 +26239,12 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.kill();
                             }
                           });
-                        } else if (command.includes("set wave")) {
+                        } else if (commandLower.startsWith("set wave")) {
                           let parts = command.split(" ");
                           let wave = parts[2]; // This should be "polygons", "players", etc.
                           c.bossWave = wave * 1;
                           currentState.bossWaves = wave * 1;
-                        } else if (command.includes("obliterate")) {
+                        } else if (commandLower.startsWith("obliterate")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts.slice(2).join(" "); // Join
@@ -26035,7 +26273,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.destroy();
                             }
                           });
-                        } else if (command.includes("size")) {
+                        } else if (commandLower.startsWith("size")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let size = parts.slice(2).join(" "); // Join
@@ -26063,7 +26301,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.SIZE = size;
                             }
                           });
-                        } else if (command.includes("points")) {
+                        } else if (commandLower.startsWith("points")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let skill = parts[2] * 1; // Join
@@ -26091,7 +26329,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.skill.points = skill;
                             }
                           });
-                        } else if (command.includes("score")) {
+                        } else if (commandLower.startsWith("score")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let score = parts[2] * 1; // Join
@@ -26119,7 +26357,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.skill.score = score;
                             }
                           });
-                        } else if (command.includes("heal")) {
+                        } else if (commandLower.startsWith("heal")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           entities.forEach((instance) => {
@@ -26147,7 +26385,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.health.amount = instance.health.max;
                             }
                           });
-                        } else if (command.includes("color")) {
+                        } else if (commandLower.startsWith("color")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts[2] * 1; // Join
@@ -26175,7 +26413,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.color = color;
                             }
                           });
-                        } else if (command.includes("team")) {
+                        } else if (commandLower.startsWith("team")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let myTeam = parts[2] * 1; // Join
@@ -26235,7 +26473,7 @@ You must have the chat site and the game site open at the same time for your cha
                               }
                             }
                           });
-                        } else if (command.includes("transform")) {
+                        } else if (commandLower.startsWith("transform")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let become = parts.slice(2).join(" "); // Join
@@ -26263,7 +26501,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.define(Class[become]);
                             }
                           });
-                        } else if (command.includes("toggle graveyard")) {
+                        } else if (commandLower.startsWith("toggle graveyard")) {
                           if (c.PLAGUE) {
                             message = "Graveyard disabled!";
                             setTimeout(() => {
@@ -26275,7 +26513,7 @@ You must have the chat site and the game site open at the same time for your cha
                               c.PLAGUE = true;
                             }, 1000);
                           }
-                        } else if (command.includes("toggle plague")) {
+                        } else if (commandLower.startsWith("toggle plague")) {
                           if (c.necro) {
                             message = "Plague disabled!";
                             setTimeout(() => {
@@ -26287,7 +26525,7 @@ You must have the chat site and the game site open at the same time for your cha
                               c.necro = true;
                             }, 1000);
                           }
-                        } else if (command.includes("toggle growth")) {
+                        } else if (commandLower.startsWith("toggle growth")) {
                           if (c.GROWTH) {
                             message = "Growth disabled!";
                             setTimeout(() => {
@@ -26299,10 +26537,18 @@ You must have the chat site and the game site open at the same time for your cha
                               c.GROWTH = true;
                             }, 1000);
                           }
-                        } else if (command.includes("repeat")) {
-                          let parts = command.split(" ");
-                          socket.commandLoopCount = parts[1];
-                        } else if (command.includes("tgm")) {
+                        } else if (commandLower.startsWith("repeat")) {
+                          const parts = command.trim().split(/\s+/);
+                          const requested = Number(parts[1]);
+                          const maximum = socket.trueDev ? 100 : 10;
+                          if (!Number.isInteger(requested) || requested < 1) {
+                            socket.commandLoopCount = 1;
+                            message = "Usage: /repeat [1-" + maximum + "]. Repeat count reset to 1.";
+                          } else {
+                            socket.commandLoopCount = Math.min(requested, maximum);
+                            message = "Command repeat count set to " + socket.commandLoopCount + ".";
+                          }
+                        } else if (commandLower.startsWith("tgm")) {
                           if (player.body) {
                             if (player.body.godMode) {
                               message = "God Mode disabled!";
@@ -26326,9 +26572,19 @@ You must have the chat site and the game site open at the same time for your cha
                             message = "Unknown Command! Try using /help!";
                           }
                         }
-                      } else
-                        message =
-                          "You do not have permission to use this command!";
+                      } else {
+                        const restrictedCommands = [
+                          "team setup", "broadcast", "close server", "define id", "toggle ai",
+                          "creation team", "spawn", "propertize entity", "propertize global",
+                          "pmute", "pkick", "pban", "punmute", "punban", "kill", "set wave",
+                          "obliterate", "size", "points", "score", "heal", "color", "team",
+                          "transform", "toggle graveyard", "toggle plague", "toggle growth", "repeat", "tgm"
+                        ];
+                        const restricted = restrictedCommands.some((name) => commandLower.startsWith(name));
+                        message = restricted
+                          ? "You do not have permission to use this command!"
+                          : "Unknown command. Try /help for the public command list.";
+                      }
                       c.recentMessage1 = "";
                     } else {
                       if (c.muteList.includes(socket.ip)) {
@@ -26347,66 +26603,51 @@ You must have the chat site and the game site open at the same time for your cha
                   };
                 }
               }
-              res.writeHead(302, { Location: redirectLink });
             }
           }
         }
       }
-      res.end(
-        `
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <title>` +
-          title +
-          ` Chat</title>
-    <link rel="icon" type="image/png" href="https://cdn.glitch.global/5f27ad97-07cd-4f67-922e-41dfb3ef64a5/grgagegu.webp?v=1713072716793
-    " sizes="128x128">
-    <meta name="description" content="Website for chatting in the arras Private server; Ranar's Prophecy.">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-      * {
-        box-sizing: border-box;
+      if (query.chat) {
+        // Keep feedback scoped to the submitting IP rather than shared global state.
+        chatFlashMessages.set(ip, { message: String(message || "Done."), at: Date.now() });
+        if (chatFlashMessages.size > 1000) {
+          const cutoff = Date.now() - 10 * 60 * 1000;
+          for (const [key, value] of chatFlashMessages) {
+            if (!value || value.at < cutoff) chatFlashMessages.delete(key);
+          }
+        }
+        res.writeHead(303, { Location: redirectLink, "Cache-Control": "no-store" });
+        res.end();
+        break;
       }
-      [hidden] {
-        display: none !important;
+      const flash = chatFlashMessages.get(ip);
+      let hasFlash = false;
+      if (flash && Date.now() - flash.at < 10 * 60 * 1000) {
+        message = flash.message;
+        hasFlash = true;
+        chatFlashMessages.delete(ip);
       }
-      body {
-        font-family: Arial, sans-serif;
-        /* background-color: #f2f2f2; */
-      }
-      input[type="text"] {
-        padding: 8px;
-        width: 100%;
-        margin-bottom: 10px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-      }
-      p {
-        font-size: 16px;
-      }
-    </style>
-  </head>
-  <body>
-    <p>${message}</p>
-    <p>${c.recentMessage1}</p>
-    <p>${c.recentMessage2}</p>
-    <p>${c.recentMessage3}</p>
-    <p>${c.recentMessage4}</p>
-    <p>${c.recentMessage5}</p>
-    <p>${c.recentMessage6}</p>
-    <p>${c.recentMessage7}</p>
-    <p>${c.recentMessage8}</p>
-    <p>${c.recentMessage9}</p>
-    <p>${c.recentMessage10}</p>
-    <form>
-      <input type="text" name="chat" placeholder="Insert message ..." />
-    </form>
-  </body>
-</html>
-`
-      );
+      const recentMessages = [c.recentMessage1, c.recentMessage2, c.recentMessage3, c.recentMessage4,
+        c.recentMessage5, c.recentMessage6, c.recentMessage7, c.recentMessage8,
+        c.recentMessage9, c.recentMessage10].filter((entry) => typeof entry === "string" && entry.trim());
+      res.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+      });
+      res.end(renderChatPage({
+        title,
+        extra,
+        gameMode: c.MODE,
+        playerCount: Number(c.playerCount) || sockets.clients.length,
+        connected: Boolean(socket),
+        isDeveloper: Boolean(socket && socket.trueDev),
+        message,
+        hasFlash,
+        messages: recentMessages,
+      }));
       break;
+    }
     default:
       res.writeHead(404);
       res.end();
