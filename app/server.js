@@ -8681,7 +8681,7 @@ class Entity {
               o.tp = true;
             }
             this.stage = 1;
-            this.color = 0;
+            if (this.team === -100) this.color = 0;
           }
           if (this.health.amount <= this.health.max / 4 && this.stage === 1) {
             for (let i = 0; i < ranarPowerCount; i++) {
@@ -8697,7 +8697,7 @@ class Entity {
               o.tp = true;
             }
             this.stage = 2;
-            this.color = 3;
+            if (this.team === -100) this.color = 3;
           }
         } else if (this.label === "Ascendant") {
           if (this.health.amount <= this.health.max / 1.5 && this.stage === 0) {
@@ -8715,7 +8715,7 @@ class Entity {
               o.tp = true;
             }
             this.stage = 1;
-            this.color = 33;
+            if (this.team === -100) this.color = 33;
           }
           if (this.health.amount <= this.health.max / 4 && this.stage === 1) {
             for (let i = 0; i < ranarPowerCount; i++) {
@@ -8732,7 +8732,7 @@ class Entity {
               o.maxChildren = 1;
             }
             this.stage = 2;
-            this.color = 12;
+            if (this.team === -100) this.color = 12;
           }
         }
       }
@@ -23854,7 +23854,7 @@ var maintainloop = (() => {
       for (let i = 0; i < bots.length; i++) {
         let o = bots[i];
         o.skill.maintain();
-        if (c.MODE === "siege" && o.team === -100 && /turret/i.test(String(o.label || ""))) {
+        if (c.MODE === "siege" && o.team === -100 && o.label && o.label.includes("Turret")) {
           const now = Date.now();
           if (!o._siegeTurretDecayAt) o._siegeTurretDecayAt = now;
           if (now - o._siegeTurretDecayAt >= 1000) {
@@ -23862,7 +23862,6 @@ var maintainloop = (() => {
             o._siegeTurretDecayAt += elapsedSeconds * 1000;
             const maxHealth = Math.max(1, Number(o.health && o.health.max) || 1);
             o.health.amount = Math.max(0, Number(o.health.amount) - maxHealth * 0.01 * elapsedSeconds);
-            if (o.health.amount <= 0 && typeof o.kill === "function") o.kill();
           }
         }
         o.skillUp(ran.choose([
