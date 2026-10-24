@@ -8635,7 +8635,11 @@ class Entity {
         this.x = this.master.x;
         this.y = this.master.y;
       }
-      if (this.isRanar) {
+      // Disciple and Ascendant are unique to Ranar. Some mode-specific spawn
+      // paths define the class but do not set the runtime flag; normalize it here
+      // so the shared combat kit is not accidentally limited to The Denied.
+      if (this.isRanar || (this.name === "Ranar" && (this.label === "Disciple" || this.label === "Ascendant"))) {
+        this.isRanar = true;
         scaleSiegeRanarToAllyScore(this);
         if (this.stage === undefined) this.stage = 0;
 
@@ -25615,22 +25619,38 @@ You must have the chat site and the game site open at the same time for your cha
                   // Check if the message is a command
                   for (let i = 0; i < socket.commandLoopCount; i++) {
                     if (chat.startsWith("/")) {
-                      const command = chat.slice(1);
+                      let command = chat.slice(1).trim();
+                      // Friendly short aliases and case-insensitive common commands.
+                      // Normalize only recognized whole-command aliases so existing
+                      // developer command arguments retain their original casing.
+                      const alias = command.toLowerCase();
+                      const aliases = {
+                        "commands": "help", "?": "help", "h": "help",
+                        "players": "player list", "who": "player list",
+                        "modes": "mode list", "where": "find loc",
+                        "location": "find loc", "my team": "see team",
+                        "team?": "see team", "suicide": "self destruct",
+                        "sd": "self destruct"
+                      };
+                      if (aliases[alias]) command = aliases[alias];
                       message = "Command Initiated!";
                       if (command === "help") {
                         message = `
-<!DOCTYPE html>
-<html lang="en">
-<p>Here is the list of commands:</p>
-<li>help, (displays this message).</li>
-<li>vote [mode name], (the next mode will be the highest voted one, if voting is allowed).</li>
-<li>mode list, (shows the list of what modes exist in this server).</li>
-<li>player list, (shows # of players and their data(if you are a dev)).</li>
-<li>set team [team ID], (changes your team to the ID when you respawn).</li>
-<li>reset, (your score, skill points, tank and special effects are set to the default).</li>
-<li>self destruct, (kills you)</li>
-<li>score cheat [number between 0 and 26263], (if your score is lower or equal to 26263 when you respawn, you will respawn as the selected score).</li>
-<li>tda [password], (grants some boons and access to dev commands and testbed, FOR DEVS ONLY!)."</li>`;
+<div style="font-family:Arial,sans-serif;max-width:620px;color:#e9edf5;background:#171b25;border:1px solid #394155;border-radius:12px;padding:16px;line-height:1.45">
+  <div style="font-size:20px;font-weight:700;margin-bottom:4px">Command Guide</div>
+  <div style="color:#aab5ca;margin-bottom:12px">Type a command in chat. Commands beginning with <code>/</code> are not sent as normal chat.</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div style="background:#222938;border-radius:8px;padding:10px"><b>Help</b><br><code>/help</code> · <code>/commands</code><br><span style="color:#aab5ca">Show this guide.</span></div>
+    <div style="background:#222938;border-radius:8px;padding:10px"><b>Players</b><br><code>/players</code> · <code>/player list</code><br><span style="color:#aab5ca">List players online.</span></div>
+    <div style="background:#222938;border-radius:8px;padding:10px"><b>Modes</b><br><code>/modes</code> · <code>/mode list</code><br><span style="color:#aab5ca">Show available modes.</span></div>
+    <div style="background:#222938;border-radius:8px;padding:10px"><b>Vote</b><br><code>/vote [mode name]</code><br><span style="color:#aab5ca">Vote for the next mode when enabled.</span></div>
+    <div style="background:#222938;border-radius:8px;padding:10px"><b>Team</b><br><code>/set team [ID]</code> · <code>/my team</code><br><span style="color:#aab5ca">Choose your next-spawn team or view it.</span></div>
+    <div style="background:#222938;border-radius:8px;padding:10px"><b>Location</b><br><code>/where</code> · <code>/find loc</code><br><span style="color:#aab5ca">Show your current coordinates.</span></div>
+    <div style="background:#222938;border-radius:8px;padding:10px"><b>Reset</b><br><code>/reset</code><br><span style="color:#aab5ca">Reset your tank and stats when permitted.</span></div>
+    <div style="background:#222938;border-radius:8px;padding:10px"><b>Self-destruct</b><br><code>/suicide</code> · <code>/self destruct</code><br><span style="color:#aab5ca">Kill your current tank when permitted.</span></div>
+  </div>
+  <div style="margin-top:12px;color:#aab5ca;font-size:12px">Some commands require spawning, a safe area, or developer access. Developer commands are hidden from this public guide.</div>
+</div>`;
                       } else if (command.includes("set team")) {
                         socket.rememberedTeam =
                           command.slice(command.indexOf("m") + 2) * 1;
@@ -25791,42 +25811,18 @@ You must have the chat site and the game site open at the same time for your cha
                             "You do not have permission to use this command!";
                       } else if (socket.trueDev) {
                         if (command.includes("dev help")) {
-                          //hey ranar. I cant talk in discord rn.//AYE, NEITHER CAN I LOL.
                           message = `
-<!DOCTYPE html>
-<html lang="en">
-<p>Here is the list of commands:</p>
-<li>dev help, (displays this message).</li>
-<li>spawn [entity export name, x and y coordinates], (spawns a entity at selected co-ordinates).</li>
-<li>team [team id], (your team and color will become the id).</li>
-<li>define x [number 0 or greater]/define y [number 0 or greater], (defines your co-ordinates for your other commands).</li>
-<li>define ID [some sort of 4 digit number], (defines the team for your other commands).</li>
-<li>toggle AI, (enables or disables AI across the server).</li>
-<li>tgm, (enables or disables god mode for yourself).</li>
-<li>transform [projectiles, bots, bosses, enemies, polygons, walls, misc, self, players or player ID and entity name], (completely transforms everything).</li>
-<li>team [projectiles, bots, bosses, enemies, polygons, walls, misc, self, players or player ID and any number], (completely teams everything).</li>
-<li>see team, (see what team you are on).</li>
-<li>find loc, (your location will be shown in a x, y format).</li>
-<li>kill [projectiles, bots, bosses, enemies, polygons, walls, misc, players or player ID], (kills everything).</li>
-<li>obliterate [projectiles, bots, bosses, enemies, polygons, walls, misc, players or player ID], (deletes everything).</li>
-<li>heal [projectiles, bots, bosses, enemies, polygons, walls, misc, self, players or player ID], (completely heals everything).</li>
-<li>color [projectiles, bots, bosses, enemies, polygons, walls, misc, self, players or player ID and a number between 0 and 50], (completely colors everything).</li>
-<li>size [projectiles, bots, bosses, enemies, polygons, walls, misc, self, players or player ID and a number above 0], (completely changes the size of everything).</li>
-<li>score [projectiles, bots, bosses, enemies, polygons, walls, misc, self, players or player ID and any number], (gives score).</li>
-<li>team setup [ffa, tdm, 1 team, 2 teams, 3 teams], (changes the mode's teams).</li>
-<li>broadcast [message], (anounces to the server whatever you write).</li>
-<li>propertize entity [projectiles, bots, bosses, enemies, polygons, walls, misc, self, players or player ID and a property and a value], (changes the property of the entity).</li>
-<li>propertize global [c or room, and a property and a value], (changes the property of the server or room configuration).</li>
-<li>creation team [number], (entities created by spawn command shall be on that team).</li>
-<li>points [number], (give that entity skill points)</li>
-<li>repeat [number], (Your commands will trigger multiple times).</li>
-<li>set wave [number], (Sets the siege wave to the number).</li>
-<li>pMute [player's ip], (mutes the player, also disables commands).</li>
-<li>pKick [player's ip], (kicks the player).</li>
-<li>pBan [player's ip], (temporarily bans the player).</li>
-<li>pUnmute [player's ip (use /player list to see them)], (unmutes the player).</li>
-<li>pUnban [player's ip (use /player list to see them)], (unbans the player).</li>
-`;
+<div style="font-family:Arial,sans-serif;max-width:760px;color:#f0f2f8;background:#171b25;border:1px solid #7259a6;border-radius:12px;padding:16px;line-height:1.45">
+  <div style="font-size:20px;font-weight:700;color:#c6a8ff">Developer Console</div>
+  <div style="color:#b7bfd0;margin:4px 0 12px">Restricted tools. Check arguments carefully; world-wide actions affect every player.</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <section style="background:#222938;border-radius:8px;padding:10px"><b>World</b><br><code>/spawn [class] [x] [y]</code><br><code>/toggle AI</code><br><code>/team setup [ffa|tdm|1 team|2 teams|3 teams]</code><br><code>/set wave [number]</code></section>
+    <section style="background:#222938;border-radius:8px;padding:10px"><b>Player / Entity</b><br><code>/team [target] [ID]</code><br><code>/transform [target] [class]</code><br><code>/heal [target]</code><br><code>/kill [target]</code><br><code>/obliterate [target]</code><br><code>/color [target] [0–50]</code><br><code>/size [target] [value]</code><br><code>/score [target] [value]</code></section>
+    <section style="background:#222938;border-radius:8px;padding:10px"><b>Inspection / Properties</b><br><code>/see team</code> · <code>/find loc</code><br><code>/define x [number]</code> · <code>/define y [number]</code> · <code>/define ID [number]</code><br><code>/propertize entity [target] [property] [value]</code><br><code>/propertize global [c|room] [property] [value]</code><br><code>/creation team [ID]</code> · <code>/repeat [number]</code></section>
+    <section style="background:#222938;border-radius:8px;padding:10px"><b>Server / Moderation</b><br><code>/broadcast [message]</code><br><code>/pMute [IP]</code> · <code>/pUnmute [IP]</code><br><code>/pKick [IP]</code> · <code>/pBan [IP]</code> · <code>/pUnban [IP]</code><br><code>/close server</code></section>
+  </div>
+  <div style="margin-top:12px;color:#b7bfd0;font-size:12px">Target selectors supported by legacy tools may include projectiles, bots, bosses, enemies, polygons, walls, misc, self, players, or a player ID. Some tools retain legacy argument parsing.</div>
+</div>`;
                         } else if (command.includes("team setup")) {
                           let load = command.slice(command.indexOf("p") + 2);
                           switch (load) {

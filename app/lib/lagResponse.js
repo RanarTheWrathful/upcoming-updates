@@ -5,11 +5,11 @@
 const DEFAULT_STEPS = Object.freeze([
   // These are server-side simulation/event-loop measurements, not client ping.
   // Start low-impact cleanup before the 100ms target is exceeded.
-  { id: "offscreen-projectiles", category: "projectile", visibility: "offscreen", action: "destroy", speed: 80, lagMs: 75, durationMs: 1500, minActiveMs: 1500 },
-  { id: "offscreen-natural-enemies", category: "naturalEnemy", visibility: "offscreen", action: "destroy", speed: 70, lagMs: 85, durationMs: 2000, minActiveMs: 2000 },
-  { id: "offscreen-food", category: "food", visibility: "offscreen", action: "destroy", speed: 60, lagMs: 100, durationMs: 3000, minActiveMs: 3000 },
-  { id: "offscreen-bots", category: "bot", visibility: "offscreen", action: "destroy", speed: 50, lagMs: 120, durationMs: 3500, minActiveMs: 3500 },
-  { id: "offscreen-natural-bosses", category: "naturalBoss", visibility: "offscreen", action: "destroy", speed: 40, lagMs: 145, durationMs: 4000, minActiveMs: 4000 },
+  { id: "offscreen-projectiles", category: "projectile", visibility: "offscreen", action: "destroy", speed: 80, lagMs: 375, durationMs: 7500, minActiveMs: 7500 },
+  { id: "offscreen-natural-enemies", category: "naturalEnemy", visibility: "offscreen", action: "destroy", speed: 70, lagMs: 425, durationMs: 10000, minActiveMs: 10000 },
+  { id: "offscreen-food", category: "food", visibility: "offscreen", action: "destroy", speed: 60, lagMs: 500, durationMs: 15000, minActiveMs: 15000 },
+  { id: "offscreen-bots", category: "bot", visibility: "offscreen", action: "destroy", speed: 50, lagMs: 600, durationMs: 17500, minActiveMs: 17500 },
+  { id: "offscreen-natural-bosses", category: "naturalBoss", visibility: "offscreen", action: "destroy", speed: 40, lagMs: 725, durationMs: 20000, minActiveMs: 20000 },
   // Only sustained extreme lag and very poor throughput may trigger a full
   // process shutdown. The server must not attempt a destructive in-game reset.
   { id: "emergency-shutdown", category: "all", visibility: "any", action: "shutdown", speed: 5, lagMs: 1000, durationMs: 15000, minActiveMs: 0 },
