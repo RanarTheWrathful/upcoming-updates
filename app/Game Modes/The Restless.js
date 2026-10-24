@@ -1,0 +1,38 @@
+module.exports =
+{
+  "WIDTH": 4500,
+  "HEIGHT": 4500,
+  "MODE": "theRestless",
+  "DISABLED_TEAM_MESSAGE": true, 
+  "ROOM_SETUP": [
+   ["norm", "nest", "nest", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "nest", "nest", "norm"],
+   ["nest", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "nest"],
+   ["nest", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "wall", "port", "port", "port", "nest"],
+   ["port", "port", "port", "port", "port", "port", "bad1", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "dom3", "port", "port", "port", "port", "port", "port", "port", "dom3", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "port", "bos1", "port", "port", "norm", "port", "port", "bos2", "port", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "port", "port", "port", "port", "bos4", "port", "port", "port", "port", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "port", "port", "port", "bos4", "wal4", "bos4", "port", "port", "port", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "port", "norm", "bos4", "wal4", "spw4", "wal4", "bos4", "norm", "port", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "port", "port", "port", "bos4", "wal4", "bos4", "port", "port", "port", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "port", "port", "port", "port", "bos4", "port", "port", "port", "port", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "port", "bos0", "port", "port", "norm", "port", "port", "bos3", "port", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "dom3", "port", "port", "port", "port", "port", "port", "port", "dom3", "port", "port", "port", "port"],
+   ["port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port"],
+   ["nest", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "nest"],
+   ["nest", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "nest"],
+   ["norm", "nest", "nest", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "port", "nest", "nest", "norm"]
+   ],
+  "FOOD_AMOUNT": 0.4,
+  "PLAYER_SPAWN_LOCATION": "dom",
+  "CONSIDER_PLAYER_TEAM_LOCATION": true,
+  "TEAMS": [3],
+  "BOT_TEAMS": [100],
+  "DOMINATION": true,
+  "DOMINATOR_COUNT": 4,
+  "SPAWN_VOIDLORD_BOSSES_AND_ENEMIES": true,
+  "SPAWN_FOOD": false,
+  "SPAWN_NEUTRAL_BOSSES": false,
+  "SPAWN_CRASHER": false,
+  "SPAWN_SENTINEL": false
+}

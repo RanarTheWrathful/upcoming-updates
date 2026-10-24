@@ -1,0 +1,31 @@
+module.exports =
+{
+  "WIDTH": 3000,
+  "HEIGHT": 3000,
+  "MODE": "dev",
+  "RANDOM_COLORS": true,
+  ROOM_SETUP: [
+    ["bas1", "bas2", "bas3", "bas4", "bas0", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "new1", "new1"],
+    ["por1", "por2", "por3", "por4", "port", "por0", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "new1", "new1"],
+    ["bap1", "bap2", "bap3", "bap4", "basp", "bap0", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "new1", "new1"],
+    ["dom1", "dom2", "dom3", "dom4", "dom0", "norm", "nest", "nest", "nest", "nest", "norm", "norm", "norm", "new1", "new1"],
+    ["bad1", "bad2", "bad3", "bad4", "ftR0", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm", "new1", "new1"],
+    ["dbc1", "dbc2", "dbc3", "dbc4", "dbc0", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm", "new1", "new1"],
+    ["spw1", "spw2", "spw3", "spw4", "spw0", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm", "new1", "new1"],
+    ["domx", "dor1", "edge", "wall", "ball", "anti", "nest", "nest", "nest", "nest", "norm", "norm", "norm", "new1", "new1"],
+    ["vpr0", "vpr1", "vpr2", "vpr3", "vpr4", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm", "new1", "new1"],
+    ["wal0", "wal1", "wal2", "wal3", "wal4", "nest", "nest", "nest", "nest", "nest", "norm", "norm", "norm", "new1", "new1"],
+    ["gte0", "gte1", "gte2", "gte3", "gte4", "fao0", "fao1", "fao2", "fao3", "fao4", "norm", "norm", "norm", "new1", "new1"],
+    ["frt0", "frt1", "frt2", "frt3", "frt4", "ftR0", "ftR1", "ftR2", "ftR3", "ftR4", "fcR0", "fcR1", "fcR2", "fcR3", "fcR4"],
+    ["ftU0", "ftU1", "ftU2", "ftU3", "ftU4", "ftD0", "ftD1", "ftD2", "ftD3", "ftD4", "ftL0", "ftL1", "ftL2", "ftL3", "ftL4"],
+    ["fcU0", "fcU1", "fcU2", "fcU3", "fcU4", "fcD0", "fcD1", "fcD2", "fcD3", "fcD4", "fcL0", "fcL1", "fcL2", "fcL3", "fcL4"],
+    ["new1", "new1", "new1", "new1", "new1", "new1", "new1", "new1", "new1", "new1", "new1", "new1", "new1", "new1", "new1"],
+],
+  "BOTS": 1,
+  "BOT_TEAMS": [1, 2, 3, 4],
+  "BASE_DRONES": true,
+  "SPAWN_FOOD": false,
+  "SPAWN_NEUTRAL_BOSSES": false,
+  "SPAWN_CRASHER": false,
+  "SPAWN_SENTINEL": false
+  }

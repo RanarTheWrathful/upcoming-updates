@@ -1,0 +1,73 @@
+# Anti-lag smoothing rework (2026-10-16)
+
+- Decoupled simulation work cost from start-to-start tick cadence. The adaptive scheduler's deliberate wait no longer feeds back into load detection or triggers false emergency mitigation.
+- Added a configurable exponential moving average for cycle cost and event-loop delay (`RANAR_LOAD_RUNTIME_EMA_ALPHA`, default `0.30`). Raw extreme stalls and critical memory pressure still bypass the smoothing window.
+- Made natural-population recounts incremental (`RANAR_LAG_POPULATION_RECOUNT_BATCH_SIZE`, default `500` entities per cycle), avoiding periodic full-world scans. The last completed count is reused until a new bounded scan finishes; natural spawns fail closed under load while the initial population count is incomplete.
+- Shortened staged recovery hysteresis to five healthy samples by default (`RANAR_LOAD_RECOVERY_SAMPLES`), stepping down one severity tier at a time.
+- Added tests for scheduler-feedback prevention, smoothed escalation/recovery, emergency detection, and bounded population recounts.
+
+
+# Stability and lifecycle fixes (2026-10-10)
+
+- Fixed standalone entity team initialization: root entities now retain their own team ID instead of inheriting `undefined` from themselves. This addresses an entity-state defect that could leave entities outside normal team/combat handling.
+- Delayed destructive lag contingencies until the configured lag duration is sustained. The unknown-entity cleanup sweep now waits for the 100ms persistence window, and critical entity suspension waits 15 seconds by default (`RANAR_LAG_CRITICAL_DURATION_MS`).
+- Hardened WebSocket cleanup against duplicate close/error events, forced termination after transport errors, and ensured delayed disconnect cleanup only targets the original departing body.
+- Added regression tests for lag persistence and the adaptive game-loop scheduler.
+  @Ranar's Prophecy/Arena Updates,
+
+# Prophecy Version 0.0.9
+NEW UPDATE!
+  
+  -Added a new final wave, featuring each terrestrial and celestial combined with kronos.
+  
+  -Buffed the Terrestrials!
+  
+  
+  -Added additional healer tanks to the healer branch! (3 For each healer upgrade)
+  - Additionally, We added Repairer and Physician, which are smasher repairer and healer(respectively).
+  - because of this, we have made Repairsphere and Healersphere(along with their branches) be able to repair/heal by ramming, like their 'lesser' versions can.
+  - Added War Healer, which is a t4 branch off of Physician, its Physician with a Healer barrel.
+  - Added Repair Man, which is a t4 branch off of Repairer, its Repairer with a Mechanic barrel.
+  
+  -Gave enemies and a few bosses 'Least Deadly' AI, meaning that they will prioritize things like players over bosses and dominators.
+  
+  -Fixed the issue that caused Ranar's shrine to break as soon as the server started.
+  
+  -Reworked Septa-trapper due to it being underpowered soley because of the existance of hexa trapper
+  - Renamed it to Octo-Trapper
+  - Slightly buffed traps
+  - Added an extra trap layer
+  - Moved it from tri-trapper to hexa-trapper branches.
+  
+  -Buffed infestor due to it being very underpowered compared to the other underseer branches
+  
+  -Slightly reduced carrier's reload speed and increased drone acceleration.
+  
+  -Fixed hardshell spawner
+  
+  -Changes to Entomber and "sunchips"
+  - renamed entomber to undertrapper
+  - buffed sunchip health and speed
+  - slightly decreased reload of undertrapper
+  - made a branch for undertrapper, featuring the underseer branch together with a trapper (with minor changes) 
+  
+  -Adjusted the barrel angles of Fortress to make it more easily useable.
+  
+  -implemented a system that made the bots spawn less when more players are on, this should help with lag.
+  
+  -Reduced the amount of ally bosses allowed at any one time in siege.
+  
+  -Allowed Rogue Palisade and Rogue Armada to evolve after reaching 500k score.
+  
+  -Added many bosses to siege:
+  - Ruiner 
+  - Hellwark
+  - Conjurer
+  - Cultist Centurion
+  - The Descendants from the Denied
+  - The Alt. Disciples from the Distance
+  - The Celestials
+  - The Legionary Crasher 
+  - Kronos
+  
+  
