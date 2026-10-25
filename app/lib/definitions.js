@@ -49834,7 +49834,7 @@ exports.trianglePounderSentry = makeAuto(
     size: 12,
   }
 );
-trianglePounderSentry.AUTO_UPGRADE_RULES = {
+exports.trianglePounderSentry.AUTO_UPGRADE_RULES = {
   score: 250000,
   exports: ["elite_destroyer"],
   spawnMessage: "A sentry has evolved into a {label}!",
@@ -49848,7 +49848,7 @@ exports.triangleTrapperSentry = makeAuto(
   }
 );
 
- triangleTrapperSentry.AUTO_UPGRADE_RULES = {
+ exports.triangleTrapperSentry.AUTO_UPGRADE_RULES = {
   score: 250000,
   exports: ["elite_gunner", "elite_fortress"],
   spawnMessage: "A sentry has evolved into a {label}!",
