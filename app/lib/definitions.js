@@ -49813,7 +49813,6 @@ exports.triangleSwarmSentry = {
   AUTO_UPGRADE_RULES: {
   score: 250000,
   exports: ["elite_swarmer", "elite_battleship"],
-  spawnMessage: "A sentry has evolved into a {label}!",
 },
   GUNS: [
     {
@@ -49837,7 +49836,6 @@ exports.trianglePounderSentry = makeAuto(
 exports.trianglePounderSentry.AUTO_UPGRADE_RULES = {
   score: 250000,
   exports: ["elite_destroyer"],
-  spawnMessage: "A sentry has evolved into a {label}!",
 };
 exports.triangleTrapperSentry = makeAuto(
   exports.triangleSentry,
@@ -49848,10 +49846,9 @@ exports.triangleTrapperSentry = makeAuto(
   }
 );
 
- exports.triangleTrapperSentry.AUTO_UPGRADE_RULES = {
+exports.triangleTrapperSentry.AUTO_UPGRADE_RULES = {
   score: 250000,
   exports: ["elite_gunner", "elite_fortress"],
-  spawnMessage: "A sentry has evolved into a {label}!",
 };
 exports.pentagonSentry = {
   PARENT: [exports.pentagonCrasher],
@@ -50570,7 +50567,7 @@ exports.auto3Guard = {
   PARENT: [exports.guard],
   AUTO_UPGRADE_RULES: {
   score: 250000,
-  exports: ["priest"],
+  exports: ["Pawn"],
 },
   TURRETS: [
     {
@@ -65808,7 +65805,6 @@ exports.ranarDiscipleForm = {
   TYPE: "neutralBoss",
   LABEL: "Disciple",
   ALLOW_PLATE: true,
-  INTELLECT: 100,
   BODY: {
     DAMAGE: base.DAMAGE * 5,
     FOV: 3.25,

@@ -5,24 +5,97 @@ const intellect = require("../lib/intellect");
 assert.strictEqual(intellect.normalize(undefined), 1);
 assert.strictEqual(intellect.normalize(100000000), 100000000);
 assert.strictEqual(intellect.normalize(-2), 0);
+assert.strictEqual(intellect.has(32, 32), true);
+assert.strictEqual(intellect.has(31.99, 32), false);
+
 assert.strictEqual(intellect.scaleRange(100, 1), 100);
 assert.ok(intellect.scaleRange(100, 0.1) < 100);
 assert.ok(intellect.scaleRange(100, 100000000) > intellect.scaleRange(100, 1));
+assert.ok(intellect.scaleRange(100, 100000000) <= 225);
 assert.strictEqual(intellect.scaleInterval(15, 1), 15);
 assert.ok(intellect.scaleInterval(15, 0.1) > 15);
-assert.strictEqual(intellect.scaleInterval(15, 100000000), 1);
+assert.ok(intellect.scaleInterval(15, 100000000) >= 4);
+assert.ok(intellect.scalePauseInterval(90, 100000000) >= 8);
+
 assert.strictEqual(intellect.waypointCandidateCount(1), 1);
 assert.ok(intellect.waypointCandidateCount(100000000) > intellect.waypointCandidateCount(1));
-assert.strictEqual(intellect.pathStep(1), 1);
-assert.ok(intellect.pathStep(100000000) > 1);
+assert.strictEqual(intellect.pathStep(100000000, 0), 1, "high intellect should not skip route points without evidence of a blockage");
+assert.strictEqual(intellect.pathStep(100000000, 4), 1, "recovery requires repeated stuck samples");
+assert.ok(intellect.pathStep(512, 5) >= 2);
+assert.ok(intellect.pathStep(100000000, 5) > intellect.pathStep(512, 5));
+assert.strictEqual(intellect.arrivalRadius(50, 1), 50);
+assert.ok(intellect.arrivalRadius(50, 100000000) <= 70);
+
 assert.ok(intellect.fleeThreshold(0.3, 0.1) < intellect.fleeThreshold(0.3, 1));
 assert.strictEqual(intellect.fleeThreshold(0.3, 1), 0.3);
-assert.strictEqual(intellect.fleeThreshold(0.3, 100000000), 0.98);
+assert.ok(intellect.fleeThreshold(0.3, 100000000) < 0.34, "high intellect must not cause panic fleeing at almost full health");
 assert.strictEqual(intellect.orbitMultiplier(1), 1);
 assert.ok(intellect.orbitMultiplier(0.1) > 1);
 assert.ok(intellect.orbitMultiplier(100000000) < 1);
-const body = { x: 0, y: 0 };
-const targets = [{ x: 5, y: 0 }, { x: 50, y: 0 }, { x: 100, y: 0 }];
-assert.strictEqual(intellect.chooseTarget(targets, body, 1), targets[0]);
-assert.strictEqual(intellect.chooseTarget(targets, body, 100000000), targets[2]);
-console.log("Intellect scaling tests passed.");
+assert.ok(intellect.orbitMultiplier(100000000) >= 0.5);
+
+const body = { x: 0, y: 0, fov: 2000, topSpeed: 10, velocity: { x: 0, y: 0 }, aiTarget: "general" };
+const near = { x: 100, y: 0, dangerValue: 1, health: { amount: 100, max: 100 }, velocity: { x: 0, y: 0 } };
+const farWeak = { x: 900, y: 0, dangerValue: 10, health: { amount: 20, max: 100 }, velocity: { x: -1, y: 0 } };
+const farEqualThreat = { x: 900, y: 0, dangerValue: 1, health: { amount: 100, max: 100 }, velocity: { x: 0, y: 0 } };
+assert.strictEqual(intellect.chooseTarget([near, farWeak], body, 1), near);
+assert.strictEqual(intellect.chooseTarget([near, farWeak], body, 100000000), farWeak, "very high intellect should weigh threat and vulnerability, not just distance");
+assert.strictEqual(intellect.chooseTarget([near, farEqualThreat], body, 100000000), near, "equal-danger targets must not be biased by array order");
+assert.strictEqual(intellect.chooseTarget([near, farEqualThreat], body, 100000000, near), near, "a comparable current target should remain locked");
+
+const intercept = intellect.predictIntercept(
+  { x: 100, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: 0 },
+  10,
+  4
+);
+assert.ok(Number.isFinite(intercept.x) && Number.isFinite(intercept.y));
+assert.ok(intercept.y > 0, "intercept should lead a moving target");
+const linear = intellect.predictIntercept(
+  { x: 100, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: 0 },
+  10,
+  4
+);
+const curved = intellect.predictIntercept(
+  { x: 100, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: 0.1 },
+  10,
+  100000000
+);
+assert.ok(curved.y > linear.y, "extreme intellect should account for target acceleration");
+assert.ok(Number.isFinite(intellect.solveInterceptTime({ x: 100, y: 0 }, { x: 10, y: 0 }, 10)));
+
+const targetWithIntent = {
+  x: 0,
+  y: 0,
+  size: 10,
+  topSpeed: 10,
+  control: { goal: { x: 100, y: 0 } },
+  velocity: { x: 0, y: 0 },
+};
+assert.strictEqual(intellect.targetIntentVelocity(targetWithIntent, { x: 0, y: 0 }, 8).x, 0);
+assert.ok(intellect.targetIntentVelocity(targetWithIntent, { x: 0, y: 0 }, 100000000).x > 0);
+assert.strictEqual(intellect.targetIntentVelocity({ ...targetWithIntent, isPlayer: true }, { x: 0, y: 0 }, 100000000).x, 0, "intent inference should not override player movement");
+
+const dodgingBody = { x: 0, y: 0, size: 10, topSpeed: 5, velocity: { x: 0, y: 0 }, id: 3 };
+const incomingProjectile = { x: 100, y: 0, size: 5, velocity: { x: -10, y: 0 } };
+const dodge = intellect.chooseDodgeDirection(dodgingBody, [incomingProjectile], 32, 30);
+assert.ok(dodge && Number.isFinite(dodge.x) && Number.isFinite(dodge.y));
+assert.ok(Math.abs(dodge.x) < 0.8, "dodge should not run directly into a head-on projectile");
+assert.strictEqual(intellect.chooseDodgeDirection(dodgingBody, [{ x: 100, y: 0, size: 5, velocity: { x: 10, y: 0 } }], 32, 30), undefined, "projectiles already moving away should not trigger evasive movement");
+assert.ok(intellect.dodgeHorizon(100000000) > intellect.dodgeHorizon(32));
+assert.ok(intellect.dodgeDuration(100000000) >= intellect.dodgeDuration(32));
+assert.strictEqual(intellect.dodgeScanInterval(100000000), 1);
+
+const wanderChoices = [
+  { x: 900, y: 0 },
+  { x: 500, y: 0 },
+  { x: 0, y: 700 },
+];
+const selected = intellect.chooseWanderSpot(wanderChoices, body, [{ x: 500, y: 0 }], 100000000);
+assert.ok(wanderChoices.includes(selected));
+console.log("INTELLECT decision, prediction, evasion, and stability tests passed.");

@@ -80,7 +80,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Siege";
+if (serverType === "testing") chosenMode = "Sandbox";
 //change this to play a specifict mode.
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -3627,19 +3627,10 @@ function nearest(
   return list.dequeue();
 }
 function timeOfImpact(p, v, s) {
-  // Requires relative position and velocity to aiming point
-  let a = s * s - (v.x * v.x + v.y * v.y);
-  let b = p.x * v.x + p.y * v.y;
-  let c = p.x * p.x + p.y * p.y;
-
-  let d = b * b + a * c;
-
-  let t = 0;
-  if (d >= 0) {
-    t = Math.max(0, (b + Math.sqrt(d)) / a);
-  }
-
-  return t * 0.9;
+  // Robust linear intercept estimate used by baseline-intellect controllers.
+  // The old formula could divide by zero when projectile and target speeds
+  // were nearly equal, producing non-finite aim vectors.
+  return intellect.solveInterceptTime(p, v, s, 120) * 0.9;
 }
 class IO {
   constructor(body) {
@@ -3663,8 +3654,173 @@ class IO {
     return intellect.scaleInterval(baseInterval, this.getIntellect());
   }
 
-  selectIntellectTarget(targets) {
-    return intellect.chooseTarget(targets, this.body, this.getIntellect());
+  selectIntellectTarget(targets, currentTarget) {
+    return intellect.chooseTarget(targets, this.body, this.getIntellect(), currentTarget);
+  }
+
+  beginIntellectFrame() {
+    this._intellectFrame = (this._intellectFrame || 0) + 1;
+  }
+
+  getIntellectTargetMotion(target) {
+    const value = this.getIntellect();
+    const targetVelocity = target && target.velocity ? target.velocity : { x: 0, y: 0 };
+    let velocity = {
+      x: Number(targetVelocity.x) || 0,
+      y: Number(targetVelocity.y) || 0,
+    };
+    let acceleration = { x: 0, y: 0 };
+
+    if (value >= 8 && target) {
+      if (!this._intellectMotionTracks) this._intellectMotionTracks = new Map();
+      const frame = this._intellectFrame || 0;
+      const previous = this._intellectMotionTracks.get(target);
+      const targetAccel = target.accel || { x: 0, y: 0 };
+      if (previous) {
+        const elapsed = frame - previous.frame;
+        if (elapsed > 0 && elapsed <= 60) {
+          const measuredX = (velocity.x - previous.vx) / elapsed;
+          const measuredY = (velocity.y - previous.vy) / elapsed;
+          const rawX = measuredX * 0.75 + (Number(targetAccel.x) || 0) * 0.25;
+          const rawY = measuredY * 0.75 + (Number(targetAccel.y) || 0) * 0.25;
+          const memory = 0.25 + 0.45 * intellect.progression(value, 8, 2048);
+          acceleration = {
+            x: previous.ax * (1 - memory) + rawX * memory,
+            y: previous.ay * (1 - memory) + rawY * memory,
+          };
+        }
+      } else if (value >= 16) {
+        acceleration = {
+          x: (Number(targetAccel.x) || 0) * 0.2,
+          y: (Number(targetAccel.y) || 0) * 0.2,
+        };
+      }
+
+      // Keep the motion history small; old targets are not useful predictions.
+      this._intellectMotionTracks.delete(target);
+      this._intellectMotionTracks.set(target, {
+        frame,
+        vx: velocity.x,
+        vy: velocity.y,
+        ax: acceleration.x,
+        ay: acceleration.y,
+      });
+      for (const [tracked, sample] of this._intellectMotionTracks) {
+        if (frame - sample.frame > 120) this._intellectMotionTracks.delete(tracked);
+      }
+      while (this._intellectMotionTracks.size > 24) {
+        this._intellectMotionTracks.delete(this._intellectMotionTracks.keys().next().value);
+      }
+    }
+
+    // At higher tiers, use the target AI's current navigation goal as evidence
+    // of intent. Ignore player bodies and tiny, one-step control goals.
+    velocity = intellect.targetIntentVelocity(target, velocity, value);
+    return { velocity, acceleration };
+  }
+
+  predictIntellectTargetAim(relativePosition, target, projectileSpeed, allowPrediction = true) {
+    const direct = {
+      x: Number(relativePosition && relativePosition.x) || 0,
+      y: Number(relativePosition && relativePosition.y) || 0,
+    };
+    const value = this.getIntellect();
+    const targetVelocity = target && target.velocity ? target.velocity : { x: 0, y: 0 };
+    if (!allowPrediction && value < 16) return direct;
+
+    if (value < 4) {
+      if (!allowPrediction || !target) return direct;
+      if (this._legacyLeadTarget !== target || (this._intellectFrame || 0) % 4 === 0) {
+        this._legacyLeadTarget = target;
+        this.lead = timeOfImpact(direct, targetVelocity, projectileSpeed);
+      }
+      return {
+        x: direct.x + (Number(this.lead) || 0) * (Number(targetVelocity.x) || 0),
+        y: direct.y + (Number(this.lead) || 0) * (Number(targetVelocity.y) || 0),
+      };
+    }
+
+    const motion = this.getIntellectTargetMotion(target);
+    return intellect.predictIntercept(
+      direct,
+      motion.velocity,
+      motion.acceleration,
+      projectileSpeed,
+      value
+    );
+  }
+
+  getIntellectDodgeGoal() {
+    const body = this.body;
+    const value = this.getIntellect();
+    if (
+      value < 32 || !body || body.isPlayer || body.isWall || body.isDominator ||
+      c.globalAIDisable || (body.master && body.master.AIDisable) ||
+      body.motionType === "bound" || (Number(body.topSpeed) || 0) < 0.1
+    ) return undefined;
+
+    if (!this._intellectDodgeState) {
+      this._intellectDodgeState = {
+        lastScan: -Infinity,
+        until: 0,
+        direction: undefined,
+      };
+    }
+    const state = this._intellectDodgeState;
+    const frame = this._intellectFrame || 0;
+    const goalDistance = Math.max(180, Math.min(500,
+      (Number(body.topSpeed) || 0) * 18 + (Number(body.size) || 0) * 5
+    ));
+    const goalForDirection = (direction) => direction ? ({
+      x: body.x + direction.x * goalDistance,
+      y: body.y + direction.y * goalDistance,
+    }) : undefined;
+
+    // Keep one dodge decision for several frames. Re-selecting a dodge vector
+    // every tick is counterproductive and was a major source of jitter.
+    if (state.direction && frame < state.until) return goalForDirection(state.direction);
+    const scanInterval = intellect.dodgeScanInterval(value);
+    if (frame - state.lastScan < scanInterval) return undefined;
+    state.lastScan = frame;
+
+    const horizon = intellect.dodgeHorizon(value);
+    const searchRange = Math.max(220, Math.min(1100,
+      (Number(body.fov) || 0) * 0.28 + (Number(body.topSpeed) || 0) * horizon * 1.2
+    ));
+    const nearby = getEntitiesFromRange(body, searchRange);
+    const ownRoot = body.master && body.master.master ? body.master.master : body.master || body;
+    const ownTeam = ownRoot && ownRoot.team != null ? ownRoot.team : body.team;
+    const projectiles = [];
+    for (const candidate of nearby) {
+      if (!candidate || candidate === body || !candidate.isProjectile || !candidate.velocity) continue;
+      if (typeof candidate.valid === "function" && !candidate.valid()) continue;
+      const projectileRoot = candidate.master && candidate.master.master
+        ? candidate.master.master
+        : candidate.master || candidate;
+      const projectileTeam = projectileRoot && projectileRoot.team != null
+        ? projectileRoot.team
+        : candidate.team;
+      if (projectileTeam == null || projectileTeam === ownTeam || candidate.team === ownTeam) continue;
+      const velocityLength = Math.hypot(Number(candidate.velocity.x) || 0, Number(candidate.velocity.y) || 0);
+      if (velocityLength < 0.1) continue;
+      projectiles.push(candidate);
+    }
+    // Candidate-direction evaluation is intentionally bounded in crowded games.
+    projectiles.sort((a, b) => {
+      const da = Math.hypot(a.x - body.x, a.y - body.y);
+      const db = Math.hypot(b.x - body.x, b.y - body.y);
+      return da - db;
+    });
+    if (projectiles.length > 32) projectiles.length = 32;
+    const direction = intellect.chooseDodgeDirection(body, projectiles, value, horizon);
+    if (!direction) {
+      state.direction = undefined;
+      state.until = 0;
+      return undefined;
+    }
+    state.direction = direction;
+    state.until = frame + intellect.dodgeDuration(value);
+    return goalForDirection(direction);
   }
 
   think() {
@@ -4673,7 +4829,10 @@ class io_nearestDifferentMaster extends IO {
       })
       .filter((e) => e); // Remove any null or undefined entries
 
-    // Reset target if it's not in the list
+    // Preserve the lock when it survives all filters. The previous implementation
+    // never set keepTarget in this active buildList, so it cleared the lock on
+    // every refresh; extreme INTELLECT then caused repeated target switching.
+    keepTarget = Boolean(this.targetLock && out.indexOf(this.targetLock) !== -1);
     if (!keepTarget || this.notWorthIt) this.targetLock = undefined;
     return out;
   }
@@ -4684,7 +4843,10 @@ class io_nearestDifferentMaster extends IO {
       this.targetLock = undefined;
       return {};
     }
-    // Otherwise, consider how fast we can either move to ram it or shoot at a potiential target.
+    this.beginIntellectFrame();
+    const evasionGoal = this.getIntellectDodgeGoal();
+    // Estimate engagement range from the active weapon, but keep the resulting
+    // target search bounded by the intellect helper's operational cap.
     let tracking = this.body.topSpeed,
       range = this.body.fov / 2;
     // Use whether we have functional guns to decide
@@ -4708,28 +4870,21 @@ class io_nearestDifferentMaster extends IO {
     if (focusedAttacker && now < this.damageFocusUntil) {
       this.targetLock = focusedAttacker;
       if (focusedAttacker.health.amount > 0 && (typeof focusedAttacker.valid !== "function" || focusedAttacker.valid())) {
-        const radial = focusedAttacker.velocity || { x: 0, y: 0 };
         const diff = {
           x: focusedAttacker.x - this.body.x,
           y: focusedAttacker.y - this.body.y,
         };
-        if (this.tick % 4 === 0) {
-          this.lead = 0;
-          if (!this.body.aiSettings.chase) {
-            this.lead = timeOfImpact(diff, radial, tracking);
-          }
-        }
+        const output = { fire: true, main: true };
         if (!this.body.isWall) {
-          return {
-            target: {
-              x: diff.x + this.lead * radial.x,
-              y: diff.y + this.lead * radial.y,
-            },
-            fire: true,
-            main: true,
-          };
+          output.target = this.predictIntellectTargetAim(
+            diff,
+            focusedAttacker,
+            tracking,
+            !this.body.aiSettings.chase
+          );
         }
-        return { fire: true, main: true };
+        if (evasionGoal) output.goal = evasionGoal;
+        return output;
       }
       // If the attacker dies during the lock, keep the focus window but do not
       // opportunistically switch to another target until it expires.
@@ -4778,6 +4933,11 @@ class io_nearestDifferentMaster extends IO {
       ) {
         this.targetLock = undefined;
       }
+      // From INTELLECT 16 onward, reconsider meaningful target improvements,
+      // but use score hysteresis so equally useful targets do not cause flip-flops.
+      if (this.targetLock && this.getIntellect() >= 16 && this.validTargets.length) {
+        this.targetLock = this.selectIntellectTarget(this.validTargets, this.targetLock);
+      }
       // Lock new target if we still don't have one.
       if (this.targetLock == null && this.validTargets.length) {
         this.targetLock = this.selectIntellectTarget(this.validTargets);
@@ -4806,37 +4966,23 @@ class io_nearestDifferentMaster extends IO {
     }
     // Consider how fast it's moving and shoot at it
     if (this.targetLock != null && this.targetLock.valid()) {
-      let radial = this.targetLock.velocity;
-      let diff = {
+      const diff = {
         x: this.targetLock.x - this.body.x,
         y: this.targetLock.y - this.body.y,
       };
-      /// Refresh lead time
-      if (this.tick % 4 === 0) {
-        this.lead = 0;
-        // Find lead time (or don't)
-        if (!this.body.aiSettings.chase) {
-          let toi = timeOfImpact(diff, radial, tracking);
-          this.lead = toi;
-        }
-      }
-      // And return our aim
+      const output = { fire: true, main: true };
       if (!this.body.isWall) {
-        return {
-          target: {
-            x: diff.x + this.lead * radial.x,
-            y: diff.y + this.lead * radial.y,
-          },
-          fire: true,
-          main: true,
-        };
-      } else {
-        return {
-          fire: true,
-          main: true,
-        };
+        output.target = this.predictIntellectTargetAim(
+          diff,
+          this.targetLock,
+          tracking,
+          !this.body.aiSettings.chase
+        );
       }
+      if (evasionGoal) output.goal = evasionGoal;
+      return output;
     }
+    if (evasionGoal) return { goal: evasionGoal };
     if (this.body.turnWhileIdle) {
       this.body.facing += 0.025;
       return {
@@ -4973,7 +5119,9 @@ class io_Dominator extends IO {
       this.targetLock = undefined;
       return {};
     }
-    // Otherwise, consider how fast we can either move to ram it or shoot at a potiential target.
+    this.beginIntellectFrame();
+    const evasionGoal = this.getIntellectDodgeGoal();
+    // Otherwise, consider weapon tracking speed and current engagement range.
     let tracking = this.body.topSpeed,
       range = this.body.fov / 2;
     // Use whether we have functional guns to decide
@@ -5022,30 +5170,24 @@ class io_Dominator extends IO {
     // }
     // Consider how fast it's moving and shoot at it
     if (this.targetLock != null && this.targetLock.valid()) {
-      let radial = this.targetLock.velocity;
-      let diff = {
+      const diff = {
         x: this.targetLock.x - this.body.x,
         y: this.targetLock.y - this.body.y,
       };
-      /// Refresh lead time
-      if (this.tick % 4 === 0) {
-        this.lead = 0;
-        // Find lead time (or don't)
-        if (!this.body.aiSettings.chase) {
-          let toi = timeOfImpact(diff, radial, tracking);
-          this.lead = toi;
-        }
-      }
-      // And return our aim
-      return {
-        target: {
-          x: diff.x + this.lead * radial.x,
-          y: diff.y + this.lead * radial.y,
-        },
+      const output = {
+        target: this.predictIntellectTargetAim(
+          diff,
+          this.targetLock,
+          tracking,
+          !this.body.aiSettings.chase
+        ),
         fire: true,
         main: true,
       };
+      if (evasionGoal) output.goal = evasionGoal;
+      return output;
     }
+    if (evasionGoal) return { goal: evasionGoal };
     this.body.facing += 0.02;
     return {
       target: {
@@ -5060,6 +5202,7 @@ class io_minion extends IO {
   constructor(body) {
     super(body);
     this.turnwise = 1;
+    this._orbitAimAngle = undefined;
   }
   think(input) {
     if (this.body.invuln === true) return;
@@ -5102,8 +5245,14 @@ class io_minion extends IO {
           };
         }
       } else if (input.main) {
-        // Orbit point
-        let dir = this.turnwise * target.direction + 0.01;
+        // Smooth the master's aim-direction changes at high intellect. This
+        // keeps minions coordinated instead of making their orbit point snap
+        // around whenever the master's target changes by a few degrees.
+        const rawAim = target.direction;
+        if (this._orbitAimAngle == null) this._orbitAimAngle = rawAim;
+        const aimResponsiveness = 1 - 0.7 * intellect.progression(this.getIntellect(), 1, 256);
+        this._orbitAimAngle += util.angleDifference(rawAim, this._orbitAimAngle) * aimResponsiveness;
+        let dir = this.turnwise * this._orbitAimAngle + 0.01;
         goal = {
           x: this.body.x + target.x - orbit * Math.cos(dir),
           y: this.body.y + target.y - orbit * Math.sin(dir),
@@ -5124,12 +5273,13 @@ class io_wanderAroundMap extends IO {
     super(b);
     this.spot = room.random();
     this.pauseTicks = 0;
+    this.recentSpots = this.spot ? [{ x: this.spot.x, y: this.spot.y }] : [];
   }
   think() {
     if (!this.body || this.body.invuln) return;
 
-    // Hold position while resting at a waypoint instead of immediately picking
-    // another destination and continuously drifting around the arrival point.
+    // Keep movement goals stable. More intellect improves destination choice,
+    // not how often the AI abandons a destination mid-trip.
     if (this.pauseTicks > 0) {
       this.pauseTicks--;
       return {
@@ -5145,11 +5295,15 @@ class io_wanderAroundMap extends IO {
         const candidate = room.random();
         if (candidate) candidates.push(candidate);
       }
-      if (candidates.length) {
-        candidates.sort((a, b) =>
-          util.getDistance(this.body, b) - util.getDistance(this.body, a)
-        );
-        this.spot = candidates[0];
+      this.spot = intellect.chooseWanderSpot(
+        candidates,
+        this.body,
+        this.recentSpots,
+        this.getIntellect()
+      );
+      if (this.spot) {
+        this.recentSpots.push({ x: this.spot.x, y: this.spot.y });
+        if (this.recentSpots.length > 8) this.recentSpots.shift();
       }
     }
     if (!this.spot) {
@@ -5162,10 +5316,11 @@ class io_wanderAroundMap extends IO {
     ).length;
 
     if (distance < 50) {
-      // Clear the old waypoint so it isn't treated as a new arrival when the
-      // pause expires. Wanderers rest for roughly 0.5–1.5 seconds at 60 ticks/s.
       this.spot = undefined;
-      this.pauseTicks = intellect.scaleInterval(ran.irandomRange(30, 90), this.getIntellect());
+      this.pauseTicks = intellect.scalePauseInterval(
+        ran.irandomRange(30, 90),
+        this.getIntellect()
+      );
       return {
         goal: { x: this.body.x, y: this.body.y },
         power: 0,
@@ -5180,31 +5335,59 @@ class io_pathFinder extends IO {
     super(b);
     this.path = 1;
     this.spot = room.randomType("pth1");
+    this.sampleTicker = 0;
+    this.lastSample = { x: b.x, y: b.y };
+    this.stuckChecks = 0;
   }
   think(input) {
     if (!this.body.invuln) {
+      const value = this.getIntellect();
+      if (!this.spot) this.spot = room.randomType("pth" + this.path);
+
+      // Detect a genuinely blocked route segment over several samples. Only
+      // high-intellect pathfinders may skip ahead, and only as recovery.
+      this.sampleTicker++;
+      if (this.sampleTicker >= 10) {
+        this.sampleTicker = 0;
+        const moved = new Vector(
+          this.body.x - this.lastSample.x,
+          this.body.y - this.lastSample.y
+        ).length;
+        const distanceToSpot = this.spot
+          ? new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y).length
+          : 0;
+        if (this.spot && moved < Math.max(2, (Number(this.body.size) || 0) * 0.05) && distanceToSpot > 120) {
+          this.stuckChecks++;
+        } else {
+          this.stuckChecks = Math.max(0, this.stuckChecks - 1);
+        }
+        this.lastSample = { x: this.body.x, y: this.body.y };
+      }
+
       if (room["pth" + this.path]) {
-        const arrivalRadius = 50 * intellect.scaleRange(1, this.getIntellect());
-        if (
-          new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y)
-            .length < arrivalRadius ||
-          this.targetLock != undefined
-        ) {
-          // Highly intellectual path-followers may skip several waypoints to
-          // take bolder routes. Wrap over the available sequential path set so
-          // huge values do not repeatedly fall back to pth1 when they skip past it.
+        const arrivalRadius = intellect.arrivalRadius(50, value);
+        const distanceToSpot = this.spot
+          ? new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y).length
+          : Infinity;
+        const recoverStuck = value >= 512 && this.stuckChecks >= 5 && distanceToSpot > arrivalRadius * 1.5;
+        if (distanceToSpot < arrivalRadius || this.targetLock != undefined || recoverStuck) {
           let maxPath = 1;
           while (maxPath < 500 && room["pth" + (maxPath + 1)]) maxPath++;
-          const step = intellect.pathStep(this.getIntellect());
+          const step = recoverStuck ? intellect.pathStep(value, this.stuckChecks) : 1;
           this.path = ((this.path - 1 + step) % maxPath) + 1;
           this.spot = room.randomType("pth" + this.path);
+          this.stuckChecks = 0;
+          this.sampleTicker = 0;
+          this.lastSample = { x: this.body.x, y: this.body.y };
         }
       } else {
         this.path = 1;
         this.spot = room.randomType("pth" + this.path);
+        this.stuckChecks = 0;
       }
 
-      return { goal: this.spot };
+      if (this.spot) return { goal: this.spot };
+      return { goal: { x: this.body.x, y: this.body.y }, power: 0 };
     }
   }
 }
@@ -5280,10 +5463,12 @@ class io_hangOutNearMaster extends IO {
     this.orbit = 30;
     this.currentGoal = { x: this.body.source.x, y: this.body.source.y };
     this.timer = 0;
+    this.repositionCooldown = 0;
   }
   think(input) {
     if (this.body.source != this.body) {
       const autonomyScale = intellect.orbitMultiplier(this.getIntellect());
+      this.repositionCooldown = Math.max(0, this.repositionCooldown - 1);
       let bound1 = this.orbit * 0.8 * autonomyScale + this.body.source.size + this.body.size;
       let bound2 = this.orbit * 1.5 * autonomyScale + this.body.source.size + this.body.size;
       let dist = util.getDistance(this.body, this.body.source) + Math.PI / 8;
@@ -5295,9 +5480,16 @@ class io_hangOutNearMaster extends IO {
         goal: this.currentGoal,
         power: undefined,
       };
-      // Set a goal
-      if (dist > bound2 || this.timer > this.getIntellectThinkInterval(30)) {
+      // Do not roll a new random goal every frame while outside the formation
+      // radius. High intellect improves the chosen movement, not goal jitter.
+      const refreshInterval = intellect.scalePauseInterval(30, this.getIntellect());
+      const reachedGoal = util.getDistance(this.body, this.currentGoal) < Math.max(20, this.body.size * 1.5);
+      if (
+        this.repositionCooldown <= 0 &&
+        (dist > bound2 || this.timer > refreshInterval || reachedGoal)
+      ) {
         this.timer = 0;
+        this.repositionCooldown = refreshInterval;
 
         let dir =
           util.getDirection(this.body, this.body.source) +

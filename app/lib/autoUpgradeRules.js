@@ -26,6 +26,43 @@ const AUTO_UPGRADE_RULES = [
   // },
 ];
 
+// Class-level AUTO_UPGRADE_RULES are supported in addition to this global list.
+// Definitions are indexed once per Class object, rather than scanning ~2,000
+// exports every simulation tick for every entity.
+const definitionIndexCache = new WeakMap();
+
+function getDefinitionIndexMap(Class) {
+  if (!Class || (typeof Class !== "object" && typeof Class !== "function")) return null;
+  let index = definitionIndexCache.get(Class);
+  if (index) return index;
+  index = new Map();
+  for (const [exportName, definition] of Object.entries(Class)) {
+    if (!definition || (typeof definition !== "object" && typeof definition !== "function")) continue;
+    if (definition.index == null) continue;
+    // If aliases point at the same definition, they share its final index.
+    index.set(definition.index, { exportName, definition });
+  }
+  definitionIndexCache.set(Class, index);
+  return index;
+}
+
+function normalizeRules(value) {
+  if (Array.isArray(value)) return value.filter((rule) => rule && typeof rule === "object");
+  if (value && typeof value === "object") return [value];
+  return [];
+}
+
+function getRulesForEntity(entity, Class, globalRules = AUTO_UPGRADE_RULES) {
+  const rules = normalizeRules(globalRules).map((rule) => ({ rule, sourceExport: null, sourceIndex: null }));
+  if (!entity) return rules;
+  const current = getDefinitionIndexMap(Class)?.get(entity.index);
+  const classRules = current && normalizeRules(current.definition.AUTO_UPGRADE_RULES);
+  for (const rule of classRules || []) {
+    rules.push({ rule, sourceExport: current.exportName, sourceIndex: entity.index });
+  }
+  return rules;
+}
+
 function getRuleId(rule) {
   if (!rule || typeof rule !== "object") return "";
   if (typeof rule.id === "string" && rule.id.trim()) return rule.id.trim();
@@ -87,6 +124,9 @@ function resolveTargets(rule, Class) {
 }
 
 function ruleAppliesToEntity(rule, entity, Class) {
+  // A rule declared on a class export applies only while the entity is that
+  // exact source class. Global rules can instead use an optional `from` list.
+  if (rule._sourceIndex != null && entity.index !== rule._sourceIndex) return false;
   if (Array.isArray(rule.modes) && rule.modes.length && !rule.modes.includes(rule._currentMode)) return false;
   if (Array.isArray(rule.from) && rule.from.length) {
     const allowedIndices = rule.from
@@ -127,19 +167,26 @@ function addRuleOptions(entity, rule, targets) {
 }
 
 function update(entity, Class, options = {}) {
-  const rules = Array.isArray(options.rules) ? options.rules : AUTO_UPGRADE_RULES;
-  if (!rules.length || !entity || entity.type !== "tank" || !entity.skill || typeof entity.define !== "function") return false;
+  if (!entity || entity.type !== "tank" || !entity.skill || typeof entity.define !== "function") return false;
+  const globalRules = Array.isArray(options.rules) ? options.rules : AUTO_UPGRADE_RULES;
+  const rules = getRulesForEntity(entity, Class, globalRules);
+  if (!rules.length) return false;
   const score = Number(entity.skill.score);
   if (!Number.isFinite(score)) return false;
   const playerControlled = isControlledByPlayer(entity);
   const mode = options.mode;
   const random = typeof options.random === "function" ? options.random : Math.random;
 
-  for (const originalRule of rules) {
+  for (const entry of rules) {
+    const originalRule = entry.rule;
     const ruleId = getRuleId(originalRule);
     if (!originalRule || !ruleId || !Number.isFinite(Number(originalRule.score))) continue;
     if (score < Number(originalRule.score) || isCompleted(entity, ruleId)) continue;
-    const rule = Object.assign({}, originalRule, { id: ruleId, _currentMode: mode });
+    const rule = Object.assign({}, originalRule, {
+      id: ruleId,
+      _currentMode: mode,
+      _sourceIndex: entry.sourceIndex,
+    });
     if (!ruleAppliesToEntity(rule, entity, Class)) continue;
     const targets = resolveTargets(rule, Class).filter(({ target }) => target !== Class.genericEntity && target.index !== entity.index);
     if (!targets.length) continue;
@@ -197,6 +244,8 @@ function update(entity, Class, options = {}) {
 module.exports = {
   AUTO_UPGRADE_RULES,
   getRuleId,
+  getDefinitionIndexMap,
+  getRulesForEntity,
   resolveTargets,
   isControlledByPlayer,
   markCompleted,
