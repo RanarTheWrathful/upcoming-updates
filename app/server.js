@@ -3898,6 +3898,7 @@ class io_mapTargetToGoal extends IO {
     }
   }
 }
+
 class io_boomerang extends IO {
   constructor(b) {
     super(b);
@@ -3905,36 +3906,17 @@ class io_boomerang extends IO {
     this.b = b;
     this.m = b.master;
     this.turnover = false;
-    let len = 10 * util.getDistance({ x: 0, y: 0 }, b.master.control.target);const aim = this.m.control.target;
-
-this.myGoal = {
-  x: this.m.x * aim.x,
-  y: this.m.y * aim.y,
-};
+    let len = 10 * util.getDistance({ x: 0, y: 0 }, b.master.control.target);
+    this.myGoal = {
+      x: 3 * b.master.control.target.x + b.master.x,
+      y: 3 * b.master.control.target.y + b.master.y,
+    };
   }
   think(input) {
     if (this.b.range > this.r) this.r = this.b.range;
-    const value = this.getIntellect();
-    if (!this.turnover && value >= 8 && this.m && this.m.control && this.m.control.target) {
-      this._aimRefresh = (this._aimRefresh || 0) + 1;
-      const interval = Math.max(4, intellect.scaleInterval(12, value));
-      if (this._aimRefresh >= interval) {
-        this._aimRefresh = 0;
-        const aim = this.m.control.target;
-        const velocity = this.m.velocity || { x: 0, y: 0 };
-        const lead = Math.min(18, intellect.level(value) * 1.4);
-        this.myGoal = {
-          x: this.m.x + 3 * aim.x + (Number(velocity.x) || 0) * lead,
-          y: this.m.y + 3 * aim.y + (Number(velocity.y) || 0) * lead,
-        };
-      }
-    }
     let t = 1; //1 - Math.sin(2 * Math.PI * this.b.range / this.r) || 1;
     if (!this.turnover) {
-      const returnThreshold = value > 1
-        ? 0.5 + 0.2 * intellect.progression(value, 2, 1024)
-        : 0.5;
-      if (this.r && this.b.range < this.r * returnThreshold) {
+      if (this.r && this.b.range < this.r * 0.5) {
         this.turnover = true;
       }
       return {
