@@ -3763,10 +3763,10 @@ exports.boomerang = {
   //HITS_OWN_TYPE: "never",
   SHAPE: -5,
   BODY: {
-    SPEED: 1.15,
-    RANGE: 260,
+    SPEED: 1,
+    RANGE: 150,
     DENSITY: 100,
-    PENETRATION: 1.15,
+    PENETRATION: 1.5,
     PUSHABILITY: 1,
   },
 };
