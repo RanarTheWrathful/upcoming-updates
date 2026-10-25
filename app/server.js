@@ -37,6 +37,7 @@ const modeVoting = require("./lib/modeVoting");
 const siegeNeutralZonePenalty = require("./lib/siegeNeutralZonePenalty");
 const autoUpgradeRules = require("./lib/autoUpgradeRules");
 const intellect = require("./lib/intellect");
+const minionMovementPolicy = require("./lib/minionMovementPolicy");
 const gunCalculator = require("./lib/gunCalculator");
 const { performance } = require("perf_hooks");
 
@@ -80,7 +81,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Sandbox";
+if (serverType === "testing") chosenMode = "Siege";
 //change this to play a specifict mode.
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -3937,6 +3938,10 @@ class io_mapTargetToGoal extends IO {
 
   think(input) {
     if (this.body.invuln === true) return;
+    // Some classes inherit both a direct-chase controller (melee movement) and
+    // the minion controller (ranged standoff). In that combination, direct chase
+    // was overriding the minion's offset goal and driving the entity into targets.
+    if (minionMovementPolicy.shouldDeferDirectChase(this.body)) return;
     if (input.main || input.alt) {
       if (input.target) {
         return {
@@ -5210,12 +5215,44 @@ class io_minion extends IO {
       this.turnwise = -1 * this.turnwise;
     }
     if (input.target != null && (input.alt || input.main)) {
-      let sizeFactor = Math.sqrt(this.body.master.size / this.body.master.SIZE);
-      const autonomyScale = intellect.orbitMultiplier(this.getIntellect());
+      const body = this.body;
+      const intellectValue = this.getIntellect();
+      const rawSizeFactor = Number(body.master && body.master.size) / Number(body.master && body.master.SIZE);
+      const sizeFactor = Number.isFinite(rawSizeFactor) && rawSizeFactor > 0
+        ? Math.sqrt(rawSizeFactor)
+        : 1;
+      const autonomyScale = intellect.orbitMultiplier(intellectValue);
       let leash = 60 * sizeFactor * autonomyScale;
-      let orbit = 120 * sizeFactor * autonomyScale;
-      if (this.body.orbitDistance <= 0 || this.body.orbitDistance > 0) {
-        orbit = this.body.orbitDistance * sizeFactor * autonomyScale;
+      const configuredOrbit = Number.isFinite(Number(body.orbitDistance))
+        ? Number(body.orbitDistance)
+        : 120;
+      let orbit = configuredOrbit * sizeFactor * autonomyScale;
+
+      // Minion AI is also used by some ranged enemies and bosses. Their old
+      // orbit multiplier shrank with intellect (as low as 0.5x), and fixed
+      // orbit radii ignored the size of large targets, so a "smart" ranged AI
+      // could end up inside collision range and look like a rammer. Keep actual
+      // spawned minions' formation behavior, but make autonomous combatants
+      // maintain a size-safe standoff distance that increases modestly with IQ.
+      const rangedCombatant = minionMovementPolicy.isAutonomousRangedCombatant(body);
+      if (rangedCombatant) {
+        const nearestTargetController = (body.controllers || []).find((controller) =>
+          controller && controller !== this && controller.targetLock && controller.targetLock !== body
+        );
+        const targetEntity = nearestTargetController && nearestTargetController.targetLock;
+        const targetSize = targetEntity
+          ? Math.max(0, Number(targetEntity.size) || Number(targetEntity.SIZE) || 0)
+          : 0;
+        const rangedScale = 1 + 0.3 * intellect.progression(intellectValue, 1, 1000000);
+        orbit = configuredOrbit * sizeFactor * rangedScale;
+        if (targetEntity) {
+          orbit = minionMovementPolicy.safeStandoffOrbit(
+            orbit,
+            body.size,
+            targetSize,
+            Math.max(30, Math.max(Number(body.size) || 0, targetSize) * 0.5)
+          );
+        }
       }
 
       let repel = (100 * sizeFactor * this.body.SPEED) / 2;
@@ -25174,110 +25211,242 @@ function renderChatMessage(rawMessage) {
     '<p class="message-body">' + escapeHtml(text) + '</p></article>';
 }
 
+// Command syntax is intentionally grouped by purpose. Old spellings remain supported
+// through normalizeChatCommand(), so existing scripts/bookmarks do not break.
+function normalizeChatCommand(rawCommand) {
+  let command = String(rawCommand == null ? "" : rawCommand).trim().replace(/\s+/g, " ");
+  if (!command) return "";
+
+  const lower = command.toLowerCase();
+  const exactAliases = {
+    "commands": "help", "cmd": "help", "?": "help", "h": "help",
+    "players": "player list", "who": "player list", "online": "player list",
+    "modes": "mode list", "where": "find loc", "pos": "find loc",
+    "coordinates": "find loc", "location": "find loc",
+    "my team": "see team", "team?": "see team", "team me": "see team",
+    "suicide": "self destruct", "sd": "self destruct", "dev commands": "dev help",
+  };
+  if (Object.prototype.hasOwnProperty.call(exactAliases, lower)) return exactAliases[lower];
+
+  // New, predictable command families map onto the established command handlers.
+  // Rewrite only the command path; preserve class exports/property values as typed.
+  const rewrites = [
+    [/^teams\s+setup(?:\s+(.*))?$/i, "team setup"],
+    [/^team\s+spawn(?:\s+(.*))?$/i, "creation team"],
+    [/^team\s+next(?:\s+(.*))?$/i, "set team"],
+    [/^wave\s+set(?:\s+(.*))?$/i, "set wave"],
+    [/^ai\s+toggle$/i, "toggle AI"],
+    [/^growth\s+toggle$/i, "toggle growth"],
+    [/^plague\s+toggle$/i, "toggle plague"],
+    [/^graveyard\s+toggle$/i, "toggle graveyard"],
+    [/^server\s+(?:announce|broadcast)(?:\s+(.*))?$/i, "broadcast"],
+    [/^server\s+close$/i, "close server"],
+    [/^server\s+repeat(?:\s+(.*))?$/i, "repeat"],
+    [/^server\s+id(?:\s+set)?(?:\s+(.*))?$/i, "define ID"],
+    [/^player\s+god$/i, "tgm"],
+    [/^player\s+mute(?:\s+(.*))?$/i, "pMute"],
+    [/^player\s+unmute(?:\s+(.*))?$/i, "pUnmute"],
+    [/^player\s+kick(?:\s+(.*))?$/i, "pKick"],
+    [/^player\s+ban(?:\s+(.*))?$/i, "pBan"],
+    [/^player\s+unban(?:\s+(.*))?$/i, "pUnban"],
+    [/^entity\s+spawn(?:\s+(.*))?$/i, "spawn"],
+    [/^entity\s+transform(?:\s+(.*))?$/i, "transform"],
+    [/^entity\s+kill(?:\s+(.*))?$/i, "kill"],
+    [/^entity\s+(?:destroy|delete|obliterate)(?:\s+(.*))?$/i, "obliterate"],
+    [/^entity\s+heal(?:\s+(.*))?$/i, "heal"],
+    [/^entity\s+size(?:\s+(.*))?$/i, "size"],
+    [/^entity\s+color(?:\s+(.*))?$/i, "color"],
+    [/^entity\s+team(?:\s+(.*))?$/i, "team"],
+    [/^entity\s+points(?:\s+(.*))?$/i, "points"],
+    [/^entity\s+score(?:\s+(.*))?$/i, "score"],
+    [/^entity\s+set(?:\s+(.*))?$/i, "propertize entity"],
+    [/^world\s+set(?:\s+(.*))?$/i, "propertize global"],
+    [/^score\s+set(?:\s+(.*))?$/i, "score"],
+    [/^points\s+set(?:\s+(.*))?$/i, "points"],
+  ];
+  for (const [pattern, replacement] of rewrites) {
+    const match = command.match(pattern);
+    if (match) return (replacement + (match[1] ? " " + match[1] : "")).trim();
+  }
+
+  return command;
+}
+
+function commandMatches(commandLower, commandName) {
+  const input = String(commandLower == null ? "" : commandLower).trim().toLowerCase();
+  const name = String(commandName == null ? "" : commandName).trim().toLowerCase();
+  return input === name || input.startsWith(name + " ");
+}
+
+function normalizeEntitySelector(command) {
+  const match = String(command || "").match(/^(propertize\s+entity|transform|kill|obliterate|size|points|score|heal|color|team)\s+(\S+)(.*)$/i);
+  if (!match) return command;
+  const valid = new Set(["projectiles", "polygons", "enemies", "players", "bots", "bosses", "walls", "misc", "self", "id", "all"]);
+  const selector = match[2].toLowerCase();
+  if (!valid.has(selector)) return command;
+  const canonicalSelector = selector === "id" ? "ID" : selector;
+  return match[1] + " " + canonicalSelector + match[3];
+}
+
+function getCommandUsageError(rawCommand, isTrueDeveloper) {
+  const command = String(rawCommand == null ? "" : rawCommand).trim().replace(/\s+/g, " ");
+  const lower = command.toLowerCase();
+  const parts = command ? command.split(" ") : [];
+  const numeric = (value) => value !== undefined && value !== "" && Number.isFinite(Number(value));
+  const selectors = new Set(["projectiles", "polygons", "enemies", "players", "bots", "bosses", "walls", "misc", "self", "id", "all"]);
+  const usage = (text) => "Usage: " + text;
+  const groupError = (group) => selectors.has(String(group || "").toLowerCase())
+    ? null
+    : "Unknown entity group: " + (group || "(missing)") + ". Use a listed group or /dev help.";
+
+  if (commandMatches(lower, "vote") && !command.slice(4).trim()) return usage("/vote <mode>");
+  if (commandMatches(lower, "score cheat")) {
+    if (parts.length !== 3 || !numeric(parts[2])) return usage("/score cheat <score>");
+    return null;
+  }
+  if (commandMatches(lower, "set team")) {
+    if (!numeric(parts[2])) return usage("/team next <id>");
+  }
+  if (commandMatches(lower, "team setup")) {
+    const mode = command.slice("team setup".length).trim().toLowerCase();
+    if (!["ffa", "tdm", "1 team", "2 teams", "3 teams"].includes(mode)) return usage("/teams setup <ffa|tdm|1 team|2 teams|3 teams>");
+    return null;
+  }
+  if (commandMatches(lower, "creation team") && !numeric(parts[2])) return usage("/team spawn <id>");
+  if (commandMatches(lower, "set wave") && !numeric(parts[2])) return usage("/wave set <number>");
+  if (commandMatches(lower, "define id") && !numeric(parts[2])) return usage("/server id <number>");
+  if (commandMatches(lower, "broadcast") && !command.slice("broadcast".length).trim()) return usage("/server announce <message>");
+  if (lower === "close server" || lower === "reset" || lower === "self destruct" || lower === "tgm" || lower === "toggle ai" || lower === "toggle growth" || lower === "toggle plague" || lower === "toggle graveyard") return null;
+  if (["close server", "reset", "self destruct", "tgm", "toggle ai", "toggle growth", "toggle plague", "toggle graveyard"].some((name) => commandMatches(lower, name)) && !["close server", "reset", "self destruct", "tgm", "toggle ai", "toggle growth", "toggle plague", "toggle graveyard"].includes(lower)) {
+    return "This command takes no arguments.";
+  }
+
+  if (commandMatches(lower, "spawn")) {
+    if (parts.length !== 4 || !parts[1] || !numeric(parts[2]) || !numeric(parts[3])) return usage("/entity spawn <classExport> <x> <y>");
+    if (typeof Class !== "undefined" && !Class[parts[1]]) return "Unknown class export: " + parts[1] + ".";
+  }
+  if (commandMatches(lower, "transform")) {
+    if (parts.length < 3) return usage("/entity transform <group> <classExport>");
+    const error = groupError(parts[1]); if (error) return error;
+    const exportName = parts.slice(2).join(" ");
+    if (typeof Class !== "undefined" && !Class[exportName]) return "Unknown class export: " + exportName + ".";
+  }
+  const selectorCommands = ["kill", "obliterate", "heal", "size", "points", "score", "color", "team"];
+  for (const name of selectorCommands) {
+    if (!commandMatches(lower, name)) continue;
+    const group = parts[1];
+    const error = groupError(group); if (error) return error;
+    if (name === "kill" || name === "obliterate" || name === "heal") continue;
+    if (!numeric(parts[2])) return usage(`/entity ${name === "obliterate" ? "destroy" : name} <group> <${name === "size" ? "size" : name === "color" ? "color" : name === "team" ? "teamID" : name}>`);
+  }
+  if (commandMatches(lower, "propertize entity")) {
+    if (parts.length !== 5) return usage("/entity set <group> <property> <value> (value must be one token)");
+    const error = groupError(parts[2]); if (error) return error;
+  }
+  if (commandMatches(lower, "propertize global")) {
+    if (parts.length !== 5 || !["room", "config"].includes(String(parts[2] || "").toLowerCase())) return usage("/world set <room|config> <property> <value>");
+  }
+  if (["pmute", "punmute", "pkick", "pban", "punban"].some((name) => commandMatches(lower, name)) && !parts[1]) {
+    const action = lower.split(" ")[0].replace(/^p/, "");
+    const canonical = { mute: "mute", unmute: "unmute", kick: "kick", ban: "ban", unban: "unban" }[action] || action;
+    return usage("/player " + canonical + " <IP>");
+  }
+  return null;
+}
+
 const PUBLIC_COMMAND_GROUPS = [
   {
-    title: "Navigation & information", icon: "⌕", caption: "Public commands",
+    title: "Find things", icon: "⌕", caption: "Help, players, modes, and your status",
     commands: [
-      { command: "/help", insert: "/help", description: "Open the public command guide" },
-      { command: "/players · /player list", insert: "/players", description: "List online players" },
-      { command: "/modes · /mode list", insert: "/modes", description: "List available game modes" },
-      { command: "/where", insert: "/where", description: "Show your coordinates" },
-      { command: "/my team", insert: "/my team", description: "Show your current team ID" },
+      { command: "/help", insert: "/help", description: "Show public commands and how to use them.", aliases: ["/commands", "/cmd", "/?", "/h"] },
+      { command: "/players", insert: "/players", description: "List players currently connected.", aliases: ["/player list", "/who", "/online"] },
+      { command: "/modes", insert: "/modes", description: "List modes available for voting.", aliases: ["/mode list"] },
+      { command: "/where", insert: "/where", description: "Show your current coordinates.", aliases: ["/find loc", "/pos", "/coordinates", "/location"] },
+      { command: "/team me", insert: "/team me", description: "Show your current team ID.", aliases: ["/my team", "/see team", "/team?"] },
     ],
   },
   {
-    title: "Player actions", icon: "⚑", caption: "In-game utilities",
+    title: "Player actions", icon: "⚑", caption: "Things you can do in the current match",
     commands: [
-      { command: "/vote [mode]", insert: "/vote ", description: "Vote for the next mode when enabled" },
-      { command: "/set team [ID]", insert: "/set team ", description: "Choose your next-spawn team" },
-      { command: "/score cheat [score]", insert: "/score cheat ", description: "Set your starting score, within limits" },
-      { command: "/reset", insert: "/reset", description: "Reset tank and stats where permitted" },
-      { command: "/self destruct", insert: "/self destruct", description: "Self-destruct where permitted" },
-    ],
-  },
-  {
-    title: "Aliases & quick access", icon: "⌘", caption: "Short forms supported by chat",
-    commands: [
-      { command: "/commands · /cmd · /? · /h", insert: "/commands", description: "Aliases for /help" },
-      { command: "/who · /online", insert: "/who", description: "Aliases for /players" },
-      { command: "/pos · /coordinates · /location", insert: "/where", description: "Aliases for /where" },
-      { command: "/team?", insert: "/team?", description: "Alias for /my team" },
-      { command: "/suicide · /sd", insert: "/suicide", description: "Aliases for /self destruct" },
+      { command: "/vote <mode>", insert: "/vote ", description: "Vote for the next mode when voting is enabled." },
+      { command: "/team next <id>", insert: "/team next ", description: "Choose the team for your next spawn.", aliases: ["/set team [ID]"] },
+      { command: "/score cheat <score>", insert: "/score cheat ", description: "Set your starting score, subject to server limits." },
+      { command: "/reset", insert: "/reset", description: "Reset your tank and stats when permitted." },
+      { command: "/self destruct", insert: "/self destruct", description: "Self-destruct when the game's safety rules allow it.", aliases: ["/suicide", "/sd"] },
     ],
   },
 ];
 
 const DEVELOPER_COMMAND_GROUPS = [
   {
-    title: "Access & server control", icon: "⌘", caption: "Server-wide controls",
+    title: "Access & server", icon: "⌘", caption: "Session and server-wide controls",
     commands: [
-      { command: "/dev help", insert: "/dev help", description: "Show the complete command reference" },
-      { command: "/tda [developer key]", insert: "/tda ", description: "Authenticate or toggle developer access" },
-      { command: "/broadcast [message]", insert: "/broadcast ", description: "Broadcast a server message" },
-      { command: "/close server", insert: "/close server", description: "Close the arena" },
-      { command: "/define ID [number]", insert: "/define ID ", description: "Set the target ID used by ID selectors" },
-      { command: "/repeat [1–100]", insert: "/repeat 1", description: "Set command repeat count" },
-      { command: "/tgm", insert: "/tgm", description: "Toggle your God Mode" },
+      { command: "/dev help", insert: "/dev help", description: "Show this full command reference.", aliases: ["/dev commands"] },
+      { command: "/tda <key>", insert: "/tda ", description: "Authenticate or toggle developer access. Never share or save this command." },
+      { command: "/server announce <message>", insert: "/server announce ", description: "Send a server-wide announcement.", aliases: ["/broadcast [message]"] },
+      { command: "/server close", insert: "/server close", description: "Close the arena. This is destructive.", aliases: ["/close server"] },
+      { command: "/server repeat <count>", insert: "/server repeat 1", description: "Set repetitions for the next command (1–100).", aliases: ["/repeat [1–100]"] },
+      { command: "/server id <number>", insert: "/server id ", description: "Set the ID used by the ID entity selector.", aliases: ["/define ID [number]"] },
+      { command: "/player god", insert: "/player god", description: "Toggle your developer God Mode.", aliases: ["/tgm"] },
     ],
   },
   {
-    title: "Modes, teams & waves", icon: "◈", caption: "Change the current match",
+    title: "Teams & world", icon: "◈", caption: "Match setup and global behavior",
     commands: [
-      { command: "/team setup [mode]", insert: "/team setup ffa", description: "Set teams: ffa, 1 team, 2 teams, 3 teams, or tdm" },
-      { command: "/creation team [teamID]", insert: "/creation team ", description: "Set the team for newly spawned entities" },
-      { command: "/see team", insert: "/see team", description: "Show your team ID (also available as /my team)" },
-      { command: "/set wave [number]", insert: "/set wave ", description: "Set the current Siege/boss wave counter" },
-      { command: "/toggle AI", insert: "/toggle AI", description: "Toggle global AI" },
-      { command: "/toggle growth", insert: "/toggle growth", description: "Toggle growth rules" },
-      { command: "/toggle plague", insert: "/toggle plague", description: "Toggle plague setting" },
-      { command: "/toggle graveyard", insert: "/toggle graveyard", description: "Toggle graveyard setting" },
+      { command: "/teams setup <mode>", insert: "/teams setup ffa", description: "Set team layout: ffa, 1 team, 2 teams, 3 teams, or tdm.", aliases: ["/team setup [mode]"] },
+      { command: "/team spawn <id>", insert: "/team spawn ", description: "Choose the team for newly spawned developer entities.", aliases: ["/creation team [teamID]"] },
+      { command: "/wave set <number>", insert: "/wave set ", description: "Set the current Siege/boss wave counter.", aliases: ["/set wave [number]"] },
+      { command: "/ai toggle", insert: "/ai toggle", description: "Enable or disable global AI.", aliases: ["/toggle AI"] },
+      { command: "/growth toggle", insert: "/growth toggle", description: "Toggle entity growth rules.", aliases: ["/toggle growth"] },
+      { command: "/plague toggle", insert: "/plague toggle", description: "Toggle the plague setting.", aliases: ["/toggle plague"] },
+      { command: "/graveyard toggle", insert: "/graveyard toggle", description: "Toggle the graveyard setting.", aliases: ["/toggle graveyard"] },
     ],
   },
   {
-    title: "Entity creation & transformation", icon: "✧", caption: "Use a class export name for class arguments",
+    title: "Entity tools", icon: "✧", caption: "Groups: projectiles, polygons, enemies, players, bots, bosses, walls, misc, self, ID, all",
     commands: [
-      { command: "/spawn [classExport] [x] [y]", insert: "/spawn ", description: "Spawn an entity at world coordinates" },
-      { command: "/transform [group] [classExport]", insert: "/transform ", description: "Transform a selected entity group" },
-      { command: "/kill [group]", insert: "/kill ", description: "Kill a selected entity group" },
-      { command: "/obliterate [group]", insert: "/obliterate ", description: "Kill and destroy a selected entity group" },
-      { command: "/heal [group]", insert: "/heal ", description: "Restore selected entities' health and shield" },
-      { command: "/size [group] [size]", insert: "/size ", description: "Set selected entities' SIZE property" },
-      { command: "/color [group] [color]", insert: "/color ", description: "Set selected entities' color" },
-      { command: "/team [group] [teamID]", insert: "/team ", description: "Assign a team to selected entities" },
+      { command: "/entity spawn <export> <x> <y>", insert: "/entity spawn ", description: "Spawn a class export at world coordinates.", aliases: ["/spawn [classExport] [x] [y]"] },
+      { command: "/entity transform <group> <export>", insert: "/entity transform ", description: "Transform every matching entity into a class export.", aliases: ["/transform [group] [classExport]"] },
+      { command: "/entity kill <group>", insert: "/entity kill ", description: "Kill matching entities.", aliases: ["/kill [group]"] },
+      { command: "/entity destroy <group>", insert: "/entity destroy ", description: "Kill and remove matching entities.", aliases: ["/obliterate [group]", "/entity delete <group>"] },
+      { command: "/entity heal <group>", insert: "/entity heal ", description: "Restore health and shield for matching entities.", aliases: ["/heal [group]"] },
+      { command: "/entity size <group> <size>", insert: "/entity size ", description: "Set the SIZE property for matching entities.", aliases: ["/size [group] [size]"] },
+      { command: "/entity color <group> <color>", insert: "/entity color ", description: "Set the color for matching entities.", aliases: ["/color [group] [color]"] },
+      { command: "/entity team <group> <teamID>", insert: "/entity team ", description: "Assign a team to matching entities.", aliases: ["/team [group] [teamID]"] },
+      { command: "/entity points <group> <points>", insert: "/entity points ", description: "Set skill points for matching entities.", aliases: ["/points [group] [points]"] },
+      { command: "/entity score <group> <score>", insert: "/entity score ", description: "Set score for matching entities.", aliases: ["/score [group] [score]", "/score set <group> <score>"] },
+      { command: "/entity set <group> <property> <value>", insert: "/entity set ", description: "Set an entity property, including INTELLECT.", aliases: ["/propertize entity [group] [property] [value]"] },
+      { command: "/world set <room|config> <property> <value>", insert: "/world set ", description: "Change a room or server configuration property.", aliases: ["/propertize global [room|config] [property] [value]"] },
     ],
   },
   {
-    title: "Entity values & inspection", icon: "⌁", caption: "Groups: projectiles, polygons, enemies, players, bots, bosses, walls, misc, self, ID, all",
+    title: "Player moderation", icon: "⛨", caption: "Moderation requires a player's IP identifier",
     commands: [
-      { command: "/points [group] [points]", insert: "/points ", description: "Set selected entities' skill points" },
-      { command: "/score [group] [score]", insert: "/score ", description: "Set selected entities' score" },
-      { command: "/propertize entity [group] [property] [value]", insert: "/propertize entity ", description: "Set a property on a selected group; intellect (default 1) tunes controller behavior." },
-      { command: "/propertize global [room|config] [property] [value]", insert: "/propertize global ", description: "Set a room or config property" },
-      { command: "/find loc", insert: "/find loc", description: "Show your coordinates (also available as /where)" },
-    ],
-  },
-  {
-    title: "Player moderation", icon: "⛨", caption: "Use a player's IP identifier",
-    commands: [
-      { command: "/pMute [IP]", insert: "/pMute ", description: "Mute a player" },
-      { command: "/pUnmute [IP]", insert: "/pUnmute ", description: "Unmute a player" },
-      { command: "/pKick [IP]", insert: "/pKick ", description: "Kick a player" },
-      { command: "/pBan [IP]", insert: "/pBan ", description: "Ban a player" },
-      { command: "/pUnban [IP]", insert: "/pUnban ", description: "Remove a player ban" },
+      { command: "/player mute <IP>", insert: "/player mute ", description: "Mute a player.", aliases: ["/pMute [IP]"] },
+      { command: "/player unmute <IP>", insert: "/player unmute ", description: "Unmute a player.", aliases: ["/pUnmute [IP]"] },
+      { command: "/player kick <IP>", insert: "/player kick ", description: "Disconnect a player.", aliases: ["/pKick [IP]"] },
+      { command: "/player ban <IP>", insert: "/player ban ", description: "Ban a player and disconnect them.", aliases: ["/pBan [IP]"] },
+      { command: "/player unban <IP>", insert: "/player unban ", description: "Remove a player's ban.", aliases: ["/pUnban [IP]"] },
     ],
   },
 ];
 
 function renderCommandGroup(group, extraClass = "") {
-  const commands = group.commands.map((entry) =>
-    `<button class="command-row" type="button" data-command="${escapeHtml(entry.insert)}"><code>${escapeHtml(entry.command)}</code><span>${escapeHtml(entry.description)}</span></button>`
-  ).join("\n");
+  const commands = group.commands.map((entry) => {
+    const aliases = Array.isArray(entry.aliases) && entry.aliases.length
+      ? `<small class="command-aliases">Also: ${entry.aliases.map(escapeHtml).join(" · ")}</small>`
+      : "";
+    return `<button class="command-row" type="button" data-command="${escapeHtml(entry.insert)}"><code>${escapeHtml(entry.command)}</code><span>${escapeHtml(entry.description)}</span>${aliases}</button>`;
+  }).join("\n");
   return `<section class="command-group ${escapeHtml(extraClass)}"><div class="group-heading"><span class="group-icon">${escapeHtml(group.icon)}</span><div><h3>${escapeHtml(group.title)}</h3><p>${escapeHtml(group.caption)}</p></div></div>${commands}</section>`;
 }
 
 function buildCommandHelpText(isDeveloper) {
   const groups = isDeveloper ? [...PUBLIC_COMMAND_GROUPS, ...DEVELOPER_COMMAND_GROUPS] : PUBLIC_COMMAND_GROUPS;
-  return groups.map((group) => `${group.title}\n${group.commands.map((entry) => `  ${entry.command} — ${entry.description}`).join("\n")}`).join("\n\n");
+  return groups.map((group) => `${group.title}\n${group.commands.map((entry) => {
+    const aliases = Array.isArray(entry.aliases) && entry.aliases.length ? ` (aliases: ${entry.aliases.join(", ")})` : "";
+    return `  ${entry.command} — ${entry.description}${aliases}`;
+  }).join("\n")}`).join("\n\n");
 }
 
 function renderChatPage(options) {
@@ -25296,6 +25465,15 @@ function renderChatPage(options) {
     : '<div class="empty-state" id="empty-state"><div class="empty-icon">◎</div><h3>Nothing on the relay yet</h3><p>Messages from the game will appear here. Join the game before sending one.</p></div>';
   const statusClass = connected ? "connection-state is-online" : "connection-state is-offline";
   const statusLabel = connected ? "GAME LINK DETECTED" : "GAME LINK OFFLINE";
+  const recentCommandsMarkup = isDeveloper ? `
+    <section class="command-group recent-commands-group" id="recent-commands-panel" aria-labelledby="recent-commands-title">
+      <div class="group-heading"><span class="group-icon">↻</span><div><h3 id="recent-commands-title">Recently used</h3><p>Saved in this browser · click to load</p></div></div>
+      <div class="recent-command-list" id="recent-command-list" aria-live="polite">
+        <p class="recent-empty" id="recent-command-empty">No command history yet. Run a developer command to start.</p>
+      </div>
+      <div class="recent-command-toolbar"><span id="recent-command-count">0 / 12 saved</span><button class="recent-clear" id="clear-recent-commands" type="button">Clear history</button></div>
+      <p class="recent-note">Commands load into the composer for review before sending. Developer authentication commands are never saved.</p>
+    </section>` : "";
   const commandLibraryMarkup = [
     ...PUBLIC_COMMAND_GROUPS.map((group) => renderCommandGroup(group)),
     ...(isDeveloper
@@ -25318,14 +25496,26 @@ function renderChatPage(options) {
   <style>
     :root{color-scheme:dark;--bg:#0c0f17;--panel:#141925;--panel2:#191f2e;--line:#293347;--muted:#97a3b9;--text:#eef2fb;--accent:#a78bfa;--accent2:#7c6cf0;--cyan:#67e8f9;--good:#59dca6;--warn:#f6c66d;--bad:#fb7185;--radius:18px}
     *{box-sizing:border-box}html{min-height:100%;background:var(--bg)}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 14% -10%,rgba(124,108,240,.18),transparent 36%),radial-gradient(ellipse at 94% 2%,rgba(103,232,249,.09),transparent 28%),var(--bg);color:var(--text);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    button,input{font:inherit}button{cursor:pointer}a{color:inherit}.shell{max-width:1440px;margin:0 auto;padding:22px 24px 34px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 4px 23px;border-bottom:1px solid rgba(151,163,185,.17)}.brand{display:flex;align-items:center;gap:13px;min-width:0}.brand-mark{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,#a78bfa,#5b55d9);box-shadow:0 8px 28px rgba(124,108,240,.25);font-size:20px;font-weight:900;color:#10131d}.brand-name{font-size:16px;font-weight:780;letter-spacing:.01em}.brand-sub{font-size:12px;color:var(--muted);margin-top:1px}.top-meta{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid var(--line);background:rgba(20,25,37,.8);border-radius:999px;color:#d9dfeb;font-size:11px;font-weight:750;letter-spacing:.055em;white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(89,220,166,.12)}.is-offline .dot{background:var(--warn);box-shadow:0 0 0 3px rgba(246,198,109,.12)}.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding:24px 4px 20px}.eyebrow{text-transform:uppercase;letter-spacing:.15em;font-size:10px;color:var(--accent);font-weight:850}.hero h1{font-size:clamp(24px,3vw,34px);line-height:1.1;letter-spacing:-.045em;margin:7px 0 8px}.hero p{color:var(--muted);margin:0;max-width:640px}.hero-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);border-radius:11px;padding:10px 13px;background:#1a2030;color:var(--text);font-weight:700;transition:transform .15s,border-color .15s,background .15s}.btn:hover{border-color:#7569c6;transform:translateY(-1px)}.btn-primary{background:linear-gradient(135deg,#9f87f6,#7668df);border-color:transparent;color:#111423;box-shadow:0 7px 20px rgba(124,108,240,.18)}.layout{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:18px;align-items:start}.sidebar,.main-panel{min-width:0;border:1px solid rgba(151,163,185,.16);border-radius:var(--radius);background:rgba(20,25,37,.91);box-shadow:0 18px 55px rgba(0,0,0,.16)}.sidebar{overflow:hidden}.sidebar-head{padding:18px 18px 14px;border-bottom:1px solid rgba(151,163,185,.13)}.panel-title{margin:0;font-size:13px;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.panel-caption{color:var(--muted);font-size:12px;margin:4px 0 0}.command-group{padding:15px 13px;border-bottom:1px solid rgba(151,163,185,.11)}.command-group:last-child{border-bottom:0}.group-heading{display:flex;gap:10px;align-items:center;padding:0 5px 10px}.group-icon{display:grid;place-items:center;width:31px;height:31px;border:1px solid #343b58;border-radius:10px;background:#20253a;color:var(--accent);font-weight:900}.group-heading h3{font-size:12px;margin:0;font-weight:850}.group-heading p{font-size:11px;color:var(--muted);margin:1px 0 0}.command-row{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:7px;width:100%;min-width:0;padding:10px 10px;margin:3px 0;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--text);white-space:normal;overflow:visible}.command-row:hover{background:#202637;border-color:#303950}.command-row code,.quick-chip code{display:inline-block;max-width:100%;min-width:0;font-size:11px;color:#d8ccff;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.2);border-radius:6px;padding:3px 5px;white-space:normal;overflow-wrap:anywhere;word-break:break-word}.command-row span{display:block;width:100%;min-width:0;font-size:11px;line-height:1.45;color:var(--muted);text-align:left;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}.locked-copy{color:var(--muted);font-size:12px;padding:0 5px 5px;margin:0}.main-panel{overflow:hidden}.main-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-bottom:1px solid rgba(151,163,185,.14)}.main-heading{display:flex;align-items:center;gap:11px}.main-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:rgba(103,232,249,.09);border:1px solid rgba(103,232,249,.21);color:var(--cyan);font-size:19px}.main-heading h2{font-size:15px;margin:0;font-weight:850}.main-heading p{font-size:11px;margin:2px 0 0;color:var(--muted)}.live-label{display:flex;align-items:center;gap:7px;color:var(--good);font-size:10px;font-weight:850;letter-spacing:.08em}.live-label .dot{width:6px;height:6px}.feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-bottom:1px solid rgba(151,163,185,.11)}.search-wrap{position:relative;flex:1;max-width:340px}.search-wrap input{width:100%;padding:9px 11px 9px 34px;border:1px solid #2a3448;border-radius:10px;background:#101521;color:var(--text);outline:none}.search-wrap input:focus,.chat-input:focus{border-color:#8b7cf0;box-shadow:0 0 0 3px rgba(139,124,240,.12)}.search-symbol{position:absolute;left:11px;top:8px;color:#78859c}.feed-count{font-size:11px;color:var(--muted);white-space:nowrap}.message-feed{height:min(52vh,550px);min-height:280px;overflow-y:auto;padding:12px 18px;scrollbar-color:#3a4358 transparent;scrollbar-width:thin}.message-row{padding:12px 13px;margin:5px 0;border:1px solid rgba(151,163,185,.09);background:rgba(28,34,49,.54);border-radius:13px;transition:background .15s}.message-row:hover{background:rgba(34,42,60,.8)}.message-meta{display:flex;align-items:center;gap:8px}.message-author{font-size:12px;font-weight:800;color:#edf0fb;overflow-wrap:anywhere}.role-badge{font-size:9px;font-weight:900;letter-spacing:.08em;padding:2px 6px;border-radius:5px}.player-badge{background:rgba(103,232,249,.1);color:#7ee9f3;border:1px solid rgba(103,232,249,.16)}.dev-badge{background:rgba(167,139,250,.12);color:#c4b5fd;border:1px solid rgba(167,139,250,.22)}.system-badge{background:rgba(246,198,109,.1);color:var(--warn)}.message-body{font-size:13px;color:#cbd4e6;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 0}.empty-state{display:flex;min-height:270px;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted)}.empty-icon{display:grid;place-items:center;width:54px;height:54px;border-radius:18px;border:1px solid #323852;background:#1c2234;color:var(--accent);font-size:27px}.empty-state h3{font-size:14px;color:#dce2f0;margin:14px 0 4px}.empty-state p{font-size:12px;max-width:300px;margin:0}.composer{padding:16px 18px 18px;background:rgba(13,17,27,.64);border-top:1px solid rgba(151,163,185,.15)}.composer-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;color:var(--muted);font-size:11px}.composer-row{display:flex;align-items:stretch;gap:9px}.chat-input{flex:1;min-width:0;border:1px solid #30394e;border-radius:12px;padding:12px 13px;background:#101521;color:var(--text);outline:none}.send-button{min-width:108px;display:flex;align-items:center;justify-content:center;gap:8px}.composer-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:10px;color:#7f8ba2}.composer-foot strong{font-weight:800;color:#b9c4da}.mode-indicator{color:var(--accent)}.status-bar{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin:0 0 16px;border:1px solid rgba(167,139,250,.22);border-radius:12px;background:rgba(124,108,240,.08);color:#d9d4fb;font-size:12px}.status-symbol{color:var(--accent);font-weight:900}.status-copy{min-width:0;overflow-wrap:anywhere}.status-copy p{margin:0;white-space:pre-wrap}.footer{display:flex;justify-content:space-between;gap:12px;margin:15px 4px 0;color:#69768e;font-size:10px}.footer a{color:#96a3bd;text-decoration:none}.footer a:hover{color:var(--cyan)}
+    button,input{font:inherit}button{cursor:pointer}a{color:inherit}.shell{max-width:1440px;margin:0 auto;padding:22px 24px 34px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 4px 23px;border-bottom:1px solid rgba(151,163,185,.17)}.brand{display:flex;align-items:center;gap:13px;min-width:0}.brand-mark{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,#a78bfa,#5b55d9);box-shadow:0 8px 28px rgba(124,108,240,.25);font-size:20px;font-weight:900;color:#10131d}.brand-name{font-size:16px;font-weight:780;letter-spacing:.01em}.brand-sub{font-size:12px;color:var(--muted);margin-top:1px}.top-meta{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid var(--line);background:rgba(20,25,37,.8);border-radius:999px;color:#d9dfeb;font-size:11px;font-weight:750;letter-spacing:.055em;white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(89,220,166,.12)}.is-offline .dot{background:var(--warn);box-shadow:0 0 0 3px rgba(246,198,109,.12)}.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding:24px 4px 20px}.eyebrow{text-transform:uppercase;letter-spacing:.15em;font-size:10px;color:var(--accent);font-weight:850}.hero h1{font-size:clamp(24px,3vw,34px);line-height:1.1;letter-spacing:-.045em;margin:7px 0 8px}.hero p{color:var(--muted);margin:0;max-width:640px}.hero-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);border-radius:11px;padding:10px 13px;background:#1a2030;color:var(--text);font-weight:700;transition:transform .15s,border-color .15s,background .15s}.btn:hover{border-color:#7569c6;transform:translateY(-1px)}.btn-primary{background:linear-gradient(135deg,#9f87f6,#7668df);border-color:transparent;color:#111423;box-shadow:0 7px 20px rgba(124,108,240,.18)}.layout{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:18px;align-items:start}.sidebar,.main-panel{min-width:0;border:1px solid rgba(151,163,185,.16);border-radius:var(--radius);background:rgba(20,25,37,.91);box-shadow:0 18px 55px rgba(0,0,0,.16)}.sidebar{overflow:hidden}.sidebar-head{padding:18px 18px 14px;border-bottom:1px solid rgba(151,163,185,.13)}.command-search-wrap{margin-top:12px}.command-search-wrap input{width:100%;min-width:0;padding:9px 11px;border:1px solid #2a3448;border-radius:10px;background:#0f1420;color:var(--text);outline:none;font-size:12px}.command-search-wrap input:focus{border-color:#7569c6;box-shadow:0 0 0 3px rgba(124,108,240,.12)}.command-group[hidden],.command-row[hidden]{display:none!important}.panel-title{margin:0;font-size:13px;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.panel-caption{color:var(--muted);font-size:12px;margin:4px 0 0}.command-group{padding:15px 13px;border-bottom:1px solid rgba(151,163,185,.11)}.command-group:last-child{border-bottom:0}.group-heading{display:flex;gap:10px;align-items:center;padding:0 5px 10px}.group-icon{display:grid;place-items:center;width:31px;height:31px;border:1px solid #343b58;border-radius:10px;background:#20253a;color:var(--accent);font-weight:900}.group-heading h3{font-size:12px;margin:0;font-weight:850}.group-heading p{font-size:11px;color:var(--muted);margin:1px 0 0}.command-row{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:7px;width:100%;min-width:0;padding:10px 10px;margin:3px 0;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--text);white-space:normal;overflow:visible}.command-row:hover{background:#202637;border-color:#303950}.command-row code,.quick-chip code{display:inline-block;max-width:100%;min-width:0;font-size:11px;color:#d8ccff;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.2);border-radius:6px;padding:3px 5px;white-space:normal;overflow-wrap:anywhere;word-break:break-word}.command-row span{display:block;width:100%;min-width:0;font-size:11px;line-height:1.45;color:var(--muted);text-align:left;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}.command-row .command-aliases{display:block;width:100%;min-width:0;margin-top:-3px;font-size:10px;line-height:1.4;color:#77839a;white-space:normal;overflow-wrap:anywhere;word-break:normal}.locked-copy{color:var(--muted);font-size:12px;padding:0 5px 5px;margin:0}.main-panel{overflow:hidden}.main-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-bottom:1px solid rgba(151,163,185,.14)}.main-heading{display:flex;align-items:center;gap:11px}.main-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:rgba(103,232,249,.09);border:1px solid rgba(103,232,249,.21);color:var(--cyan);font-size:19px}.main-heading h2{font-size:15px;margin:0;font-weight:850}.main-heading p{font-size:11px;margin:2px 0 0;color:var(--muted)}.live-label{display:flex;align-items:center;gap:7px;color:var(--good);font-size:10px;font-weight:850;letter-spacing:.08em}.live-label .dot{width:6px;height:6px}.feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-bottom:1px solid rgba(151,163,185,.11)}.search-wrap{position:relative;flex:1;max-width:340px}.search-wrap input{width:100%;padding:9px 11px 9px 34px;border:1px solid #2a3448;border-radius:10px;background:#101521;color:var(--text);outline:none}.search-wrap input:focus,.chat-input:focus{border-color:#8b7cf0;box-shadow:0 0 0 3px rgba(139,124,240,.12)}.search-symbol{position:absolute;left:11px;top:8px;color:#78859c}.feed-count{font-size:11px;color:var(--muted);white-space:nowrap}.message-feed{height:min(52vh,550px);min-height:280px;overflow-y:auto;padding:12px 18px;scrollbar-color:#3a4358 transparent;scrollbar-width:thin}.message-row{padding:12px 13px;margin:5px 0;border:1px solid rgba(151,163,185,.09);background:rgba(28,34,49,.54);border-radius:13px;transition:background .15s}.message-row:hover{background:rgba(34,42,60,.8)}.message-meta{display:flex;align-items:center;gap:8px}.message-author{font-size:12px;font-weight:800;color:#edf0fb;overflow-wrap:anywhere}.role-badge{font-size:9px;font-weight:900;letter-spacing:.08em;padding:2px 6px;border-radius:5px}.player-badge{background:rgba(103,232,249,.1);color:#7ee9f3;border:1px solid rgba(103,232,249,.16)}.dev-badge{background:rgba(167,139,250,.12);color:#c4b5fd;border:1px solid rgba(167,139,250,.22)}.system-badge{background:rgba(246,198,109,.1);color:var(--warn)}.message-body{font-size:13px;color:#cbd4e6;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 0}.empty-state{display:flex;min-height:270px;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted)}.empty-icon{display:grid;place-items:center;width:54px;height:54px;border-radius:18px;border:1px solid #323852;background:#1c2234;color:var(--accent);font-size:27px}.empty-state h3{font-size:14px;color:#dce2f0;margin:14px 0 4px}.empty-state p{font-size:12px;max-width:300px;margin:0}.composer{padding:16px 18px 18px;background:rgba(13,17,27,.64);border-top:1px solid rgba(151,163,185,.15)}.composer-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;color:var(--muted);font-size:11px}.composer-row{display:flex;align-items:stretch;gap:9px}.chat-input{flex:1;min-width:0;border:1px solid #30394e;border-radius:12px;padding:12px 13px;background:#101521;color:var(--text);outline:none}.send-button{min-width:108px;display:flex;align-items:center;justify-content:center;gap:8px}.composer-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:10px;color:#7f8ba2}.composer-foot strong{font-weight:800;color:#b9c4da}.mode-indicator{color:var(--accent)}.status-bar{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin:0 0 16px;border:1px solid rgba(167,139,250,.22);border-radius:12px;background:rgba(124,108,240,.08);color:#d9d4fb;font-size:12px}.status-symbol{color:var(--accent);font-weight:900}.status-copy{min-width:0;overflow-wrap:anywhere}.status-copy p{margin:0;white-space:pre-wrap}.footer{display:flex;justify-content:space-between;gap:12px;margin:15px 4px 0;color:#69768e;font-size:10px}.footer a{color:#96a3bd;text-decoration:none}.footer a:hover{color:var(--cyan)}
+    .recent-commands-group{background:linear-gradient(145deg,rgba(124,108,240,.10),rgba(20,25,37,.15));border-bottom:1px solid rgba(167,139,250,.24)}
+    .recent-command-list{display:grid;gap:6px;min-width:0}
+    .recent-command-row{display:flex;flex-direction:column;align-items:flex-start;gap:5px;width:100%;min-width:0;padding:9px 10px;border:1px solid rgba(167,139,250,.18);border-radius:10px;background:rgba(12,15,23,.48);color:var(--text);text-align:left;transition:border-color .15s,background .15s}
+    .recent-command-row:hover{background:rgba(124,108,240,.12);border-color:rgba(167,139,250,.55)}
+    .recent-command-text{display:block;max-width:100%;font-size:11px;line-height:1.45;color:#e1d9ff;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+    .recent-command-meta{display:flex;justify-content:space-between;gap:8px;width:100%;color:var(--muted);font-size:10px}
+    .recent-command-action{color:var(--cyan);font-weight:750}
+    .recent-empty{margin:0;padding:10px;border:1px dashed rgba(151,163,185,.22);border-radius:9px;color:var(--muted);font-size:11px;line-height:1.5}
+    .recent-command-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:9px;color:var(--muted);font-size:10px}
+    .recent-clear{border:1px solid rgba(151,163,185,.2);border-radius:7px;background:rgba(12,15,23,.5);padding:5px 8px;color:#cbd4e6;font-size:10px;font-weight:750}
+    .recent-clear:hover{border-color:rgba(251,113,133,.5);color:#fda4af}
+    .recent-note{margin:8px 2px 0;color:#818ca2;font-size:10px;line-height:1.45}
     @media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{order:2}.main-panel{order:1}.message-feed{height:min(48vh,480px)}.hero{align-items:flex-start;flex-direction:column}.hero-actions{width:100%}}
     @media(max-width:540px){.shell{padding:12px 10px 22px}.topbar{padding:8px 2px 17px;align-items:flex-start}.brand-mark{width:38px;height:38px}.brand-name{font-size:14px}.brand-sub{max-width:180px}.top-meta{gap:5px}.pill{font-size:9px;padding:6px 8px}.hero{padding:20px 2px 16px}.hero h1{font-size:27px}.main-header{padding:14px}.feed-toolbar{padding:10px 12px}.message-feed{padding:9px 10px;min-height:240px}.composer{padding:13px 11px}.composer-row{flex-direction:column}.send-button{width:100%;min-height:42px}.footer{padding:0 2px;flex-direction:column}.command-row{align-items:flex-start;flex-direction:column;gap:5px}.command-row span{text-align:left}}
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
   </style>
 </head>
 <body>
-  <div class="shell">
+  <div class="shell" data-is-developer="${isDeveloper ? "1" : "0"}">
     <header class="topbar">
       <div class="brand"><div class="brand-mark">RP</div><div><div class="brand-name">Ranar's Prophecy</div><div class="brand-sub">${serverExtra} · Communication relay</div></div></div>
       <div class="top-meta"><div class="pill ${connected ? "is-online" : "is-offline"} ${statusClass}"><span class="dot"></span>${statusLabel}</div><div class="pill"><span>◉</span><span id="player-count">${playerCount} ONLINE</span></div><div class="pill">MODE&nbsp; <span id="game-mode">${gameMode}</span></div></div>
@@ -25334,7 +25524,8 @@ function renderChatPage(options) {
     <div class="status-bar" role="status" aria-live="polite"><span class="status-symbol">◆</span><div class="status-copy"><p data-flash="${hasFlash ? "1" : "0"}">${statusCopy(statusText)}</p></div></div>
     <div class="layout">
       <aside class="sidebar">
-        <div class="sidebar-head"><h2 class="panel-title">Command library</h2><p class="panel-caption">Select any command to insert it into the composer.</p></div>
+        <div class="sidebar-head"><h2 class="panel-title">Command library</h2><p class="panel-caption">Search commands or select one to fill the composer.</p><div class="command-search-wrap"><input id="command-search" type="search" placeholder="Filter commands…" autocomplete="off" aria-label="Filter command library"></div></div>
+        ${recentCommandsMarkup}
         ${commandLibraryMarkup}
       </aside>
       <main class="main-panel">
@@ -25355,12 +25546,74 @@ function renderChatPage(options) {
   'use strict';
   const input=document.getElementById('chat-input');
   const form=document.getElementById('chat-form');
+  const shell=document.querySelector('.shell');
+  const isDeveloper=!!shell && shell.getAttribute('data-is-developer')==='1';
+  const recentList=document.getElementById('recent-command-list');
+  const recentCount=document.getElementById('recent-command-count');
+  const clearRecentButton=document.getElementById('clear-recent-commands');
+  const RECENT_COMMANDS_KEY='ranarsProphecy.devRecentCommands.v1';
+  const MAX_RECENT_COMMANDS=12;
   const indicator=document.getElementById('mode-indicator');
   const charCount=document.getElementById('character-count');
   const feed=document.getElementById('message-feed');
   const feedCount=document.getElementById('feed-count');
   const search=document.getElementById('message-search');
+  const commandSearch=document.getElementById('command-search');
   let lastSignature='';
+  function readRecentCommands(){
+    if(!isDeveloper || !recentList)return [];
+    try{
+      const parsed=JSON.parse(window.localStorage.getItem(RECENT_COMMANDS_KEY)||'[]');
+      if(!Array.isArray(parsed))return [];
+      return parsed.filter(function(entry){
+        return entry && typeof entry.command==='string' && entry.command.length<=100 && entry.command.trim().startsWith('/') && !isSensitiveCommand(entry.command);
+      }).slice(0,MAX_RECENT_COMMANDS);
+    }catch(_){return [];}
+  }
+  function isSensitiveCommand(value){
+    // /tda may contain the developer key; never persist its command text.
+    return /^tda(?:\\s|$)/i.test(String(value||'').trim().replace(/^\\/+/,''));
+  }
+  function relativeUseTime(timestamp){
+    const elapsed=Math.max(0,Date.now()-(Number(timestamp)||Date.now()));
+    if(elapsed<60000)return 'just now';
+    if(elapsed<3600000)return Math.floor(elapsed/60000)+'m ago';
+    if(elapsed<86400000)return Math.floor(elapsed/3600000)+'h ago';
+    return Math.floor(elapsed/86400000)+'d ago';
+  }
+  function renderRecentCommands(){
+    if(!isDeveloper || !recentList)return;
+    const history=readRecentCommands();
+    recentList.replaceChildren();
+    if(!history.length){
+      const empty=document.createElement('p');empty.className='recent-empty';
+      empty.textContent='No command history yet. Run a developer command to start.';
+      recentList.appendChild(empty);
+    }else{
+      history.forEach(function(entry){
+        const button=document.createElement('button');button.type='button';button.className='recent-command-row';
+        button.setAttribute('data-command',entry.command);
+        button.setAttribute('aria-label','Load command into composer: '+entry.command);
+        button.title='Load into composer for review; does not execute immediately';
+        const code=document.createElement('code');code.className='recent-command-text';code.textContent=entry.command;
+        const meta=document.createElement('span');meta.className='recent-command-meta';
+        const used=document.createElement('span');used.textContent=relativeUseTime(entry.usedAt);
+        const action=document.createElement('span');action.className='recent-command-action';action.textContent='LOAD ↗';
+        meta.append(used,action);button.append(code,meta);recentList.appendChild(button);
+      });
+    }
+    if(recentCount)recentCount.textContent=history.length+' / '+MAX_RECENT_COMMANDS+' saved';
+  }
+  function saveRecentCommand(value){
+    if(!isDeveloper || !recentList)return;
+    const command=String(value||'').trim().replace(/\\s+/g,' ');
+    if(!command.startsWith('/') || isSensitiveCommand(command))return;
+    const normalized=command.toLowerCase();
+    const history=readRecentCommands().filter(function(entry){return entry.command.trim().replace(/\\s+/g,' ').toLowerCase()!==normalized;});
+    history.unshift({command:command.slice(0,100),usedAt:Date.now()});
+    try{window.localStorage.setItem(RECENT_COMMANDS_KEY,JSON.stringify(history.slice(0,MAX_RECENT_COMMANDS)));}catch(_){/* Private browsing/storage restrictions are non-fatal. */}
+    renderRecentCommands();
+  }
   function updateComposer(){
     const value=input.value||'';
     charCount.textContent=String(value.length);
@@ -25378,6 +25631,25 @@ function renderChatPage(options) {
     });
     const total=feed.querySelectorAll('.message-row').length;
     feedCount.textContent=query?visible+' / '+total+' shown':total+' loaded';
+  }
+  function applyCommandFilter(){
+    if(!commandSearch)return;
+    const query=(commandSearch.value||'').trim().toLowerCase();
+    document.querySelectorAll('.sidebar .command-group').forEach(function(group){
+      if(group.classList.contains('recent-commands-group'))return;
+      const rows=Array.from(group.querySelectorAll('.command-row'));
+      if(rows.length){
+        let visible=0;
+        rows.forEach(function(row){
+          const match=!query||(row.textContent||'').toLowerCase().includes(query);
+          row.hidden=!match;
+          if(match)visible++;
+        });
+        group.hidden=!!query&&visible===0;
+      }else{
+        group.hidden=!!query&&!(group.textContent||'').toLowerCase().includes(query);
+      }
+    });
   }
   function rowFor(raw){
     const line=String(raw||'');
@@ -25432,14 +25704,29 @@ function renderChatPage(options) {
   }
   input.addEventListener('input',updateComposer);
   search.addEventListener('input',applyFilter);
-  form.addEventListener('submit',function(event){if(!input.value.trim()){event.preventDefault();input.focus();}});
-  document.getElementById('focus-chat').addEventListener('click',function(){input.focus();});
-  document.querySelectorAll('[data-command]').forEach(function(button){
-    button.addEventListener('click',function(){
-      input.value=button.getAttribute('data-command')||'';updateComposer();input.focus();
-      const end=input.value.length;input.setSelectionRange(end,end);
-    });
+  if(commandSearch)commandSearch.addEventListener('input',applyCommandFilter);
+  form.addEventListener('submit',function(event){
+    const command=(input.value||'').trim();
+    if(!command){event.preventDefault();input.focus();return;}
+    // Save locally before navigation. Authentication commands are intentionally excluded.
+    saveRecentCommand(command);
   });
+  document.getElementById('focus-chat').addEventListener('click',function(){input.focus();});
+  // Delegated handling also supports dynamically rendered recent-command buttons.
+  document.addEventListener('click',function(event){
+    const button=event.target && event.target.closest ? event.target.closest('[data-command]') : null;
+    if(!button)return;
+    input.value=button.getAttribute('data-command')||'';updateComposer();input.focus();
+    const end=input.value.length;input.setSelectionRange(end,end);
+  });
+  if(clearRecentButton){
+    clearRecentButton.addEventListener('click',function(){
+      try{window.localStorage.removeItem(RECENT_COMMANDS_KEY);}catch(_){}
+      renderRecentCommands();
+    });
+  }
+  renderRecentCommands();
+  applyCommandFilter();
   updateComposer();
   lastSignature=Array.from(feed.querySelectorAll('.message-row')).map(function(row){return row.textContent;}).join('\\n');
   applyFilter();
@@ -26230,44 +26517,30 @@ You must have the chat site and the game site open at the same time for your cha
                   // Check if the message is a command
                   for (let i = 0; i < socket.commandLoopCount; i++) {
                     if (chat.startsWith("/")) {
-                      let command = chat.slice(1).trim();
-                      // Friendly short aliases and case-insensitive common commands.
-                      // Normalize only recognized whole-command aliases so existing
-                      // developer command arguments retain their original casing.
-                      const alias = command.toLowerCase();
-                      const aliases = {
-                        "commands": "help", "?": "help", "h": "help", "cmd": "help",
-                        "players": "player list", "who": "player list", "online": "player list",
-                        "modes": "mode list", "where": "find loc", "pos": "find loc", "coordinates": "find loc",
-                        "location": "find loc", "my team": "see team", "team?": "see team",
-                        "suicide": "self destruct", "sd": "self destruct"
-                      };
-                      if (aliases[alias]) {
-                        command = aliases[alias];
-                      } else {
-                        // Normalize command names case-insensitively while keeping argument
-                        // casing (class names and property names can be case-sensitive).
-                        const canonicalPrefixes = [
-                          "propertize entity", "propertize global", "toggle graveyard", "toggle growth",
-                          "toggle plague", "score cheat", "player list", "mode list", "self destruct",
-                          "close server", "define ID", "toggle AI", "team setup", "creation team",
-                          "set wave", "set team", "see team", "dev help", "find loc", "pUnmute",
-                          "pUnban", "pMute", "pKick", "pBan", "broadcast", "transform", "obliterate",
-                          "points", "score", "spawn", "repeat", "kill", "size", "heal", "color", "team",
-                          "tgm", "reset", "tda"
-                        ];
-                        const lowered = command.toLowerCase();
-                        const matchedPrefix = canonicalPrefixes.find((prefix) => {
-                          const prefixLower = prefix.toLowerCase();
-                          return lowered === prefixLower || lowered.startsWith(prefixLower + " ");
-                        });
-                        if (matchedPrefix) command = matchedPrefix + command.slice(matchedPrefix.length);
-                      }
+                      let command = normalizeChatCommand(chat.slice(1));
+                      // Standardize command-word casing without changing case-sensitive
+                      // class export names or property names supplied as arguments.
+                      const canonicalPrefixes = [
+                        "propertize entity", "propertize global", "toggle graveyard", "toggle growth",
+                        "toggle plague", "score cheat", "player list", "mode list", "self destruct",
+                        "close server", "define ID", "toggle AI", "team setup", "creation team",
+                        "set wave", "set team", "see team", "dev help", "find loc", "pUnmute",
+                        "pUnban", "pMute", "pKick", "pBan", "broadcast", "transform", "obliterate",
+                        "points", "score", "spawn", "repeat", "kill", "size", "heal", "color", "team",
+                        "tgm", "reset", "tda"
+                      ];
+                      const lowered = command.toLowerCase();
+                      const matchedPrefix = canonicalPrefixes.find((prefix) => commandMatches(lowered, prefix));
+                      if (matchedPrefix) command = matchedPrefix + command.slice(matchedPrefix.length);
+                      command = normalizeEntitySelector(command);
                       const commandLower = command.toLowerCase();
-                      message = "Command accepted.";
-                      if (commandLower === "help") {
+                      const usageError = getCommandUsageError(command, socket.trueDev);
+                      message = usageError || "Command accepted.";
+                      if (usageError) {
+                        // Reject incomplete or malformed commands before touching the world.
+                      } else if (commandLower === "help") {
                         message = "Public command guide is shown in the Command Library.";
-                      } else if (commandLower.startsWith("set team")) {
+                      } else if (commandMatches(commandLower, "set team")) {
                         socket.rememberedTeam =
                           command.slice(command.indexOf("m") + 2) * 1;
                         let goof;
@@ -26276,29 +26549,29 @@ You must have the chat site and the game site open at the same time for your cha
                         } else goof = -socket.rememberedTeam;
                         message =
                           "When you spawn your team ID will be: " + goof + ".";
-                      } else if (commandLower.startsWith("score cheat")) {
+                      } else if (commandMatches(commandLower, "score cheat")) {
                         socket.customScore =
                           command.slice(command.indexOf("t") + 2) * 1;
                         if (socket.customScore > 26263 && !socket.trueDev) {
                           message = "Your base score cannot exceed 26263!";
                           socket.customScore = 26263;
                         }
-                      } else if (commandLower.startsWith("see team")) {
+                      } else if (commandMatches(commandLower, "see team")) {
                         message = player.body
                           ? "Your team ID is: " + player.body.team + "."
                           : "You need to spawn for this command to work!";
-                      } else if (commandLower.startsWith("find loc")) {
+                      } else if (commandMatches(commandLower, "find loc")) {
                         message = player.body
                           ? "Your location is: x; " + Math.round(player.body.x) + " y; " + Math.round(player.body.y) + "."
                           : "You need to spawn for this command to work!";
-                      } else if (commandLower.startsWith("player list")) {
+                      } else if (commandMatches(commandLower, "player list")) {
                         const list = sockets.clients.map((dude, index) => {
                           const playerName = dude.name && dude.name.trim() ? dude.name : "Unnamed Player";
                           const details = socket.trueDev ? ` (ID: ${dude.ID}, IP: ${dude.ip})` : "";
                           return `${index + 1}. ${playerName}${details}`;
                         });
                         message = `There are ${sockets.clients.length} players online:\n${list.join("\n")}`;
-                      } else if (commandLower.startsWith("mode list")) {
+                      } else if (commandMatches(commandLower, "mode list")) {
                         message = `Available modes (use their listed names when voting):\n\n${modeList.join("\n\n")}`;
                       } else if (/^vote(?:\s|$)/i.test(command.trim())) {
                         if (serverType === "normal") {
@@ -26335,7 +26608,7 @@ You must have the chat site and the game site open at the same time for your cha
                         } else {
                           message = "You cannot vote on modes in this server!";
                         }
-                      } else if (commandLower.startsWith("reset")) {
+                      } else if (commandLower === "reset") {
                         if (player.body) {
                           if (
                             room.isIn("bas" + -player.body.team, player.body) ||
@@ -26369,7 +26642,7 @@ You must have the chat site and the game site open at the same time for your cha
                         } else
                           message =
                             "You need to spawn for this command to work!";
-                      } else if (commandLower.startsWith("self destruct")) {
+                      } else if (commandLower === "self destruct") {
                         if (c.ANTILAG_SOFT_RESET_ACTIVE === true) {
                           message = "Self-destruct is disabled during the emergency server reset.";
                         } else if (player.body) {
@@ -26388,7 +26661,7 @@ You must have the chat site and the game site open at the same time for your cha
                         } else
                           message =
                             "You need to spawn for this command to work!";
-                      } else if (commandLower.startsWith("tda")) {
+                      } else if (commandMatches(commandLower, "tda")) {
                         let parts = command.split(" "),
                           password = parts[1],
                           devList = [
@@ -26418,9 +26691,9 @@ You must have the chat site and the game site open at the same time for your cha
                           message =
                             "You do not have permission to use this command!";
                       } else if (socket.trueDev) {
-                        if (commandLower.startsWith("dev help")) {
+                        if (commandLower === "dev help") {
                           message = buildCommandHelpText(true);
-                        } else if (commandLower.startsWith("team setup")) {
+                        } else if (commandMatches(commandLower, "team setup")) {
                           let load = command.slice(command.indexOf("p") + 2).trim().toLowerCase();
                           switch (load) {
                             case "tdm":
@@ -26449,24 +26722,24 @@ You must have the chat site and the game site open at the same time for your cha
                               c.BOT_TEAMS = "color";
                               message = "Teams changed to ffa!";
                           }
-                        } else if (commandLower.startsWith("broadcast")) {
+                        } else if (commandMatches(commandLower, "broadcast")) {
                           let load = command.slice(command.indexOf("t") + 2);
                           sockets.broadcast(load);
-                        } else if (commandLower.startsWith("see team")) {
+                        } else if (commandMatches(commandLower, "see team")) {
                           if (player.body) {
                             message =
                               "Your team ID is: " + player.body.team + ".";
                           } else
                             message =
                               "You need to spawn for this command to work!";
-                        } else if (commandLower.startsWith("close server")) {
+                        } else if (commandLower === "close server") {
                           message = "You have closed the server!";
                           closeArena();
                           util.log(socket.name + " has closed the arena!");
-                        } else if (commandLower.startsWith("define id")) {
+                        } else if (commandMatches(commandLower, "define id")) {
                           let parts = command.split(" ");
                           ID = parts[2] * 1; // Join
-                        } else if (commandLower.startsWith("toggle ai")) {
+                        } else if (commandLower === "toggle ai") {
                           if (c.globalAIDisable) {
                             message = "AI enabled!";
                             setTimeout(() => {
@@ -26478,10 +26751,10 @@ You must have the chat site and the game site open at the same time for your cha
                               c.globalAIDisable = true;
                             }, 1000);
                           }
-                        } else if (commandLower.startsWith("creation team")) {
+                        } else if (commandMatches(commandLower, "creation team")) {
                           let parts = command.split(" ");
                           socket.creationTeam = parts[2] * 1;
-                        } else if (commandLower.startsWith("spawn")) {
+                        } else if (commandMatches(commandLower, "spawn")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let ex = parts[2] * 1; // Join
@@ -26492,13 +26765,15 @@ You must have the chat site and the game site open at the same time for your cha
                           o.team = socket.creationTeam;
 
                           //console.log(entity);
-                        } else if (commandLower.startsWith("propertize entity")) {
+                        } else if (commandMatches(commandLower, "propertize entity")) {
                           let parts = command.split(" ");
                           let entity = parts[2]; // This should be "polygons", "players", etc.
                           let property = parts[3];
+                          const rawValue = parts[4];
                           let value;
-                          if (parseInt(parts[4])) value = parts[4] * 1;
-                          else value = parts[4];
+                          if (/^(?:true|false)$/i.test(rawValue)) value = rawValue.toLowerCase() === "true";
+                          else if (rawValue !== undefined && rawValue !== "" && Number.isFinite(Number(rawValue))) value = Number(rawValue);
+                          else value = rawValue;
 
                           entities.forEach((instance) => {
                             if (
@@ -26524,20 +26799,22 @@ You must have the chat site and the game site open at the same time for your cha
                               instance[property] = value;
                             }
                           });
-                        } else if (commandLower.startsWith("propertize global")) {
+                        } else if (commandMatches(commandLower, "propertize global")) {
                           let parts = command.split(" ");
-                          let global = parts[2];
+                          let global = String(parts[2] || "").toLowerCase();
                           let property = parts[3];
+                          const rawValue = parts[4];
                           let value;
-                          if (parseInt(parts[4])) value = parts[4] * 1;
-                          else value = parts[4];
+                          if (/^(?:true|false)$/i.test(rawValue)) value = rawValue.toLowerCase() === "true";
+                          else if (rawValue !== undefined && rawValue !== "" && Number.isFinite(Number(rawValue))) value = Number(rawValue);
+                          else value = rawValue;
                           if (global === "room") {
                             room[property] = value;
                           } else {
                             c[property] = value;
                           }
                           sockets.changeroom();
-                        } else if (commandLower.startsWith("find loc")) {
+                        } else if (commandMatches(commandLower, "find loc")) {
                           if (player.body) {
                             message =
                               "Your location is: x; " +
@@ -26548,28 +26825,28 @@ You must have the chat site and the game site open at the same time for your cha
                           } else
                             message =
                               "You need to spawn for this command to work!";
-                        } else if (commandLower.startsWith("pmute")) {
+                        } else if (commandMatches(commandLower, "pmute")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("mute", playerIP);
-                        } else if (commandLower.startsWith("pkick")) {
+                        } else if (commandMatches(commandLower, "pkick")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("kick", playerIP);
-                        } else if (commandLower.startsWith("pban")) {
+                        } else if (commandMatches(commandLower, "pban")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("kick", playerIP);
                           sockets.runPunishments("ban", playerIP);
-                        } else if (commandLower.startsWith("punmute")) {
+                        } else if (commandMatches(commandLower, "punmute")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("unmute", playerIP);
-                        } else if (commandLower.startsWith("punban")) {
+                        } else if (commandMatches(commandLower, "punban")) {
                           let parts = command.split(" ");
                           let playerIP = parts[1];
                           sockets.runPunishments("unban", playerIP);
-                        } else if (commandLower.startsWith("kill")) {
+                        } else if (commandMatches(commandLower, "kill")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts.slice(2).join(" "); // Join
@@ -26598,12 +26875,12 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.kill();
                             }
                           });
-                        } else if (commandLower.startsWith("set wave")) {
+                        } else if (commandMatches(commandLower, "set wave")) {
                           let parts = command.split(" ");
                           let wave = parts[2]; // This should be "polygons", "players", etc.
                           c.bossWave = wave * 1;
                           currentState.bossWaves = wave * 1;
-                        } else if (commandLower.startsWith("obliterate")) {
+                        } else if (commandMatches(commandLower, "obliterate")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts.slice(2).join(" "); // Join
@@ -26632,10 +26909,10 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.destroy();
                             }
                           });
-                        } else if (commandLower.startsWith("size")) {
+                        } else if (commandMatches(commandLower, "size")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
-                          let size = parts.slice(2).join(" "); // Join
+                          let size = Number(parts[2]); // Numeric SIZE value
                           entities.forEach((instance) => {
                             if (
                               (entity === "projectiles" &&
@@ -26660,7 +26937,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.SIZE = size;
                             }
                           });
-                        } else if (commandLower.startsWith("points")) {
+                        } else if (commandMatches(commandLower, "points")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let skill = parts[2] * 1; // Join
@@ -26688,7 +26965,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.skill.points = skill;
                             }
                           });
-                        } else if (commandLower.startsWith("score")) {
+                        } else if (commandMatches(commandLower, "score")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let score = parts[2] * 1; // Join
@@ -26716,7 +26993,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.skill.score = score;
                             }
                           });
-                        } else if (commandLower.startsWith("heal")) {
+                        } else if (commandMatches(commandLower, "heal")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           entities.forEach((instance) => {
@@ -26744,7 +27021,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.health.amount = instance.health.max;
                             }
                           });
-                        } else if (commandLower.startsWith("color")) {
+                        } else if (commandMatches(commandLower, "color")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let color = parts[2] * 1; // Join
@@ -26772,7 +27049,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.color = color;
                             }
                           });
-                        } else if (commandLower.startsWith("team")) {
+                        } else if (commandMatches(commandLower, "team")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let myTeam = parts[2] * 1; // Join
@@ -26832,7 +27109,7 @@ You must have the chat site and the game site open at the same time for your cha
                               }
                             }
                           });
-                        } else if (commandLower.startsWith("transform")) {
+                        } else if (commandMatches(commandLower, "transform")) {
                           let parts = command.split(" ");
                           let entity = parts[1]; // This should be "polygons", "players", etc.
                           let become = parts.slice(2).join(" "); // Join
@@ -26860,7 +27137,7 @@ You must have the chat site and the game site open at the same time for your cha
                               instance.define(Class[become]);
                             }
                           });
-                        } else if (commandLower.startsWith("toggle graveyard")) {
+                        } else if (commandLower === "toggle graveyard") {
                           if (c.PLAGUE) {
                             message = "Graveyard disabled!";
                             setTimeout(() => {
@@ -26872,7 +27149,7 @@ You must have the chat site and the game site open at the same time for your cha
                               c.PLAGUE = true;
                             }, 1000);
                           }
-                        } else if (commandLower.startsWith("toggle plague")) {
+                        } else if (commandLower === "toggle plague") {
                           if (c.necro) {
                             message = "Plague disabled!";
                             setTimeout(() => {
@@ -26884,7 +27161,7 @@ You must have the chat site and the game site open at the same time for your cha
                               c.necro = true;
                             }, 1000);
                           }
-                        } else if (commandLower.startsWith("toggle growth")) {
+                        } else if (commandLower === "toggle growth") {
                           if (c.GROWTH) {
                             message = "Growth disabled!";
                             setTimeout(() => {
@@ -26896,7 +27173,7 @@ You must have the chat site and the game site open at the same time for your cha
                               c.GROWTH = true;
                             }, 1000);
                           }
-                        } else if (commandLower.startsWith("repeat")) {
+                        } else if (commandMatches(commandLower, "repeat")) {
                           const parts = command.trim().split(/\s+/);
                           const requested = Number(parts[1]);
                           const maximum = socket.trueDev ? 100 : 10;
@@ -26907,7 +27184,7 @@ You must have the chat site and the game site open at the same time for your cha
                             socket.commandLoopCount = Math.min(requested, maximum);
                             message = "Command repeat count set to " + socket.commandLoopCount + ".";
                           }
-                        } else if (commandLower.startsWith("tgm")) {
+                        } else if (commandLower === "tgm") {
                           if (player.body) {
                             if (player.body.godMode) {
                               message = "God Mode disabled!";
@@ -26926,9 +27203,9 @@ You must have the chat site and the game site open at the same time for your cha
                         } else {
                           if (socket.isDeveloper) {
                             message =
-                              "Unknown Command! Try using /help or /dev help!";
+                              "Unknown command. Use /dev help to browse the command list; old command spellings remain supported.";
                           } else {
-                            message = "Unknown Command! Try using /help!";
+                            message = "Unknown command. Use /help to browse public commands.";
                           }
                         }
                       } else {
@@ -26939,7 +27216,7 @@ You must have the chat site and the game site open at the same time for your cha
                           "obliterate", "size", "points", "score", "heal", "color", "team",
                           "transform", "toggle graveyard", "toggle plague", "toggle growth", "repeat", "tgm"
                         ];
-                        const restricted = restrictedCommands.some((name) => commandLower.startsWith(name));
+                        const restricted = restrictedCommands.some((name) => commandMatches(commandLower, name));
                         message = restricted
                           ? "You do not have permission to use this command!"
                           : "Unknown command. Try /help for the public command list.";

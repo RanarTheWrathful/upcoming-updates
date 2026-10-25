@@ -8,8 +8,9 @@
     "test:siege-wave-policy": "node tests/siegeWavePolicy.test.js",
     "test:siege-neutral-zone": "node tests/siegeNeutralZonePenalty.test.js",
     "test:auto-upgrade": "node tests/autoUpgradeRules.test.js && node tests/autoUpgradeIntegration.test.js",
-    "test:commands": "node tests/devCommandCatalog.test.js",
-    "test:intellect": "node tests/intellect.test.js && node tests/intellectIntegration.test.js"
+    "test:commands": "node tests/devCommandCatalog.test.js && node tests/commandNormalization.test.js",
+    "test:intellect": "node tests/intellect.test.js && node tests/intellectIntegration.test.js && node tests/minionMovementPolicy.test.js",
+    "test:minion-movement": "node tests/minionMovementPolicy.test.js"
   },
   "dependencies": {
     "box-intersect": "^1.0.2",
