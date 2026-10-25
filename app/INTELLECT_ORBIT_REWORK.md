@@ -1,21 +1,9 @@
-# INTELLECT / Orbit behavior rework
+# INTELLECT and Minion Orbit Baseline
 
-## Core rule
+The standard `minion` controller has been restored to the original project orbit behavior as the baseline for future tuning. It uses its target-relative vector to determine the goal, preserves the original leash and repel behavior, and lowers movement power near the configured orbit band. It no longer calculates an independent persistent world-space orbit angle or selects a fixed attack stance.
 
-`INTELLECT` does not change a minion's configured orbit radius, leash distance, near-master radius, or the radius used by the autonomous ranged-combat standoff calculation. Those values continue to come from class configuration, the shared legacy-radius floor, body/target size, and the independent speed safety buffer. Increasing intellect only changes the orbiting method and decision cadence.
+INTELLECT still affects target selection, aiming prediction, and eligible projectile evasion. A detected projectile dodge can temporarily override the normal minion movement goal; once the dodge expires, the minion resumes its normal orbit logic. INTELLECT does not change orbit radius.
 
-## Orbit tiers
+Positive configured `ORBIT_DISTANCE` values retain the previously requested wider-spacing policy. Explicit zero/negative values are not expanded. The direct-chase safeguard also remains so a `mapTargetToGoal` controller cannot replace minion steering with a straight-line ram.
 
-- `INTELLECT <= 1`: continuous, predictable circular orbit around the target/aim anchor. Ranged combatants keep the current side and travel smoothly around the full ring instead of moving to one offset point and stopping.
-- `2+`: stable identity-derived lane offsets help different entities avoid synchronizing into the same orbit. The radius remains unchanged.
-- `8+`: the orbit gains a slow, persistent maneuver style on top of the continuous baseline circle.
-- `32+`: a low-frequency angular weave is added. It changes angle, not radius.
-- `128+`: orbit direction and cruise style can change at long maneuver boundaries, not every frame.
-- `512+`: several persistent orbit speeds are available, including slow arcs and faster feints.
-- `2048+`: the most varied pattern combines lane offsets, smooth weaving, and deliberate maneuver changes.
-
-The same entity/target/age inputs always produce the same maneuver profile. Changes happen on long time intervals and angles are integrated continuously, so new styles do not teleport the movement goal around the ring. The orbit controller accounts for the moving waypoint velocity so braking does not cause the AI to stop at one point on the circle. High-intellect near-master controllers retain chosen destinations longer to reduce goal jitter.
-
-## Validation
-
-All present `tests/*.test.js` files passed individually. All JavaScript files passed `node --check`. Live gameplay has not been tested.
+Orbit-specific intellect tiers are intentionally not layered onto the baseline in this revision. The restored behavior can be play-tested first, then any higher-intellect orbital tactics can be added incrementally without changing the `INTELLECT: 1` baseline.

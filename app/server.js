@@ -5207,167 +5207,81 @@ class io_minion extends IO {
   constructor(body) {
     super(body);
     this.turnwise = 1;
-    this._orbitAimAngle = undefined;
-    this._orbitPhase = 0;
-    this._orbitAge = 0;
-    this._orbitPhaseSeeded = false;
-    this._orbitAnchor = body.master || body.source || body;
-    this._attackStance = undefined;
   }
   think(input) {
     if (this.body.invuln === true) return;
     if (this.body.aiSettings.reverseDirection && ran.chance(0.005)) {
       this.turnwise = -1 * this.turnwise;
     }
+
+    // Evasion is a separate intellect feature. When the targeting controller
+    // has an active dodge plan, let that temporary goal take priority; otherwise
+    // use the classic minion steering below without orbit-angle integration.
+    if (
+      input.goal != null &&
+      minionMovementPolicy.hasActiveIntellectDodge(this.body)
+    ) {
+      return { goal: input.goal };
+    }
+
     if (input.target != null && (input.alt || input.main)) {
       const body = this.body;
-      const intellectValue = this.getIntellect();
-      const rawSizeFactor = Number(body.master && body.master.size) / Number(body.master && body.master.SIZE);
-      const sizeFactor = Number.isFinite(rawSizeFactor) && rawSizeFactor > 0
-        ? Math.sqrt(rawSizeFactor)
+      const masterSize = Number(body.master && body.master.size);
+      const masterBaseSize = Number(body.master && body.master.SIZE);
+      const sizeRatio = masterBaseSize > 0 ? masterSize / masterBaseSize : 1;
+      const sizeFactor = Number.isFinite(sizeRatio) && sizeRatio >= 0
+        ? Math.sqrt(sizeRatio)
         : 1;
-      const orbitAnchor = body.master || body.source || body;
-      if (this._orbitAnchor !== orbitAnchor) {
-        this._orbitAnchor = orbitAnchor;
-        this._orbitAge = 0;
-        this._orbitPhase = 0;
-        this._orbitPhaseSeeded = false;
-      }
-      // Orbit radius is a physical formation setting, not an intelligence
-      // score. Preserve the configured/shared baseline at every INTELLECT value.
-      const leash = 100 * sizeFactor;
-      const configuredOrbitBase = Number.isFinite(Number(body.orbitDistance))
-        ? Number(body.orbitDistance)
-        : 120;
-      const configuredOrbit = minionMovementPolicy.expandedOrbitDistance(configuredOrbitBase);
-      let orbit = configuredOrbit * sizeFactor;
+      const leash = 60 * sizeFactor;
+      let orbit = 120 * sizeFactor;
 
-      // Minion AI is also used by some ranged enemies and bosses. Keep their
-      // spacing based on the configured orbit, physical sizes, and speed-based
-      // braking buffer. INTELLECT changes the angular maneuver, never the radius.
-      const rangedCombatant = minionMovementPolicy.isAutonomousRangedCombatant(body);
-      const targetEntity = rangedCombatant
-        ? minionMovementPolicy.getLockedTarget(body, this)
-        : undefined;
-      if (rangedCombatant && targetEntity && input.main && !input.alt) {
-        const targetSize = Math.max(0, Number(targetEntity.size) || Number(targetEntity.SIZE) || 0);
-        // INTELLECT selects orbit behavior, never orbit radius. Size and speed
-        // safety buffers below are independent of intelligence.
-        orbit = configuredOrbit * sizeFactor;
-
-        // Give fast entities more room to decelerate before reaching their
-        // attack lane. This is based on their configured top speed (not their
-        // instantaneous speed), so the desired radius cannot oscillate.
-        const configuredTopSpeed = Math.max(0, Number(body.topSpeed) || 0);
-        const speedBuffer = Math.min(180, configuredTopSpeed * 8);
-        orbit = minionMovementPolicy.safeStandoffOrbit(
-          orbit + speedBuffer,
-          body.size,
-          targetSize,
-          Math.max(50, Math.max(Number(body.size) || 0, targetSize) * 0.65)
-        );
-
-        // Movement follows the target's real position, not its predicted firing
-        // intercept. The firing controller still leads shots independently.
-        // A persistent attack angle keeps a boss on one side of its target until
-        // the target changes, eliminating random flank swapping and close-in rushes.
-        this._attackStance = minionMovementPolicy.stableAttackStance(
-          body,
-          targetEntity,
-          orbit,
-          this._attackStance,
-          intellectValue
-        );
-        if (this._attackStance) {
-          const stanceGoal = this._attackStance.goal;
-          const stancePower = minionMovementPolicy.standoffControlPower(
-            body,
-            targetEntity,
-            stanceGoal,
-            this._attackStance.tangentialVelocity
-          );
-          return {
-            goal: stanceGoal,
-            power: stancePower,
-          };
+      // Keep the earlier wider-orbit adjustment for positive configured values,
+      // but preserve explicit zero/negative orbit settings exactly.
+      if (body.orbitDistance <= 0 || body.orbitDistance > 0) {
+        orbit = body.orbitDistance * sizeFactor;
+        if (body.orbitDistance > 0) {
+          orbit = minionMovementPolicy.expandedOrbitDistance(body.orbitDistance) * sizeFactor;
         }
-      } else {
-        // Do not carry an old target's attack lane through target loss, leash
-        // behavior, or a transition back to player/master-directed movement.
-        this._attackStance = undefined;
       }
 
-      let repel = (100 * sizeFactor * this.body.SPEED) / 2;
+      const repel = (100 * sizeFactor * body.SPEED) / 2;
       let goal;
       let power = 1;
-      let target = new Vector(input.target.x, input.target.y);
+      const target = new Vector(input.target.x, input.target.y);
+
       if (input.alt) {
-        // Leash
+        // Original leash behavior.
         if (target.length < leash) {
           goal = {
-            x: this.body.x + target.x,
-            y: this.body.y + target.y,
+            x: body.x + target.x,
+            y: body.y + target.y,
           };
-
-          // Spiral repel
+        // Original spiral-repel behavior.
         } else if (target.length < repel) {
-          let dir = -this.turnwise * target.direction + Math.PI / 5;
+          const dir = -this.turnwise * target.direction + Math.PI / 5;
           goal = {
-            x: this.body.x + Math.cos(dir),
-            y: this.body.y + Math.sin(dir),
+            x: body.x + Math.cos(dir),
+            y: body.y + Math.sin(dir),
           };
-          // Free repel
+        // Original free-repel behavior.
         } else {
           goal = {
-            x: this.body.x - target.x,
-            y: this.body.y - target.y,
+            x: body.x - target.x,
+            y: body.y - target.y,
           };
         }
       } else if (input.main) {
-        // Build a genuine moving orbit around the locked target's real position
-        // (or the commanded aim point when no target entity is locked). The
-        // angle is world-relative to the orbit center, not a tiny offset from
-        // the current aim direction that can make the AI park at one point.
-        const orbitTarget = minionMovementPolicy.getLockedTarget(body, this);
-        const orbitCenter = orbitTarget
-          ? { x: orbitTarget.x, y: orbitTarget.y }
-          : { x: body.x + target.x, y: body.y + target.y };
-        const orbitTargetIdentity = orbitTarget || null;
-        const orbitTargetChanged = this._orbitTarget !== orbitTargetIdentity || !this._orbitPhaseSeeded;
-        if (orbitTargetChanged) {
-          this._orbitTarget = orbitTargetIdentity;
-          this._orbitPhase = Math.atan2(body.y - orbitCenter.y, body.x - orbitCenter.x);
-          this._orbitPhaseSeeded = true;
-          this._orbitAge = 0;
-          this._orbitWobbleOffset = undefined;
-        }
-        this._orbitAge++;
-        const maneuver = intellect.orbitManeuver(
-          intellectValue,
-          body.id,
-          orbitTarget && orbitTarget.id != null
-            ? orbitTarget.id
-            : (orbitAnchor && orbitAnchor.id),
-          this._orbitAge
-        );
-        const previousWobble = orbitTargetChanged || this._orbitWobbleOffset == null
-          ? maneuver.wobbleOffset
-          : this._orbitWobbleOffset;
-        const wobbleDelta = maneuver.wobbleOffset - previousWobble;
-        this._orbitWobbleOffset = maneuver.wobbleOffset;
-        let angularVelocity = maneuver.direction * maneuver.angularSpeed * maneuver.speedMultiplier;
-        if (body.aiSettings.reverseDirection) angularVelocity *= this.turnwise;
-        angularVelocity = minionMovementPolicy.orbitAngularVelocity(
+        // Restore the original target-relative minion orbit. The controller
+        // continuously updates this offset from the classic target vector; it
+        // does not integrate a world-relative orbit angle or hold an attack lane.
+        const orbitResult = minionMovementPolicy.classicMinionOrbitGoal(
           body,
+          target,
           orbit,
-          angularVelocity + wobbleDelta
+          this.turnwise
         );
-        this._orbitPhase += angularVelocity;
-        this._orbitPhase = Math.atan2(Math.sin(this._orbitPhase), Math.cos(this._orbitPhase));
-        goal = {
-          x: orbitCenter.x + orbit * Math.cos(this._orbitPhase),
-          y: orbitCenter.y + orbit * Math.sin(this._orbitPhase),
-        };
+        goal = orbitResult.goal;
+        power = orbitResult.power;
       }
       return {
         goal: goal,

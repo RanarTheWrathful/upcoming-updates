@@ -15,18 +15,22 @@ assert.ok(server.includes("intellect.chooseWanderSpot("),
   "wander controller should use novelty-aware stable destinations");
 assert.ok(server.includes("this.repositionCooldown <= 0"),
   "formation controller should keep randomized goals stable between reposition decisions");
-assert.ok(server.includes("minionMovementPolicy.getLockedTarget(body, this)"),
-  "autonomous ranged movement should anchor to the actual target lock rather than a lead-aim point");
-assert.ok(server.includes("minionMovementPolicy.stableAttackStance("),
-  "autonomous ranged entities should preserve a stable attack lane through a target lock");
-assert.ok(server.includes("minionMovementPolicy.standoffControlPower("),
-  "high-speed entities should brake when approaching their attack position");
-assert.ok(server.includes("intellect.orbitManeuver("),
-  "intellect should unlock stable orbit maneuvers instead of changing orbit radius");
-assert.ok(server.includes("this._orbitPhase += angularVelocity"),
-  "the ordinary minion controller must integrate a continuously moving orbit at baseline intellect too");
-assert.ok(server.includes("minionMovementPolicy.orbitAngularVelocity("),
-  "orbit speed should be capped by movement capability so slow AI can follow the circle");
+const minionControllerSource = server.slice(
+  server.indexOf("class io_minion extends IO {"),
+  server.indexOf("class io_wanderAroundMap extends IO {")
+);
+assert.ok(minionControllerSource.includes("minionMovementPolicy.classicMinionOrbitGoal("),
+  "the minion controller should use the original target-relative orbit formula");
+assert.ok(!minionControllerSource.includes("stableAttackStance"),
+  "the custom persistent attack stance should not replace the original minion orbit");
+assert.ok(!minionControllerSource.includes("_orbitPhase"),
+  "the restored minion controller should not integrate a custom world-space orbit angle");
+assert.ok(minionControllerSource.includes("minionMovementPolicy.hasActiveIntellectDodge(this.body)"),
+  "active intellect-based evasion should temporarily take priority over ordinary orbit movement");
+assert.ok(server.includes("minionMovementPolicy.expandedOrbitDistance(body.orbitDistance)"),
+  "the previously requested wider configured orbit spacing should remain independent of orbit steering");
+assert.ok(server.includes("minionMovementPolicy.shouldDeferDirectChase(this.body)"),
+  "direct chase must not overwrite minion movement and cause ramming");
 assert.ok(!server.includes("orbit * sizeFactor * autonomyScale"),
   "minion orbit radius must not be scaled by intellect");
 assert.ok(!server.includes("configuredOrbit * sizeFactor * rangedScale"),

@@ -2,6 +2,7 @@
 const assert = require("assert");
 const policy = require("../lib/minionMovementPolicy");
 const intellect = require("../lib/intellect");
+
 function controller(name) { return { constructor: { name: `io_${name}` } }; }
 
 assert.strictEqual(policy.shouldDeferDirectChase({ controllers: [controller("minion")] }), true,
@@ -12,78 +13,48 @@ assert.strictEqual(policy.shouldDeferDirectChase({ isPlayer: true, controllers: 
   "player movement should not be overridden");
 assert.strictEqual(policy.shouldDeferDirectChase({ aiSettings: { forceDirectChase: true }, controllers: [controller("minion")] }), false,
   "an explicit force-direct-chase setting should override the safeguard");
-assert.strictEqual(policy.isAutonomousRangedCombatant({ isEnemy: true }), true);
-assert.strictEqual(policy.isAutonomousRangedCombatant({ isBoss: true }), true);
-assert.strictEqual(policy.isAutonomousRangedCombatant({ isPlayer: true, isEnemy: true }), false);
-assert.strictEqual(intellect.orbitMultiplier(1), 1, "default intellect should preserve the standard orbit radius");
-assert.strictEqual(intellect.orbitMultiplier(100000000), 1, "higher intellect must not change orbit distance");
-assert.strictEqual(policy.expandedOrbitDistance(50), 220, "small legacy orbit values should be widened substantially");
-assert.strictEqual(policy.expandedOrbitDistance(120), 240, "the default orbit should be about twice as wide");
-assert.strictEqual(policy.expandedOrbitDistance(500), 750, "already-large orbits should grow more gradually");
-assert.strictEqual(policy.safeStandoffOrbit(120, 20, 30, 30), 120,
-  "normal target spacing should keep the configured orbit when it is already safe");
-assert.strictEqual(policy.safeStandoffOrbit(60, 80, 100, 30), 215,
-  "large combatants should get a collision-safe standoff even if the IQ-scaled orbit is small");
 
-const validTarget = { id: 2, x: 1000, y: 0, health: { amount: 100 }, valid: () => true };
-const bodyApproaching = { x: 0, y: 0, facing: 0 };
-const stanceA = policy.stableAttackStance(bodyApproaching, validTarget, 300);
-assert.strictEqual(stanceA.angle, Math.PI, "new stance should use the current approach side, not a random angle");
-assert.strictEqual(stanceA.goal.x, 700, "attack point should maintain the requested distance from the target");
-assert.strictEqual(stanceA.radius, 300, "baseline orbit must preserve the requested radius");
-const stanceB = policy.stableAttackStance({ x: 100, y: 10, facing: 0 }, validTarget, 300, stanceA, 1);
-assert.notStrictEqual(stanceB.angle, stanceA.angle, "the stance must continuously orbit instead of parking at one attack point");
-const stanceDelta = Math.atan2(
-  Math.sin(stanceB.angle - stanceA.angle),
-  Math.cos(stanceB.angle - stanceA.angle)
-);
-assert.ok(Math.abs(stanceDelta) < 0.03,
-  "orbiting should advance smoothly rather than jumping to a new angle");
-assert.notStrictEqual(stanceB.goal.x, stanceA.goal.x, "the orbital goal must move around the target every think");
-assert.ok(Math.abs(Math.hypot(stanceB.goal.x - validTarget.x, stanceB.goal.y - validTarget.y) - 300) < 1e-6,
-  "the continuous orbit must maintain its configured radius");
-validTarget.x = 1100;
-const stanceC = policy.stableAttackStance({ x: 100, y: 10 }, validTarget, 300, stanceB, 1);
-assert.ok(Math.abs(Math.hypot(stanceC.goal.x - validTarget.x, stanceC.goal.y - validTarget.y) - 300) < 1e-6,
-  "the orbit should follow target movement while maintaining its radius");
-const otherTarget = { id: 3, x: -500, y: 0, health: { amount: 100 } };
-const stanceD = policy.stableAttackStance({ x: 100, y: 10 }, otherTarget, 300, stanceC, 1);
-assert.notStrictEqual(stanceD.target, stanceC.target, "a new target should start a fresh attack stance");
+assert.strictEqual(policy.expandedOrbitDistance(50), 220,
+  "the previously requested wider spacing should remain for positive configured orbits");
+assert.strictEqual(policy.expandedOrbitDistance(120), 240);
+assert.strictEqual(policy.expandedOrbitDistance(500), 750);
 
-const lockedController = { constructor: { name: "io_nearestDifferentMaster" }, targetLock: validTarget };
-assert.strictEqual(policy.getLockedTarget({ controllers: [lockedController] }), validTarget,
-  "movement should use the actual locked target rather than predicted aim coordinates");
-assert.ok(policy.standoffControlPower(
-  { x: 0, y: 0, size: 10, topSpeed: 20, motionType: "motor", velocity: { x: 20, y: 0 } },
-  { velocity: { x: 0, y: 0 } },
-  { x: 100, y: 0 }
-) < 0, "motor-mode high-speed AI should brake when it is closing too quickly");
-assert.strictEqual(policy.standoffControlPower(
-  { x: 0, y: 0, size: 10, topSpeed: 20, motionType: "motor", velocity: { x: 0, y: 0 } },
-  { velocity: { x: 0, y: 0 } },
-  { x: 1000, y: 0 }
-), 1, "AI should use full power while the stance point is far away");
+// These are the original controller's relative-target calculations, rather
+// than a newly integrated world-space orbit angle or a fixed attack stance.
+const body = { x: 100, y: 200, size: 20 };
+const target = { x: 300, y: 400, length: 500, direction: Math.atan2(400, 300) };
+const orbit = 250;
+const classic = policy.classicMinionOrbitGoal(body, target, orbit, 1);
+const dir = target.direction + 0.01;
+assert.deepStrictEqual(classic.goal, {
+  x: body.x + target.x - orbit * Math.cos(dir),
+  y: body.y + target.y - orbit * Math.sin(dir),
+}, "default minion orbit must preserve the original target-relative formula");
+assert.strictEqual(classic.power, 1);
 
-const smartBody = { id: 100, x: 0, y: 0, facing: 0 };
-const smartTarget = { id: 200, x: 1000, y: 0, health: { amount: 100 } };
-const smartStance0 = policy.stableAttackStance(
-  smartBody, smartTarget, 420, undefined, 100000000
+const nearOrbit = policy.classicMinionOrbitGoal(
+  body,
+  { x: 10, y: 0, length: 10, direction: 0 },
+  20,
+  1
 );
-const smartStance1 = policy.stableAttackStance(
-  smartBody, smartTarget, 420, smartStance0, 100000000
-);
-assert.strictEqual(smartStance0.radius, 420, "intellect must not shrink the configured smart attack orbit");
-assert.strictEqual(smartStance1.radius, 420, "smart orbital maneuvers should stay on the same-radius ring");
-assert.notStrictEqual(smartStance1.angle, smartStance0.angle, "extreme intellect should steadily maneuver around a target");
-assert.ok(Math.abs(Math.hypot(smartStance1.goal.x - smartTarget.x, smartStance1.goal.y - smartTarget.y) - 420) < 1e-6,
-  "extreme-intellect orbit should not alter the configured radius");
-const movingOrbitPower = policy.standoffControlPower(
-  { x: 0, y: 0, size: 10, topSpeed: 20, motionType: "motor", velocity: { x: 0, y: 0 } },
-  { x: 0, y: 0, velocity: { x: 0, y: 0 } },
-  { x: 3, y: 0 },
-  { x: 0, y: 4 }
-);
-assert.ok(movingOrbitPower >= 0.3,
-  "the controller must retain steering power while following a moving orbital waypoint");
+assert.strictEqual(nearOrbit.power, 0.7,
+  "the original near-orbit movement-power reduction should remain");
+const reversed = policy.classicMinionOrbitGoal(body, target, orbit, -1);
+assert.notDeepStrictEqual(reversed.goal, classic.goal,
+  "reverse direction should retain the original turnwise behavior");
 
-console.log("minion movement policy tests passed");
+assert.strictEqual(intellect.orbitMultiplier(100000000), 1,
+  "INTELLECT must not alter the configured orbit radius");
+
+const dodgeController = {
+  _intellectFrame: 10,
+  _intellectDodgeState: { direction: { x: 0, y: 1 }, until: 15 },
+};
+assert.strictEqual(policy.hasActiveIntellectDodge({ controllers: [dodgeController] }), true,
+  "active intellect dodges should be allowed to override minion orbit temporarily");
+dodgeController._intellectFrame = 15;
+assert.strictEqual(policy.hasActiveIntellectDodge({ controllers: [dodgeController] }), false,
+  "expired dodge plans should not permanently suppress orbit behavior");
+
+console.log("classic minion movement policy tests passed");

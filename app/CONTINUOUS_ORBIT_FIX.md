@@ -1,20 +1,20 @@
-# Continuous Orbit Fix
+# Classic Minion Orbit Restored
 
-## What was wrong
+## What was changed
 
-The `INTELLECT: 1` maneuver returned zero angular speed. Autonomous ranged entities therefore moved to one selected point on the orbit ring and stopped there. The ordinary `minion` controller also used a small aim-relative offset rather than integrating an orbit angle around the current target/aim center.
+The custom world-space orbit integrator and fixed attack-stance movement have been removed from `io_minion`. The controller again uses the original target-relative offset formula from the project baseline, including the original leash/repel logic and the `0.7` movement-power reduction near the desired orbit distance.
 
-## What changed
+The earlier request to widen unusually tight formations is retained as a separate radius policy for positive configured `ORBIT_DISTANCE` values. Explicit zero/negative settings are preserved.
 
-- `INTELLECT: 1` now performs a continuous, predictable orbit.
-- The standard `minion` controller tracks a target-relative orbit angle instead of reaching one fixed offset point and parking.
-- Autonomous ranged enemies and bosses advance their attack stance smoothly around the actual locked target position.
-- The orbit radius stays independent of intellect; it still comes from class settings and existing size/speed safety rules.
-- Higher intellect changes orbit direction/speed patterns at persistent maneuver boundaries and gradually varies angular motion. It does not choose a fresh random point each frame.
-- Orbit speed is capped based on body movement capability and ring radius, so slow entities are not commanded to chase an impossible tangential speed.
-- The braking calculation accounts for the orbit waypoint's tangential velocity and maintains steering power while following a moving waypoint. Real braking is retained when a motor-driven entity closes too quickly.
-- Projectile evasion remains available at its existing intellect thresholds. A dodge can temporarily interrupt orbit only when the evasion system detects a relevant incoming projectile; normal orbital movement resumes afterward.
+The `mapTargetToGoal` safeguard remains so it cannot overwrite a minion controller's movement goal with a direct collision-course chase. Existing INTELLECT targeting, predictive aiming, and projectile evasion remain available. During an active projectile-dodge plan, the minion controller temporarily respects the dodge goal, then resumes the classic orbit.
+
+## Deliberately removed from the minion orbit
+
+- No persistent world-space `_orbitPhase` integration.
+- No separate fixed attack lane for ranged combatants/bosses.
+- No standoff/braking controller that replaces the classic minion steering formula.
+- No intellect-based orbit-radius adjustment.
 
 ## Validation
 
-All `tests/*.test.js` files included in this archive passed individually, and all project JavaScript files passed `node --check`. Live gameplay has not been tested.
+Focused tests compare the live orbit helper against the classic formula, verify the radius policy is separate, and ensure active evasion goals are not overwritten. Live gameplay has not been tested.
