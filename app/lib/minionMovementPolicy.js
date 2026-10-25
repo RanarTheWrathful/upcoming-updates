@@ -1,5 +1,7 @@
 "use strict";
 
+const intellect = require("./intellect");
+
 function controllerName(controller) {
   if (!controller) return "";
   if (typeof controller.controllerName === "string") return controller.controllerName.toLowerCase();
@@ -75,24 +77,34 @@ function getLockedTarget(body, excludedController) {
 // Keep one attack lane for the duration of a target lock. Reusing the same
 // target preserves the side/angle; only acquiring a different target selects a
 // new angle, based on the entity's actual position rather than randomness.
-function stableAttackStance(body, target, orbitDistance, previous) {
+function stableAttackStance(body, target, orbitDistance, previous, intellectValue = 1) {
   if (!body || !isUsableTarget(target)) return undefined;
   const sameTarget = previous && previous.target === target && Number.isFinite(previous.angle);
+  const age = sameTarget ? (Number(previous.age) || 0) + 1 : 0;
+  const maneuver = intellect.orbitManeuver(intellectValue, body.id, target.id, age);
   let angle;
   if (sameTarget) {
-    angle = previous.angle;
+    // Move around the same radial ring with a smooth, persistent maneuver.
+    // Wobble changes angle only; radius is never multiplied by INTELLECT.
+    angle = previous.angle + maneuver.direction * maneuver.angularSpeed * maneuver.speedMultiplier;
+    angle += maneuver.wobbleOffset - (Number(previous.wobbleOffset) || 0);
   } else {
     const dx = (Number(body.x) || 0) - Number(target.x);
     const dy = (Number(body.y) || 0) - Number(target.y);
     angle = Math.hypot(dx, dy) > 1e-6
       ? Math.atan2(dy, dx)
       : (Number(body.facing) || 0) + Math.PI;
+    angle += maneuver.phaseOffset + maneuver.wobbleOffset;
   }
+  angle = Math.atan2(Math.sin(angle), Math.cos(angle));
   const radius = Math.max(0, Number(orbitDistance) || 0);
   return {
     target,
     angle,
     radius,
+    age,
+    style: maneuver.style,
+    wobbleOffset: maneuver.wobbleOffset,
     goal: {
       x: Number(target.x) + Math.cos(angle) * radius,
       y: Number(target.y) + Math.sin(angle) * radius,

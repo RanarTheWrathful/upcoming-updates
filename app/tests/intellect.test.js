@@ -30,9 +30,36 @@ assert.ok(intellect.fleeThreshold(0.3, 0.1) < intellect.fleeThreshold(0.3, 1));
 assert.strictEqual(intellect.fleeThreshold(0.3, 1), 0.3);
 assert.ok(intellect.fleeThreshold(0.3, 100000000) < 0.34, "high intellect must not cause panic fleeing at almost full health");
 assert.strictEqual(intellect.orbitMultiplier(1), 1);
-assert.ok(intellect.orbitMultiplier(0.1) > 1, "low-intellect formations should not collapse inward");
-assert.ok(intellect.orbitMultiplier(100000000) > 1, "high-intellect minions should maintain wider spacing");
-assert.ok(intellect.orbitMultiplier(100000000) <= 1.6, "orbit scaling should remain bounded");
+assert.strictEqual(intellect.orbitMultiplier(0.1), 1, "low intellect must not change the configured orbit radius");
+assert.strictEqual(intellect.orbitMultiplier(100000000), 1, "high intellect must not change the configured orbit radius");
+assert.strictEqual(intellect.orbitDecisionInterval(1), 30, "baseline near-master goal interval remains unchanged");
+assert.ok(intellect.orbitDecisionInterval(100000000) > intellect.orbitDecisionInterval(1),
+  "higher intellect should retain chosen orbit goals longer instead of jittering between them");
+
+const standardOrbit = intellect.orbitManeuver(1, 10, 20, 500);
+assert.strictEqual(standardOrbit.style, "standard", "INTELLECT 1 should use the normal minion orbit method");
+assert.strictEqual(standardOrbit.phaseOffset, 0);
+assert.strictEqual(standardOrbit.angularSpeed, 0);
+assert.strictEqual(standardOrbit.wobbleAmplitude, 0);
+const variedOrbit = intellect.orbitManeuver(8, 10, 20, 500);
+assert.strictEqual(variedOrbit.style, "slow-orbit");
+assert.ok(variedOrbit.phaseOffset >= 0 && variedOrbit.phaseOffset < Math.PI * 2);
+assert.ok(variedOrbit.angularSpeed > 0);
+const weavingOrbit = intellect.orbitManeuver(32, 10, 20, 500);
+assert.strictEqual(weavingOrbit.style, "weaving-orbit");
+assert.ok(weavingOrbit.wobbleAmplitude > 0);
+const adaptiveOrbit = intellect.orbitManeuver(512, 10, 20, 500);
+assert.strictEqual(adaptiveOrbit.style, "adaptive-weave");
+assert.ok([0.55, 0.8, 1, 1.25, 1.45].includes(adaptiveOrbit.speedMultiplier));
+assert.deepStrictEqual(
+  intellect.orbitManeuver(512, 10, 20, 500), adaptiveOrbit,
+  "the same entity/target/time should produce the same planned maneuver"
+);
+assert.notStrictEqual(
+  intellect.orbitManeuver(8, 10, 20, 500).phaseOffset,
+  intellect.orbitManeuver(8, 11, 20, 500).phaseOffset,
+  "different minions should occupy different stable lanes"
+);
 
 const body = { x: 0, y: 0, fov: 2000, topSpeed: 10, velocity: { x: 0, y: 0 }, aiTarget: "general" };
 const near = { x: 100, y: 0, dangerValue: 1, health: { amount: 100, max: 100 }, velocity: { x: 0, y: 0 } };

@@ -11,21 +11,21 @@ INTELLECT measures decision quality and planning depth. It should not make an AI
 - **Target selection:** beyond the baseline, the AI scores proximity, threat level, target vulnerability, and whether the target is approaching. It does not simply choose the farthest available target. Equal danger values remain equal instead of being ranked by array order.
 - **Shot prediction:** the intercept solver avoids non-finite results when target and projectile speeds are similar. Motion prediction is smoothed and acceleration estimates are bounded.
 - **Wandering:** higher intellect samples more destination candidates and weighs novelty and useful travel distance. It avoids repeatedly picking the farthest point.
-- **Formation movement:** higher intellect tightens formation gradually and smooths minion orbit directions. Near-master controllers now retain a movement goal for a short interval rather than selecting a new random one every frame while outside the formation radius.
+- **Formation movement:** INTELLECT does not alter the configured minion orbit radius, leash distance, or near-master bounds. At `1`, minions use the standard orbit. Higher values unlock stable entity-specific orbital lanes, slow angular travel, smooth weaving, and long-duration maneuver changes. Maneuvers change angle and timing, not radius. Near-master controllers retain chosen movement goals longer as intellect rises, avoiding destination jitter.
 - **Retreat:** the flee threshold changes modestly. Extreme intellect does not make every small hit trigger near-permanent retreat.
 
 ## Threshold abilities
 
 | INTELLECT | Capability |
 |---:|---|
-| `2+` | Basic threat-aware target scoring begins to influence target choice. |
+| `2+` | Basic threat-aware target scoring begins to influence target choice; minions begin using stable, entity-specific orbit lanes without changing orbit radius. |
 | `4+` | Uses a robust ballistic intercept solver rather than only the basic linear lead approximation. |
-| `8+` | Builds short-term target motion history and estimates acceleration from velocity changes. |
+| `8+` | Builds short-term target motion history and estimates acceleration from velocity changes; minions begin a slow, persistent orbit rather than holding one angle. |
 | `16+` | Infers likely movement direction from non-player AI navigation goals and can reconsider a significantly better target while retaining target-lock hysteresis. |
-| `32+` | Predicts near-future hostile projectile paths and can choose a stable evasive movement goal when a collision is likely. Player bodies and immobile/bound entities are not forcibly moved by this feature. |
-| `128+` | Compares eight candidate escape directions against nearby projectile trajectories instead of choosing a simple perpendicular dodge. |
-| `512+` | Pathfinders can detect repeated no-progress samples and skip a small number of waypoints as a recovery measure. They do not skip waypoints just because their intellect is high. |
-| `2048+` | Evaluates up to sixteen escape directions and scans for projectile threats every simulation frame. |
+| `32+` | Adds a smooth angular weave to the orbit path and predicts near-future hostile projectile paths; the orbital radius does not change. |
+| `128+` | Selects orbit direction and cruise style in long maneuver intervals, compares eight candidate escape directions, and avoids per-frame random switching. |
+| `512+` | Adds multiple stable orbit speeds and longer, more varied attack arcs; pathfinders can also recover from repeated blockage by skipping a small number of waypoints. |
+| `2048+` | Unlocks the most varied orbit pattern, combining stable phase offsets, angular weaving, deliberate maneuver changes, and up to sixteen projectile-evasion directions while preserving the same radius. |
 | `4096+` | Motion forecasting can use most of its bounded acceleration estimate and inferred navigation intent. |
 
 ## Controller notes
@@ -33,8 +33,8 @@ INTELLECT measures decision quality and planning depth. It should not make an AI
 - `nearestDifferentMaster` and `Dominator`: threat scoring, predictive aiming, target-motion estimation, and projectile evasion when eligible.
 - `wanderAroundMap`: novelty-aware destination selection and stable pauses.
 - `pathFinder`: sequential routing by default; stuck recovery only at `INTELLECT >= 512` after repeated evidence that the current segment is blocked.
-- `minion`: smoother orbit response at higher intellect to avoid sharp formation shifts from tiny changes in the master's aim.
-- `hangOutNearMaster`: stable repositioning with a cooldown so a minion does not randomize its goal every frame when it has fallen outside its preferred radius.
+- `minion`: uses the standard orbit at `INTELLECT: 1`. Higher values add stable, entity-specific lane offsets, slow orbiting, smooth angular weave, and infrequent direction/speed changes. Radius, leash distance, and target standoff remain independent of intellect.
+- `hangOutNearMaster`: uses the same configured bounds at every intellect value; higher intellect retains a selected destination longer and can vary its chosen lane without changing the bounds.
 - `fleeAtLowHealth`: the retreat threshold changes modestly; high intellect relies more on predictive defense than panic fleeing.
 - Controllers that only issue fixed behavior, such as `spin`, `teleportToMaster`, or `doNothing`, are not changed unless they already use a movement/target decision affected by intellect.
 - Entities without controllers are not autonomously moved or otherwise given AI behavior by INTELLECT.

@@ -5208,6 +5208,10 @@ class io_minion extends IO {
     super(body);
     this.turnwise = 1;
     this._orbitAimAngle = undefined;
+    this._orbitPhase = 0;
+    this._orbitAge = 0;
+    this._orbitPhaseSeeded = false;
+    this._orbitAnchor = body.master || body.source || body;
     this._attackStance = undefined;
   }
   think(input) {
@@ -5222,30 +5226,34 @@ class io_minion extends IO {
       const sizeFactor = Number.isFinite(rawSizeFactor) && rawSizeFactor > 0
         ? Math.sqrt(rawSizeFactor)
         : 1;
-      const autonomyScale = intellect.orbitMultiplier(intellectValue);
-      // Keep minions visibly separated from their owner/aim point. Legacy class
-      // ORBIT_DISTANCE values (often 50–120) were cramped, so widen them through
-      // a shared policy while retaining more gradual growth for already-large radii.
-      let leash = 100 * sizeFactor * autonomyScale;
+      const orbitAnchor = body.master || body.source || body;
+      if (this._orbitAnchor !== orbitAnchor) {
+        this._orbitAnchor = orbitAnchor;
+        this._orbitAge = 0;
+        this._orbitPhase = 0;
+        this._orbitPhaseSeeded = false;
+      }
+      // Orbit radius is a physical formation setting, not an intelligence
+      // score. Preserve the configured/shared baseline at every INTELLECT value.
+      const leash = 100 * sizeFactor;
       const configuredOrbitBase = Number.isFinite(Number(body.orbitDistance))
         ? Number(body.orbitDistance)
         : 120;
       const configuredOrbit = minionMovementPolicy.expandedOrbitDistance(configuredOrbitBase);
-      let orbit = configuredOrbit * sizeFactor * autonomyScale;
+      let orbit = configuredOrbit * sizeFactor;
 
-      // Minion AI is also used by some ranged enemies and bosses. Their old
-      // orbit multiplier shrank with intellect (as low as 0.5x), and fixed
-      // orbit radii ignored the size of large targets, so a "smart" ranged AI
-      // could end up inside collision range and look like a rammer. Keep their
-      // spacing bounded by entity size and widen it modestly as IQ increases.
+      // Minion AI is also used by some ranged enemies and bosses. Keep their
+      // spacing based on the configured orbit, physical sizes, and speed-based
+      // braking buffer. INTELLECT changes the angular maneuver, never the radius.
       const rangedCombatant = minionMovementPolicy.isAutonomousRangedCombatant(body);
       const targetEntity = rangedCombatant
         ? minionMovementPolicy.getLockedTarget(body, this)
         : undefined;
       if (rangedCombatant && targetEntity && input.main && !input.alt) {
         const targetSize = Math.max(0, Number(targetEntity.size) || Number(targetEntity.SIZE) || 0);
-        const rangedScale = 1 + 0.3 * intellect.progression(intellectValue, 1, 1000000);
-        orbit = configuredOrbit * sizeFactor * rangedScale;
+        // INTELLECT selects orbit behavior, never orbit radius. Size and speed
+        // safety buffers below are independent of intelligence.
+        orbit = configuredOrbit * sizeFactor;
 
         // Give fast entities more room to decelerate before reaching their
         // attack lane. This is based on their configured top speed (not their
@@ -5267,7 +5275,8 @@ class io_minion extends IO {
           body,
           targetEntity,
           orbit,
-          this._attackStance
+          this._attackStance,
+          intellectValue
         );
         if (this._attackStance) {
           const stanceGoal = this._attackStance.goal;
@@ -5322,6 +5331,27 @@ class io_minion extends IO {
         const aimResponsiveness = 1 - 0.7 * intellect.progression(this.getIntellect(), 1, 256);
         this._orbitAimAngle += util.angleDifference(rawAim, this._orbitAimAngle) * aimResponsiveness;
         let dir = this.turnwise * this._orbitAimAngle + 0.01;
+        if (intellectValue > 1) {
+          this._orbitAge++;
+          const maneuver = intellect.orbitManeuver(
+            intellectValue,
+            body.id,
+            orbitAnchor && orbitAnchor.id,
+            this._orbitAge
+          );
+          if (!this._orbitPhaseSeeded) {
+            this._orbitPhase = maneuver.phaseOffset;
+            this._orbitPhaseSeeded = true;
+          }
+          this._orbitPhase += maneuver.direction * maneuver.angularSpeed * maneuver.speedMultiplier;
+          this._orbitPhase = Math.atan2(Math.sin(this._orbitPhase), Math.cos(this._orbitPhase));
+          dir += this._orbitPhase + maneuver.wobbleOffset;
+        } else {
+          // INTELLECT 1 retains the standard minion controller's normal orbit.
+          this._orbitAge = 0;
+          this._orbitPhase = 0;
+          this._orbitPhaseSeeded = false;
+        }
         goal = {
           x: this.body.x + target.x - orbit * Math.cos(dir),
           y: this.body.y + target.y - orbit * Math.sin(dir),
@@ -5533,10 +5563,12 @@ class io_hangOutNearMaster extends IO {
   }
   think(input) {
     if (this.body.source != this.body) {
-      const autonomyScale = intellect.orbitMultiplier(this.getIntellect());
+      const intellectValue = this.getIntellect();
       this.repositionCooldown = Math.max(0, this.repositionCooldown - 1);
-      let bound1 = this.orbit * 0.8 * autonomyScale + this.body.source.size + this.body.size;
-      let bound2 = this.orbit * 1.5 * autonomyScale + this.body.source.size + this.body.size;
+      // INTELLECT never compresses or expands formation distance. It changes
+      // planning and how long the current destination is retained.
+      let bound1 = this.orbit * 0.8 + this.body.source.size + this.body.size;
+      let bound2 = this.orbit * 1.5 + this.body.source.size + this.body.size;
       let dist = util.getDistance(this.body, this.body.source) + Math.PI / 8;
       let output = {
         target: {
@@ -5548,7 +5580,7 @@ class io_hangOutNearMaster extends IO {
       };
       // Do not roll a new random goal every frame while outside the formation
       // radius. High intellect improves the chosen movement, not goal jitter.
-      const refreshInterval = intellect.scalePauseInterval(30, this.getIntellect());
+      const refreshInterval = intellect.orbitDecisionInterval(intellectValue);
       const reachedGoal = util.getDistance(this.body, this.currentGoal) < Math.max(20, this.body.size * 1.5);
       if (
         this.repositionCooldown <= 0 &&
@@ -5560,6 +5592,16 @@ class io_hangOutNearMaster extends IO {
         let dir =
           util.getDirection(this.body, this.body.source) +
           Math.PI * ran.random(0.5);
+        if (intellectValue > 1) {
+          this._orbitAge = (this._orbitAge || 0) + 1;
+          const maneuver = intellect.orbitManeuver(
+            intellectValue,
+            this.body.id,
+            this.body.source.id,
+            this._orbitAge
+          );
+          dir += maneuver.phaseOffset + maneuver.wobbleOffset;
+        }
         let len = ran.randomRange(bound1, bound2);
         let x = this.body.source.x - len * Math.cos(dir);
         let y = this.body.source.y - len * Math.sin(dir);

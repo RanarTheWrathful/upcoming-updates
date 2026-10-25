@@ -199,17 +199,104 @@ function fleeThreshold(base, value) {
   return original + (Math.min(0.9, original * 1.1) - original) * progression(n, 2, 2048);
 }
 
-function orbitMultiplier(value) {
-  // Intellect should improve spatial coordination without compressing a minion
-  // formation into collision range. Values below 1 remain a little less orderly
-  // (and therefore slightly wider); higher values progressively choose a wider,
-  // more tactically separated orbit. Growth saturates to keep formations bounded.
+// Kept as a compatibility helper for older controllers, but intellect must
+// never alter the configured orbit radius. It changes orbit strategy instead.
+function orbitMultiplier() {
+  return 1;
+}
+
+function stableHash(value) {
+  const text = String(value == null ? "unknown" : value);
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+// Produce a deterministic, persistent orbit maneuver. The position radius is
+// deliberately absent: INTELLECT chooses *how* the entity travels around the
+// ring, never how close to the master/target it gets. age is measured in AI
+// think calls; changes happen in long epochs, not through per-frame randomness.
+function orbitManeuver(value, entityId, targetId, age = 0) {
   const n = normalize(value, 1);
-  const lowIntellectWidening = n < 1 ? 0.2 * (1 - Math.pow(Math.max(0.01, n), 0.12)) : 0;
-  const highIntellectWidening = n > 1
-    ? 0.35 * progression(n, 1, 64) + 0.25 * progression(n, 64, 1000000)
+  if (n <= 1) {
+    return {
+      style: "standard",
+      phaseOffset: 0,
+      direction: 1,
+      angularSpeed: 0,
+      speedMultiplier: 1,
+      wobbleAmplitude: 0,
+      wobblePeriod: 900,
+      wobblePhase: 0,
+      wobbleOffset: 0,
+      cycleLength: 1800,
+      cycle: 0,
+    };
+  }
+
+  const identity = `${entityId == null ? "entity" : entityId}:${targetId == null ? "target" : targetId}`;
+  const seed = stableHash(identity);
+  const phaseSeed = stableHash(`${identity}:phase`) / 0xffffffff;
+  const nAge = Math.max(0, Math.floor(Number(age) || 0));
+  const cycleLength = clamp(Math.round(1800 - level(n) * 25), 900, 1800);
+  const cycle = Math.floor(nAge / cycleLength);
+  const cycleSeed = stableHash(`${identity}:cycle:${n >= 128 ? cycle : 0}`);
+
+  let direction = seed % 2 === 0 ? 1 : -1;
+  if (n >= 128) direction = cycleSeed % 2 === 0 ? 1 : -1;
+
+  let speedMultiplier = 1;
+  if (n >= 512) {
+    // Change cruising style only at long maneuver boundaries. This can create
+    // slow arcs, normal strafes, and faster feints without a jittering goal.
+    const speeds = [0.55, 0.8, 1, 1.25, 1.45];
+    speedMultiplier = speeds[cycleSeed % speeds.length];
+  } else if (n >= 128) {
+    const speeds = [0.7, 1, 1.3];
+    speedMultiplier = speeds[cycleSeed % speeds.length];
+  }
+
+  const angularSpeed = 0.00015 + 0.00485 * progression(n, 2, 4096);
+  const wobbleAmplitude = n >= 32
+    ? 0.04 + 0.28 * progression(n, 32, 4096)
     : 0;
-  return clamp(1 + lowIntellectWidening + highIntellectWidening, 1, 1.6);
+  const wobblePeriod = clamp(Math.round(900 - level(n) * 14), 300, 900);
+  const wobblePhase = phaseSeed * Math.PI * 2;
+  const wobbleOffset = wobbleAmplitude * Math.sin(nAge * Math.PI * 2 / wobblePeriod + wobblePhase);
+  let style = "offset-lane";
+  if (n >= 2048) style = "predictive-feint";
+  else if (n >= 512) style = "adaptive-weave";
+  else if (n >= 128) style = "variable-orbit";
+  else if (n >= 32) style = "weaving-orbit";
+  else if (n >= 8) style = "slow-orbit";
+
+  return {
+    style,
+    // Entity/target-specific phase gives each AI a different lane, but does not
+    // change the ring radius. The phase stays constant throughout a target lock.
+    phaseOffset: Math.PI * 2 * phaseSeed * progression(n, 1, 16),
+    direction,
+    angularSpeed,
+    speedMultiplier,
+    wobbleAmplitude,
+    wobblePeriod,
+    wobblePhase,
+    wobbleOffset,
+    cycleLength,
+    cycle,
+  };
+}
+
+// Near-master controllers should keep each chosen destination long enough for
+// the movement controller to actually reach it. Smarter AI plans ahead instead
+// of rerolling its goal more frequently.
+function orbitDecisionInterval(value) {
+  const n = normalize(value, 1);
+  if (n <= 1) return 30;
+  return Math.round(30 + 90 * progression(n, 1, 100000000));
 }
 
 function solveInterceptTime(position, velocity, projectileSpeed, maxTime = 120) {
@@ -419,6 +506,8 @@ module.exports = {
   pathStep,
   fleeThreshold,
   orbitMultiplier,
+  orbitManeuver,
+  orbitDecisionInterval,
   solveInterceptTime,
   predictIntercept,
   targetIntentVelocity,

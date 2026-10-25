@@ -21,6 +21,14 @@ assert.ok(server.includes("minionMovementPolicy.stableAttackStance("),
   "autonomous ranged entities should preserve a stable attack lane through a target lock");
 assert.ok(server.includes("minionMovementPolicy.standoffControlPower("),
   "high-speed entities should brake when approaching their attack position");
+assert.ok(server.includes("intellect.orbitManeuver("),
+  "intellect should unlock stable orbit maneuvers instead of changing orbit radius");
+assert.ok(!server.includes("orbit * sizeFactor * autonomyScale"),
+  "minion orbit radius must not be scaled by intellect");
+assert.ok(!server.includes("configuredOrbit * sizeFactor * rangedScale"),
+  "ranged combat orbit radius must not be scaled by intellect");
+assert.ok(server.includes("intellect.orbitDecisionInterval(intellectValue)"),
+  "near-master controllers should keep higher-intellect destinations stable for longer");
 assert.ok(server.includes("const recoverStuck = value >= 512 && this.stuckChecks >= 5"),
   "pathfinder should only skip ahead after repeated stuck evidence at the specified threshold");
 console.log("INTELLECT controller-integration checks passed.");
