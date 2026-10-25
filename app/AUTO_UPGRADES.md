@@ -7,8 +7,8 @@ Each rule requires a unique `id`, a numeric `score`, and an `exports` array cont
 Example configuration (commented out in the source so no unrequested class/score behavior is enabled by default):
 
 ```js
-{
-  id: "advanced-siege-automata",
+AUTO_UPGRADE_RULES: {
+  id: "advanced-siege-automata", //Optional; This defaults to the selected export.
   score: 250000,
   exports: ["sentry", "eliteSentry"],
   modes: ["siege"], // Optional; omit to use all modes.

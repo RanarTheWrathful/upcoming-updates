@@ -49810,6 +49810,10 @@ exports.triangleSentry = {
 };
 exports.triangleSwarmSentry = {
   PARENT: [exports.triangleSentry],
+  AUTO_UPGRADE_RULES: {
+  score: 250000,
+  exports: ["elite_swarmer", "elite_battleship"],
+}
   GUNS: [
     {
       POSITION: [7, 14, 0.6, 7, 0, 180, 0],
