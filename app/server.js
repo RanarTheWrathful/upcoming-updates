@@ -3908,8 +3908,8 @@ class io_boomerang extends IO {
     let len = 10 * util.getDistance({ x: 0, y: 0 }, b.master.control.target);const aim = this.m.control.target;
 
 this.myGoal = {
-  x: this.m.x + 3 * aim.x,
-  y: this.m.y + 3 * aim.y,
+  x: this.m.x * aim.x,
+  y: this.m.y * aim.y,
 };
   }
   think(input) {
