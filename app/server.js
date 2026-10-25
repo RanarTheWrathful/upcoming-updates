@@ -213,121 +213,6 @@ function reconnectBodyKey(socket, name) {
   return String(socket.ip) + "\\u0000" + name.trim().toLowerCase();
 }
 
-let wE1 = [
-  "eggCrasher",
-  "squareCrasher",
-  "triangleCrasher",
-  "thrasher",
-  "auto3Guard",
-  "bansheeGuard",
-  "spawnerGuard",
-];
-let wE2 = [
-  "swarmerProtector",
-  "pentagonCrasher",
-  "cruiserProtector",
-  "beekeeperProtector",
-];
-let wE3 = [
-  "triangleSentry",
-  "glitch",
-  "aoc",
-  "beeMechab",
-  "machinegunMechab",
-  "trapMechab",
-  "trapMechabarab",
-  "swarmMechab",
-  "buildMechab",
-  "aokaol",
-  "commanderKeeper",
-  "directorKeeper",
-  "overKeeper",
-];
-let nE1 = [
-  "trianglePounderSentry",
-  "triangleTrapperSentry",
-  "triangleSwarmSentry",
-  "hexagonCrasher",
-  "anomaly",
-  "AlfabuildMechab",
-];
-let nE2 = [
-  "skimmerSentinel",
-  "crossbowSentinel",
-  "minigunSentinel",
-  "Unawakened1",
-  "Unawakened2",
-  "Unawakened3",
-  /*/     "swarmeggsenti1b",
-        "swarmeggsenti2b",
-        "swarmeggsenti3b",/*/
-];
-let sE1 = [];
-let t1B = [
-  "sorcerer",
-  "summoner",
-  "enchantress",
-  "elite_skimmer",
-  "elite_machine",
-  "elite_destroyer",
-  "elite_gunner",
-  "elite_spawner",
-  "elite_battleship",
-  "fallenhybrid",
-  "fallenanni",
-  "fallenflankguard",
-  "fallenfalcon",
-  "elder",
-  "Pawn",
-  "oblivion",
-]; //yipeeeeee
-let t2B = [
-  "nulltype",
-  "elite_warkspawner",
-  "contraption",
-  "defender",
-  "exorcistor",
-  "nestkeep",
-  "nestward",
-  "mortarLordCenturion",
-  "hiveLordCenturion",
-  "cultist",
-  "arenaguard",
-  "bot",
-  "roguepalisade",
-  "roguarmada",
-  "RogueLibor",
-  "roguemothership",
-  "castaway",
-  "twilight",
-  "elite_fortress",
-  "defector",
-  "witch",
-  "elite_spinner",
-  "elite_sprayer",
-  "elite_swarmer",
-  "fallenoverlord",
-  "fallenbooster",
-  "enslaver",
-  "plaguedoc",
-  "fallenautodouble",
-  "squaredpelleter",
-  "hellwark",
-];
-let t3B = [
-  "damagedArenaCloser",
-  "nestguard",
-  "amalgam",
-  "exterminator",
-  "Rook",
-  "lesserCaster",
-  "lesserCreed",
-  "lesserAetherAspect",
-  "lesserlightFinder",
-  "lesserConstant",
-  "fallentyrant",
-];
-
 
 // Built after Class is loaded so each Siege candidate is priced by the score
 // that Entity.define() assigns, rather than by arbitrary rarity-tier costs.
@@ -393,7 +278,7 @@ c.networkUpdateFactor = 24;
 c.socketWarningLimit = 5;
 c.networkFrontlog = 1;
 c.networkFallbackTime = 30;
-c.visibleListInterval = 750;
+c.visibleListInterval = 7500;
 if (c.MODE === "theDistance") c.visibleListInterval = 1;
 c.runSpeed = 1.5;
 c.maxHeartbeatInterval = 30000000;
