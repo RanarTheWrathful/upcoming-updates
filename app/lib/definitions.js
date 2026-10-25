@@ -3756,7 +3756,7 @@ exports.wreckerSetBlock = {
 //Boomerands
 exports.boomerang = {
   LABEL: "Boomerang",
-  PARENT: [exports.block],
+  PARENT: [exports.setBlock],
   CONTROLLERS: ["boomerang"],
   //MOTION_TYPE: "motor",
   //HITS_OWN_TYPE: "never",
