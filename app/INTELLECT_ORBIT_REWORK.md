@@ -1,9 +1,9 @@
 # INTELLECT and Minion Orbit Baseline
 
-The standard `minion` controller has been restored to the original project orbit behavior as the baseline for future tuning. It uses its target-relative vector to determine the goal, preserves the original leash and repel behavior, and lowers movement power near the configured orbit band. It no longer calculates an independent persistent world-space orbit angle or selects a fixed attack stance.
+The standard `minion` controller remains restored to the original target-relative movement formula, including its leash/repel behavior and near-orbit power reduction. INTELLECT does not change its configured orbit radius or replace its goal with a custom attack stance.
 
-INTELLECT still affects target selection, aiming prediction, and eligible projectile evasion. A detected projectile dodge can temporarily override the normal minion movement goal; once the dodge expires, the minion resumes its normal orbit logic. INTELLECT does not change orbit radius.
+INTELLECT is now a controller-specific decision layer. At exactly `1`, controller outputs remain at baseline, apart from rare opportunistic smart actions. Fractional positive values reduce awareness, prediction precision, movement commitment, and smart-action likelihood. Higher values increase tactical target evaluation, movement-power adaptation, wall-aware routing, prediction, projectile evasion/interception, path recovery, and controller-specific strategy choices. Negative values reverse the completed controller-stack intent once, rather than inverting each stacked controller independently.
 
-Positive configured `ORBIT_DISTANCE` values retain the previously requested wider-spacing policy. Explicit zero/negative values are not expanded. The direct-chase safeguard also remains so a `mapTargetToGoal` controller cannot replace minion steering with a straight-line ram.
+Projectile evasion can temporarily override the classic minion goal when a hostile projectile is predicted to threaten the entity; the classic orbit resumes after the dodge. Higher intellect can also temporarily aim and fire at an imminent hostile projectile when the entity has usable guns and its targeting mode allows interception.
 
-Orbit-specific intellect tiers are intentionally not layered onto the baseline in this revision. The restored behavior can be play-tested first, then any higher-intellect orbital tactics can be added incrementally without changing the `INTELLECT: 1` baseline.
+Positive configured `ORBIT_DISTANCE` values retain the previously requested wider-spacing policy. Explicit zero/negative values are not expanded. The direct-chase safeguard remains so `mapTargetToGoal` cannot replace minion steering with a straight-line ram.

@@ -4,7 +4,7 @@ const intellect = require("../lib/intellect");
 
 assert.strictEqual(intellect.normalize(undefined), 1);
 assert.strictEqual(intellect.normalize(100000000), 100000000);
-assert.strictEqual(intellect.normalize(-2), 0);
+assert.strictEqual(intellect.normalize(-2), -2, "negative intellect must remain available to invert controller intent");
 assert.strictEqual(intellect.has(32, 32), true);
 assert.strictEqual(intellect.has(31.99, 32), false);
 
@@ -19,6 +19,7 @@ assert.ok(intellect.scalePauseInterval(90, 100000000) >= 8);
 
 assert.strictEqual(intellect.waypointCandidateCount(1), 1);
 assert.ok(intellect.waypointCandidateCount(100000000) > intellect.waypointCandidateCount(1));
+assert.strictEqual(intellect.waypointCandidateCount(-100000000), 1, "negative intellect should not gain advanced destination search");
 assert.strictEqual(intellect.pathStep(100000000, 0), 1, "high intellect should not skip route points without evidence of a blockage");
 assert.strictEqual(intellect.pathStep(100000000, 4), 1, "recovery requires repeated stuck samples");
 assert.ok(intellect.pathStep(512, 5) >= 2);
@@ -33,8 +34,10 @@ assert.strictEqual(intellect.orbitMultiplier(1), 1);
 assert.strictEqual(intellect.orbitMultiplier(0.1), 1, "low intellect must not change the configured orbit radius");
 assert.strictEqual(intellect.orbitMultiplier(100000000), 1, "high intellect must not change the configured orbit radius");
 assert.strictEqual(intellect.orbitDecisionInterval(1), 30, "baseline near-master goal interval remains unchanged");
-assert.ok(intellect.orbitDecisionInterval(100000000) > intellect.orbitDecisionInterval(1),
-  "higher intellect should retain chosen orbit goals longer instead of jittering between them");
+assert.ok(intellect.orbitDecisionInterval(100000000) < intellect.orbitDecisionInterval(1),
+  "higher intellect should make useful formation decisions more often while retaining a cooldown");
+assert.ok(intellect.orbitDecisionInterval(-100000000) > intellect.orbitDecisionInterval(1),
+  "negative intellect should make formation decisions slower and less competent");
 
 const standardOrbit = intellect.orbitManeuver(1, 10, 20, 500);
 assert.strictEqual(standardOrbit.style, "standard", "INTELLECT 1 should use the normal minion orbit method");
@@ -66,6 +69,7 @@ const near = { x: 100, y: 0, dangerValue: 1, health: { amount: 100, max: 100 }, 
 const farWeak = { x: 900, y: 0, dangerValue: 10, health: { amount: 20, max: 100 }, velocity: { x: -1, y: 0 } };
 const farEqualThreat = { x: 900, y: 0, dangerValue: 1, health: { amount: 100, max: 100 }, velocity: { x: 0, y: 0 } };
 assert.strictEqual(intellect.chooseTarget([near, farWeak], body, 1), near);
+assert.strictEqual(intellect.chooseTarget([near, farWeak], body, -1), near, "negative intellect keeps the controller's target selection but later reverses its final aim/movement intent");
 assert.strictEqual(intellect.chooseTarget([near, farWeak], body, 100000000), farWeak, "very high intellect should weigh threat and vulnerability, not just distance");
 assert.strictEqual(intellect.chooseTarget([near, farEqualThreat], body, 100000000), near, "equal-danger targets must not be biased by array order");
 assert.strictEqual(intellect.chooseTarget([near, farEqualThreat], body, 100000000, near), near, "a comparable current target should remain locked");
@@ -126,3 +130,37 @@ const wanderChoices = [
 const selected = intellect.chooseWanderSpot(wanderChoices, body, [{ x: 500, y: 0 }], 100000000);
 assert.ok(wanderChoices.includes(selected));
 console.log("INTELLECT decision, prediction, evasion, and stability tests passed.");
+
+
+// INTELLECT is neutral at exactly 1, degrades capabilities below 1, and
+// reverses controller intent at negative values.
+assert.ok(intellect.scaleRange(100, -2) < intellect.scaleRange(100, 1));
+assert.ok(intellect.scaleInterval(15, -2) > intellect.scaleInterval(15, 1));
+assert.ok(intellect.smartActionChance(0.1, 0.01, 512) < intellect.smartActionChance(1, 0.01, 512));
+assert.ok(intellect.smartActionChance(100000000, 0.01, 512) > 0.99);
+assert.strictEqual(intellect.strategyProfile(1, 3, 100), "balanced");
+assert.ok(["balanced", "aggressive", "finisher", "survival"].includes(intellect.strategyProfile(100000000, 3, 100)));
+
+const normalOutput = { goal: { x: 100, y: 0 }, target: { x: 1, y: 0 }, main: true, fire: true };
+const outputBody = { x: 0, y: 0, topSpeed: 10, velocity: { x: 0, y: 0 }, intellect: 1 };
+assert.deepStrictEqual(intellect.adaptControllerOutput("io_minion", normalOutput, outputBody), normalOutput,
+  "INTELLECT 1 must preserve the controller output exactly");
+const lowOutput = intellect.adaptControllerOutput("io_minion", normalOutput, { ...outputBody, intellect: 0.1 });
+assert.ok(lowOutput.power < 1, "fractional intellect should reduce movement commitment");
+const invertedOutput = intellect.adaptControllerOutput("io_mapTargetToGoal", normalOutput, { ...outputBody, intellect: -1 });
+assert.strictEqual(invertedOutput.goal.x, -100, "negative intellect should move opposite the controller's goal");
+assert.strictEqual(invertedOutput.target.x, -1, "negative intellect should aim opposite the controller's target");
+assert.strictEqual(invertedOutput.main, false, "negative intellect should invert discrete controller intent");
+const invertedStack = intellect.adaptControllerOutput("combined", normalOutput, { ...outputBody, intellect: -1 });
+assert.strictEqual(invertedStack.goal.x, -100, "negative intellect should invert the final combined controller goal once");
+const smartOutput = intellect.adaptControllerOutput("io_pathFinder", normalOutput, { ...outputBody, intellect: 100000000 });
+assert.ok(smartOutput.power > 1, "high intellect should adapt movement power when a goal is far away");
+
+const wallBody = { x: 0, y: 0, size: 10, id: 1 };
+const wallBlocked = (point) => point.x > 45 && point.x < 65 && Math.abs(point.y) < 40;
+const wallWaypoint = intellect.wallAwareWaypoint(wallBody, { x: 120, y: 0 }, wallBlocked, 100000000, "wall-test", 100, {});
+assert.ok(wallWaypoint, "high intellect should find a waypoint around an intervening wall");
+assert.strictEqual(wallBlocked(wallWaypoint), false, "wall-aware waypoint must not be inside a wall");
+assert.strictEqual(intellect.wallAwareWaypoint(wallBody, { x: 120, y: 0 }, wallBlocked, -100, "wall-test", 100, {}), undefined,
+  "negative intellect should not use the positive-intellect wall-routing tactic");
+console.log("INTELLECT signed behavior, controller adaptation, and wall-routing tests passed.");

@@ -3656,7 +3656,13 @@ class IO {
   }
 
   selectIntellectTarget(targets, currentTarget) {
-    return intellect.chooseTarget(targets, this.body, this.getIntellect(), currentTarget);
+    this._intellectTargetDecisions = (this._intellectTargetDecisions || 0) + 1;
+    const strategy = intellect.strategyProfile(
+      this.getIntellect(),
+      this.body && this.body.id,
+      this._intellectTargetDecisions
+    );
+    return intellect.chooseTarget(targets, this.body, this.getIntellect(), currentTarget, strategy);
   }
 
   beginIntellectFrame() {
@@ -3735,9 +3741,15 @@ class IO {
         this._legacyLeadTarget = target;
         this.lead = timeOfImpact(direct, targetVelocity, projectileSpeed);
       }
-      return {
+      const predicted = {
         x: direct.x + (Number(this.lead) || 0) * (Number(targetVelocity.x) || 0),
         y: direct.y + (Number(this.lead) || 0) * (Number(targetVelocity.y) || 0),
+      };
+      if (value >= 1) return predicted;
+      const predictionWeight = value < 0 ? 0 : Math.max(0, value);
+      return {
+        x: direct.x + (predicted.x - direct.x) * predictionWeight,
+        y: direct.y + (predicted.y - direct.y) * predictionWeight,
       };
     }
 
@@ -3751,14 +3763,55 @@ class IO {
     );
   }
 
+  getIntellectProjectileIntercept(trackingSpeed) {
+    const body = this.body;
+    const value = this.getIntellect();
+    if (!body || value < 0 || body.isPlayer || body.isWall || body.isDominator ||
+        c.globalAIDisable || (body.master && body.master.AIDisable)) return undefined;
+    if (!["general", "mostDeadly", "leastDeadly", "allHostiles", "projectiles"].includes(body.aiTarget || "general")) return undefined;
+    const guns = Array.isArray(body.guns) ? body.guns : [];
+    if (!guns.some((gun) => gun && gun.canShoot)) return undefined;
+    const frame = this._intellectFrame || 0;
+    if (!intellect.shouldTakeSmartAction(value, `${body.id}:projectile-intercept`, frame, 0.004, 1024)) return undefined;
+    const scanRange = Math.max(250, Math.min(1200,
+      Math.max(Number(body.fov) || 0, (Number(trackingSpeed) || 0) * 45) * 0.45
+    ));
+    const horizon = intellect.dodgeHorizon(value);
+    const bodyVelocity = body.velocity || { x: 0, y: 0 };
+    const ownRoot = body.master && body.master.master ? body.master.master : body.master || body;
+    const ownTeam = ownRoot && ownRoot.team != null ? ownRoot.team : body.team;
+    const nearby = getEntitiesFromRange(body, scanRange);
+    let best;
+    let bestScore = Infinity;
+    for (const projectile of nearby) {
+      if (!projectile || projectile === body || !projectile.isProjectile || !projectile.velocity || projectile.invuln) continue;
+      if (typeof projectile.valid === "function" && !projectile.valid()) continue;
+      const root = projectile.master && projectile.master.master ? projectile.master.master : projectile.master || projectile;
+      const team = root && root.team != null ? root.team : projectile.team;
+      if (team == null || team === ownTeam || projectile.team === ownTeam) continue;
+      const relativePosition = { x: projectile.x - body.x, y: projectile.y - body.y };
+      const relativeVelocity = {
+        x: (Number(projectile.velocity.x) || 0) - (Number(bodyVelocity.x) || 0),
+        y: (Number(projectile.velocity.y) || 0) - (Number(bodyVelocity.y) || 0),
+      };
+      const approach = intellect.closestApproach(relativePosition, relativeVelocity, horizon);
+      const safeRadius = (Number(body.size) || 1) + (Number(projectile.size) || 1) + 12;
+      if (approach.time <= 0 || approach.time > horizon || approach.distance > safeRadius * 3.5) continue;
+      const score = approach.time + approach.distance / Math.max(1, safeRadius) * 0.5;
+      if (score < bestScore) { bestScore = score; best = projectile; }
+    }
+    return best;
+  }
+
   getIntellectDodgeGoal() {
     const body = this.body;
     const value = this.getIntellect();
-    if (
-      value < 32 || !body || body.isPlayer || body.isWall || body.isDominator ||
+    if (!body || body.isPlayer || body.isWall || body.isDominator ||
       c.globalAIDisable || (body.master && body.master.AIDisable) ||
-      body.motionType === "bound" || (Number(body.topSpeed) || 0) < 0.1
-    ) return undefined;
+      body.motionType === "bound" || (Number(body.topSpeed) || 0) < 0.1 || value < 0) return undefined;
+    if (value < 32 && !intellect.shouldTakeSmartAction(
+      value, `${body.id}:rare-dodge`, this._intellectFrame || 0, 0.006, 4096
+    )) return undefined;
 
     if (!this._intellectDodgeState) {
       this._intellectDodgeState = {
@@ -3866,11 +3919,16 @@ class io_moveInCircles extends IO {
   }
 
   think() {
+    const value = this.getIntellect();
     if (!this.timer--) {
-      this.timer = 10;
+      const planning = intellect.progression(value, 2, 1024);
+      this.timer = value > 1 ? Math.max(4, Math.round(10 - 5 * planning)) : 10;
+      const radius = value > 1 ? 10 + 18 * planning : 10;
+      const phase = value > 1 ? (this._circlePhase || 0) + 0.35 * planning : 0;
+      this._circlePhase = phase;
       this.goal = {
-        x: this.body.x + 10 * Math.cos(-this.body.facing),
-        y: this.body.y + 10 * Math.sin(-this.body.facing),
+        x: this.body.x + radius * Math.cos(-this.body.facing + phase),
+        y: this.body.y + radius * Math.sin(-this.body.facing + phase),
       };
     }
     return { goal: this.goal };
@@ -3970,9 +4028,27 @@ class io_boomerang extends IO {
   }
   think(input) {
     if (this.b.range > this.r) this.r = this.b.range;
+    const value = this.getIntellect();
+    if (!this.turnover && value >= 8 && this.m && this.m.control && this.m.control.target) {
+      this._aimRefresh = (this._aimRefresh || 0) + 1;
+      const interval = Math.max(4, intellect.scaleInterval(12, value));
+      if (this._aimRefresh >= interval) {
+        this._aimRefresh = 0;
+        const aim = this.m.control.target;
+        const velocity = this.m.velocity || { x: 0, y: 0 };
+        const lead = Math.min(18, intellect.level(value) * 1.4);
+        this.myGoal = {
+          x: this.m.x + 3 * aim.x + (Number(velocity.x) || 0) * lead,
+          y: this.m.y + 3 * aim.y + (Number(velocity.y) || 0) * lead,
+        };
+      }
+    }
     let t = 1; //1 - Math.sin(2 * Math.PI * this.b.range / this.r) || 1;
     if (!this.turnover) {
-      if (this.r && this.b.range < this.r * 0.5) {
+      const returnThreshold = value > 1
+        ? 0.5 + 0.2 * intellect.progression(value, 2, 1024)
+        : 0.5;
+      if (this.r && this.b.range < this.r * returnThreshold) {
         this.turnover = true;
       }
       return {
@@ -4001,32 +4077,59 @@ class io_goToMasterTarget extends IO {
   }
 
   think() {
-    if (this.countdown) {
-      if (util.getDistance(this.body, this.myGoal) < 1) {
-        this.countdown--;
+    const value = this.getIntellect();
+    if (value >= 8 && this.body.master && this.body.master.control && this.body.master.control.target) {
+      this._masterAimRefresh = (this._masterAimRefresh || 0) + 1;
+      const refresh = Math.max(4, intellect.scaleInterval(18, value));
+      if (this._masterAimRefresh >= refresh) {
+        this._masterAimRefresh = 0;
+        const master = this.body.master;
+        const aim = master.control.target;
+        const velocity = master.velocity || { x: 0, y: 0 };
+        const lead = Math.min(24, intellect.level(value) * 1.8);
+        this.myGoal = {
+          x: master.x + aim.x + (Number(velocity.x) || 0) * lead,
+          y: master.y + aim.y + (Number(velocity.y) || 0) * lead,
+        };
       }
-
-      return {
-        goal: {
-          x: this.myGoal.x,
-          y: this.myGoal.y,
-        },
-      };
+    }
+    if (this.countdown) {
+      if (util.getDistance(this.body, this.myGoal) < 1) this.countdown--;
+      return { goal: { x: this.myGoal.x, y: this.myGoal.y } };
     }
   }
 }
 class io_canRepel extends IO {
   constructor(b) {
     super(b);
+    this._lastRepelTarget = undefined;
   }
 
   think(input) {
+    this.beginIntellectFrame();
     if (input.alt && input.target) {
+      const value = this.getIntellect();
+      let targetX = Number(input.target.x) || 0;
+      let targetY = Number(input.target.y) || 0;
+      if (value >= 4) {
+        // The target vector is relative to this entity. Its change across think
+        // calls is a cheap estimate of relative motion; use it to repel from
+        // where the target is going, not only where it was last seen.
+        const previous = this._lastRepelTarget;
+        const frame = this._intellectFrame || 0;
+        if (previous && frame > previous.frame && frame - previous.frame <= 12) {
+          const elapsed = frame - previous.frame;
+          const relVx = (targetX - previous.x) / elapsed;
+          const relVy = (targetY - previous.y) / elapsed;
+          const lead = Math.min(12, intellect.level(value) * 1.25);
+          const weight = 0.15 + 0.75 * intellect.progression(value, 4, 2048);
+          targetX += relVx * lead * weight;
+          targetY += relVy * lead * weight;
+        }
+        this._lastRepelTarget = { x: Number(input.target.x) || 0, y: Number(input.target.y) || 0, frame };
+      }
       return {
-        target: {
-          x: -input.target.x,
-          y: -input.target.y,
-        },
+        target: { x: -targetX, y: -targetY },
         main: true,
       };
     }
@@ -4969,6 +5072,21 @@ class io_nearestDifferentMaster extends IO {
         // mode. Do not let the old one-hit retaliation logic override its lock.
         break;
     }
+    // Occasionally defend against a projectile on a collision course by shooting
+    // it down. This is rare at INTELLECT 1 and becomes increasingly reliable as
+    // intellect improves. It is an interrupt, not a permanent target preference.
+    const interceptProjectile = this.getIntellectProjectileIntercept(tracking);
+    if (interceptProjectile) {
+      const projectileDiff = { x: interceptProjectile.x - this.body.x, y: interceptProjectile.y - this.body.y };
+      const interceptOutput = {
+        target: this.predictIntellectTargetAim(projectileDiff, interceptProjectile, tracking, true),
+        fire: true,
+        main: true,
+      };
+      if (evasionGoal) interceptOutput.goal = evasionGoal;
+      return interceptOutput;
+    }
+
     // Consider how fast it's moving and shoot at it
     if (this.targetLock != null && this.targetLock.valid()) {
       const diff = {
@@ -5173,6 +5291,18 @@ class io_Dominator extends IO {
     //         this.targetLock = (damageRef.collisionArray[0].master.id === -1) ? damageRef.collisionArray[0].source : damageRef.collisionArray[0].master;
     //     }
     // }
+    const interceptProjectile = this.getIntellectProjectileIntercept(tracking);
+    if (interceptProjectile) {
+      const projectileDiff = { x: interceptProjectile.x - this.body.x, y: interceptProjectile.y - this.body.y };
+      const interceptOutput = {
+        target: this.predictIntellectTargetAim(projectileDiff, interceptProjectile, tracking, true),
+        fire: true,
+        main: true,
+      };
+      if (evasionGoal) interceptOutput.goal = evasionGoal;
+      return interceptOutput;
+    }
+
     // Consider how fast it's moving and shoot at it
     if (this.targetLock != null && this.targetLock.valid()) {
       const diff = {
@@ -5238,7 +5368,7 @@ class io_minion extends IO {
       // Keep the earlier wider-orbit adjustment for positive configured values,
       // but preserve explicit zero/negative orbit settings exactly.
       if (body.orbitDistance <= 0 || body.orbitDistance > 0) {
-        orbit = (body.orbitDistance * sizeFactor)/2;
+        orbit = body.orbitDistance * sizeFactor;
         if (body.orbitDistance > 0) {
           orbit = minionMovementPolicy.expandedOrbitDistance(body.orbitDistance) * sizeFactor;
         }
@@ -5551,10 +5681,29 @@ class io_teleportToMaster extends IO {
     super(body);
   }
   think(input) {
-    this.body.x = this.body.source.x; //+ this.body.source.velocity.x;
-    this.body.y = this.body.source.y; //+ this.body.source.velocity.y;
-    this.body.accel.x = 0;
-    this.body.accel.y = 0;
+    const body = this.body;
+    const source = body.source;
+    const value = this.getIntellect();
+    let x = source.x;
+    let y = source.y;
+    if (value > 1) {
+      const velocity = source.velocity || { x: 0, y: 0 };
+      const lead = Math.min(12, intellect.level(value) * 1.25);
+      x += (Number(velocity.x) || 0) * lead;
+      y += (Number(velocity.y) || 0) * lead;
+    } else if (value < 0) {
+      const reverse = Math.min(1, Math.abs(value));
+      const dx = (Number(body.x) || 0) - source.x;
+      const dy = (Number(body.y) || 0) - source.y;
+      const length = Math.hypot(dx, dy) || 1;
+      const offset = Math.min(500, Math.max(100, length)) * reverse;
+      x = source.x - dx / length * offset;
+      y = source.y - dy / length * offset;
+    }
+    body.x = x;
+    body.y = y;
+    body.accel.x = 0;
+    body.accel.y = 0;
   }
 }
 class io_spin extends IO {
@@ -5636,10 +5785,22 @@ class io_turretWithMotion extends IO {
     super(b);
   }
   think(input) {
-    return {
-      target: this.body.master.velocity,
-      main: true,
-    };
+    const master = this.body.master;
+    const velocity = master.velocity || { x: 0, y: 0 };
+    const value = this.getIntellect();
+    let target = velocity;
+    if (value >= 8) {
+      // A turret that tracks a moving mount anticipates the mount's next motion
+      // instead of aiming only along its current velocity vector.
+      const acceleration = master.accel || { x: 0, y: 0 };
+      const lead = Math.min(16, intellect.level(value) * 1.4);
+      const weight = 0.15 + 0.8 * intellect.progression(value, 8, 4096);
+      target = {
+        x: (Number(velocity.x) || 0) + (Number(acceleration.x) || 0) * lead * weight,
+        y: (Number(velocity.y) || 0) + (Number(acceleration.y) || 0) * lead * weight,
+      };
+    }
+    return { target, main: true };
   }
 }
 
@@ -6576,6 +6737,34 @@ let bringToLife = (() => {
     // So we start with my master's thoughts and then we filter them down through our control stack
     my.controllers.forEach((AI) => {
       let a = AI.think(b);
+      if (a && typeof AI.getIntellect === "function" && !my.isPlayer) {
+        const value = AI.getIntellect();
+        const controllerName = AI.constructor && AI.constructor.name || "";
+        // Positive/low intellect adjustments are applied to each controller's
+        // own contribution. Negative intellect is applied once to the completed
+        // stack below, preventing stacked controllers from double-inverting goals.
+        if (value >= 0) {
+          if (a.goal && !["io_doNothing", "io_listenToPlayer", "io_teleportToMaster"].includes(controllerName)) {
+            const routeState = AI._intellectWallRoute || (AI._intellectWallRoute = {});
+            const routedGoal = intellect.wallAwareWaypoint(
+              my,
+              a.goal,
+              (point) => room.isIn("wall", point),
+              value,
+              `${my.id}:${controllerName}`,
+              AI._intellectFrame || AI.tick || my.stepRemaining || 0,
+              routeState
+            );
+            if (routedGoal) a = { ...a, goal: routedGoal };
+          }
+          a = intellect.adaptControllerOutput(
+            controllerName,
+            a,
+            my,
+            AI._intellectFrame || AI.tick || my.stepRemaining || 0
+          );
+        }
+      }
       let passValue = passer(a, b, AI.acceptsFromTop);
       passValue("target");
       passValue("goal");
@@ -6584,6 +6773,12 @@ let bringToLife = (() => {
       passValue("alt");
       passValue("power");
     });
+    if (!my.isPlayer && Number(my.intellect) < 0 && my.controllers.some((AI) => {
+      const name = AI && AI.constructor && AI.constructor.name || "";
+      return !["io_doNothing", "io_listenToPlayer", "io_teleportToMaster"].includes(name);
+    })) {
+      b = intellect.adaptControllerOutput("combined", b, my, my.stepRemaining || 0);
+    }
     my.control.target = b.target == null ? my.control.target : b.target;
     my.control.goal = b.goal;
     my.control.fire = b.fire;

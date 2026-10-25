@@ -11,6 +11,24 @@ assert.ok(server.includes("this.predictIntellectTargetAim("),
   "targeting controllers should use the intellect-aware predictive aiming path");
 assert.ok(server.includes("this.getIntellectDodgeGoal()"),
   "targeting controllers should consult predictive projectile evasion");
+assert.ok(server.includes("this.getIntellectProjectileIntercept(tracking)"),
+  "high-intellect targeting controllers should sometimes shoot down incoming hostile projectiles");
+assert.ok(server.includes("intellect.wallAwareWaypoint("),
+  "movement controllers should be able to route around walls at higher intellect");
+assert.ok(server.includes("intellect.adaptControllerOutput("),
+  "controller outputs should pass through the shared intellect behavior layer");
+assert.ok(server.includes('Number(my.intellect) < 0'),
+  "negative intellect should invert the combined controller intent once instead of double-inverting stacked controllers");
+assert.ok(server.includes("this.getIntellectProjectileIntercept(tracking)"),
+  "combat controllers should be able to prioritize shooting down imminent hostile projectiles");
+assert.ok(server.includes("intellect.strategyProfile("),
+  "target selection should use stable strategy profiles at high intellect");
+assert.ok(server.includes("this._lastRepelTarget"),
+  "the repel controller should anticipate target movement at higher intellect");
+assert.ok(server.includes("const returnThreshold = value > 1"),
+  "boomerang controllers should adapt their return timing at higher intellect");
+assert.ok(server.includes("const weight = 0.15 + 0.8 * intellect.progression(value, 8, 4096)"),
+  "motion turrets should predict changes in their mount's movement at higher intellect");
 assert.ok(server.includes("intellect.chooseWanderSpot("),
   "wander controller should use novelty-aware stable destinations");
 assert.ok(server.includes("this.repositionCooldown <= 0"),
