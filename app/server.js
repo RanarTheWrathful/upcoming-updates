@@ -5367,12 +5367,12 @@ class io_minion extends IO {
 
       // Keep the earlier wider-orbit adjustment for positive configured values,
       // but preserve explicit zero/negative orbit settings exactly.
-      if (body.orbitDistance <= 0 || body.orbitDistance > 0) {
+     /* if (body.orbitDistance <= 0 || body.orbitDistance > 0) {
         orbit = body.orbitDistance * sizeFactor;
         if (body.orbitDistance > 0) {
           orbit = minionMovementPolicy.expandedOrbitDistance(body.orbitDistance) * sizeFactor;
         }
-      }
+      }*/
 
       const repel = (100 * sizeFactor * body.SPEED) / 2;
       let goal;
