@@ -5363,14 +5363,14 @@ class io_minion extends IO {
         ? Math.sqrt(sizeRatio)
         : 1;
       const leash = 60 * sizeFactor;
-      let orbit = (120 * sizeFactor)/3;
+      let orbit = (120 * sizeFactor)/1.75;
 
       // Keep the earlier wider-orbit adjustment for positive configured values,
       // but preserve explicit zero/negative orbit settings exactly.
      if (body.orbitDistance <= 0 || body.orbitDistance > 0) {
-        orbit = (body.orbitDistance * sizeFactor)/3;
+        orbit = (body.orbitDistance * sizeFactor)/1.75;
         if (body.orbitDistance > 0) {
-          orbit = (minionMovementPolicy.expandedOrbitDistance(body.orbitDistance) * sizeFactor)/3;
+          orbit = (minionMovementPolicy.expandedOrbitDistance(body.orbitDistance) * sizeFactor)/1.75;
         }
       } 
       const repel = (100 * sizeFactor * body.SPEED) / 2;
