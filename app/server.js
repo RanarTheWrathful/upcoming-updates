@@ -4020,11 +4020,14 @@ class io_boomerang extends IO {
     this.b = b;
     this.m = b.master;
     this.turnover = false;
-    let len = 10 * util.getDistance({ x: 0, y: 0 }, b.master.control.target);
-    this.myGoal = {
-      x: 3 * b.master.control.target.x + b.master.x,
-      y: 3 * b.master.control.target.y + b.master.y,
-    };
+    let len = 10 * util.getDistance({ x: 0, y: 0 }, b.master.control.target);const aim = this.m.control.target;
+    const distance = Math.hypot(aim.x, aim.y);
+    const scale = distance <= maxTripleDistance ? 3 : 1;
+
+this.myGoal = {
+  x: this.m.x + scale * aim.x,
+  y: this.m.y + scale * aim.y,
+};
   }
   think(input) {
     if (this.b.range > this.r) this.r = this.b.range;
