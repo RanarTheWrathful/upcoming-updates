@@ -36,6 +36,7 @@ const mazeGenerator = require("./lib/mazeGenerator");
 const modeVoting = require("./lib/modeVoting");
 const siegeNeutralZonePenalty = require("./lib/siegeNeutralZonePenalty");
 const autoUpgradeRules = require("./lib/autoUpgradeRules");
+const intellect = require("./lib/intellect");
 const gunCalculator = require("./lib/gunCalculator");
 const { performance } = require("perf_hooks");
 
@@ -3646,6 +3647,26 @@ class IO {
     this.acceptsFromTop = true;
   }
 
+  getIntellect() {
+    return intellect.normalize(this.body && this.body.intellect, 1);
+  }
+
+  getIntellectLevel() {
+    return intellect.level(this.getIntellect());
+  }
+
+  getIntellectRange(baseRange) {
+    return intellect.scaleRange(baseRange, this.getIntellect());
+  }
+
+  getIntellectThinkInterval(baseInterval) {
+    return intellect.scaleInterval(baseInterval, this.getIntellect());
+  }
+
+  selectIntellectTarget(targets) {
+    return intellect.chooseTarget(targets, this.body, this.getIntellect());
+  }
+
   think() {
     return {
       target: null,
@@ -3904,7 +3925,7 @@ class io_nearestDifferentMaster extends IO {
     this.targetLock = undefined;
     this.tick = ran.irandom(30);
     this.lead = 0;
-    this.validTargets = this.buildList(body.fov / 2);
+    this.validTargets = this.buildList(this.getIntellectRange(body.fov / 2));
     this.oldHealth = body.health.display();
     // Damage-response targeting is independent of the normal target refresh cadence.
     this.lastObservedHealth = (body.bond == null ? body : body.bond).health.display();
@@ -4679,6 +4700,7 @@ class io_nearestDifferentMaster extends IO {
         break;
       }
     }
+    range = this.getIntellectRange(range);
     // Prioritize an attacker that triggered the damage-response rule. While
     // the five-second focus is active, do not run normal target selection.
     const now = Date.now();
@@ -4746,7 +4768,7 @@ class io_nearestDifferentMaster extends IO {
       }
     }
     // Think damn hard
-    if (this.tick++ > 15 * roomSpeed) {
+    if (this.tick++ > this.getIntellectThinkInterval(15 * roomSpeed)) {
       this.tick = 0;
       this.validTargets = this.buildList(range);
       // Ditch our old target if it's invalid
@@ -4758,10 +4780,7 @@ class io_nearestDifferentMaster extends IO {
       }
       // Lock new target if we still don't have one.
       if (this.targetLock == null && this.validTargets.length) {
-        this.targetLock =
-          this.validTargets.length === 1
-            ? this.validTargets[0]
-            : nearest(this.validTargets, { x: this.body.x, y: this.body.y });
+        this.targetLock = this.selectIntellectTarget(this.validTargets);
         // Keep the acquired target active, but do not impose an extra 90-tick
         // dead period before target selection can be reconsidered. While the
         // normal refresh cadence runs, the current target remains locked.
@@ -4836,7 +4855,7 @@ class io_Dominator extends IO {
     this.targetLock = undefined;
     this.tick = ran.irandom(30);
     this.lead = 0;
-    this.validTargets = this.buildList(body.fov / 2);
+    this.validTargets = this.buildList(this.getIntellectRange(body.fov / 2));
     this.oldHealth = body.health.display();
     this.body.facing = 0;
   }
@@ -4966,6 +4985,7 @@ class io_Dominator extends IO {
         break;
       }
     }
+    range = this.getIntellectRange(range);
     // Check if my target's alive
     if (this.targetLock) {
       if (this.targetLock.health.amount <= 0) {
@@ -4974,7 +4994,7 @@ class io_Dominator extends IO {
       }
     }
     // Think damn hard
-    if (this.tick++ > 15 * roomSpeed) {
+    if (this.tick++ > this.getIntellectThinkInterval(15 * roomSpeed)) {
       this.tick = 0;
       this.validTargets = this.buildList(range);
       // Ditch our old target if it's invalid
@@ -4986,10 +5006,7 @@ class io_Dominator extends IO {
       }
       // Lock new target if we still don't have one.
       if (this.targetLock == null && this.validTargets.length) {
-        this.targetLock =
-          this.validTargets.length === 1
-            ? this.validTargets[0]
-            : nearest(this.validTargets, { x: this.body.x, y: this.body.y });
+        this.targetLock = this.selectIntellectTarget(this.validTargets);
         // Keep the acquired target active, but do not impose an extra 90-tick
         // dead period before target selection can be reconsidered. While the
         // normal refresh cadence runs, the current target remains locked.
@@ -5051,10 +5068,11 @@ class io_minion extends IO {
     }
     if (input.target != null && (input.alt || input.main)) {
       let sizeFactor = Math.sqrt(this.body.master.size / this.body.master.SIZE);
-      let leash = 60 * sizeFactor;
-      let orbit = 120 * sizeFactor;
+      const autonomyScale = intellect.orbitMultiplier(this.getIntellect());
+      let leash = 60 * sizeFactor * autonomyScale;
+      let orbit = 120 * sizeFactor * autonomyScale;
       if (this.body.orbitDistance <= 0 || this.body.orbitDistance > 0) {
-        orbit = this.body.orbitDistance * sizeFactor;
+        orbit = this.body.orbitDistance * sizeFactor * autonomyScale;
       }
 
       let repel = (100 * sizeFactor * this.body.SPEED) / 2;
@@ -5120,7 +5138,20 @@ class io_wanderAroundMap extends IO {
       };
     }
 
-    if (!this.spot) this.spot = room.random();
+    if (!this.spot) {
+      const candidates = [];
+      const candidateCount = intellect.waypointCandidateCount(this.getIntellect());
+      for (let i = 0; i < candidateCount; i++) {
+        const candidate = room.random();
+        if (candidate) candidates.push(candidate);
+      }
+      if (candidates.length) {
+        candidates.sort((a, b) =>
+          util.getDistance(this.body, b) - util.getDistance(this.body, a)
+        );
+        this.spot = candidates[0];
+      }
+    }
     if (!this.spot) {
       return { goal: { x: this.body.x, y: this.body.y }, power: 0 };
     }
@@ -5134,7 +5165,7 @@ class io_wanderAroundMap extends IO {
       // Clear the old waypoint so it isn't treated as a new arrival when the
       // pause expires. Wanderers rest for roughly 0.5–1.5 seconds at 60 ticks/s.
       this.spot = undefined;
-      this.pauseTicks = ran.irandomRange(30, 90);
+      this.pauseTicks = intellect.scaleInterval(ran.irandomRange(30, 90), this.getIntellect());
       return {
         goal: { x: this.body.x, y: this.body.y },
         power: 0,
@@ -5153,12 +5184,19 @@ class io_pathFinder extends IO {
   think(input) {
     if (!this.body.invuln) {
       if (room["pth" + this.path]) {
+        const arrivalRadius = 50 * intellect.scaleRange(1, this.getIntellect());
         if (
           new Vector(this.body.x - this.spot.x, this.body.y - this.spot.y)
-            .length < 50 ||
+            .length < arrivalRadius ||
           this.targetLock != undefined
         ) {
-          this.path += 1;
+          // Highly intellectual path-followers may skip several waypoints to
+          // take bolder routes. Wrap over the available sequential path set so
+          // huge values do not repeatedly fall back to pth1 when they skip past it.
+          let maxPath = 1;
+          while (maxPath < 500 && room["pth" + (maxPath + 1)]) maxPath++;
+          const step = intellect.pathStep(this.getIntellect());
+          this.path = ((this.path - 1 + step) % maxPath) + 1;
           this.spot = room.randomType("pth" + this.path);
         }
       } else {
@@ -5245,8 +5283,9 @@ class io_hangOutNearMaster extends IO {
   }
   think(input) {
     if (this.body.source != this.body) {
-      let bound1 = this.orbit * 0.8 + this.body.source.size + this.body.size;
-      let bound2 = this.orbit * 1.5 + this.body.source.size + this.body.size;
+      const autonomyScale = intellect.orbitMultiplier(this.getIntellect());
+      let bound1 = this.orbit * 0.8 * autonomyScale + this.body.source.size + this.body.size;
+      let bound2 = this.orbit * 1.5 * autonomyScale + this.body.source.size + this.body.size;
       let dist = util.getDistance(this.body, this.body.source) + Math.PI / 8;
       let output = {
         target: {
@@ -5257,7 +5296,7 @@ class io_hangOutNearMaster extends IO {
         power: undefined,
       };
       // Set a goal
-      if (dist > bound2 || this.timer > 30) {
+      if (dist > bound2 || this.timer > this.getIntellectThinkInterval(30)) {
         this.timer = 0;
 
         let dir =
@@ -5389,7 +5428,7 @@ class io_fleeAtLowHealth extends IO {
       if (
         input.fire &&
         input.target != null &&
-        this.body.health.amount < this.body.health.max * (this.fear * 2)
+        this.body.health.amount < this.body.health.max * intellect.fleeThreshold(this.fear * 2, this.getIntellect())
       ) {
         return {
           goal: {
@@ -6483,6 +6522,7 @@ class Entity {
       amount: 0,
     };
     // Objects
+    this.intellect = 1;
     this.skill = new Skill();
     this.health = new HealthType(1, "static", 0);
     this.shield = new HealthType(0, "dynamic");
@@ -6526,6 +6566,19 @@ class Entity {
     this.team = master === this ? this.id : master.team;
     entities[this.key.i] = this;
     views.forEach((v) => v.add(this));
+  }
+
+  get intellect() {
+    return this._intellect == null ? 1 : this._intellect;
+  }
+  set intellect(value) {
+    this._intellect = intellect.normalize(value, 1);
+  }
+  get INTELLECT() {
+    return this.intellect;
+  }
+  set INTELLECT(value) {
+    this.intellect = value;
   }
 
   get master() {
@@ -6865,6 +6918,9 @@ class Entity {
       }
       if (set.STAT_NAMES != null) {
         this.settings.skillNames = set.STAT_NAMES;
+      }
+      if (set.INTELLECT != null) {
+        this.intellect = set.INTELLECT;
       }
       if (set.AI != null) {
         this.aiSettings = set.AI;
@@ -22071,7 +22127,7 @@ var gameloop = (() => {
           // This is deliberately outside activation.check(): entities beyond
           // the active simulation radius still need their Siege zone timer.
           siegeNeutralZonePenalty.update(e, { mode: c.MODE, room, now: Date.now() });
-          autoUpgradeRules.update(e, Class, { mode: c.MODE });
+          autoUpgradeRules.update(e, Class, { mode: c.MODE, broadcastMessage: (text) => sockets.broadcast(text) });
           if (e.activation.check()) {
             logs.entities.tally();
             // Think about my actions.
@@ -25003,7 +25059,7 @@ const DEVELOPER_COMMAND_GROUPS = [
     commands: [
       { command: "/points [group] [points]", insert: "/points ", description: "Set selected entities' skill points" },
       { command: "/score [group] [score]", insert: "/score ", description: "Set selected entities' score" },
-      { command: "/propertize entity [group] [property] [value]", insert: "/propertize entity ", description: "Set a property on a selected entity group" },
+      { command: "/propertize entity [group] [property] [value]", insert: "/propertize entity ", description: "Set a property on a selected group; intellect (default 1) tunes controller behavior." },
       { command: "/propertize global [room|config] [property] [value]", insert: "/propertize global ", description: "Set a room or config property" },
       { command: "/find loc", insert: "/find loc", description: "Show your coordinates (also available as /where)" },
     ],
@@ -25070,7 +25126,7 @@ function renderChatPage(options) {
   <style>
     :root{color-scheme:dark;--bg:#0c0f17;--panel:#141925;--panel2:#191f2e;--line:#293347;--muted:#97a3b9;--text:#eef2fb;--accent:#a78bfa;--accent2:#7c6cf0;--cyan:#67e8f9;--good:#59dca6;--warn:#f6c66d;--bad:#fb7185;--radius:18px}
     *{box-sizing:border-box}html{min-height:100%;background:var(--bg)}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 14% -10%,rgba(124,108,240,.18),transparent 36%),radial-gradient(ellipse at 94% 2%,rgba(103,232,249,.09),transparent 28%),var(--bg);color:var(--text);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    button,input{font:inherit}button{cursor:pointer}a{color:inherit}.shell{max-width:1440px;margin:0 auto;padding:22px 24px 34px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 4px 23px;border-bottom:1px solid rgba(151,163,185,.17)}.brand{display:flex;align-items:center;gap:13px;min-width:0}.brand-mark{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,#a78bfa,#5b55d9);box-shadow:0 8px 28px rgba(124,108,240,.25);font-size:20px;font-weight:900;color:#10131d}.brand-name{font-size:16px;font-weight:780;letter-spacing:.01em}.brand-sub{font-size:12px;color:var(--muted);margin-top:1px}.top-meta{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid var(--line);background:rgba(20,25,37,.8);border-radius:999px;color:#d9dfeb;font-size:11px;font-weight:750;letter-spacing:.055em;white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(89,220,166,.12)}.is-offline .dot{background:var(--warn);box-shadow:0 0 0 3px rgba(246,198,109,.12)}.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding:24px 4px 20px}.eyebrow{text-transform:uppercase;letter-spacing:.15em;font-size:10px;color:var(--accent);font-weight:850}.hero h1{font-size:clamp(24px,3vw,34px);line-height:1.1;letter-spacing:-.045em;margin:7px 0 8px}.hero p{color:var(--muted);margin:0;max-width:640px}.hero-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);border-radius:11px;padding:10px 13px;background:#1a2030;color:var(--text);font-weight:700;transition:transform .15s,border-color .15s,background .15s}.btn:hover{border-color:#7569c6;transform:translateY(-1px)}.btn-primary{background:linear-gradient(135deg,#9f87f6,#7668df);border-color:transparent;color:#111423;box-shadow:0 7px 20px rgba(124,108,240,.18)}.layout{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:18px;align-items:start}.sidebar,.main-panel{min-width:0;border:1px solid rgba(151,163,185,.16);border-radius:var(--radius);background:rgba(20,25,37,.91);box-shadow:0 18px 55px rgba(0,0,0,.16)}.sidebar{overflow:hidden}.sidebar-head{padding:18px 18px 14px;border-bottom:1px solid rgba(151,163,185,.13)}.panel-title{margin:0;font-size:13px;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.panel-caption{color:var(--muted);font-size:12px;margin:4px 0 0}.command-group{padding:15px 13px;border-bottom:1px solid rgba(151,163,185,.11)}.command-group:last-child{border-bottom:0}.group-heading{display:flex;gap:10px;align-items:center;padding:0 5px 10px}.group-icon{display:grid;place-items:center;width:31px;height:31px;border:1px solid #343b58;border-radius:10px;background:#20253a;color:var(--accent);font-weight:900}.group-heading h3{font-size:12px;margin:0;font-weight:850}.group-heading p{font-size:11px;color:var(--muted);margin:1px 0 0}.command-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:9px 10px;margin:2px 0;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--text)}.command-row:hover{background:#202637;border-color:#303950}.command-row code,.quick-chip code{font-size:11px;color:#d8ccff;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.2);border-radius:6px;padding:3px 5px;white-space:nowrap}.command-row span{font-size:11px;color:var(--muted);text-align:right}.locked-copy{color:var(--muted);font-size:12px;padding:0 5px 5px;margin:0}.main-panel{overflow:hidden}.main-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-bottom:1px solid rgba(151,163,185,.14)}.main-heading{display:flex;align-items:center;gap:11px}.main-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:rgba(103,232,249,.09);border:1px solid rgba(103,232,249,.21);color:var(--cyan);font-size:19px}.main-heading h2{font-size:15px;margin:0;font-weight:850}.main-heading p{font-size:11px;margin:2px 0 0;color:var(--muted)}.live-label{display:flex;align-items:center;gap:7px;color:var(--good);font-size:10px;font-weight:850;letter-spacing:.08em}.live-label .dot{width:6px;height:6px}.feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-bottom:1px solid rgba(151,163,185,.11)}.search-wrap{position:relative;flex:1;max-width:340px}.search-wrap input{width:100%;padding:9px 11px 9px 34px;border:1px solid #2a3448;border-radius:10px;background:#101521;color:var(--text);outline:none}.search-wrap input:focus,.chat-input:focus{border-color:#8b7cf0;box-shadow:0 0 0 3px rgba(139,124,240,.12)}.search-symbol{position:absolute;left:11px;top:8px;color:#78859c}.feed-count{font-size:11px;color:var(--muted);white-space:nowrap}.message-feed{height:min(52vh,550px);min-height:280px;overflow-y:auto;padding:12px 18px;scrollbar-color:#3a4358 transparent;scrollbar-width:thin}.message-row{padding:12px 13px;margin:5px 0;border:1px solid rgba(151,163,185,.09);background:rgba(28,34,49,.54);border-radius:13px;transition:background .15s}.message-row:hover{background:rgba(34,42,60,.8)}.message-meta{display:flex;align-items:center;gap:8px}.message-author{font-size:12px;font-weight:800;color:#edf0fb;overflow-wrap:anywhere}.role-badge{font-size:9px;font-weight:900;letter-spacing:.08em;padding:2px 6px;border-radius:5px}.player-badge{background:rgba(103,232,249,.1);color:#7ee9f3;border:1px solid rgba(103,232,249,.16)}.dev-badge{background:rgba(167,139,250,.12);color:#c4b5fd;border:1px solid rgba(167,139,250,.22)}.system-badge{background:rgba(246,198,109,.1);color:var(--warn)}.message-body{font-size:13px;color:#cbd4e6;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 0}.empty-state{display:flex;min-height:270px;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted)}.empty-icon{display:grid;place-items:center;width:54px;height:54px;border-radius:18px;border:1px solid #323852;background:#1c2234;color:var(--accent);font-size:27px}.empty-state h3{font-size:14px;color:#dce2f0;margin:14px 0 4px}.empty-state p{font-size:12px;max-width:300px;margin:0}.composer{padding:16px 18px 18px;background:rgba(13,17,27,.64);border-top:1px solid rgba(151,163,185,.15)}.composer-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;color:var(--muted);font-size:11px}.composer-row{display:flex;align-items:stretch;gap:9px}.chat-input{flex:1;min-width:0;border:1px solid #30394e;border-radius:12px;padding:12px 13px;background:#101521;color:var(--text);outline:none}.send-button{min-width:108px;display:flex;align-items:center;justify-content:center;gap:8px}.composer-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:10px;color:#7f8ba2}.composer-foot strong{font-weight:800;color:#b9c4da}.mode-indicator{color:var(--accent)}.status-bar{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin:0 0 16px;border:1px solid rgba(167,139,250,.22);border-radius:12px;background:rgba(124,108,240,.08);color:#d9d4fb;font-size:12px}.status-symbol{color:var(--accent);font-weight:900}.status-copy{min-width:0;overflow-wrap:anywhere}.status-copy p{margin:0;white-space:pre-wrap}.footer{display:flex;justify-content:space-between;gap:12px;margin:15px 4px 0;color:#69768e;font-size:10px}.footer a{color:#96a3bd;text-decoration:none}.footer a:hover{color:var(--cyan)}
+    button,input{font:inherit}button{cursor:pointer}a{color:inherit}.shell{max-width:1440px;margin:0 auto;padding:22px 24px 34px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 4px 23px;border-bottom:1px solid rgba(151,163,185,.17)}.brand{display:flex;align-items:center;gap:13px;min-width:0}.brand-mark{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(145deg,#a78bfa,#5b55d9);box-shadow:0 8px 28px rgba(124,108,240,.25);font-size:20px;font-weight:900;color:#10131d}.brand-name{font-size:16px;font-weight:780;letter-spacing:.01em}.brand-sub{font-size:12px;color:var(--muted);margin-top:1px}.top-meta{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid var(--line);background:rgba(20,25,37,.8);border-radius:999px;color:#d9dfeb;font-size:11px;font-weight:750;letter-spacing:.055em;white-space:nowrap}.dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(89,220,166,.12)}.is-offline .dot{background:var(--warn);box-shadow:0 0 0 3px rgba(246,198,109,.12)}.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding:24px 4px 20px}.eyebrow{text-transform:uppercase;letter-spacing:.15em;font-size:10px;color:var(--accent);font-weight:850}.hero h1{font-size:clamp(24px,3vw,34px);line-height:1.1;letter-spacing:-.045em;margin:7px 0 8px}.hero p{color:var(--muted);margin:0;max-width:640px}.hero-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);border-radius:11px;padding:10px 13px;background:#1a2030;color:var(--text);font-weight:700;transition:transform .15s,border-color .15s,background .15s}.btn:hover{border-color:#7569c6;transform:translateY(-1px)}.btn-primary{background:linear-gradient(135deg,#9f87f6,#7668df);border-color:transparent;color:#111423;box-shadow:0 7px 20px rgba(124,108,240,.18)}.layout{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,1fr);gap:18px;align-items:start}.sidebar,.main-panel{min-width:0;border:1px solid rgba(151,163,185,.16);border-radius:var(--radius);background:rgba(20,25,37,.91);box-shadow:0 18px 55px rgba(0,0,0,.16)}.sidebar{overflow:hidden}.sidebar-head{padding:18px 18px 14px;border-bottom:1px solid rgba(151,163,185,.13)}.panel-title{margin:0;font-size:13px;font-weight:850;letter-spacing:.07em;text-transform:uppercase}.panel-caption{color:var(--muted);font-size:12px;margin:4px 0 0}.command-group{padding:15px 13px;border-bottom:1px solid rgba(151,163,185,.11)}.command-group:last-child{border-bottom:0}.group-heading{display:flex;gap:10px;align-items:center;padding:0 5px 10px}.group-icon{display:grid;place-items:center;width:31px;height:31px;border:1px solid #343b58;border-radius:10px;background:#20253a;color:var(--accent);font-weight:900}.group-heading h3{font-size:12px;margin:0;font-weight:850}.group-heading p{font-size:11px;color:var(--muted);margin:1px 0 0}.command-row{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:7px;width:100%;min-width:0;padding:10px 10px;margin:3px 0;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--text);white-space:normal;overflow:visible}.command-row:hover{background:#202637;border-color:#303950}.command-row code,.quick-chip code{display:inline-block;max-width:100%;min-width:0;font-size:11px;color:#d8ccff;background:rgba(167,139,250,.10);border:1px solid rgba(167,139,250,.2);border-radius:6px;padding:3px 5px;white-space:normal;overflow-wrap:anywhere;word-break:break-word}.command-row span{display:block;width:100%;min-width:0;font-size:11px;line-height:1.45;color:var(--muted);text-align:left;white-space:normal;overflow-wrap:anywhere;word-break:normal;hyphens:auto}.locked-copy{color:var(--muted);font-size:12px;padding:0 5px 5px;margin:0}.main-panel{overflow:hidden}.main-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;border-bottom:1px solid rgba(151,163,185,.14)}.main-heading{display:flex;align-items:center;gap:11px}.main-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:rgba(103,232,249,.09);border:1px solid rgba(103,232,249,.21);color:var(--cyan);font-size:19px}.main-heading h2{font-size:15px;margin:0;font-weight:850}.main-heading p{font-size:11px;margin:2px 0 0;color:var(--muted)}.live-label{display:flex;align-items:center;gap:7px;color:var(--good);font-size:10px;font-weight:850;letter-spacing:.08em}.live-label .dot{width:6px;height:6px}.feed-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-bottom:1px solid rgba(151,163,185,.11)}.search-wrap{position:relative;flex:1;max-width:340px}.search-wrap input{width:100%;padding:9px 11px 9px 34px;border:1px solid #2a3448;border-radius:10px;background:#101521;color:var(--text);outline:none}.search-wrap input:focus,.chat-input:focus{border-color:#8b7cf0;box-shadow:0 0 0 3px rgba(139,124,240,.12)}.search-symbol{position:absolute;left:11px;top:8px;color:#78859c}.feed-count{font-size:11px;color:var(--muted);white-space:nowrap}.message-feed{height:min(52vh,550px);min-height:280px;overflow-y:auto;padding:12px 18px;scrollbar-color:#3a4358 transparent;scrollbar-width:thin}.message-row{padding:12px 13px;margin:5px 0;border:1px solid rgba(151,163,185,.09);background:rgba(28,34,49,.54);border-radius:13px;transition:background .15s}.message-row:hover{background:rgba(34,42,60,.8)}.message-meta{display:flex;align-items:center;gap:8px}.message-author{font-size:12px;font-weight:800;color:#edf0fb;overflow-wrap:anywhere}.role-badge{font-size:9px;font-weight:900;letter-spacing:.08em;padding:2px 6px;border-radius:5px}.player-badge{background:rgba(103,232,249,.1);color:#7ee9f3;border:1px solid rgba(103,232,249,.16)}.dev-badge{background:rgba(167,139,250,.12);color:#c4b5fd;border:1px solid rgba(167,139,250,.22)}.system-badge{background:rgba(246,198,109,.1);color:var(--warn)}.message-body{font-size:13px;color:#cbd4e6;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 0}.empty-state{display:flex;min-height:270px;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted)}.empty-icon{display:grid;place-items:center;width:54px;height:54px;border-radius:18px;border:1px solid #323852;background:#1c2234;color:var(--accent);font-size:27px}.empty-state h3{font-size:14px;color:#dce2f0;margin:14px 0 4px}.empty-state p{font-size:12px;max-width:300px;margin:0}.composer{padding:16px 18px 18px;background:rgba(13,17,27,.64);border-top:1px solid rgba(151,163,185,.15)}.composer-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;color:var(--muted);font-size:11px}.composer-row{display:flex;align-items:stretch;gap:9px}.chat-input{flex:1;min-width:0;border:1px solid #30394e;border-radius:12px;padding:12px 13px;background:#101521;color:var(--text);outline:none}.send-button{min-width:108px;display:flex;align-items:center;justify-content:center;gap:8px}.composer-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:9px;font-size:10px;color:#7f8ba2}.composer-foot strong{font-weight:800;color:#b9c4da}.mode-indicator{color:var(--accent)}.status-bar{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin:0 0 16px;border:1px solid rgba(167,139,250,.22);border-radius:12px;background:rgba(124,108,240,.08);color:#d9d4fb;font-size:12px}.status-symbol{color:var(--accent);font-weight:900}.status-copy{min-width:0;overflow-wrap:anywhere}.status-copy p{margin:0;white-space:pre-wrap}.footer{display:flex;justify-content:space-between;gap:12px;margin:15px 4px 0;color:#69768e;font-size:10px}.footer a{color:#96a3bd;text-decoration:none}.footer a:hover{color:var(--cyan)}
     @media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{order:2}.main-panel{order:1}.message-feed{height:min(48vh,480px)}.hero{align-items:flex-start;flex-direction:column}.hero-actions{width:100%}}
     @media(max-width:540px){.shell{padding:12px 10px 22px}.topbar{padding:8px 2px 17px;align-items:flex-start}.brand-mark{width:38px;height:38px}.brand-name{font-size:14px}.brand-sub{max-width:180px}.top-meta{gap:5px}.pill{font-size:9px;padding:6px 8px}.hero{padding:20px 2px 16px}.hero h1{font-size:27px}.main-header{padding:14px}.feed-toolbar{padding:10px 12px}.message-feed{padding:9px 10px;min-height:240px}.composer{padding:13px 11px}.composer-row{flex-direction:column}.send-button{width:100%;min-height:42px}.footer{padding:0 2px;flex-direction:column}.command-row{align-items:flex-start;flex-direction:column;gap:5px}.command-row span{text-align:left}}
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}

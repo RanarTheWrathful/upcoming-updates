@@ -1,0 +1,28 @@
+"use strict";
+const assert = require("assert");
+const intellect = require("../lib/intellect");
+
+assert.strictEqual(intellect.normalize(undefined), 1);
+assert.strictEqual(intellect.normalize(100000000), 100000000);
+assert.strictEqual(intellect.normalize(-2), 0);
+assert.strictEqual(intellect.scaleRange(100, 1), 100);
+assert.ok(intellect.scaleRange(100, 0.1) < 100);
+assert.ok(intellect.scaleRange(100, 100000000) > intellect.scaleRange(100, 1));
+assert.strictEqual(intellect.scaleInterval(15, 1), 15);
+assert.ok(intellect.scaleInterval(15, 0.1) > 15);
+assert.strictEqual(intellect.scaleInterval(15, 100000000), 1);
+assert.strictEqual(intellect.waypointCandidateCount(1), 1);
+assert.ok(intellect.waypointCandidateCount(100000000) > intellect.waypointCandidateCount(1));
+assert.strictEqual(intellect.pathStep(1), 1);
+assert.ok(intellect.pathStep(100000000) > 1);
+assert.ok(intellect.fleeThreshold(0.3, 0.1) < intellect.fleeThreshold(0.3, 1));
+assert.strictEqual(intellect.fleeThreshold(0.3, 1), 0.3);
+assert.strictEqual(intellect.fleeThreshold(0.3, 100000000), 0.98);
+assert.strictEqual(intellect.orbitMultiplier(1), 1);
+assert.ok(intellect.orbitMultiplier(0.1) > 1);
+assert.ok(intellect.orbitMultiplier(100000000) < 1);
+const body = { x: 0, y: 0 };
+const targets = [{ x: 5, y: 0 }, { x: 50, y: 0 }, { x: 100, y: 0 }];
+assert.strictEqual(intellect.chooseTarget(targets, body, 1), targets[0]);
+assert.strictEqual(intellect.chooseTarget(targets, body, 100000000), targets[2]);
+console.log("Intellect scaling tests passed.");

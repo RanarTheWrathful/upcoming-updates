@@ -9,6 +9,7 @@
  *   exports: one or more exact keys from Class (not the display label)
  *   modes: optional list of game modes; omit to allow every mode
  *   from: optional list of source Class export keys; omit to allow any tank
+ *   spawnMessage: optional global message broadcast when an automated entity upgrades
  *
  * Non-player-controlled tanks randomly select one valid export when they meet
  * the score threshold. Player bodies receive all the exports as selectable
@@ -24,6 +25,17 @@ const AUTO_UPGRADE_RULES = [
   //   modes: ["siege"],
   // },
 ];
+
+function getRuleId(rule) {
+  if (!rule || typeof rule !== "object") return "";
+  if (typeof rule.id === "string" && rule.id.trim()) return rule.id.trim();
+  const names = (Array.isArray(rule.exports) ? rule.exports : typeof rule.export === "string" ? [rule.export] : [])
+    .filter((name) => typeof name === "string" && name.trim())
+    .map((name) => name.trim());
+  if (!names.length) return "";
+  const derived = [...new Set(names)].sort();
+  return derived.length === 1 ? derived[0] : derived.join("+");
+}
 
 function getCompletedMap(entity) {
   if (!entity._autoUpgradeRulesCompleted || typeof entity._autoUpgradeRulesCompleted !== "object") {
@@ -124,9 +136,10 @@ function update(entity, Class, options = {}) {
   const random = typeof options.random === "function" ? options.random : Math.random;
 
   for (const originalRule of rules) {
-    if (!originalRule || typeof originalRule.id !== "string" || !originalRule.id || !Number.isFinite(Number(originalRule.score))) continue;
-    if (score < Number(originalRule.score) || isCompleted(entity, originalRule.id)) continue;
-    const rule = Object.assign({}, originalRule, { _currentMode: mode });
+    const ruleId = getRuleId(originalRule);
+    if (!originalRule || !ruleId || !Number.isFinite(Number(originalRule.score))) continue;
+    if (score < Number(originalRule.score) || isCompleted(entity, ruleId)) continue;
+    const rule = Object.assign({}, originalRule, { id: ruleId, _currentMode: mode });
     if (!ruleAppliesToEntity(rule, entity, Class)) continue;
     const targets = resolveTargets(rule, Class).filter(({ target }) => target !== Class.genericEntity && target.index !== entity.index);
     if (!targets.length) continue;
@@ -153,18 +166,37 @@ function update(entity, Class, options = {}) {
     if (isControlledByPlayer(entity)) continue;
     const selected = targets[Math.min(targets.length - 1, Math.floor(Math.max(0, Math.min(0.999999999, Number(random()) || 0)) * targets.length))];
     if (!selected) continue;
-    markCompleted(entity, originalRule.id);
+    markCompleted(entity, rule.id);
     entity.define(selected.target);
     // define() normally leaves custom runtime properties alone, but set the
     // marker once more in case a class definition explicitly reset it.
-    markCompleted(entity, originalRule.id);
-    return { upgraded: true, ruleId: originalRule.id, exportName: selected.exportName };
+    markCompleted(entity, rule.id);
+
+    const configuredMessage = typeof originalRule.spawnMessage === "string"
+      ? originalRule.spawnMessage
+      : typeof originalRule.message === "string" ? originalRule.message : "";
+    if (configuredMessage.trim()) {
+      const targetLabel = selected.target.LABEL || selected.target.label || selected.exportName;
+      const replacements = {
+        "{entity}": String(entity.name || entity.label || targetLabel),
+        "{name}": String(entity.name || targetLabel),
+        "{label}": String(targetLabel),
+        "{export}": String(selected.exportName),
+        "{score}": String(score),
+      };
+      const message = configuredMessage.replace(/\{entity\}|\{name\}|\{label\}|\{export\}|\{score\}/g,
+        (token) => replacements[token]);
+      if (typeof options.broadcastMessage === "function") options.broadcastMessage(message, entity, selected);
+      else if (typeof entity.sendMessage === "function") entity.sendMessage(message);
+    }
+    return { upgraded: true, ruleId: rule.id, exportName: selected.exportName, spawnMessage: configuredMessage || undefined };
   }
   return false;
 }
 
 module.exports = {
   AUTO_UPGRADE_RULES,
+  getRuleId,
   resolveTargets,
   isControlledByPlayer,
   markCompleted,

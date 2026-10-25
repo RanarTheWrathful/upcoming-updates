@@ -46,4 +46,8 @@ assert.ok(!result.publicHelp.includes("/close server"), "developer commands must
 assert.ok(!result.publicHtml.includes("/pBan [IP]"), "developer command buttons must not render for public sessions");
 assert.ok(result.publicHtml.includes("Developer commands appear here only for authorized sessions"));
 
-console.log(`Developer command catalog tests passed (${requiredDeveloperCommands.length} developer commands, public restriction checks).`);
+// Long command descriptions should wrap inside the sidebar rather than clip on a single flex row.
+assert.ok(serverSource.includes("overflow-wrap:anywhere;word-break:normal;hyphens:auto"), "command descriptions must wrap instead of clipping");
+assert.ok(serverSource.includes("flex-direction:column;align-items:flex-start"), "command rows should stack command tokens and descriptions");
+
+console.log("Developer command catalog and long-description layout tests passed.");

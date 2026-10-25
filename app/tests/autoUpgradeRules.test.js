@@ -66,4 +66,41 @@ result = autoUpgrades.update(entity, Class, { mode: "ffa", rules: [{ id: "siege-
 assert.strictEqual(result, false);
 assert.strictEqual(entity.index, 1);
 
+
+// Optional spawn messages broadcast only when an automated entity upgrades, with placeholders expanded.
+let broadcasts = [];
+entity = makeEntity({ name: "Test Automaton" });
+result = autoUpgrades.update(entity, Class, {
+  mode: "siege",
+  rules: [{ id: "message-rule", score: 1000, exports: ["automataA"], spawnMessage: "{name} upgraded to {label} ({export}) at {score}!" }],
+  random: () => 0,
+  broadcastMessage: (message) => broadcasts.push(message),
+});
+assert.strictEqual(result.upgraded, true);
+assert.deepStrictEqual(broadcasts, ["Test Automaton upgraded to Automata A (automataA) at 1000!"]);
+
+// Missing spawnMessage keeps the default behavior silent.
+broadcasts = [];
+entity = makeEntity();
+result = autoUpgrades.update(entity, Class, {
+  mode: "siege",
+  rules: [{ id: "silent-rule", score: 1000, exports: ["automataA"] }],
+  random: () => 0,
+  broadcastMessage: (message) => broadcasts.push(message),
+});
+assert.strictEqual(result.upgraded, true);
+assert.deepStrictEqual(broadcasts, []);
+
+// Export-based rules can omit an explicit ID and use the selected export names for tracking.
+assert.strictEqual(autoUpgrades.getRuleId({ exports: ["automataA"] }), "automataA");
+assert.strictEqual(autoUpgrades.getRuleId({ exports: ["automataB", "automataA"] }), "automataA+automataB");
+entity = makeEntity();
+result = autoUpgrades.update(entity, Class, {
+  mode: "siege",
+  rules: [{ score: 1000, exports: ["automataA"] }],
+  random: () => 0,
+});
+assert.strictEqual(result.ruleId, "automataA");
+assert.strictEqual(autoUpgrades.isCompleted(entity, "automataA"), true);
+
 console.log("Automatic score-based upgrade tests passed.");
