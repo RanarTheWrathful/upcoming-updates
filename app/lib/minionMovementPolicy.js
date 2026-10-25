@@ -74,59 +74,96 @@ function getLockedTarget(body, excludedController) {
   return fallback ? fallback.targetLock : undefined;
 }
 
-// Keep one attack lane for the duration of a target lock. Reusing the same
-// target preserves the side/angle; only acquiring a different target selects a
-// new angle, based on the entity's actual position rather than randomness.
+// Keep the same side of the target lock while the entity continuously orbits.
+// Only acquiring a different target reinitializes from the actual current side.
+function orbitAngularVelocity(body, radius, requestedAngularVelocity) {
+  const desired = Number(requestedAngularVelocity) || 0;
+  const orbitRadius = Math.max(1, Number(radius) || 1);
+  const velocity = body && body.velocity ? body.velocity : { x: 0, y: 0 };
+  const availableSpeed = Math.max(
+    1,
+    Number(body && body.topSpeed) || 0,
+    Math.hypot(Number(velocity.x) || 0, Number(velocity.y) || 0)
+  );
+  // Keep the moving waypoint reachable for slow entities and large configured
+  // rings. The intellect changes the pattern, but should not demand impossible
+  // tangential speeds that collapse into a straight-line charge.
+  const maxAngularVelocity = Math.max(0.001, (availableSpeed / orbitRadius) * 0.4);
+  return Math.max(-maxAngularVelocity, Math.min(maxAngularVelocity, desired));
+}
+
+// Keep one side of the target lock while continuously traversing its orbit.
+// The orbit advances from the entity's current radial angle, then uses
+// persistent intellect maneuvers; it never selects a random point and parks.
 function stableAttackStance(body, target, orbitDistance, previous, intellectValue = 1) {
   if (!body || !isUsableTarget(target)) return undefined;
   const sameTarget = previous && previous.target === target && Number.isFinite(previous.angle);
   const age = sameTarget ? (Number(previous.age) || 0) + 1 : 0;
   const maneuver = intellect.orbitManeuver(intellectValue, body.id, target.id, age);
+  const radius = Math.max(0, Number(orbitDistance) || 0);
+  let angularVelocity = orbitAngularVelocity(
+    body,
+    radius,
+    maneuver.direction * maneuver.angularSpeed * maneuver.speedMultiplier
+  );
   let angle;
   if (sameTarget) {
-    // Move around the same radial ring with a smooth, persistent maneuver.
-    // Wobble changes angle only; radius is never multiplied by INTELLECT.
-    angle = previous.angle + maneuver.direction * maneuver.angularSpeed * maneuver.speedMultiplier;
-    angle += maneuver.wobbleOffset - (Number(previous.wobbleOffset) || 0);
+    // Integrate orbit angle continuously. Wobble contributes only its delta, so
+    // a new maneuver can't teleport the goal to a different side of the ring.
+    const wobbleDelta = maneuver.wobbleOffset - (Number(previous.wobbleOffset) || 0);
+    angularVelocity = orbitAngularVelocity(body, radius, angularVelocity + wobbleDelta);
+    angle = previous.angle + angularVelocity;
   } else {
     const dx = (Number(body.x) || 0) - Number(target.x);
     const dy = (Number(body.y) || 0) - Number(target.y);
     angle = Math.hypot(dx, dy) > 1e-6
       ? Math.atan2(dy, dx)
       : (Number(body.facing) || 0) + Math.PI;
-    angle += maneuver.phaseOffset + maneuver.wobbleOffset;
   }
   angle = Math.atan2(Math.sin(angle), Math.cos(angle));
-  const radius = Math.max(0, Number(orbitDistance) || 0);
+  const goal = {
+    x: Number(target.x) + Math.cos(angle) * radius,
+    y: Number(target.y) + Math.sin(angle) * radius,
+  };
+  // Velocity of the moving waypoint around the target. Braking must account for
+  // this tangential motion rather than treating the waypoint as stationary.
+  const tangentialVelocity = {
+    x: -Math.sin(angle) * radius * angularVelocity,
+    y: Math.cos(angle) * radius * angularVelocity,
+  };
   return {
     target,
     angle,
     radius,
     age,
     style: maneuver.style,
+    angularVelocity,
     wobbleOffset: maneuver.wobbleOffset,
-    goal: {
-      x: Number(target.x) + Math.cos(angle) * radius,
-      y: Number(target.y) + Math.sin(angle) * radius,
-    },
+    goal,
+    tangentialVelocity,
   };
 }
 
 // Distance/velocity-aware arrival control for high-speed autonomous ranged AI.
 // A negative power applies acceleration away from the goal vector to brake when
 // it is closing too quickly, preventing repeated overshoot-and-turn oscillation.
-function standoffControlPower(body, target, goal) {
+function standoffControlPower(body, target, goal, orbitVelocity) {
   if (!body || !goal) return 1;
+  const movingOrbitGoal = orbitVelocity &&
+    Number.isFinite(Number(orbitVelocity.x)) && Number.isFinite(Number(orbitVelocity.y)) &&
+    Math.hypot(Number(orbitVelocity.x), Number(orbitVelocity.y)) > 1e-6;
   const dx = Number(goal.x) - (Number(body.x) || 0);
   const dy = Number(goal.y) - (Number(body.y) || 0);
   const distance = Math.hypot(dx, dy);
-  if (distance < 1e-6) return 0;
+  if (distance < 1e-6) return movingOrbitGoal ? 0.3 : 0;
   const ux = dx / distance;
   const uy = dy / distance;
   const velocity = body.velocity || { x: 0, y: 0 };
   const targetVelocity = target && target.velocity ? target.velocity : { x: 0, y: 0 };
-  const vx = (Number(velocity.x) || 0) - (Number(targetVelocity.x) || 0);
-  const vy = (Number(velocity.y) || 0) - (Number(targetVelocity.y) || 0);
+  const vx = (Number(velocity.x) || 0) - (Number(targetVelocity.x) || 0) -
+    (movingOrbitGoal ? Number(orbitVelocity.x) || 0 : 0);
+  const vy = (Number(velocity.y) || 0) - (Number(targetVelocity.y) || 0) -
+    (movingOrbitGoal ? Number(orbitVelocity.y) || 0 : 0);
   const relativeVelocityTowardGoal = vx * ux + vy * uy;
   const currentSpeed = Math.hypot(Number(velocity.x) || 0, Number(velocity.y) || 0);
   const topSpeed = Math.max(1, Number(body.topSpeed) || currentSpeed || 1);
@@ -134,11 +171,18 @@ function standoffControlPower(body, target, goal) {
   const positionalDemand = distance / brakingDistance;
 
   if (String(body.motionType || "").toLowerCase() === "motor") {
-    return Math.max(-0.8, Math.min(1, positionalDemand - (relativeVelocityTowardGoal / topSpeed) * 0.9));
+    const rawPower = Math.max(-0.8, Math.min(1,
+      positionalDemand - (relativeVelocityTowardGoal / topSpeed) * 0.9));
+    // Preserve real braking when the entity is closing too quickly, but don't
+    // let a moving orbital waypoint make the AI stop at one point on the ring.
+    if (movingOrbitGoal && rawPower >= 0) return Math.max(0.3, rawPower);
+    return rawPower;
   }
-  // Other movement modes do not all interpret signed power as acceleration;
-  // reduce thrust near the stance point without reversing their control signal.
-  return Math.max(0.12, Math.min(1, positionalDemand));
+  // Other movement modes cannot all reverse safely. A moving orbit needs enough
+  // steering power to follow the waypoint as it travels around the target.
+  return movingOrbitGoal
+    ? Math.max(0.3, Math.min(1, positionalDemand))
+    : Math.max(0.12, Math.min(1, positionalDemand));
 }
 
 function safeStandoffOrbit(baseOrbit, bodySize, targetSize, minimumGap = 30) {
@@ -159,5 +203,6 @@ module.exports = {
   isUsableTarget,
   getLockedTarget,
   stableAttackStance,
+  orbitAngularVelocity,
   standoffControlPower,
 };

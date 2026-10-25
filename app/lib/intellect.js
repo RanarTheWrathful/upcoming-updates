@@ -221,12 +221,22 @@ function stableHash(value) {
 // think calls; changes happen in long epochs, not through per-frame randomness.
 function orbitManeuver(value, entityId, targetId, age = 0) {
   const n = normalize(value, 1);
+  const identity = `${entityId == null ? "entity" : entityId}:${targetId == null ? "target" : targetId}`;
+  const seed = stableHash(identity);
+  const phaseSeed = stableHash(`${identity}:phase`) / 0xffffffff;
+  const nAge = Math.max(0, Math.floor(Number(age) || 0));
+  const baselineDirection = seed % 2 === 0 ? 1 : -1;
+
+  // INTELLECT 1 is a real, continuous circular orbit: predictable and smooth,
+  // not a single offset destination that the entity reaches and then abandons.
+  // Higher values add maneuver choices without changing the configured radius.
+  const baselineAngularSpeed = 0.012;
   if (n <= 1) {
     return {
       style: "standard",
       phaseOffset: 0,
-      direction: 1,
-      angularSpeed: 0,
+      direction: baselineDirection,
+      angularSpeed: baselineAngularSpeed,
       speedMultiplier: 1,
       wobbleAmplitude: 0,
       wobblePeriod: 900,
@@ -237,21 +247,17 @@ function orbitManeuver(value, entityId, targetId, age = 0) {
     };
   }
 
-  const identity = `${entityId == null ? "entity" : entityId}:${targetId == null ? "target" : targetId}`;
-  const seed = stableHash(identity);
-  const phaseSeed = stableHash(`${identity}:phase`) / 0xffffffff;
-  const nAge = Math.max(0, Math.floor(Number(age) || 0));
   const cycleLength = clamp(Math.round(1800 - level(n) * 25), 900, 1800);
   const cycle = Math.floor(nAge / cycleLength);
   const cycleSeed = stableHash(`${identity}:cycle:${n >= 128 ? cycle : 0}`);
 
-  let direction = seed % 2 === 0 ? 1 : -1;
+  let direction = baselineDirection;
   if (n >= 128) direction = cycleSeed % 2 === 0 ? 1 : -1;
 
   let speedMultiplier = 1;
   if (n >= 512) {
-    // Change cruising style only at long maneuver boundaries. This can create
-    // slow arcs, normal strafes, and faster feints without a jittering goal.
+    // Change cruising style only at long maneuver boundaries. This creates
+    // purposeful slow arcs, normal strafes, and faster feints without jitter.
     const speeds = [0.55, 0.8, 1, 1.25, 1.45];
     speedMultiplier = speeds[cycleSeed % speeds.length];
   } else if (n >= 128) {
@@ -259,7 +265,10 @@ function orbitManeuver(value, entityId, targetId, age = 0) {
     speedMultiplier = speeds[cycleSeed % speeds.length];
   }
 
-  const angularSpeed = 0.00015 + 0.00485 * progression(n, 2, 4096);
+  // Keep orbiting at every intellect level. Increasing intellect changes the
+  // maneuver profile and stability, with only a gradual bounded speed increase.
+  const angularSpeed = baselineAngularSpeed +
+    0.008 * progression(n, 1, 4096);
   const wobbleAmplitude = n >= 32
     ? 0.04 + 0.28 * progression(n, 32, 4096)
     : 0;
@@ -275,8 +284,8 @@ function orbitManeuver(value, entityId, targetId, age = 0) {
 
   return {
     style,
-    // Entity/target-specific phase gives each AI a different lane, but does not
-    // change the ring radius. The phase stays constant throughout a target lock.
+    // The phase offset creates a stable per-entity style. Goal positions are
+    // integrated continuously; no frame-to-frame random angle is selected.
     phaseOffset: Math.PI * 2 * phaseSeed * progression(n, 1, 16),
     direction,
     angularSpeed,

@@ -5283,7 +5283,8 @@ class io_minion extends IO {
           const stancePower = minionMovementPolicy.standoffControlPower(
             body,
             targetEntity,
-            stanceGoal
+            stanceGoal,
+            this._attackStance.tangentialVelocity
           );
           return {
             goal: stanceGoal,
@@ -5323,38 +5324,49 @@ class io_minion extends IO {
           };
         }
       } else if (input.main) {
-        // Smooth the master's aim-direction changes at high intellect. This
-        // keeps minions coordinated instead of making their orbit point snap
-        // around whenever the master's target changes by a few degrees.
-        const rawAim = target.direction;
-        if (this._orbitAimAngle == null) this._orbitAimAngle = rawAim;
-        const aimResponsiveness = 1 - 0.7 * intellect.progression(this.getIntellect(), 1, 256);
-        this._orbitAimAngle += util.angleDifference(rawAim, this._orbitAimAngle) * aimResponsiveness;
-        let dir = this.turnwise * this._orbitAimAngle + 0.01;
-        if (intellectValue > 1) {
-          this._orbitAge++;
-          const maneuver = intellect.orbitManeuver(
-            intellectValue,
-            body.id,
-            orbitAnchor && orbitAnchor.id,
-            this._orbitAge
-          );
-          if (!this._orbitPhaseSeeded) {
-            this._orbitPhase = maneuver.phaseOffset;
-            this._orbitPhaseSeeded = true;
-          }
-          this._orbitPhase += maneuver.direction * maneuver.angularSpeed * maneuver.speedMultiplier;
-          this._orbitPhase = Math.atan2(Math.sin(this._orbitPhase), Math.cos(this._orbitPhase));
-          dir += this._orbitPhase + maneuver.wobbleOffset;
-        } else {
-          // INTELLECT 1 retains the standard minion controller's normal orbit.
+        // Build a genuine moving orbit around the locked target's real position
+        // (or the commanded aim point when no target entity is locked). The
+        // angle is world-relative to the orbit center, not a tiny offset from
+        // the current aim direction that can make the AI park at one point.
+        const orbitTarget = minionMovementPolicy.getLockedTarget(body, this);
+        const orbitCenter = orbitTarget
+          ? { x: orbitTarget.x, y: orbitTarget.y }
+          : { x: body.x + target.x, y: body.y + target.y };
+        const orbitTargetIdentity = orbitTarget || null;
+        const orbitTargetChanged = this._orbitTarget !== orbitTargetIdentity || !this._orbitPhaseSeeded;
+        if (orbitTargetChanged) {
+          this._orbitTarget = orbitTargetIdentity;
+          this._orbitPhase = Math.atan2(body.y - orbitCenter.y, body.x - orbitCenter.x);
+          this._orbitPhaseSeeded = true;
           this._orbitAge = 0;
-          this._orbitPhase = 0;
-          this._orbitPhaseSeeded = false;
+          this._orbitWobbleOffset = undefined;
         }
+        this._orbitAge++;
+        const maneuver = intellect.orbitManeuver(
+          intellectValue,
+          body.id,
+          orbitTarget && orbitTarget.id != null
+            ? orbitTarget.id
+            : (orbitAnchor && orbitAnchor.id),
+          this._orbitAge
+        );
+        const previousWobble = orbitTargetChanged || this._orbitWobbleOffset == null
+          ? maneuver.wobbleOffset
+          : this._orbitWobbleOffset;
+        const wobbleDelta = maneuver.wobbleOffset - previousWobble;
+        this._orbitWobbleOffset = maneuver.wobbleOffset;
+        let angularVelocity = maneuver.direction * maneuver.angularSpeed * maneuver.speedMultiplier;
+        if (body.aiSettings.reverseDirection) angularVelocity *= this.turnwise;
+        angularVelocity = minionMovementPolicy.orbitAngularVelocity(
+          body,
+          orbit,
+          angularVelocity + wobbleDelta
+        );
+        this._orbitPhase += angularVelocity;
+        this._orbitPhase = Math.atan2(Math.sin(this._orbitPhase), Math.cos(this._orbitPhase));
         goal = {
-          x: this.body.x + target.x - orbit * Math.cos(dir),
-          y: this.body.y + target.y - orbit * Math.sin(dir),
+          x: orbitCenter.x + orbit * Math.cos(this._orbitPhase),
+          y: orbitCenter.y + orbit * Math.sin(this._orbitPhase),
         };
       }
       return {

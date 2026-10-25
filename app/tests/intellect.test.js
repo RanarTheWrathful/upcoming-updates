@@ -39,7 +39,7 @@ assert.ok(intellect.orbitDecisionInterval(100000000) > intellect.orbitDecisionIn
 const standardOrbit = intellect.orbitManeuver(1, 10, 20, 500);
 assert.strictEqual(standardOrbit.style, "standard", "INTELLECT 1 should use the normal minion orbit method");
 assert.strictEqual(standardOrbit.phaseOffset, 0);
-assert.strictEqual(standardOrbit.angularSpeed, 0);
+assert.ok(standardOrbit.angularSpeed > 0, "INTELLECT 1 should continuously orbit rather than stop at a fixed offset");
 assert.strictEqual(standardOrbit.wobbleAmplitude, 0);
 const variedOrbit = intellect.orbitManeuver(8, 10, 20, 500);
 assert.strictEqual(variedOrbit.style, "slow-orbit");

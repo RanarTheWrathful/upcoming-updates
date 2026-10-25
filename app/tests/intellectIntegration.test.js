@@ -23,6 +23,10 @@ assert.ok(server.includes("minionMovementPolicy.standoffControlPower("),
   "high-speed entities should brake when approaching their attack position");
 assert.ok(server.includes("intellect.orbitManeuver("),
   "intellect should unlock stable orbit maneuvers instead of changing orbit radius");
+assert.ok(server.includes("this._orbitPhase += angularVelocity"),
+  "the ordinary minion controller must integrate a continuously moving orbit at baseline intellect too");
+assert.ok(server.includes("minionMovementPolicy.orbitAngularVelocity("),
+  "orbit speed should be capped by movement capability so slow AI can follow the circle");
 assert.ok(!server.includes("orbit * sizeFactor * autonomyScale"),
   "minion orbit radius must not be scaled by intellect");
 assert.ok(!server.includes("configuredOrbit * sizeFactor * rangedScale"),

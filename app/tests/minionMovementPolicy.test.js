@@ -32,11 +32,20 @@ assert.strictEqual(stanceA.angle, Math.PI, "new stance should use the current ap
 assert.strictEqual(stanceA.goal.x, 700, "attack point should maintain the requested distance from the target");
 assert.strictEqual(stanceA.radius, 300, "baseline orbit must preserve the requested radius");
 const stanceB = policy.stableAttackStance({ x: 100, y: 10, facing: 0 }, validTarget, 300, stanceA, 1);
-assert.strictEqual(stanceB.angle, stanceA.angle, "attack side must remain fixed while the same target is locked");
-assert.strictEqual(stanceB.goal.x, stanceA.goal.x, "the attack point must not randomly jump as the body moves");
+assert.notStrictEqual(stanceB.angle, stanceA.angle, "the stance must continuously orbit instead of parking at one attack point");
+const stanceDelta = Math.atan2(
+  Math.sin(stanceB.angle - stanceA.angle),
+  Math.cos(stanceB.angle - stanceA.angle)
+);
+assert.ok(Math.abs(stanceDelta) < 0.03,
+  "orbiting should advance smoothly rather than jumping to a new angle");
+assert.notStrictEqual(stanceB.goal.x, stanceA.goal.x, "the orbital goal must move around the target every think");
+assert.ok(Math.abs(Math.hypot(stanceB.goal.x - validTarget.x, stanceB.goal.y - validTarget.y) - 300) < 1e-6,
+  "the continuous orbit must maintain its configured radius");
 validTarget.x = 1100;
 const stanceC = policy.stableAttackStance({ x: 100, y: 10 }, validTarget, 300, stanceB, 1);
-assert.strictEqual(stanceC.goal.x, 800, "the stable attack point should follow target movement without changing sides");
+assert.ok(Math.abs(Math.hypot(stanceC.goal.x - validTarget.x, stanceC.goal.y - validTarget.y) - 300) < 1e-6,
+  "the orbit should follow target movement while maintaining its radius");
 const otherTarget = { id: 3, x: -500, y: 0, health: { amount: 100 } };
 const stanceD = policy.stableAttackStance({ x: 100, y: 10 }, otherTarget, 300, stanceC, 1);
 assert.notStrictEqual(stanceD.target, stanceC.target, "a new target should start a fresh attack stance");
@@ -66,5 +75,15 @@ const smartStance1 = policy.stableAttackStance(
 assert.strictEqual(smartStance0.radius, 420, "intellect must not shrink the configured smart attack orbit");
 assert.strictEqual(smartStance1.radius, 420, "smart orbital maneuvers should stay on the same-radius ring");
 assert.notStrictEqual(smartStance1.angle, smartStance0.angle, "extreme intellect should steadily maneuver around a target");
+assert.ok(Math.abs(Math.hypot(smartStance1.goal.x - smartTarget.x, smartStance1.goal.y - smartTarget.y) - 420) < 1e-6,
+  "extreme-intellect orbit should not alter the configured radius");
+const movingOrbitPower = policy.standoffControlPower(
+  { x: 0, y: 0, size: 10, topSpeed: 20, motionType: "motor", velocity: { x: 0, y: 0 } },
+  { x: 0, y: 0, velocity: { x: 0, y: 0 } },
+  { x: 3, y: 0 },
+  { x: 0, y: 4 }
+);
+assert.ok(movingOrbitPower >= 0.3,
+  "the controller must retain steering power while following a moving orbital waypoint");
 
 console.log("minion movement policy tests passed");

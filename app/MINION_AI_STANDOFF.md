@@ -12,8 +12,8 @@ Some entities can inherit both `minion` and `mapTargetToGoal` controllers throug
 - The default shared orbit baseline is approximately 240 units at `INTELLECT: 1` for the default legacy radius. Higher intellect never widens or tightens that radius; it only changes angular phase, orbiting method, and maneuver timing.
 - The fallback hang-out formation radius was increased from 30 to 65 so minions without a usable target goal do not clump on the master.
 - When a target lock is available, ranged-combatant movement anchors to the target's real position, not the prediction point used for firing. Aim prediction can therefore no longer pull the movement goal through a fast-moving target.
-- Each autonomous ranged entity chooses its attack lane from its current approach side when it acquires a target. The angle remains fixed until that target changes, preventing frame-to-frame orbit/flank changes.
-- High-speed entities get an additional speed-based standoff buffer. Motor-mode AI uses distance and relative velocity to brake as it approaches its desired attack point, including reverse acceleration when it is closing too quickly.
+- Each autonomous ranged entity starts on its current approach side when it acquires a target, then continuously traverses the ring. The angular movement is integrated smoothly and does not pick a new random flank each frame.
+- High-speed entities get an additional speed-based standoff buffer. Motor-mode AI accounts for both its radial approach speed and the orbit waypoint’s tangential velocity when braking, so following a moving orbit point is not mistaken for overshooting a stationary destination.
 - The previous abrupt power toggle based on current target distance has been removed; power now depends on distance to the actual attack point.
 - Ordinary melee AI without a minion controller still uses direct target pursuit.
 

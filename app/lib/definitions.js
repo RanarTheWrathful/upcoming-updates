@@ -65805,7 +65805,6 @@ exports.ranarDiscipleForm = {
   TYPE: "neutralBoss",
   LABEL: "Disciple",
   ALLOW_PLATE: true,
-  INTELLECT: 1,
   BODY: {
     DAMAGE: base.DAMAGE * 5,
     FOV: 3.25,

@@ -33,7 +33,7 @@ INTELLECT measures decision quality and planning depth. It should not make an AI
 - `nearestDifferentMaster` and `Dominator`: threat scoring, predictive aiming, target-motion estimation, and projectile evasion when eligible.
 - `wanderAroundMap`: novelty-aware destination selection and stable pauses.
 - `pathFinder`: sequential routing by default; stuck recovery only at `INTELLECT >= 512` after repeated evidence that the current segment is blocked.
-- `minion`: uses the standard orbit at `INTELLECT: 1`. Higher values add stable, entity-specific lane offsets, slow orbiting, smooth angular weave, and infrequent direction/speed changes. Radius, leash distance, and target standoff remain independent of intellect.
+- `minion`: continuously circles its target/aim anchor at `INTELLECT: 1` using a predictable path. Higher values add stable, entity-specific lane offsets, smooth angular weaving, and infrequent direction/speed changes. Radius, leash distance, and target standoff remain independent of intellect.
 - `hangOutNearMaster`: uses the same configured bounds at every intellect value; higher intellect retains a selected destination longer and can vary its chosen lane without changing the bounds.
 - `fleeAtLowHealth`: the retreat threshold changes modestly; high intellect relies more on predictive defense than panic fleeing.
 - Controllers that only issue fixed behavior, such as `spin`, `teleportToMaster`, or `doNothing`, are not changed unless they already use a movement/target decision affected by intellect.
