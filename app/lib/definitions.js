@@ -3764,7 +3764,7 @@ exports.boomerang = {
   SHAPE: -5,
   BODY: {
     SPEED: 1,
-    RANGE: 150,
+    RANGE: 5,
     DENSITY: 100,
     PENETRATION: 1.5,
     PUSHABILITY: 1,
