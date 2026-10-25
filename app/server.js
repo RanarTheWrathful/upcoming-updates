@@ -5363,7 +5363,7 @@ class io_minion extends IO {
         ? Math.sqrt(sizeRatio)
         : 1;
       const leash = 60 * sizeFactor;
-      let orbit = 120 * sizeFactor;
+      let orbit = (120 * sizeFactor)/3;
 
       // Keep the earlier wider-orbit adjustment for positive configured values,
       // but preserve explicit zero/negative orbit settings exactly.
