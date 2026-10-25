@@ -278,7 +278,7 @@ c.networkUpdateFactor = 24;
 c.socketWarningLimit = 5;
 c.networkFrontlog = 1;
 c.networkFallbackTime = 30;
-c.visibleListInterval = 75;
+c.visibleListInterval = 500;
 if (c.MODE === "theDistance") c.visibleListInterval = 1;
 c.runSpeed = 1.5;
 c.maxHeartbeatInterval = 30000000;

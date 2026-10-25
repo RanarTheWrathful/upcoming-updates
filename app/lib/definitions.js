@@ -3756,20 +3756,18 @@ exports.wreckerSetBlock = {
 //Boomerands
 exports.boomerang = {
   LABEL: "Boomerang",
-  PARENT: [exports.trap],
-  SPECIAL_EFFECT: ["block"],
-  HITS_OWN_TYPE: "polyrepel",
+  PARENT: [exports.block],
   CONTROLLERS: ["boomerang"],
-  MOTION_TYPE: "motor",
-  HITS_OWN_TYPE: "never",
+  //MOTION_TYPE: "motor",
+  //HITS_OWN_TYPE: "never",
   SHAPE: -5,
-  BODY: {
+ /* BODY: {
     SPEED: 1.15,
     RANGE: 260,
     DENSITY: 100,
     PENETRATION: 1.15,
     PUSHABILITY: 1,
-  },
+  },*/
 };
 //Auras
 exports.damageAura = {
