@@ -5222,18 +5222,21 @@ class io_minion extends IO {
         ? Math.sqrt(rawSizeFactor)
         : 1;
       const autonomyScale = intellect.orbitMultiplier(intellectValue);
-      let leash = 60 * sizeFactor * autonomyScale;
-      const configuredOrbit = Number.isFinite(Number(body.orbitDistance))
+      // Keep minions visibly separated from their owner/aim point. Legacy class
+      // ORBIT_DISTANCE values (often 50–120) were cramped, so widen them through
+      // a shared policy while retaining more gradual growth for already-large radii.
+      let leash = 100 * sizeFactor * autonomyScale;
+      const configuredOrbitBase = Number.isFinite(Number(body.orbitDistance))
         ? Number(body.orbitDistance)
         : 120;
+      const configuredOrbit = minionMovementPolicy.expandedOrbitDistance(configuredOrbitBase);
       let orbit = configuredOrbit * sizeFactor * autonomyScale;
 
       // Minion AI is also used by some ranged enemies and bosses. Their old
       // orbit multiplier shrank with intellect (as low as 0.5x), and fixed
       // orbit radii ignored the size of large targets, so a "smart" ranged AI
-      // could end up inside collision range and look like a rammer. Keep actual
-      // spawned minions' formation behavior, but make autonomous combatants
-      // maintain a size-safe standoff distance that increases modestly with IQ.
+      // could end up inside collision range and look like a rammer. Keep their
+      // spacing bounded by entity size and widen it modestly as IQ increases.
       const rangedCombatant = minionMovementPolicy.isAutonomousRangedCombatant(body);
       if (rangedCombatant) {
         const nearestTargetController = (body.controllers || []).find((controller) =>
@@ -5497,7 +5500,7 @@ class io_hangOutNearMaster extends IO {
   constructor(body) {
     super(body);
     this.acceptsFromTop = false;
-    this.orbit = 30;
+    this.orbit = 65;
     this.currentGoal = { x: this.body.source.x, y: this.body.source.y };
     this.timer = 0;
     this.repositionCooldown = 0;
@@ -25288,6 +25291,23 @@ function normalizeEntitySelector(command) {
   return match[1] + " " + canonicalSelector + match[3];
 }
 
+function getRandomDeveloperSpawnPosition() {
+  // Prefer an ordinary, non-wall coordinate. A finite retry count prevents a
+  // malformed/fully-blocked room from trapping the command handler in a loop.
+  let fallback = null;
+  for (let attempt = 0; attempt < 32; attempt++) {
+    const candidate = room.random();
+    if (!candidate || !Number.isFinite(Number(candidate.x)) || !Number.isFinite(Number(candidate.y))) continue;
+    if (!fallback) fallback = candidate;
+    if (typeof room.isIn !== "function" || !room.isIn("wall", candidate)) return candidate;
+  }
+  const normal = typeof room.randomType === "function" ? room.randomType("norm") : null;
+  if (normal && Number.isFinite(Number(normal.x)) && Number.isFinite(Number(normal.y)) &&
+      (typeof room.isIn !== "function" || !room.isIn("wall", normal))) return normal;
+  if (fallback && (typeof room.isIn !== "function" || !room.isIn("wall", fallback))) return fallback;
+  return null;
+}
+
 function getCommandUsageError(rawCommand, isTrueDeveloper) {
   const command = String(rawCommand == null ? "" : rawCommand).trim().replace(/\s+/g, " ");
   const lower = command.toLowerCase();
@@ -25322,7 +25342,12 @@ function getCommandUsageError(rawCommand, isTrueDeveloper) {
   }
 
   if (commandMatches(lower, "spawn")) {
-    if (parts.length !== 4 || !parts[1] || !numeric(parts[2]) || !numeric(parts[3])) return usage("/entity spawn <classExport> <x> <y>");
+    const hasClassExport = Boolean(parts[1]);
+    const randomLocation = parts.length === 2 || (parts.length === 3 && String(parts[2]).toLowerCase() === "random");
+    const explicitLocation = parts.length === 4 && numeric(parts[2]) && numeric(parts[3]);
+    if (!hasClassExport || (!randomLocation && !explicitLocation)) {
+      return usage("/entity spawn <classExport> [x y|random]");
+    }
     if (typeof Class !== "undefined" && !Class[parts[1]]) return "Unknown class export: " + parts[1] + ".";
   }
   if (commandMatches(lower, "transform")) {
@@ -25405,7 +25430,7 @@ const DEVELOPER_COMMAND_GROUPS = [
   {
     title: "Entity tools", icon: "✧", caption: "Groups: projectiles, polygons, enemies, players, bots, bosses, walls, misc, self, ID, all",
     commands: [
-      { command: "/entity spawn <export> <x> <y>", insert: "/entity spawn ", description: "Spawn a class export at world coordinates.", aliases: ["/spawn [classExport] [x] [y]"] },
+      { command: "/entity spawn <export> [x y|random]", insert: "/entity spawn ", description: "Spawn a class export. Omit the location or enter random for a safe random spot; supply both x and y to choose exact coordinates.", aliases: ["/spawn <classExport> [x y]"] },
       { command: "/entity transform <group> <export>", insert: "/entity transform ", description: "Transform every matching entity into a class export.", aliases: ["/transform [group] [classExport]"] },
       { command: "/entity kill <group>", insert: "/entity kill ", description: "Kill matching entities.", aliases: ["/kill [group]"] },
       { command: "/entity destroy <group>", insert: "/entity destroy ", description: "Kill and remove matching entities.", aliases: ["/obliterate [group]", "/entity delete <group>"] },
@@ -26755,16 +26780,22 @@ You must have the chat site and the game site open at the same time for your cha
                           let parts = command.split(" ");
                           socket.creationTeam = parts[2] * 1;
                         } else if (commandMatches(commandLower, "spawn")) {
-                          let parts = command.split(" ");
-                          let entity = parts[1]; // This should be "polygons", "players", etc.
-                          let ex = parts[2] * 1; // Join
-                          let wy = parts[3] * 1; // The last part is the additional parameter (e.g., "3")
-                          util.log(ex + ", " + wy);
-                          let o = new Entity({ x: ex, y: wy });
-                          o.define(Class[entity]);
-                          o.team = socket.creationTeam;
-
-                          //console.log(entity);
+                          const parts = command.trim().split(/\s+/);
+                          const exportName = parts[1];
+                          const hasExplicitLocation = parts.length === 4;
+                          const position = hasExplicitLocation
+                            ? { x: Number(parts[2]), y: Number(parts[3]) }
+                            : getRandomDeveloperSpawnPosition();
+                          if (!position) {
+                            message = "Could not find a safe random spawn location in this room.";
+                          } else {
+                            const spawned = new Entity(position);
+                            spawned.define(Class[exportName]);
+                            spawned.team = socket.creationTeam;
+                            message = hasExplicitLocation
+                              ? `Spawned ${exportName} at (${Math.round(position.x)}, ${Math.round(position.y)}).`
+                              : `Spawned ${exportName} at a random location (${Math.round(position.x)}, ${Math.round(position.y)}).`;
+                          }
                         } else if (commandMatches(commandLower, "propertize entity")) {
                           let parts = command.split(" ");
                           let entity = parts[2]; // This should be "polygons", "players", etc.

@@ -200,9 +200,16 @@ function fleeThreshold(base, value) {
 }
 
 function orbitMultiplier(value) {
-  // Lower intellect has a looser formation; high intellect tightens it slightly.
-  // This curve avoids the tiny or huge orbit radii that caused unstable movement.
-  return clamp(Math.pow(1 / Math.max(0.01, normalize(value, 1)), 0.12), 0.5, 1.65);
+  // Intellect should improve spatial coordination without compressing a minion
+  // formation into collision range. Values below 1 remain a little less orderly
+  // (and therefore slightly wider); higher values progressively choose a wider,
+  // more tactically separated orbit. Growth saturates to keep formations bounded.
+  const n = normalize(value, 1);
+  const lowIntellectWidening = n < 1 ? 0.2 * (1 - Math.pow(Math.max(0.01, n), 0.12)) : 0;
+  const highIntellectWidening = n > 1
+    ? 0.35 * progression(n, 1, 64) + 0.25 * progression(n, 64, 1000000)
+    : 0;
+  return clamp(1 + lowIntellectWidening + highIntellectWidening, 1, 1.6);
 }
 
 function solveInterceptTime(position, velocity, projectileSpeed, maxTime = 120) {

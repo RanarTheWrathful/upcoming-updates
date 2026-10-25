@@ -29,7 +29,7 @@ const requiredDeveloperCommands = [
   "/dev help", "/tda <key>", "/server announce <message>", "/server close",
   "/server id <number>", "/server repeat <count>", "/player god", "/teams setup <mode>",
   "/team spawn <id>", "/team me", "/wave set <number>", "/ai toggle", "/growth toggle",
-  "/plague toggle", "/graveyard toggle", "/entity spawn <export> <x> <y>",
+  "/plague toggle", "/graveyard toggle", "/entity spawn <export> [x y|random]",
   "/entity transform <group> <export>", "/entity kill <group>", "/entity destroy <group>",
   "/entity heal <group>", "/entity size <group> <size>", "/entity color <group> <color>",
   "/entity team <group> <teamID>", "/entity points <group> <points>",

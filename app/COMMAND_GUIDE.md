@@ -36,7 +36,7 @@ The command system uses a smaller, consistent vocabulary while preserving the ol
 
 ### Entities
 
-- `/entity spawn <classExport> <x> <y>`
+- `/entity spawn <classExport> [x y|random]` — omit the location or use `random` to choose a safe random location; provide both `x` and `y` for exact coordinates.
 - `/entity transform <group> <classExport>`
 - `/entity kill <group>` — kill matching entities.
 - `/entity destroy <group>` — kill and remove matching entities.

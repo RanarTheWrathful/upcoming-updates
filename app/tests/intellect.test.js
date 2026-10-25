@@ -30,9 +30,9 @@ assert.ok(intellect.fleeThreshold(0.3, 0.1) < intellect.fleeThreshold(0.3, 1));
 assert.strictEqual(intellect.fleeThreshold(0.3, 1), 0.3);
 assert.ok(intellect.fleeThreshold(0.3, 100000000) < 0.34, "high intellect must not cause panic fleeing at almost full health");
 assert.strictEqual(intellect.orbitMultiplier(1), 1);
-assert.ok(intellect.orbitMultiplier(0.1) > 1);
-assert.ok(intellect.orbitMultiplier(100000000) < 1);
-assert.ok(intellect.orbitMultiplier(100000000) >= 0.5);
+assert.ok(intellect.orbitMultiplier(0.1) > 1, "low-intellect formations should not collapse inward");
+assert.ok(intellect.orbitMultiplier(100000000) > 1, "high-intellect minions should maintain wider spacing");
+assert.ok(intellect.orbitMultiplier(100000000) <= 1.6, "orbit scaling should remain bounded");
 
 const body = { x: 0, y: 0, fov: 2000, topSpeed: 10, velocity: { x: 0, y: 0 }, aiTarget: "general" };
 const near = { x: 100, y: 0, dangerValue: 1, health: { amount: 100, max: 100 }, velocity: { x: 0, y: 0 } };

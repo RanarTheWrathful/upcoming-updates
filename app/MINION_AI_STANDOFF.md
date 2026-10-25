@@ -8,9 +8,11 @@ Some entities can inherit both `minion` and `mapTargetToGoal` controllers throug
 
 - `io_mapTargetToGoal` now defers direct movement when the entity has a minion steering controller, unless `aiSettings.forceDirectChase === true`. Player bodies are not affected by the safeguard.
 - Autonomous ranged enemies and bosses use a non-shrinking, modestly increasing orbit scale as `INTELLECT` rises.
-- When a target lock is available, their orbit distance is clamped to a minimum based on both entities' sizes plus a safety gap.
+- Legacy class orbit distances are expanded: small 50–120 unit radii become at least 220 units, while already-large radii grow more gradually.
+- The default orbit is approximately 240 units at `INTELLECT: 1`; higher intellect widens minion formations further, up to a bounded 1.6x intellect multiplier.
+- The fallback hang-out formation radius was increased from 30 to 65 so minions without a usable target goal do not clump on the master.
+- When a target lock is available, ranged-combatant orbit distance is clamped to a minimum based on both entities' sizes plus a safety gap.
 - Ordinary melee AI without a minion controller still uses direct target pursuit.
-- Actual minion/drone formations retain the existing intellect-based orbit behavior.
 
 ## Validation
 

@@ -36,6 +36,16 @@ function isAutonomousRangedCombatant(body) {
     hasController(body, "nearestDifferentMaster") && hasController(body, "minion");
 }
 
+
+// Give legacy class-defined ORBIT_DISTANCE values a wider formation radius.
+// Small values (often 50–120) were creating overlapping minions, so they get a
+// substantial minimum increase while already-large boss radii scale more gently.
+function expandedOrbitDistance(configuredOrbit) {
+  const value = Number(configuredOrbit);
+  const base = Number.isFinite(value) ? Math.max(0, value) : 120;
+  return Math.max(220, base * 1.5, base + 120);
+}
+
 function safeStandoffOrbit(baseOrbit, bodySize, targetSize, minimumGap = 30) {
   const orbit = Math.max(0, Number(baseOrbit) || 0);
   const ownSize = Math.max(0, Number(bodySize) || 0);
@@ -49,5 +59,6 @@ module.exports = {
   hasController,
   shouldDeferDirectChase,
   isAutonomousRangedCombatant,
+  expandedOrbitDistance,
   safeStandoffOrbit,
 };
