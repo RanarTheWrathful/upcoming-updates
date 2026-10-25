@@ -44,3 +44,8 @@ Add `spawnMessage` to a rule to broadcast a message when an automated entity rea
 ```
 
 The announcement is for automated transformations; player bodies that receive selectable upgrade options are not announced as having transformed.
+
+
+### Supported source entity types
+
+Class-level rules (`AUTO_UPGRADE_RULES` on a specific class export) can trigger for that exact class even when its runtime entity type is not `tank`. This is important for enemy definitions that inherit types such as `crasher` or `neutralBoss`. Player bodies marked `isPlayer === true` receive selectable options regardless of their runtime type. Global rules remain restricted to `tank` entities by default; use `from: ["exportName"]` to explicitly allow a non-tank source.

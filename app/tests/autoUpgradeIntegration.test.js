@@ -14,7 +14,10 @@ for (const key in Class) {
 function makeEntity(exportName, overrides = {}) {
   const definition = Class[exportName];
   return Object.assign({
-    type: "tank",
+    // These configured source definitions inherit TYPE: "crasher" in the
+    // actual server. Keeping that runtime type is important: it exposed the
+    // old update() guard that rejected every real source before rules ran.
+    type: "crasher",
     index: definition.index,
     label: definition.LABEL || definition.label || exportName,
     isPlayer: false,

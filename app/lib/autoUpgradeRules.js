@@ -167,7 +167,12 @@ function addRuleOptions(entity, rule, targets) {
 }
 
 function update(entity, Class, options = {}) {
-  if (!entity || entity.type !== "tank" || !entity.skill || typeof entity.define !== "function") return false;
+  // Do not gate on entity.type === "tank" here. Several valid rule sources in
+  // definitions.js are autonomous "crasher" entities (for example sentries and
+  // guards), so that check silently prevented both their AI transformations
+  // and player-body unlocks. Discover eligible rules first, then restrict
+  // *unscoped global* rules to tanks unless the rule explicitly names sources.
+  if (!entity || !entity.skill || typeof entity.define !== "function") return false;
   const globalRules = Array.isArray(options.rules) ? options.rules : AUTO_UPGRADE_RULES;
   const rules = getRulesForEntity(entity, Class, globalRules);
   if (!rules.length) return false;
@@ -188,6 +193,19 @@ function update(entity, Class, options = {}) {
       _sourceIndex: entry.sourceIndex,
     });
     if (!ruleAppliesToEntity(rule, entity, Class)) continue;
+
+    // Class-level rules are explicitly attached to this exact definition and
+    // may intentionally upgrade non-tank entity types such as "crasher" or
+    // "neutralBoss". Global rules remain tank-only by default; a global rule
+    // can opt another source type in by supplying `from: [...]`.
+    const explicitlyScopedRule = entry.sourceIndex != null ||
+      (Array.isArray(originalRule.from) && originalRule.from.length > 0);
+    if (
+      entity.isPlayer !== true &&
+      entity.type !== "tank" &&
+      !explicitlyScopedRule
+    ) continue;
+
     const targets = resolveTargets(rule, Class).filter(({ target }) => target !== Class.genericEntity && target.index !== entity.index);
     if (!targets.length) continue;
 

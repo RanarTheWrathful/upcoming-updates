@@ -46,6 +46,89 @@ function expandedOrbitDistance(configuredOrbit) {
   return Math.max(220, base * 1.5, base + 120);
 }
 
+
+function isUsableTarget(target) {
+  if (!target) return false;
+  if (typeof target.valid === "function" && !target.valid()) return false;
+  if (typeof target.isDead === "function" && target.isDead()) return false;
+  if (target.health && Number.isFinite(Number(target.health.amount)) && Number(target.health.amount) <= 0) return false;
+  return Number.isFinite(Number(target.x)) && Number.isFinite(Number(target.y));
+}
+
+// Prefer the actual locked entity for locomotion. The target vector consumed by
+// the firing controller may be lead-compensated and can jump as velocity is
+// re-estimated; using that point for movement makes fast AI lunge past targets.
+function getLockedTarget(body, excludedController) {
+  const controllers = body && Array.isArray(body.controllers) ? body.controllers : [];
+  const nearest = controllers.find((controller) =>
+    controller && controller !== excludedController &&
+    controllerName(controller) === "nearestdifferentmaster" &&
+    isUsableTarget(controller.targetLock)
+  );
+  if (nearest) return nearest.targetLock;
+  const fallback = controllers.find((controller) =>
+    controller && controller !== excludedController && isUsableTarget(controller.targetLock)
+  );
+  return fallback ? fallback.targetLock : undefined;
+}
+
+// Keep one attack lane for the duration of a target lock. Reusing the same
+// target preserves the side/angle; only acquiring a different target selects a
+// new angle, based on the entity's actual position rather than randomness.
+function stableAttackStance(body, target, orbitDistance, previous) {
+  if (!body || !isUsableTarget(target)) return undefined;
+  const sameTarget = previous && previous.target === target && Number.isFinite(previous.angle);
+  let angle;
+  if (sameTarget) {
+    angle = previous.angle;
+  } else {
+    const dx = (Number(body.x) || 0) - Number(target.x);
+    const dy = (Number(body.y) || 0) - Number(target.y);
+    angle = Math.hypot(dx, dy) > 1e-6
+      ? Math.atan2(dy, dx)
+      : (Number(body.facing) || 0) + Math.PI;
+  }
+  const radius = Math.max(0, Number(orbitDistance) || 0);
+  return {
+    target,
+    angle,
+    radius,
+    goal: {
+      x: Number(target.x) + Math.cos(angle) * radius,
+      y: Number(target.y) + Math.sin(angle) * radius,
+    },
+  };
+}
+
+// Distance/velocity-aware arrival control for high-speed autonomous ranged AI.
+// A negative power applies acceleration away from the goal vector to brake when
+// it is closing too quickly, preventing repeated overshoot-and-turn oscillation.
+function standoffControlPower(body, target, goal) {
+  if (!body || !goal) return 1;
+  const dx = Number(goal.x) - (Number(body.x) || 0);
+  const dy = Number(goal.y) - (Number(body.y) || 0);
+  const distance = Math.hypot(dx, dy);
+  if (distance < 1e-6) return 0;
+  const ux = dx / distance;
+  const uy = dy / distance;
+  const velocity = body.velocity || { x: 0, y: 0 };
+  const targetVelocity = target && target.velocity ? target.velocity : { x: 0, y: 0 };
+  const vx = (Number(velocity.x) || 0) - (Number(targetVelocity.x) || 0);
+  const vy = (Number(velocity.y) || 0) - (Number(targetVelocity.y) || 0);
+  const relativeVelocityTowardGoal = vx * ux + vy * uy;
+  const currentSpeed = Math.hypot(Number(velocity.x) || 0, Number(velocity.y) || 0);
+  const topSpeed = Math.max(1, Number(body.topSpeed) || currentSpeed || 1);
+  const brakingDistance = Math.min(450, Math.max(40, (Number(body.size) || 0) * 3, topSpeed * 10));
+  const positionalDemand = distance / brakingDistance;
+
+  if (String(body.motionType || "").toLowerCase() === "motor") {
+    return Math.max(-0.8, Math.min(1, positionalDemand - (relativeVelocityTowardGoal / topSpeed) * 0.9));
+  }
+  // Other movement modes do not all interpret signed power as acceleration;
+  // reduce thrust near the stance point without reversing their control signal.
+  return Math.max(0.12, Math.min(1, positionalDemand));
+}
+
 function safeStandoffOrbit(baseOrbit, bodySize, targetSize, minimumGap = 30) {
   const orbit = Math.max(0, Number(baseOrbit) || 0);
   const ownSize = Math.max(0, Number(bodySize) || 0);
@@ -61,4 +144,8 @@ module.exports = {
   isAutonomousRangedCombatant,
   expandedOrbitDistance,
   safeStandoffOrbit,
+  isUsableTarget,
+  getLockedTarget,
+  stableAttackStance,
+  standoffControlPower,
 };

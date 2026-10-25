@@ -5208,6 +5208,7 @@ class io_minion extends IO {
     super(body);
     this.turnwise = 1;
     this._orbitAimAngle = undefined;
+    this._attackStance = undefined;
   }
   think(input) {
     if (this.body.invuln === true) return;
@@ -5238,24 +5239,52 @@ class io_minion extends IO {
       // could end up inside collision range and look like a rammer. Keep their
       // spacing bounded by entity size and widen it modestly as IQ increases.
       const rangedCombatant = minionMovementPolicy.isAutonomousRangedCombatant(body);
-      if (rangedCombatant) {
-        const nearestTargetController = (body.controllers || []).find((controller) =>
-          controller && controller !== this && controller.targetLock && controller.targetLock !== body
-        );
-        const targetEntity = nearestTargetController && nearestTargetController.targetLock;
-        const targetSize = targetEntity
-          ? Math.max(0, Number(targetEntity.size) || Number(targetEntity.SIZE) || 0)
-          : 0;
+      const targetEntity = rangedCombatant
+        ? minionMovementPolicy.getLockedTarget(body, this)
+        : undefined;
+      if (rangedCombatant && targetEntity && input.main && !input.alt) {
+        const targetSize = Math.max(0, Number(targetEntity.size) || Number(targetEntity.SIZE) || 0);
         const rangedScale = 1 + 0.3 * intellect.progression(intellectValue, 1, 1000000);
         orbit = configuredOrbit * sizeFactor * rangedScale;
-        if (targetEntity) {
-          orbit = minionMovementPolicy.safeStandoffOrbit(
-            orbit,
-            body.size,
-            targetSize,
-            Math.max(30, Math.max(Number(body.size) || 0, targetSize) * 0.5)
+
+        // Give fast entities more room to decelerate before reaching their
+        // attack lane. This is based on their configured top speed (not their
+        // instantaneous speed), so the desired radius cannot oscillate.
+        const configuredTopSpeed = Math.max(0, Number(body.topSpeed) || 0);
+        const speedBuffer = Math.min(180, configuredTopSpeed * 8);
+        orbit = minionMovementPolicy.safeStandoffOrbit(
+          orbit + speedBuffer,
+          body.size,
+          targetSize,
+          Math.max(50, Math.max(Number(body.size) || 0, targetSize) * 0.65)
+        );
+
+        // Movement follows the target's real position, not its predicted firing
+        // intercept. The firing controller still leads shots independently.
+        // A persistent attack angle keeps a boss on one side of its target until
+        // the target changes, eliminating random flank swapping and close-in rushes.
+        this._attackStance = minionMovementPolicy.stableAttackStance(
+          body,
+          targetEntity,
+          orbit,
+          this._attackStance
+        );
+        if (this._attackStance) {
+          const stanceGoal = this._attackStance.goal;
+          const stancePower = minionMovementPolicy.standoffControlPower(
+            body,
+            targetEntity,
+            stanceGoal
           );
+          return {
+            goal: stanceGoal,
+            power: stancePower,
+          };
         }
+      } else {
+        // Do not carry an old target's attack lane through target loss, leash
+        // behavior, or a transition back to player/master-directed movement.
+        this._attackStance = undefined;
       }
 
       let repel = (100 * sizeFactor * this.body.SPEED) / 2;
@@ -5297,9 +5326,6 @@ class io_minion extends IO {
           x: this.body.x + target.x - orbit * Math.cos(dir),
           y: this.body.y + target.y - orbit * Math.sin(dir),
         };
-        if (Math.abs(target.length - orbit) < this.body.size * 2) {
-          power = 0.7;
-        }
       }
       return {
         goal: goal,

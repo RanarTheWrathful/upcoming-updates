@@ -66,6 +66,28 @@ result = autoUpgrades.update(entity, Class, { mode: "ffa", rules: [{ id: "siege-
 assert.strictEqual(result, false);
 assert.strictEqual(entity.index, 1);
 
+// Global, unscoped rules remain tank-only by default, rather than transforming
+// arbitrary non-tank entities just because they happen to have a Skill object.
+entity = makeEntity({ type: "crasher" });
+result = autoUpgrades.update(entity, Class, {
+  mode: "siege",
+  rules: [{ id: "unscoped-global", score: 1, exports: ["automataA"] }],
+  random: () => 0,
+});
+assert.strictEqual(result, false);
+assert.strictEqual(entity.index, 1);
+
+// A global rule can intentionally target a non-tank class through `from`.
+const ScopedClass = Object.assign({}, Class, { sourceCrasher: { index: 1, LABEL: "Source Crasher" } });
+entity = makeEntity({ type: "crasher", index: ScopedClass.sourceCrasher.index });
+result = autoUpgrades.update(entity, ScopedClass, {
+  mode: "siege",
+  rules: [{ id: "scoped-global", score: 1, exports: ["automataA"], from: ["sourceCrasher"] }],
+  random: () => 0,
+});
+assert.strictEqual(result.upgraded, true);
+assert.strictEqual(result.exportName, "automataA");
+
 
 // Optional spawn messages broadcast only when an automated entity upgrades, with placeholders expanded.
 let broadcasts = [];

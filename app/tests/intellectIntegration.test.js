@@ -15,6 +15,12 @@ assert.ok(server.includes("intellect.chooseWanderSpot("),
   "wander controller should use novelty-aware stable destinations");
 assert.ok(server.includes("this.repositionCooldown <= 0"),
   "formation controller should keep randomized goals stable between reposition decisions");
+assert.ok(server.includes("minionMovementPolicy.getLockedTarget(body, this)"),
+  "autonomous ranged movement should anchor to the actual target lock rather than a lead-aim point");
+assert.ok(server.includes("minionMovementPolicy.stableAttackStance("),
+  "autonomous ranged entities should preserve a stable attack lane through a target lock");
+assert.ok(server.includes("minionMovementPolicy.standoffControlPower("),
+  "high-speed entities should brake when approaching their attack position");
 assert.ok(server.includes("const recoverStuck = value >= 512 && this.stuckChecks >= 5"),
   "pathfinder should only skip ahead after repeated stuck evidence at the specified threshold");
 console.log("INTELLECT controller-integration checks passed.");
