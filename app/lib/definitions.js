@@ -3695,9 +3695,9 @@ exports.unsetBlock = {
   MOTION_TYPE: "motor",
   BODY: {
     SPEED: 1.2,
-    PENETRATION: 0.85,
     DENSITY: 7.5,
     PENETRATION: 1.15,
+
     PUSHABILITY: 0.5,
   },
 };
@@ -3756,18 +3756,19 @@ exports.wreckerSetBlock = {
 //Boomerands
 exports.boomerang = {
   LABEL: "Boomerang",
-  PARENT: [exports.setBlock],
+  PARENT: [exports.trap],
   CONTROLLERS: ["boomerang"],
+  SPECIAL_EFFECT: ["block"],
   //MOTION_TYPE: "motor",
   //HITS_OWN_TYPE: "never",
   SHAPE: -5,
- /* BODY: {
+  BODY: {
     SPEED: 1.15,
     RANGE: 260,
     DENSITY: 100,
     PENETRATION: 1.15,
     PUSHABILITY: 1,
-  },*/
+  },
 };
 //Auras
 exports.damageAura = {
