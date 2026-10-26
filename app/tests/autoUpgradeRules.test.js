@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("assert");
-const autoUpgrades = require("../lib/autoUpgradeRules");
+const autoUpgrades = require("../lib/autoUpgradeRules/autoUpgradeRules");
 
 function makeClass(index, label) {
   return { index, LABEL: label };
@@ -10,7 +10,7 @@ function makeEntity(overrides = {}) {
     type: "tank",
     index: 1,
     isPlayer: false,
-    isBot: true,
+    isBot: false,
     skill: { score: 1000, level: 0 },
     upgrades: [],
     master: null,
@@ -30,9 +30,17 @@ let entity = makeEntity({ skill: { score: 999, level: 0 } });
 assert.strictEqual(autoUpgrades.update(entity, Class, { mode: "siege", rules, random: () => 0.75 }), false);
 assert.strictEqual(entity.index, 1);
 
-// At threshold, a non-player-controlled entity randomly chooses one export.
-entity = makeEntity();
+// Bots receive class options, rather than being forcibly transformed.
+entity = makeEntity({ isBot: true });
 let result = autoUpgrades.update(entity, Class, { mode: "siege", rules, random: () => 0.75 });
+assert.strictEqual(result, false);
+assert.strictEqual(entity.index, 1);
+assert.deepStrictEqual(entity.upgrades.map((option) => option.class.index), [2, 3]);
+assert.strictEqual(autoUpgrades.isCompleted(entity, "test-automata"), false);
+
+// Unmanaged NPCs retain their automatic transformation behavior.
+entity = makeEntity();
+result = autoUpgrades.update(entity, Class, { mode: "siege", rules, random: () => 0.75 });
 assert.strictEqual(result.upgraded, true);
 assert.strictEqual(result.exportName, "automataB");
 assert.strictEqual(entity.index, Class.automataB.index);
@@ -56,7 +64,7 @@ assert.strictEqual(entity.upgrades.length, 0);
 
 // A player-controlled automated minion is not automatically transformed.
 const playerMaster = makeEntity({ isPlayer: true, master: null });
-entity = makeEntity({ master: playerMaster });
+entity = makeEntity({ isBot: true, master: playerMaster });
 assert.strictEqual(autoUpgrades.update(entity, Class, { mode: "siege", rules, random: () => 0 }), false);
 assert.strictEqual(entity.index, 1);
 

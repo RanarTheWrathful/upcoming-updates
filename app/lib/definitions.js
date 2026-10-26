@@ -136,10 +136,10 @@ const g = {
   battleShip: [1, 1, 1, 1, 1.25, 1.15, 1, 1, 0.85, 1, 1, 1, 1.1],
   hexatrap: [0.85, 1, 1, 1, 0.9, 0.9, 1, 0.8, 1, 0.85, 1, 1, 1],
   block: [
-    1.75, 2.25, 0.1, 1.75, 1.25, 1, 1.25, 1.3, 1.5, 1.05, 0.25, 1, 1.75,
+    1.75, 2.25, 0.1, 1.5, 1.25, 1, 1.25, 1.3, 1.5, 1.05, 0.25, 1, 1.75,
   ],
   construct: [1.4, 1.5, 1, 0.9, 1.25, 1.25, 1.25, 0.95, 1.1, 1, 1, 1, 1],
-  boomerang: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1.55, 1, 1, 1],
+  boomerang: [1, 1, 1, 1.25, 1, 1, 1, 1, 1, 1.55, 1, 1, 1],
   over: [1.25, 1, 1, 0.85, 1, 1, 1, 1, 0.9, 1, 2, 1, 1],
   meta: [1.333, 1, 1, 1, 1, 0.667, 1, 1, 1, 1, 1, 1, 1],
   weak: [2, 1, 1, 1, 0.6, 0.6, 0.8, 0.5, 0.7, 0.25, 0.3, 1, 1],
@@ -16053,7 +16053,7 @@ exports.pillbox = {
 
 exports.unsetpillbox = {
   LABEL: "Pillbox",
-  PARENT: [exports.unsetBlock],
+  PARENT: [exports.setBlock],
   TURRETS: [
     {
       /*  SIZE     X       Y     ANGLE    ARC */
@@ -16570,7 +16570,7 @@ exports.mechflingtrap = {
 
 exports.bosspillbox = {
   LABEL: "Pillbox",
-  PARENT: [exports.unsetBlock],
+  PARENT: [exports.setBlock],
   CONTROLLERS: ["nearestDifferentMaster"],
 
   BODY: {
@@ -16587,7 +16587,7 @@ exports.bosspillbox = {
 };
 exports.terrestrialpillbox = {
   LABEL: "Pillbox",
-  PARENT: [exports.unsetBlock],
+  PARENT: [exports.setBlock],
   CONTROLLERS: ["nearestDifferentMaster"],
 
   BODY: {
@@ -16604,7 +16604,7 @@ exports.terrestrialpillbox = {
 };
 exports.bosspillboxTwin = {
   LABEL: "Pillbox",
-  PARENT: [exports.unsetBlock],
+  PARENT: [exports.setBlock],
   CONTROLLERS: ["nearestDifferentMaster"],
 
   BODY: {
@@ -16621,7 +16621,7 @@ exports.bosspillboxTwin = {
 };
 exports.tankpillboxTwin = {
   LABEL: "Pillbox",
-  PARENT: [exports.unsetBlock],
+  PARENT: [exports.setBlock],
   CONTROLLERS: ["nearestDifferentMaster"],
 
   BODY: {
@@ -16655,7 +16655,7 @@ exports.bosspillboxTrio = {
 
 exports.bosstrapbox = {
   LABEL: "Pillbox",
-  PARENT: [exports.unsetBlock],
+  PARENT: [exports.setBlock],
   CONTROLLERS: ["nearestDifferentMaster"],
   INDEPENDENT: true,
   BODY: {
@@ -16673,7 +16673,7 @@ exports.bosstrapbox = {
 };
 exports.pillboxT = {
   LABEL: "Pillbox",
-  PARENT: [exports.unsetBlock],
+  PARENT: [exports.setBlock],
   CONTROLLERS: ["nearestDifferentMaster"],
 
   BODY: {
@@ -17620,7 +17620,7 @@ exports.roguestrapnelgunTurret = {
           g.lesserSize,
           g.bitmoreSpeed
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -17635,7 +17635,7 @@ exports.roguestrapnelgunTurret = {
           g.lesserSize,
           g.bitmoreSpeed
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -17650,7 +17650,7 @@ exports.roguestrapnelgunTurret = {
           g.lesserSize,
           g.bitmoreSpeed
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -17665,7 +17665,7 @@ exports.roguestrapnelgunTurret = {
           g.lesserSize,
           g.bitmoreSpeed
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -17680,7 +17680,7 @@ exports.roguestrapnelgunTurret = {
           g.lesserSize,
           g.bitmoreSpeed
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -17711,7 +17711,7 @@ exports.roguestrapnelgunTurret2 = {
           g.halfReload,
           g.bitmoreSize,
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -17727,7 +17727,7 @@ exports.roguestrapnelgunTurret2 = {
           g.halfReload,
           g.bitmoreSize,
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -17743,7 +17743,7 @@ exports.roguestrapnelgunTurret2 = {
           g.halfReload,
           g.bitmoreSize,
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -17759,7 +17759,7 @@ exports.roguestrapnelgunTurret2 = {
           g.halfReload,
           g.bitmoreSize,
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -17775,7 +17775,7 @@ exports.roguestrapnelgunTurret2 = {
           g.halfReload,
           g.bitmoreSize,
         ]),
-        TYPE: [exports.unsetBlock, { VARIES_IN_SIZE: true }],
+        TYPE: [exports.setBlock, { VARIES_IN_SIZE: true }],
       },
     },
     {
@@ -30675,7 +30675,7 @@ exports.quadengi = makeMulti(
           g.bitmoreReload,
           g.lesserRange
         ]),
-        TYPE: exports.unsetpillbox,
+        TYPE: exports.pillbox,
         SYNCS_SKILLS: true,
       },
     },
@@ -30794,7 +30794,7 @@ exports.octobuilder = makeMulti(
         POSITION: [2, 12, 1.1, 18, 0, 0, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block, g.lesserHealth]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
         },
       },
       {
@@ -30805,7 +30805,7 @@ exports.octobuilder = makeMulti(
         POSITION: [2, 12, 1.1, 20, 0, 45, 0.5],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block, g.lesserHealth]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
         },
       },
     ],
@@ -30831,7 +30831,7 @@ exports.hexabuilder = makeMulti(
         POSITION: [2, 12, 1.1, 18, 0, 0, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
         },
       },
       {
@@ -30842,7 +30842,7 @@ exports.hexabuilder = makeMulti(
         POSITION: [2, 12, 1.1, 20, 0, 60, 0.5],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
         },
       },
     ],
@@ -37293,7 +37293,6 @@ exports.engineer = {
           g.trap,
           g.block,
           g.greaterHealth,
-          g.greaterReload,
         ]),
         TYPE: exports.pillbox,
         SYNCS_SKILLS: true,
@@ -39226,7 +39225,7 @@ exports.mininestward = makeMulti(
         POSITION: [1.46, 7.2, 1.3, 11, 0, 35, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.doubleStats, g.lesserRange, g.doubleReload, g.greaterSize]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
           SYNCS_SKILLS: true,
           STAT_CALCULATOR: gunCalcNames.trap,
         },
@@ -43580,7 +43579,7 @@ exports.chaperzone = makeMulti(
         POSITION: [1, 7, 1.7, 15, 0, 30, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
           STAT_CALCULATOR: gunCalcNames.trap,
         },
       },
@@ -43591,7 +43590,7 @@ exports.chaperzone = makeMulti(
         POSITION: [1, 9, 1.1, 15, 0, -30, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
           STAT_CALCULATOR: gunCalcNames.trap,
         },
       },
@@ -53104,7 +53103,7 @@ exports.zombieBuilder = {
       POSITION: [2, 12, 1.1, 18, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.trap, g.block, g.doubleReload]),
-        TYPE: exports.unsetBlock,
+        TYPE: exports.setBlock,
       },
     },
   ],
@@ -53126,7 +53125,7 @@ exports.zombieConstructor = {
           g.construct,
           g.doubleReload,
         ]),
-        TYPE: exports.unsetBlock,
+        TYPE: exports.setBlock,
       },
     },
   ],
@@ -55952,7 +55951,7 @@ exports.LeliteMachineTurret = {
 };
 exports.LelitePillBox = {
   LABEL: "Pillbox",
-  PARENT: [exports.unsetBlock],
+  PARENT: [exports.setBlock],
   SHAPE: 3,
   FACING_TYPE: "autospin",
   CONTROLLERS: ["nearestDifferentMaster"],
@@ -56548,7 +56547,7 @@ exports.Lelite_fortress = makeMulti(
         POSITION: [1, 8, 1.2, 11, 0, 60, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block, g.pound]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
           STAT_CALCULATOR: gunCalcNames.trap,
         },
       },
@@ -56842,7 +56841,7 @@ exports.Selite_fort_snow = makeMulti(
             g.greaterSpeed,
             g.hexatrap,
           ]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
           STAT_CALCULATOR: gunCalcNames.trap,
         },
       },
@@ -57500,7 +57499,7 @@ exports.Selite_fortress = makeMulti(
         POSITION: [1, 8, 1.2, 11, 0, 60, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block, g.pound]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
           STAT_CALCULATOR: gunCalcNames.trap,
         },
       },
@@ -62687,7 +62686,7 @@ exports.hellwark = {
       POSITION: [2, 6, 1.1, 17, 5.5, 180, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.trap, g.block, g.doubleStats, g.pound]),
-        TYPE: exports.unsetBlock,
+        TYPE: exports.setBlock,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
     },
@@ -62699,7 +62698,7 @@ exports.hellwark = {
       POSITION: [2, 6, 1.1, 17, -5.5, 180, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([g.trap, g.block, g.doubleStats, g.pound]),
-        TYPE: exports.unsetBlock,
+        TYPE: exports.setBlock,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
     },
@@ -63321,7 +63320,7 @@ exports.rogue_skimmer = {
         POSITION: [2, 12, 1.1, 18, 0, 0, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block, g.superHealth]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
         },
       },
       {
@@ -63332,7 +63331,7 @@ exports.rogue_skimmer = {
         POSITION: [2, 12, 1.1, 18, 0, 120, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block, g.superHealth]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
         },
       },
       {
@@ -63343,7 +63342,7 @@ exports.rogue_skimmer = {
         POSITION: [2, 12, 1.1, 18, 0, 240, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block, g.superHealth]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
         },
       },
     ],
@@ -70971,7 +70970,7 @@ exports.nestward = makeMulti(
         POSITION: [1.46, 7.2, 1.3, 11, 0, 35, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.flank, g.block]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
           AUTOFIRE: true,
           SYNCS_SKILLS: true,
           STAT_CALCULATOR: gunCalcNames.necro,
@@ -71021,7 +71020,7 @@ exports.nestward = makeMulti(
         POSITION: [1.46, 7.2, 1.3, 11, 0, 35, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.flank, g.block]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
           AUTOFIRE: true,
           SYNCS_SKILLS: true,
           STAT_CALCULATOR: gunCalcNames.necro,
@@ -71092,7 +71091,7 @@ exports.nestcorrupter = makeMulti(
         POSITION: [1.46, 7.2, 1.2, 13, 0, 35, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.flank, g.block]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
           AUTOFIRE: true,
           SYNCS_SKILLS: true,
           STAT_CALCULATOR: gunCalcNames.necro,
@@ -89047,40 +89046,50 @@ exports.arenaCloser = {
     },
   ],
 };
-// Arena Opener: one Arena Closer-style barrel that randomly uses the exact
-// drone shot profiles from Polymancer and Poly Tyrant. Keeping references to
-// the source guns means balance changes to those classes automatically carry
-// over to the matching Arena Opener drone.
+// Arena Opener uses a single visible Arena Closer-style barrel. Its shot picks
+// one source-gun profile per launch, calculates stats exactly as that drone gun
+// would, then the generic projectile-transformation mechanic replaces the seed
+// with the selected drone when its range expires.
 const arenaOpenerDroneProfiles = [
   {
     LABEL: "Polymancer Square",
     TYPE: exports.polymancer.GUNS[0].PROPERTIES.TYPE,
     SHOOT_SETTINGS: exports.polymancer.GUNS[0].PROPERTIES.SHOOT_SETTINGS,
     PROJECTILE_WIDTH: exports.polymancer.GUNS[0].POSITION[1] / 10,
+    SOURCE_BODY_SIZE: exports.polymancer.SIZE || exports.genericTank.SIZE,
+    STAT_CALCULATOR: gunCalcNames.drone,
   },
   {
     LABEL: "Polymancer Triangle",
     TYPE: exports.polymancer.GUNS[1].PROPERTIES.TYPE,
     SHOOT_SETTINGS: exports.polymancer.GUNS[1].PROPERTIES.SHOOT_SETTINGS,
     PROJECTILE_WIDTH: exports.polymancer.GUNS[1].POSITION[1] / 10,
+    SOURCE_BODY_SIZE: exports.polymancer.SIZE || exports.genericTank.SIZE,
+    STAT_CALCULATOR: gunCalcNames.drone,
   },
   {
     LABEL: "Polymancer Pentagon",
     TYPE: exports.polymancer.GUNS[2].PROPERTIES.TYPE,
     SHOOT_SETTINGS: exports.polymancer.GUNS[2].PROPERTIES.SHOOT_SETTINGS,
     PROJECTILE_WIDTH: exports.polymancer.GUNS[2].POSITION[1] / 10,
+    SOURCE_BODY_SIZE: exports.polymancer.SIZE || exports.genericTank.SIZE,
+    STAT_CALCULATOR: gunCalcNames.drone,
   },
   {
     LABEL: "Polymancer Hexagon",
     TYPE: exports.polymancer.GUNS[3].PROPERTIES.TYPE,
     SHOOT_SETTINGS: exports.polymancer.GUNS[3].PROPERTIES.SHOOT_SETTINGS,
     PROJECTILE_WIDTH: exports.polymancer.GUNS[3].POSITION[1] / 10,
+    SOURCE_BODY_SIZE: exports.polymancer.SIZE || exports.genericTank.SIZE,
+    STAT_CALCULATOR: gunCalcNames.drone,
   },
   {
     LABEL: "Poly Tyrant Septagon",
     TYPE: exports.polyTyrant.GUNS[0].PROPERTIES.TYPE,
     SHOOT_SETTINGS: exports.polyTyrant.GUNS[0].PROPERTIES.SHOOT_SETTINGS,
     PROJECTILE_WIDTH: exports.polyTyrant.GUNS[0].POSITION[1] / 10,
+    SOURCE_BODY_SIZE: exports.polyTyrant.SIZE || exports.genericTank.SIZE,
+    STAT_CALCULATOR: gunCalcNames.drone,
   },
 ];
 exports.arenaOpenerShot = {
@@ -89088,23 +89097,21 @@ exports.arenaOpenerShot = {
   LABEL: "Drone Seed",
   MOTION_TYPE: "glide",
   DIE_AT_RANGE: true,
-  RANGE_TRANSITION_TO_SELECTED_DRONE_PROFILE: true,
+  TRANSFORM_ON_RANGE_END: true,
 };
 exports.arenaOpener = {
-  PARENT: [exports.arenaCloser],
+  // Combat/body stats are inherited from the damaged Arena Closer unchanged.
+  PARENT: [exports.damagedArenaCloser],
   LABEL: "Arena Opener",
   COLOR: exports.egg.COLOR,
-  SIZE: 40,
   MAX_CHILDREN: 36,
   GUNS: [
     {
-      // Same single-barrel silhouette as Arena Closer. Per-shot profile
-      // selection supplies one of the original Poly Tyrant/Polymancer weapons.
       POSITION: [15, 11, 1, 0, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: arenaOpenerDroneProfiles[0].SHOOT_SETTINGS,
         TYPE: exports.arenaOpenerShot,
-        RANDOM_DRONE_SHOT_PROFILES: arenaOpenerDroneProfiles,
+        PROJECTILE_TRANSFORM_PROFILES: arenaOpenerDroneProfiles,
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
         MAX_CHILDREN: 36,

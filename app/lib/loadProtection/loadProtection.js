@@ -3,8 +3,8 @@
 const fs = require("fs");
 const v8 = require("v8");
 const { monitorEventLoopDelay, performance } = require("perf_hooks");
-const isTransientEffect = require("./offscreenTransientCleanup").isTransientEffect;
-const createLagResponse = require("./lagResponse");
+const isTransientEffect = require("../offscreenTransientCleanup/offscreenTransientCleanup").isTransientEffect;
+const createLagResponse = require("../lagResponse/lagResponse");
 
 const STAGE_NAMES = ["normal", "elevated", "high", "critical"];
 // Raise pacing thresholds so brief or modest slowdowns do not trigger the

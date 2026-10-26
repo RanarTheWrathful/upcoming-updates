@@ -1,7 +1,7 @@
 "use strict";
 const assert = require("assert");
-const policy = require("../lib/minionMovementPolicy");
-const intellect = require("../lib/intellect");
+const policy = require("../lib/minionMovementPolicy/minionMovementPolicy");
+const intellect = require("../lib/intellect/intellect");
 
 function controller(name) { return { constructor: { name: `io_${name}` } }; }
 

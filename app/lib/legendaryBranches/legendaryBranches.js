@@ -77,7 +77,8 @@ function isFfaMode(mode) {
 }
 
 function getEligibleBranches(entity, mode, classes, hasLegend = false) {
-  if (!entity || !entity.skill || Number(entity.skill.score) < 1000000 || hasLegend || isFfaMode(mode)) return [];
+  const score = Number(entity && entity.skill && entity.skill.score);
+  if (!entity || !entity.skill || !Number.isFinite(score) || score < 1000000 || hasLegend || isFfaMode(mode)) return [];
   return BRANCHES.filter((branch) => {
     if (!branch.parents.includes(entity.label) || !classes[branch.className]) return false;
     if (branch.key === "arenaGuard") {
@@ -119,6 +120,37 @@ function syncUpgradeOptions(entity, mode, classes, hasLegend = false) {
   return newlyUnlocked;
 }
 
+function getBotScoreUnlockedBranches(entity, mode, classes, hasLegend = false) {
+  const score = Number(entity && entity.skill && entity.skill.score);
+  if (!entity || entity.isBot !== true || entity.type !== "tank" || !entity.skill ||
+      !Array.isArray(entity.upgrades) || !Number.isFinite(score) || score < 1000000 ||
+      entity.invuln || entity.trueDev || entity.label === "Spectator" || hasLegend ||
+      isFfaMode(mode)) return [];
+
+  let keys = [];
+  if (entity.team === -4 && mode !== "theControlled") keys = ["reaper"];
+  else if (entity.team === -3 && mode !== "theExpanse" && mode !== "theControlled") {
+    keys = ["operator", "massProducer"];
+  } else if (entity.team === -2 && mode !== "theInfestation") {
+    keys = ["necrotyrant", "flesh"];
+  } else if (entity.team === -1 && mode !== "theDenied" && mode !== "siege") {
+    keys = ["rebel"];
+  } else if (
+    (entity.team === -100 && mode !== "theAwakening" && mode !== "siege") ||
+    (mode === "siege" && Number(entity.maxChildren) > 0)
+  ) {
+    keys = ["arenaGuard"];
+  }
+
+  return keys.map((key) => {
+    const branch = getBranch(key);
+    const target = branch && classes && classes[branch.className];
+    return branch && target && target.index != null && target.index !== entity.index
+      ? { branch, target }
+      : null;
+  }).filter(Boolean);
+}
+
 function getBranch(key) {
   return BY_KEY.get(key) || null;
 }
@@ -126,6 +158,7 @@ function getBranch(key) {
 module.exports = {
   BRANCHES,
   getEligibleBranches,
+  getBotScoreUnlockedBranches,
   syncUpgradeOptions,
   getBranch,
   isFfaMode,

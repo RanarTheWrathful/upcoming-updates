@@ -11,10 +11,10 @@
  *   from: optional list of source Class export keys; omit to allow any tank
  *   spawnMessage: optional global message broadcast when an automated entity upgrades
  *
- * Non-player-controlled tanks randomly select one valid export when they meet
- * the score threshold. Player bodies receive all the exports as selectable
- * upgrades at that threshold. A chosen player option completes that rule so it
- * is not offered again after the class definition refreshes their upgrade list.
+ * Player bodies and bots receive all valid exports as selectable upgrades when
+ * they meet the score threshold. Bots make one uniform random decision over
+ * the newly available choices plus an equally likely skip. Unmanaged NPCs that
+ * are not bots may still transform automatically.
  */
 const AUTO_UPGRADE_RULES = [
   // Example:
@@ -244,6 +244,13 @@ function update(entity, Class, options = {}) {
           entity.sendMessage("Auto-upgrade unlocked at " + Number(originalRule.score).toLocaleString() + " score: " + names.join(", ") + ". Choose it from your upgrade menu.");
         }
       }
+      continue;
+    }
+
+    // Bots should use the same class-choice path as players rather than being
+    // forcibly defined into a randomly selected legendary/auto-upgrade class.
+    if (entity.isBot === true) {
+      if (!isControlledByPlayer(entity)) addRuleOptions(entity, rule, targets);
       continue;
     }
 

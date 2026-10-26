@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("assert");
-const autoUpgrades = require("../lib/autoUpgradeRules");
+const autoUpgrades = require("../lib/autoUpgradeRules/autoUpgradeRules");
 const Class = require("../lib/definitions");
 
 // Match server.js class indexing so this tests the real definitions as loaded.
@@ -34,19 +34,29 @@ function makeEntity(exportName, overrides = {}) {
   }, overrides);
 }
 
-// Actual embedded class-level rules must trigger automated transformations.
+// Bots receive actual source-specific upgrade options instead of auto-transforming.
 let entity = makeEntity("triangleSwarmSentry");
 let result = autoUpgrades.update(entity, Class, { mode: "siege", random: () => 0 });
-assert.strictEqual(result.upgraded, true, "embedded automated rule should activate");
+assert.strictEqual(result, false, "bots should receive a choice rather than transform automatically");
+assert.deepStrictEqual(
+  entity.upgrades.map((option) => option.class.index).sort((a, b) => a - b),
+  [Class.elite_battleship.index, Class.elite_swarmer.index].sort((a, b) => a - b),
+);
+assert.strictEqual(entity.index, Class.triangleSwarmSentry.index);
+
+// A non-bot NPC still uses the automatic transformation fallback.
+entity = makeEntity("triangleSwarmSentry", { isBot: false });
+result = autoUpgrades.update(entity, Class, { mode: "siege", random: () => 0 });
+assert.strictEqual(result.upgraded, true, "unmanaged NPC auto-upgrade should remain supported");
 assert.strictEqual(result.exportName, "elite_swarmer");
 assert.strictEqual(entity.index, Class.elite_swarmer.index);
 assert.strictEqual(autoUpgrades.isCompleted(entity, "elite_battleship+elite_swarmer"), true);
 
-// Single-target embedded rule is also applied and uses the exported class key.
+// Single-target embedded rule becomes a bot choice.
 entity = makeEntity("trianglePounderSentry");
 result = autoUpgrades.update(entity, Class, { mode: "ffa", random: () => 0 });
-assert.strictEqual(result.upgraded, true);
-assert.strictEqual(result.exportName, "elite_destroyer");
+assert.strictEqual(result, false);
+assert.deepStrictEqual(entity.upgrades.map((option) => option.class.index), [Class.elite_destroyer.index]);
 
 // A source class's rule must not accidentally apply to another class.
 entity = makeEntity("triangleSentry");
@@ -73,8 +83,12 @@ autoUpgrades.update(entity, Class, { mode: "siege", random: () => 0 });
 assert.strictEqual(entity.upgrades.length, 2, "options should not duplicate every update");
 assert.strictEqual(playerMessages.length, 1, "notice should not repeat every update");
 
-// The previously misnamed target is repaired to a real export.
+// The previously misnamed target is repaired to a real export and added for bots.
 entity = makeEntity("auto3Guard");
+result = autoUpgrades.update(entity, Class, { mode: "siege", random: () => 0 });
+assert.strictEqual(result, false);
+assert.deepStrictEqual(entity.upgrades.map((option) => option.class.index), [Class.Pawn.index]);
+entity = makeEntity("auto3Guard", { isBot: false });
 result = autoUpgrades.update(entity, Class, { mode: "siege", random: () => 0 });
 assert.strictEqual(result.upgraded, true);
 assert.strictEqual(result.exportName, "Pawn");

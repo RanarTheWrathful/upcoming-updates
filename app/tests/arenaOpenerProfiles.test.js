@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const server = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
 
-const opener = Class.arenaOpener.GUNS[0].PROPERTIES.RANDOM_DRONE_SHOT_PROFILES;
+const opener = Class.arenaOpener.GUNS[0].PROPERTIES.PROJECTILE_TRANSFORM_PROFILES;
 assert.strictEqual(opener.length, 5);
 assert.deepStrictEqual(
   opener.map((profile) => profile.LABEL),
@@ -23,11 +23,37 @@ assert.deepStrictEqual(
   "each profile should retain the source barrel's projectile-width scaling"
 );
 assert.strictEqual(Class.arenaOpener.GUNS.length, 1);
+assert.strictEqual(Class.arenaOpener.PARENT[0], Class.damagedArenaCloser,
+  "Arena Opener inherits its base size/stats from damagedArenaCloser");
+assert.ok(!Object.prototype.hasOwnProperty.call(Class.arenaOpener, "SIZE"),
+  "Arena Opener must not override its parent's size");
 assert.strictEqual(Class.arenaOpenerShot.DIE_AT_RANGE, true);
-assert.strictEqual(Class.arenaOpenerShot.RANGE_TRANSITION_TO_SELECTED_DRONE_PROFILE, true);
-assert.match(server, /getGunNaturalFromTypes\(profile\.TYPE\)/,
-  "profile-specific drone BODY modifiers should be included in seed stats");
-assert.match(server, /child\._arenaOpenerShotProfile/,
-  "skill synchronization should recalculate every projectile/drone using its own chosen source profile");
-assert.match(server, /this\.settings\.rangeTransitionToSelectedDroneProfile =\s*set\.RANGE_TRANSITION_TO_SELECTED_DRONE_PROFILE === true/);
+assert.strictEqual(Class.arenaOpenerShot.TRANSFORM_ON_RANGE_END, true);
+assert.strictEqual(Class.arenaOpener.GUNS[0].PROPERTIES.TYPE, Class.arenaOpenerShot);
+assert.strictEqual(Class.arenaOpener.GUNS[0].PROPERTIES.STAT_CALCULATOR, Class.polymancer.GUNS[0].PROPERTIES.STAT_CALCULATOR,
+  "the visible barrel should use the same drone stat calculator as its source profiles");
+assert.deepStrictEqual(
+  opener.map((profile) => profile.TYPE),
+  [
+    Class.polymancer.GUNS[0].PROPERTIES.TYPE,
+    Class.polymancer.GUNS[1].PROPERTIES.TYPE,
+    Class.polymancer.GUNS[2].PROPERTIES.TYPE,
+    Class.polymancer.GUNS[3].PROPERTIES.TYPE,
+    Class.polyTyrant.GUNS[0].PROPERTIES.TYPE,
+  ]
+);
+for (let i = 0; i < Class.polymancer.GUNS.length; i++) {
+  assert.strictEqual(opener[i].SHOOT_SETTINGS, Class.polymancer.GUNS[i].PROPERTIES.SHOOT_SETTINGS);
+  assert.strictEqual(opener[i].SOURCE_BODY_SIZE, Class.polymancer.SIZE || Class.genericTank.SIZE);
+}
+assert.strictEqual(opener[4].SHOOT_SETTINGS, Class.polyTyrant.GUNS[0].PROPERTIES.SHOOT_SETTINGS);
+assert.strictEqual(opener[4].SOURCE_BODY_SIZE, Class.polyTyrant.SIZE || Class.genericTank.SIZE);
+assert.match(server, /selectProjectileTransformProfile\(\)[\s\S]*?projectileTransformation\.chooseProfile/,
+  "each launch randomly chooses one source barrel's actual settings and drone type");
+assert.match(server, /projectileTransformation\.transitionAtRange\(this, Entity\)/,
+  "range expiry should use the reusable projectile transformation helper");
+assert.match(server, /if \(projectileTransformation\.transitionAtRange\(this, Entity\)\) return 1/,
+  "the original seed should expire after a replacement drone is spawned");
+assert.match(server, /const transformProfiles = info\.PROPERTIES\.PROJECTILE_TRANSFORM_PROFILES/,
+  "profile-driven transformation should not depend on Arena Opener-specific settings");
 console.log("Arena Opener random source-profile tests passed.");

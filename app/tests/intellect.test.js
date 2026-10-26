@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("assert");
-const intellect = require("../lib/intellect");
+const intellect = require("../lib/intellect/intellect");
 
 assert.strictEqual(intellect.normalize(undefined), 1);
 assert.strictEqual(intellect.normalize(100000000), 100000000);

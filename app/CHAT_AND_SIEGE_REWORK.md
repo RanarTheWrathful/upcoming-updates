@@ -16,7 +16,7 @@
 
 ## Validation
 - `node --check server.js` passed.
-- `node --check lib/siegeNeutralZonePenalty.js` passed.
+- `node --check lib/siegeNeutralZonePenalty/siegeNeutralZonePenalty.js` passed.
 - `node tests/siegeNeutralZonePenalty.test.js` passed.
 - `node tests/siegeWavePolicy.test.js` passed.
 - Chat HTML/render smoke tests passed.
@@ -31,10 +31,10 @@
 - Focused smoke test verified all catalog categories and the 35 sampled command forms render for a developer session, while developer-only examples remain absent from public help.
 
 ## Automatic score-based entity upgrades
-- Added `lib/autoUpgradeRules.js`, which checks scored tank entities every simulation cycle, even when their AI is outside its activation radius.
+- Added `lib/autoUpgradeRules/autoUpgradeRules.js`, which checks scored tank entities every simulation cycle, even when their AI is outside its activation radius.
 - Configure rules in `AUTO_UPGRADE_RULES` with a unique `id`, score threshold, and exact `Class` export name(s). Optional `modes` and `from` restrictions are supported.
-- Automated entities randomly transform into one valid target when the threshold is reached. If the body has `isPlayer === true`, every target in that rule becomes a selectable upgrade instead; choosing one completes the rule to prevent repeated offers.
-- Player-controlled minions are excluded from automatic transformation.
+- Player bodies and bots receive every target in a score-based rule as selectable upgrades when the threshold is reached. Bots uniformly choose among available options and a skip action; only unmanaged non-bot NPCs auto-transform. Choosing a player/bot option completes the relevant rule.
+- Player-controlled minions are excluded from automatic transformation and independent bot upgrade decisions.
 - No default class/score rule is enabled because no target export or score amount was specified. See `AUTO_UPGRADES.md` for configuration syntax.
 
 ## Siege team -1 border exemption

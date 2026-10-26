@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("assert");
-const policy = require("../lib/botRandomPolicy");
+const policy = require("../lib/botRandomPolicy/botRandomPolicy");
 
 assert.strictEqual(policy.selectBotArchetype(() => 0), "bot0");
 assert.strictEqual(policy.selectBotArchetype(() => 0.999999), "bot7");
@@ -32,4 +32,62 @@ assert.strictEqual(policy.selectUpgradeIndex([
   { class: { id: "valid" }, level: 0 },
 ], 0, () => 0), 1,
   "invalid required levels are excluded instead of being interpreted as level zero");
+
+const tierBot = {
+  upgrades: [
+    { class: { id: "tier-a" }, level: 15 },
+    { class: { id: "tier-b" }, level: 15 },
+    { class: { id: "later" }, level: 30 },
+  ],
+};
+assert.deepStrictEqual(
+  [0, 1, 2].map((bucket) => {
+    const bot = { upgrades: tierBot.upgrades.map((option) => ({ ...option })) };
+    return policy.selectNextUpgradeDecision(bot, 15, () => (bucket + 0.5) / 3).index;
+  }),
+  [0, 1, null],
+  "each newly unlocked tier option and skipping need equal probability",
+);
+assert.deepStrictEqual(
+  [0, 1, 2, 3].map((bucket) => {
+    const bot = { upgrades: tierBot.upgrades.map((option) => ({ ...option })) };
+    return policy.selectNextUpgradeDecision(bot, 30, () => (bucket + 0.5) / 4).index;
+  }),
+  [0, 1, 2, null],
+  "at later milestones all currently eligible classes remain uniformly selectable, with skip equally likely",
+);
+const pendingBot = { upgrades: tierBot.upgrades };
+assert.ok(policy.selectNextUpgradeDecision(pendingBot, 15, () => 0));
+assert.strictEqual(policy.selectNextUpgradeDecision(pendingBot, 15, () => 0), undefined,
+  "the same tier cannot trigger repeated upgrades for the same class after a skip");
+const changedClassBot = {
+  index: 22,
+  upgrades: [
+    { class: { id: "next-class-tier-choice" }, level: 15 },
+    { class: { id: "next-class-next-tier" }, level: 30 },
+  ],
+  _botUpgradeDecisions: { "tier:11:15": true },
+};
+assert.deepStrictEqual(
+  policy.selectNextUpgradeDecision(changedClassBot, 15, () => 0),
+  { index: 0, keys: ["tier:22:15"], tierLevel: 15 },
+  "a new class gets its own decision at a tier previously considered by the old class",
+);
+
+const scoreOptions = [
+  { class: { id: "score-a" }, level: 0, autoUpgradeRuleIds: ["score-rule"] },
+  { class: { id: "score-b" }, level: 0, autoUpgradeRuleIds: ["score-rule"] },
+];
+assert.deepStrictEqual(
+  [0, 1, 2].map((bucket) => {
+    const bot = { upgrades: scoreOptions.map((option) => ({ ...option })) };
+    return policy.selectNextUpgradeDecision(bot, 0, () => (bucket + 0.5) / 3).index;
+  }),
+  [0, 1, null],
+  "score-based auto-upgrades also include an equally likely skip choice",
+);
+const nanBot = { upgrades: [{ class: { id: "bad" }, level: NaN }] };
+assert.strictEqual(policy.selectNextUpgradeDecision(nanBot, 100, () => 0), undefined,
+  "invalid skill levels cannot create upgrade opportunities");
+
 console.log("Bot randomness policy tests passed.");

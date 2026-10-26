@@ -1,8 +1,8 @@
 "use strict";
 
 const assert = require("assert");
-const policy = require("../lib/siegeWavePolicy");
-const planner = require("../lib/siegeWavePlanner");
+const policy = require("../lib/siegeWavePolicy/siegeWavePolicy");
+const planner = require("../lib/siegeWavePlanner/siegeWavePlanner");
 
 const hostile = { id: "spellcasters", enemies: [{ name: "summoner" }] };
 const allies = { id: policy.ALLY_THEME_ID, enemies: [{ name: "backup" }] };

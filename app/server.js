@@ -16,30 +16,31 @@ const ran = require("./lib/random");
 const fs = require("fs");
 const path = require("path"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
-const createLoadProtection = require("./lib/loadProtection");
-const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup");
-const isEntityVisibleToAnyClient = require("./lib/clientVisibility");
-const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop");
-const siegeWavePlanner = require("./lib/siegeWavePlanner");
-const siegeBudgetMath = require("./lib/siegeBudget");
-const siegeWaveProgress = require("./lib/siegeWaveProgress");
-const siegeWavePolicy = require("./lib/siegeWavePolicy");
-const legendaryBranches = require("./lib/legendaryBranches");
-const hasClearLineOfSight = require("./lib/aiLineOfSight");
-const droneInfection = require("./lib/droneInfection");
-const supportEffects = require("./lib/supportEffects");
-const foodSpawnSafety = require("./lib/foodSpawnSafety");
-const modeBranches = require("./lib/modeBranches");
-const entityBranches = require("./lib/entityBranches");
-const { normalizeSpecialEffects, hasSpecialEffect } = require("./lib/specialEffects");
-const mazeGenerator = require("./lib/mazeGenerator");
-const modeVoting = require("./lib/modeVoting");
-const siegeNeutralZonePenalty = require("./lib/siegeNeutralZonePenalty");
-const autoUpgradeRules = require("./lib/autoUpgradeRules");
-const botRandomPolicy = require("./lib/botRandomPolicy");
-const intellect = require("./lib/intellect");
-const minionMovementPolicy = require("./lib/minionMovementPolicy");
-const gunCalculator = require("./lib/gunCalculator");
+const createLoadProtection = require("./lib/loadProtection/loadProtection");
+const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup/offscreenTransientCleanup");
+const isEntityVisibleToAnyClient = require("./lib/clientVisibility/clientVisibility");
+const createAdaptiveGameLoop = require("./lib/adaptiveGameLoop/adaptiveGameLoop");
+const siegeWavePlanner = require("./lib/siegeWavePlanner/siegeWavePlanner");
+const siegeBudgetMath = require("./lib/siegeBudget/siegeBudget");
+const siegeWaveProgress = require("./lib/siegeWaveProgress/siegeWaveProgress");
+const siegeWavePolicy = require("./lib/siegeWavePolicy/siegeWavePolicy");
+const legendaryBranches = require("./lib/legendaryBranches/legendaryBranches");
+const hasClearLineOfSight = require("./lib/aiLineOfSight/aiLineOfSight");
+const droneInfection = require("./lib/droneInfection/droneInfection");
+const supportEffects = require("./lib/supportEffects/supportEffects");
+const foodSpawnSafety = require("./lib/foodSpawnSafety/foodSpawnSafety");
+const modeBranches = require("./lib/modeBranches/modeBranches");
+const entityBranches = require("./lib/entityBranches/entityBranches");
+const { normalizeSpecialEffects, hasSpecialEffect } = require("./lib/specialEffects/specialEffects");
+const mazeGenerator = require("./lib/mazeGenerator/mazeGenerator");
+const modeVoting = require("./lib/modeVoting/modeVoting");
+const siegeNeutralZonePenalty = require("./lib/siegeNeutralZonePenalty/siegeNeutralZonePenalty");
+const autoUpgradeRules = require("./lib/autoUpgradeRules/autoUpgradeRules");
+const botRandomPolicy = require("./lib/botRandomPolicy/botRandomPolicy");
+const intellect = require("./lib/intellect/intellect");
+const minionMovementPolicy = require("./lib/minionMovementPolicy/minionMovementPolicy");
+const gunCalculator = require("./lib/gunCalculator/gunCalculator");
+const projectileTransformation = require("./lib/projectileTransformation/projectileTransformation");
 const { performance } = require("perf_hooks");
 
 function applyFoodInfectionEffects(food, infector) {
@@ -142,7 +143,7 @@ else if (serverType === "normal") {
 
 //serverState.resetLoreIndex();
 //serverState.advanceLoreSequence();
-const { mergeModeSettings, validateModeSettings } = require("./lib/modeSettings");
+const { mergeModeSettings, validateModeSettings } = require("./lib/modeSettings/modeSettings");
 const config = require("./config.js");
 const gameMode = require("./Game Modes/" + chosenMode);
 const mergedSettings = mergeModeSettings(config, gameMode);
@@ -662,7 +663,7 @@ function buildSiegeEnemyCatalog() {
 siegeEnemyCatalog = buildSiegeEnemyCatalog();
 
 function syncLegendaryClassListOption(entity) {
-  if (!entity || entity.isPlayer !== true || entity.type !== "tank" || !Array.isArray(entity.upgrades)) return;
+  if (!entity || !(entity.isPlayer === true || entity.isBot === true) || entity.type !== "tank" || !Array.isArray(entity.upgrades)) return;
   const eligible = Number(entity.skill && entity.skill.score) >= 2500000 &&
     !entity.trueDev && !entity.invuln && entity.label !== "Spectator" &&
     !hasSpecialEffect(entity, "Legend") && Class.currentLegendaryClasses;
@@ -677,24 +678,50 @@ function syncLegendaryClassListOption(entity) {
       index: target.index,
       legendaryClassListUnlock: true,
     });
-    if (!entity._legendaryClassListNotified) {
+    if (entity.isPlayer === true && !entity._legendaryClassListNotified) {
       entity.sendMessage("You have unlocked the Legendary Class List! It is now available in your upgrade choices.");
       entity._legendaryClassListNotified = true;
     }
   }
 }
 
+function syncBotScoreLegendaryOptions(entity) {
+  const unlocked = legendaryBranches.getBotScoreUnlockedBranches(
+    entity, c.MODE, Class, hasSpecialEffect(entity, "Legend")
+  );
+  for (const { branch, target } of unlocked) {
+    if (entity.upgrades.some((option) => option && option.legendaryBranchKey === branch.key)) continue;
+    const existingTarget = entity.upgrades.find((option) => option && option.class === target);
+    if (existingTarget && Number(existingTarget.level || 0) <= Number(entity.skill.level || 0)) {
+      existingTarget.legendaryBranchKey = branch.key;
+      existingTarget.legendaryScoreUnlock = true;
+      continue;
+    }
+    entity.upgrades.push({
+      class: target,
+      tier: 0,
+      level: 0,
+      index: target.index,
+      legendaryBranchKey: branch.key,
+      legendaryScoreUnlock: true,
+    });
+  }
+}
+
 function syncLegendaryBranchOptions(entity) {
-  if (!entity || entity.isPlayer !== true || entity.type !== "tank" || !Array.isArray(entity.upgrades)) return;
+  if (!entity || !(entity.isPlayer === true || entity.isBot === true) || entity.type !== "tank" || !Array.isArray(entity.upgrades)) return;
   syncLegendaryClassListOption(entity);
+  syncBotScoreLegendaryOptions(entity);
   const unlocked = legendaryBranches.syncUpgradeOptions(
     entity, c.MODE, Class, hasSpecialEffect(entity, "Legend")
   );
-  for (const branch of unlocked) {
-    entity.sendMessage(
-      "You have unlocked the legendary class, " + branch.name +
-      "! It is now available in your upgrade choices."
-    );
+  if (entity.isPlayer === true) {
+    for (const branch of unlocked) {
+      entity.sendMessage(
+        "You have unlocked the legendary class, " + branch.name +
+        "! It is now available in your upgrade choices."
+      );
+    }
   }
 }
 
@@ -6189,21 +6216,19 @@ class Gun {
         }
       });
       this.natural = natural; // Save it
-      const randomDroneProfiles = info.PROPERTIES.RANDOM_DRONE_SHOT_PROFILES;
-      this.randomDroneShotProfiles = Array.isArray(randomDroneProfiles)
-        ? randomDroneProfiles
-            .filter((profile) => profile && profile.TYPE && profile.SHOOT_SETTINGS)
-            .map((profile) => ({
-              label: profile.LABEL || "Drone",
-              type: profile.TYPE,
-              settings: profile.SHOOT_SETTINGS,
-              projectileWidth: Number.isFinite(Number(profile.PROJECTILE_WIDTH))
-                ? Number(profile.PROJECTILE_WIDTH)
-                : this.width,
-              natural: getGunNaturalFromTypes(profile.TYPE),
-            }))
-        : [];
-      this.activeRandomDroneShotProfile = null;
+      const transformProfiles = info.PROPERTIES.PROJECTILE_TRANSFORM_PROFILES;
+      this.projectileTransformProfiles = projectileTransformation.normalizeProfiles(
+        transformProfiles,
+        {
+          getNatural: getGunNaturalFromTypes,
+          defaultSourceBodySize: 12,
+          defaultProjectileWidth: 1,
+          defaultCalculator: info.PROPERTIES.STAT_CALCULATOR,
+        }
+      );
+      this.activeProjectileTransformProfile = null;
+      this.transformProjectilesAtRange = info.PROPERTIES.TRANSFORM_PROJECTILE_ON_RANGE === true ||
+        this.bulletTypes.some((type) => type && type.TRANSFORM_ON_RANGE_END === true);
       if (info.PROPERTIES.GUN_CONTROLLERS != null) {
         let toAdd = [];
         let self = this;
@@ -6254,6 +6279,9 @@ class Gun {
         info.PROPERTIES.SHOOT_ON_DEATH == null
           ? false
           : info.PROPERTIES.SHOOT_ON_DEATH;
+      this.baseSettings = this.settings;
+      this.baseNatural = this.natural;
+      this.baseCalculator = this.calculator;
     }
     // Cache the shape produced by this gun when its projectile definition is
     // necromantic. This allows the owning tank itself to infect compatible food
@@ -6327,18 +6355,20 @@ class Gun {
     return this.lastShot;
   }
 
-  selectRandomDroneShotProfile() {
-    if (!Array.isArray(this.randomDroneShotProfiles) || !this.randomDroneShotProfiles.length) {
-      this.activeRandomDroneShotProfile = null;
+  selectProjectileTransformProfile() {
+    const profile = projectileTransformation.chooseProfile(this.projectileTransformProfiles);
+    this.activeProjectileTransformProfile = profile;
+    if (!profile) {
+      this.settings = this.baseSettings;
+      this.natural = this.baseNatural;
+      this.calculator = this.baseCalculator;
       return null;
     }
-    // Math.random over the profile count makes every source gun profile equally
-    // likely, independently of the order of the profile list.
-    const index = Math.floor(Math.random() * this.randomDroneShotProfiles.length);
-    const profile = this.randomDroneShotProfiles[index];
-    this.activeRandomDroneShotProfile = profile;
     this.settings = profile.settings;
     this.natural = profile.natural;
+    this.calculator = gunCalculator.normalizeCalculator(
+      profile.calculator == null ? this.baseCalculator : profile.calculator
+    );
     if (profile.settings && Number.isFinite(profile.settings.recoil)) {
       this.trueRecoil = profile.settings.recoil;
     }
@@ -6416,8 +6446,8 @@ class Gun {
           // Shoot, multiple times in a tick if needed. Recalculate the muzzle
           // point after choosing a profile because profile size factors differ.
           while (shootPermission && this.cycle >= 1) {
-            if (this.randomDroneShotProfiles && this.randomDroneShotProfiles.length) {
-              this.selectRandomDroneShotProfile();
+            if (this.projectileTransformProfiles && this.projectileTransformProfiles.length) {
+              this.selectProjectileTransformProfile();
             }
             const gx =
               this.offset *
@@ -6474,22 +6504,28 @@ class Gun {
 
   syncChildren() {
     if (!this.syncsSkills) return;
-    if (this.randomDroneShotProfiles && this.randomDroneShotProfiles.length) {
+    if (this.projectileTransformProfiles && this.projectileTransformProfiles.length) {
       const previousSettings = this.settings;
       const previousNatural = this.natural;
-      const previousProfile = this.activeRandomDroneShotProfile;
+      const previousCalculator = this.calculator;
+      const previousProfile = this.activeProjectileTransformProfile;
       for (const child of this.children) {
         if (!child) continue;
-        const profile = child._arenaOpenerShotProfile;
+        const profile = child._projectileTransformProfile;
         if (profile) {
+          this.activeProjectileTransformProfile = profile;
           this.settings = profile.settings;
           this.natural = profile.natural;
+          this.calculator = gunCalculator.normalizeCalculator(
+            profile.calculator == null ? this.baseCalculator : profile.calculator
+          );
         }
         child.define({ BODY: this.interpret(), SKILL: this.getSkillRaw() });
       }
       this.settings = previousSettings;
       this.natural = previousNatural;
-      this.activeRandomDroneShotProfile = previousProfile;
+      this.calculator = previousCalculator;
+      this.activeProjectileTransformProfile = previousProfile;
       return;
     }
     const self = this;
@@ -6555,11 +6591,18 @@ class Gun {
         }*/
     o.velocity = s;
     this.bulletInit(o);
-    if (this.activeRandomDroneShotProfile) {
-      o._rangeTransitionDroneType = this.activeRandomDroneShotProfile.type;
-      o._arenaOpenerShotProfile = this.activeRandomDroneShotProfile;
+    if (this.activeProjectileTransformProfile && this.transformProjectilesAtRange) {
+      o._projectileTransformProfile = this.activeProjectileTransformProfile;
+      o._projectileTransformAtRange = true;
+      o._projectileTransformSize = projectileTransformation.sourceScaledProjectileSize(
+        this.body.size,
+        this.body.SIZE,
+        this.activeProjectileTransformProfile.projectileWidth,
+        this.settings.size,
+        this.activeProjectileTransformProfile.sourceBodySize
+      );
     }
-    o.coreSize = o.SIZE;
+    //o.coreSize = o.SIZE;
   }
 
   bulletInit(o, options = {}) {
@@ -6569,13 +6612,15 @@ class Gun {
     o.define({
       BODY: this.interpret(),
       SKILL: this.getSkillRaw(),
-      SIZE: (
-        this.body.size *
-        (this.activeRandomDroneShotProfile && Number.isFinite(this.activeRandomDroneShotProfile.projectileWidth)
-          ? this.activeRandomDroneShotProfile.projectileWidth
-          : this.width) *
-        this.settings.size
-      ) / 2,
+      SIZE: this.activeProjectileTransformProfile && this.transformProjectilesAtRange
+        ? projectileTransformation.sourceScaledProjectileSize(
+            this.body.size,
+            this.body.SIZE,
+            this.activeProjectileTransformProfile.projectileWidth,
+            this.settings.size,
+            this.activeProjectileTransformProfile.sourceBodySize
+          )
+        : (this.body.size * this.width * this.settings.size) / 2,
       LABEL:
         this.master.label +
         (this.label ? " " + this.label : "") +
@@ -7244,13 +7289,6 @@ class Entity {
       }
       if (set.BOOMERANG_RETURN_TO_MASTER != null) {
         this.boomerangReturnToMaster = set.BOOMERANG_RETURN_TO_MASTER === true;
-      }
-      if (set.RANGE_TRANSITION_TO_RANDOM_POLYGON_DRONE != null) {
-        this.settings.rangeTransitionToRandomPolygonDrone = set.RANGE_TRANSITION_TO_RANDOM_POLYGON_DRONE === true;
-      }
-      if (set.RANGE_TRANSITION_TO_SELECTED_DRONE_PROFILE != null) {
-        this.settings.rangeTransitionToSelectedDroneProfile =
-          set.RANGE_TRANSITION_TO_SELECTED_DRONE_PROFILE === true;
       }
       if (set.ORBIT_DISTANCE != null) {
         this.orbitDistance = set.ORBIT_DISTANCE;
@@ -14376,99 +14414,10 @@ class Entity {
     if (this.settings.diesAtRange) {
       this.range -= 1 / roomSpeed;
       if (this.range < 0) {
-        const hasSelectedDroneProfile =
-          this.settings.rangeTransitionToSelectedDroneProfile === true &&
-          this._rangeTransitionDroneType != null;
-        const candidates = hasSelectedDroneProfile
-          ? [this._rangeTransitionDroneType]
-          : this.settings.rangeTransitionToRandomPolygonDrone
-          ? [Class.triangleDrone, Class.squareDrone, Class.pentagonDrone, Class.hexagonDrone]
-              .filter((definition) => definition && typeof definition === "object")
-          : [];
-        if (candidates.length && !this._rangeTransitionedToPolygonDrone) {
-          const oldMaster = this.master;
-          const oldTeam = this.team;
-          const oldColor = this.color;
-          const originalHealth = this.health.amount;
-          const originalHealthMax = this.health.max;
-          const originalShield = this.shield.amount;
-          const originalShieldMax = this.shield.max;
-          const healthRatio = originalHealthMax > 0
-            ? Math.max(0, Math.min(1, originalHealth / originalHealthMax))
-            : 1;
-          // Most seed profiles have no shield. If the selected drone type adds
-          // one (the Polymancer hexagon), initialize that new resource at full
-          // rather than incorrectly carrying over the seed's zero shield.
-          const shieldRatio = originalShieldMax > 0
-            ? Math.max(0, Math.min(1, originalShield / originalShieldMax))
-            : 1;
-          const preservedSize = this.SIZE;
-          const preservedCoreSize = this.coreSize;
-          // Arena Opener's seed BODY values were calculated using the selected
-          // source gun's settings and natural drone modifiers. Preserve those
-          // weapon-calculated fields only for this profile-driven transition;
-          // legacy generic polygon transitions retain their previous behavior.
-          const bodyFields = [
-            "SPEED", "HEALTH", "RESIST", "DAMAGE", "PENETRATION",
-            "RANGE", "DENSITY", "PUSHABILITY", "heteroMultiplier",
-          ];
-          const preservedBody = {};
-          if (hasSelectedDroneProfile) {
-            for (const field of bodyFields) {
-              if (this[field] !== undefined) preservedBody[field] = this[field];
-            }
-          }
-          // Legacy polygon seeds choose a type when the range ends. Arena Opener
-          // picks its source barrel profile when fired, so that exact type is
-          // used here to keep the drone and projectile stats aligned.
-          const selectedDrone = hasSelectedDroneProfile
-            ? this._rangeTransitionDroneType
-            : ran.choose(candidates);
-          const selectedDroneDefinitions = Array.isArray(selectedDrone)
-            ? selectedDrone
-            : [selectedDrone];
-          this._rangeTransitionedToPolygonDrone = true;
-          for (const definition of selectedDroneDefinitions) this.define(definition);
-          this.master = oldMaster;
-          this.team = oldTeam;
-          this.color = oldColor;
-          if (hasSelectedDroneProfile) {
-            Object.assign(this, preservedBody);
-            this.SIZE = preservedSize;
-            this.coreSize = preservedCoreSize;
-          }
-          this.settings.diesAtRange = false;
-          this.settings.rangeTransitionToRandomPolygonDrone = false;
-          this.settings.rangeTransitionToSelectedDroneProfile = false;
-          this.refreshBodyAttributes();
-          this.range = Math.max(1, Number(this.RANGE) || 200);
-          if (hasSelectedDroneProfile) {
-            this.health.amount = Math.max(
-              0,
-              Math.min(Number(this.health.max) || 0, (Number(this.health.max) || 0) * healthRatio)
-            );
-            this.shield.amount = Math.max(
-              0,
-              Math.min(Number(this.shield.max) || 0, (Number(this.shield.max) || 0) * shieldRatio)
-            );
-          } else {
-            this.health.amount = Math.min(
-              Number(this.health.max) || 1,
-              Math.max(1, Number(this.health.amount) || 1)
-            );
-            this.shield.amount = Math.min(
-              Number(this.shield.max) || 0,
-              Math.max(0, Number(this.shield.amount) || 0)
-            );
-          }
-          if (selectedDroneDefinitions[0]) {
-            this._autoUpgradeSourceDefinition = selectedDroneDefinitions[0];
-          }
-          this.control.goal = { x: this.x, y: this.y };
-          this.control.target = { x: 0, y: 0 };
-        } else {
-          this.kill();
-        }
+        // Reusable profile-driven projectiles spawn their selected replacement
+        // entity and then expire. Ordinary range-limited projectiles simply die.
+        if (projectileTransformation.transitionAtRange(this, Entity)) return 1;
+        this.kill();
       }
     }
     if (this.settings.diesAtLowSpeed) {
@@ -24227,7 +24176,7 @@ var maintainloop = (() => {
           }
           if (c.MODE === "theDenied") o.impervious = true;
           o.invuln = true;
-          o.leftoverUpgrades = Math.floor(Math.random() * 5);
+          o._botUpgradeDecisions = Object.create(null);
           if (o.facingType !== "autospin") {
             o.facingType = ran.choose([
               "smoothToTarget",
@@ -24252,172 +24201,9 @@ var maintainloop = (() => {
               }
             }
             o.invuln = false;
-            if (
-              o.skill.score >= 1000000 &&
-              o.team === -4 &&
-              c.MODE !== "theControlled"
-            ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              o.rando = Math.ceil(Math.random() * 2);
-              switch (o.rando) {
-                case 1:
-                default:
-                  setTimeout(() => {
-                    sockets.broadcast(
-                      "Clouds of sinister black mist gather around " +
-                        o.name +
-                        ". be afraid, VERY AFRAID!"
-                    );
-                  }, 10);
-                  o.define(Class.reaper);
-                  break;
-              }
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
-              o.ignoreCollision = false;
-            }
-            if (
-              o.skill.score >= 1000000 &&
-              o.team === -3 &&
-              c.MODE !== "theExpanse" &&
-              c.MODE !== "theControlled"
-            ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              o.rando = Math.ceil(Math.random() * 2);
-              switch (o.rando) {
-                case 1:
-                  setTimeout(() => {
-                    sockets.broadcast(
-                      o.name +
-                        ": BE BLINDED BY THE POWER OF SCIENCE YOU EVIL FIENDS!"
-                    );
-                  }, 10);
-                  o.define(Class.operator);
-                  break;
-                case 2:
-                  setTimeout(() => {
-                    sockets.broadcast(
-                      o.name + ": THE POWER OF SCIENCE SHALL DESTROY YOU, SCUM!"
-                    );
-                  }, 10);
-                  o.define(Class.MassProducer);
-                  break;
-              }
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
-              o.ignoreCollision = false;
-            }
-            if (
-              o.skill.score >= 1000000 &&
-              o.team === -2 &&
-              c.MODE !== "theInfestation"
-            ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              o.rando = Math.ceil(Math.random() * 2);
-              switch (o.rando) {
-                case 1:
-                  setTimeout(() => {
-                    sockets.broadcast(
-                      o.name +
-                        ": Minions and servants, tanks and barrels, drones and souls, obey my call!"
-                    );
-                  }, 10);
-                  o.define(Class.necrotyrant);
-                  break;
-                case 2:
-                  setTimeout(() => {
-                    sockets.broadcast(
-                      "Hoards of the undead gather around " +
-                        o.name +
-                        "... What the hell?"
-                    );
-                  }, 10);
-                  o.define(Class.flesh);
-                  break;
-              }
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
-              o.ignoreCollision = false;
-            }
-            if (
-              o.skill.score >= 1000000 &&
-              o.team === -1 &&
-              c.MODE !== "theDenied" &&
-              c.MODE !== "siege"
-            ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              setTimeout(() => {
-                sockets.broadcast(
-                  o.name +
-                    ": Okay, I have taken your crap long enough, time for a barrel-whooping!"
-                );
-              }, 10);
-              o.define(Class.rebel);
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
-              o.ignoreCollision = false;
-            }
-            if (
-              (o.skill.score >= 1000000 &&
-                o.team === -100 &&
-                c.MODE !== "theAwakening" &&
-                c.MODE !== "siege") ||
-              (o.skill.score >= 1000000 &&
-                c.MODE === "siege" &&
-                o.maxChildren > 0)
-            ) {
-              o.skill.points += 10;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              setTimeout(() => {
-                sockets.broadcast(
-                  "Valrayvn: " +
-                    o.name +
-                    "! I shall grant you true power! ASCEND!"
-                );
-              }, 10);
-              o.define(Class.arenaguardpl);
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.alpha = 100;
-            }
-            if (
-              o.skill.score >= 2500000 &&
-              c.MODE === "siege" &&
-              o.label !== "Spectator"
-            ) {
-              o.skill.points += 10;
-              o.maxChildren = 0;
-              o.intangibility = false;
-              o.invisible = [100, 0];
-              o.ignoreCollision = false;
-              o.alpha = 100;
-              o.name = "[LORD]_";
-              o.aiTarget = "general";
-              o.name += ran.chooseBossBotName();
-              o.define(Class.legendaryClassList);
-            }
+            // Score-based and legendary classes are added to this bot's
+            // upgrade choices by autoUpgradeRules and syncLegendaryBranchOptions.
+            // Do not force-transform bots when their spawn invulnerability ends.
             if (
               // c.MODE === "theInfestation" ||
               c.MODE === "siege"
@@ -24542,15 +24328,13 @@ var maintainloop = (() => {
           }
         }
         o.skillUp(botRandomPolicy.selectSkillStat());
-        if (o.leftoverUpgrades > 0 && Array.isArray(o.upgrades) && o.upgrades.length) {
-          const selection = botRandomPolicy.selectUpgradeIndex(o.upgrades, o.skill.level);
-          if (selection !== undefined) {
-            // null is the explicit no-upgrade outcome. It has the same chance
-            // as each eligible option and consumes the choice rather than
-            // retrying until a class eventually gets picked.
-            if (selection !== null) o.upgrade(selection);
-            o.leftoverUpgrades--;
-          }
+        // Class options can unlock by score before/after a regular skill tier.
+        // Keep the same option path for bots and players, with an equal-probability
+        // skip so bots do not upgrade at every opportunity.
+        syncLegendaryBranchOptions(o);
+        const upgradeDecision = botRandomPolicy.selectNextUpgradeDecision(o, o.skill.level);
+        if (upgradeDecision && upgradeDecision.index !== null) {
+          o.upgrade(upgradeDecision.index);
         }
         if (o.team !== o.id) {
           if (o.label === "Healer" && !o.stopReppeat) {

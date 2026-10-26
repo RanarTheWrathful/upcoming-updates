@@ -1,6 +1,6 @@
 "use strict";
 const assert = require("assert");
-const penalty = require("../lib/siegeNeutralZonePenalty");
+const penalty = require("../lib/siegeNeutralZonePenalty/siegeNeutralZonePenalty");
 
 function makeRoom() {
   return {
