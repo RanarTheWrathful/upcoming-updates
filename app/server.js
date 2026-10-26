@@ -6119,6 +6119,29 @@ const combineStats = function (arr) {
     console.log(JSON.stringify(arr));
   }
 };
+// Resolve a projectile definition's inherited BODY values in parent-first
+// order. Arena Opener uses this to calculate a seed with the same natural
+// modifiers as the PolyMancer/Poly Tyrant drone type it will become.
+function getGunNaturalFromTypes(types) {
+  const natural = {};
+  const visited = new Set();
+  const apply = (definition) => {
+    if (!definition || typeof definition !== "object" || visited.has(definition)) return;
+    visited.add(definition);
+    const parents = definition.PARENT == null
+      ? []
+      : Array.isArray(definition.PARENT)
+      ? definition.PARENT
+      : [definition.PARENT];
+    parents.forEach(apply);
+    if (definition.BODY != null) {
+      for (const [key, value] of Object.entries(definition.BODY)) natural[key] = value;
+    }
+  };
+  (Array.isArray(types) ? types : [types]).forEach(apply);
+  return natural;
+}
+
 // Define how guns work
 class Gun {
   constructor(body, info) {
@@ -6166,6 +6189,21 @@ class Gun {
         }
       });
       this.natural = natural; // Save it
+      const randomDroneProfiles = info.PROPERTIES.RANDOM_DRONE_SHOT_PROFILES;
+      this.randomDroneShotProfiles = Array.isArray(randomDroneProfiles)
+        ? randomDroneProfiles
+            .filter((profile) => profile && profile.TYPE && profile.SHOOT_SETTINGS)
+            .map((profile) => ({
+              label: profile.LABEL || "Drone",
+              type: profile.TYPE,
+              settings: profile.SHOOT_SETTINGS,
+              projectileWidth: Number.isFinite(Number(profile.PROJECTILE_WIDTH))
+                ? Number(profile.PROJECTILE_WIDTH)
+                : this.width,
+              natural: getGunNaturalFromTypes(profile.TYPE),
+            }))
+        : [];
+      this.activeRandomDroneShotProfile = null;
       if (info.PROPERTIES.GUN_CONTROLLERS != null) {
         let toAdd = [];
         let self = this;
@@ -6289,6 +6327,24 @@ class Gun {
     return this.lastShot;
   }
 
+  selectRandomDroneShotProfile() {
+    if (!Array.isArray(this.randomDroneShotProfiles) || !this.randomDroneShotProfiles.length) {
+      this.activeRandomDroneShotProfile = null;
+      return null;
+    }
+    // Math.random over the profile count makes every source gun profile equally
+    // likely, independently of the order of the profile list.
+    const index = Math.floor(Math.random() * this.randomDroneShotProfiles.length);
+    const profile = this.randomDroneShotProfiles[index];
+    this.activeRandomDroneShotProfile = profile;
+    this.settings = profile.settings;
+    this.natural = profile.natural;
+    if (profile.settings && Number.isFinite(profile.settings.recoil)) {
+      this.trueRecoil = profile.settings.recoil;
+    }
+    return profile;
+  }
+
   canInfectFood(host) {
     return Boolean(
       host &&
@@ -6357,19 +6413,22 @@ class Gun {
           (this.altFire ? this.body.control.alt : this.body.control.fire))
       ) {
         if (this.cycle >= 1) {
-          // Find the end of the gun barrel
-          let gx =
-            this.offset *
-              Math.cos(this.direction + this.angle + this.body.facing) +
-            (1.5 * this.length - (this.width * this.settings.size) / 2) *
-              Math.cos(this.angle + this.body.facing);
-          let gy =
-            this.offset *
-              Math.sin(this.direction + this.angle + this.body.facing) +
-            (1.5 * this.length - (this.width * this.settings.size) / 2) *
-              Math.sin(this.angle + this.body.facing);
-          // Shoot, multiple times in a tick if needed
+          // Shoot, multiple times in a tick if needed. Recalculate the muzzle
+          // point after choosing a profile because profile size factors differ.
           while (shootPermission && this.cycle >= 1) {
+            if (this.randomDroneShotProfiles && this.randomDroneShotProfiles.length) {
+              this.selectRandomDroneShotProfile();
+            }
+            const gx =
+              this.offset *
+                Math.cos(this.direction + this.angle + this.body.facing) +
+              (1.5 * this.length - (this.width * this.settings.size) / 2) *
+                Math.cos(this.angle + this.body.facing);
+            const gy =
+              this.offset *
+                Math.sin(this.direction + this.angle + this.body.facing) +
+              (1.5 * this.length - (this.width * this.settings.size) / 2) *
+                Math.sin(this.angle + this.body.facing);
             this.fire(gx, gy, sk);
             // Figure out if we may still shoot
             shootPermission = this.hasChildCapacity(sk);
@@ -6414,15 +6473,29 @@ class Gun {
   }
 
   syncChildren() {
-    if (this.syncsSkills) {
-      let self = this;
-      this.children.forEach(function (o) {
-        o.define({
-          BODY: self.interpret(),
-          SKILL: self.getSkillRaw(),
-        });
-      });
+    if (!this.syncsSkills) return;
+    if (this.randomDroneShotProfiles && this.randomDroneShotProfiles.length) {
+      const previousSettings = this.settings;
+      const previousNatural = this.natural;
+      const previousProfile = this.activeRandomDroneShotProfile;
+      for (const child of this.children) {
+        if (!child) continue;
+        const profile = child._arenaOpenerShotProfile;
+        if (profile) {
+          this.settings = profile.settings;
+          this.natural = profile.natural;
+        }
+        child.define({ BODY: this.interpret(), SKILL: this.getSkillRaw() });
+      }
+      this.settings = previousSettings;
+      this.natural = previousNatural;
+      this.activeRandomDroneShotProfile = previousProfile;
+      return;
     }
+    const self = this;
+    this.children.forEach(function (o) {
+      o.define({ BODY: self.interpret(), SKILL: self.getSkillRaw() });
+    });
   }
 
   fire(gx, gy, sk) {
@@ -6482,6 +6555,10 @@ class Gun {
         }*/
     o.velocity = s;
     this.bulletInit(o);
+    if (this.activeRandomDroneShotProfile) {
+      o._rangeTransitionDroneType = this.activeRandomDroneShotProfile.type;
+      o._arenaOpenerShotProfile = this.activeRandomDroneShotProfile;
+    }
     o.coreSize = o.SIZE;
   }
 
@@ -6492,7 +6569,13 @@ class Gun {
     o.define({
       BODY: this.interpret(),
       SKILL: this.getSkillRaw(),
-      SIZE: (this.body.size * this.width * this.settings.size) / 2,
+      SIZE: (
+        this.body.size *
+        (this.activeRandomDroneShotProfile && Number.isFinite(this.activeRandomDroneShotProfile.projectileWidth)
+          ? this.activeRandomDroneShotProfile.projectileWidth
+          : this.width) *
+        this.settings.size
+      ) / 2,
       LABEL:
         this.master.label +
         (this.label ? " " + this.label : "") +
@@ -7164,6 +7247,10 @@ class Entity {
       }
       if (set.RANGE_TRANSITION_TO_RANDOM_POLYGON_DRONE != null) {
         this.settings.rangeTransitionToRandomPolygonDrone = set.RANGE_TRANSITION_TO_RANDOM_POLYGON_DRONE === true;
+      }
+      if (set.RANGE_TRANSITION_TO_SELECTED_DRONE_PROFILE != null) {
+        this.settings.rangeTransitionToSelectedDroneProfile =
+          set.RANGE_TRANSITION_TO_SELECTED_DRONE_PROFILE === true;
       }
       if (set.ORBIT_DISTANCE != null) {
         this.orbitDistance = set.ORBIT_DISTANCE;
@@ -14289,32 +14376,96 @@ class Entity {
     if (this.settings.diesAtRange) {
       this.range -= 1 / roomSpeed;
       if (this.range < 0) {
-        if (this.settings.rangeTransitionToRandomPolygonDrone && !this._rangeTransitionedToPolygonDrone) {
-          const candidates = [Class.triangleDrone, Class.squareDrone, Class.pentagonDrone, Class.hexagonDrone]
-            .filter((definition) => definition && typeof definition === "object");
-          if (candidates.length) {
-            const oldMaster = this.master;
-            const oldTeam = this.team;
-            const oldColor = this.color;
-            const selectedDrone = ran.choose(candidates);
-            this._rangeTransitionedToPolygonDrone = true;
-            this.define(selectedDrone);
-            this.master = oldMaster;
-            this.team = oldTeam;
-            this.color = oldColor;
-            this.settings.diesAtRange = false;
-            this.settings.rangeTransitionToRandomPolygonDrone = false;
-            this.range = Math.max(1, Number(this.RANGE) || 200);
-            this._autoUpgradeSourceDefinition = selectedDrone;
-            this.refreshBodyAttributes();
-            this.range = Math.max(1, Number(this.RANGE) || 200);
-            this.health.amount = Math.min(Number(this.health.max) || 1, Math.max(1, Number(this.health.amount) || 1));
-            this.shield.amount = Math.min(Number(this.shield.max) || 0, Math.max(0, Number(this.shield.amount) || 0));
-            this.control.goal = { x: this.x, y: this.y };
-            this.control.target = { x: 0, y: 0 };
-          } else {
-            this.kill();
+        const hasSelectedDroneProfile =
+          this.settings.rangeTransitionToSelectedDroneProfile === true &&
+          this._rangeTransitionDroneType != null;
+        const candidates = hasSelectedDroneProfile
+          ? [this._rangeTransitionDroneType]
+          : this.settings.rangeTransitionToRandomPolygonDrone
+          ? [Class.triangleDrone, Class.squareDrone, Class.pentagonDrone, Class.hexagonDrone]
+              .filter((definition) => definition && typeof definition === "object")
+          : [];
+        if (candidates.length && !this._rangeTransitionedToPolygonDrone) {
+          const oldMaster = this.master;
+          const oldTeam = this.team;
+          const oldColor = this.color;
+          const originalHealth = this.health.amount;
+          const originalHealthMax = this.health.max;
+          const originalShield = this.shield.amount;
+          const originalShieldMax = this.shield.max;
+          const healthRatio = originalHealthMax > 0
+            ? Math.max(0, Math.min(1, originalHealth / originalHealthMax))
+            : 1;
+          // Most seed profiles have no shield. If the selected drone type adds
+          // one (the Polymancer hexagon), initialize that new resource at full
+          // rather than incorrectly carrying over the seed's zero shield.
+          const shieldRatio = originalShieldMax > 0
+            ? Math.max(0, Math.min(1, originalShield / originalShieldMax))
+            : 1;
+          const preservedSize = this.SIZE;
+          const preservedCoreSize = this.coreSize;
+          // Arena Opener's seed BODY values were calculated using the selected
+          // source gun's settings and natural drone modifiers. Preserve those
+          // weapon-calculated fields only for this profile-driven transition;
+          // legacy generic polygon transitions retain their previous behavior.
+          const bodyFields = [
+            "SPEED", "HEALTH", "RESIST", "DAMAGE", "PENETRATION",
+            "RANGE", "DENSITY", "PUSHABILITY", "heteroMultiplier",
+          ];
+          const preservedBody = {};
+          if (hasSelectedDroneProfile) {
+            for (const field of bodyFields) {
+              if (this[field] !== undefined) preservedBody[field] = this[field];
+            }
           }
+          // Legacy polygon seeds choose a type when the range ends. Arena Opener
+          // picks its source barrel profile when fired, so that exact type is
+          // used here to keep the drone and projectile stats aligned.
+          const selectedDrone = hasSelectedDroneProfile
+            ? this._rangeTransitionDroneType
+            : ran.choose(candidates);
+          const selectedDroneDefinitions = Array.isArray(selectedDrone)
+            ? selectedDrone
+            : [selectedDrone];
+          this._rangeTransitionedToPolygonDrone = true;
+          for (const definition of selectedDroneDefinitions) this.define(definition);
+          this.master = oldMaster;
+          this.team = oldTeam;
+          this.color = oldColor;
+          if (hasSelectedDroneProfile) {
+            Object.assign(this, preservedBody);
+            this.SIZE = preservedSize;
+            this.coreSize = preservedCoreSize;
+          }
+          this.settings.diesAtRange = false;
+          this.settings.rangeTransitionToRandomPolygonDrone = false;
+          this.settings.rangeTransitionToSelectedDroneProfile = false;
+          this.refreshBodyAttributes();
+          this.range = Math.max(1, Number(this.RANGE) || 200);
+          if (hasSelectedDroneProfile) {
+            this.health.amount = Math.max(
+              0,
+              Math.min(Number(this.health.max) || 0, (Number(this.health.max) || 0) * healthRatio)
+            );
+            this.shield.amount = Math.max(
+              0,
+              Math.min(Number(this.shield.max) || 0, (Number(this.shield.max) || 0) * shieldRatio)
+            );
+          } else {
+            this.health.amount = Math.min(
+              Number(this.health.max) || 1,
+              Math.max(1, Number(this.health.amount) || 1)
+            );
+            this.shield.amount = Math.min(
+              Number(this.shield.max) || 0,
+              Math.max(0, Number(this.shield.amount) || 0)
+            );
+          }
+          if (selectedDroneDefinitions[0]) {
+            this._autoUpgradeSourceDefinition = selectedDroneDefinitions[0];
+          }
+          this.control.goal = { x: this.x, y: this.y };
+          this.control.target = { x: 0, y: 0 };
         } else {
           this.kill();
         }

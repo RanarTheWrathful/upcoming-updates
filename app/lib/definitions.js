@@ -139,7 +139,7 @@ const g = {
     1.75, 2.25, 0.1, 1.75, 1.25, 1, 1.25, 1.3, 1.5, 1.05, 0.25, 1, 1.75,
   ],
   construct: [1.4, 1.5, 1, 0.9, 1.25, 1.25, 1.25, 0.95, 1.1, 1, 1, 1, 1],
-  boomerang: [1, 1, 1, 0.8, 1, 1, 1, 1, 1, 1.55, 1, 1, 1],
+  boomerang: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1.55, 1, 1, 1],
   over: [1.25, 1, 1, 0.85, 1, 1, 1, 1, 0.9, 1, 2, 1, 1],
   meta: [1.333, 1, 1, 1, 1, 0.667, 1, 1, 1, 1, 1, 1, 1],
   weak: [2, 1, 1, 1, 0.6, 0.6, 0.8, 0.5, 0.7, 0.25, 0.3, 1, 1],
@@ -3763,11 +3763,11 @@ exports.boomerang = {
   DIE_AT_RANGE: false,
   SHAPE: -5,
   BODY: {
-    SPEED: 1.8,
-    RANGE: 250,
-    DENSITY: 100,
-    PENETRATION: 1.5,
-    PUSHABILITY: 1,
+    SPEED: 1.2,
+    RANGE: 450,
+    PENETRATION: 1.15,
+    DENSITY: 7.5,
+    PUSHABILITY: 0.5,
   },
 };
 exports.boomerangToMaster = {
@@ -30638,7 +30638,7 @@ exports.quadbuilder = makeMulti(
         POSITION: [2, 12, 1.1, 18, 0, 0, 0],
         PROPERTIES: {
           SHOOT_SETTINGS: combineStats([g.trap, g.block, g.greaterHealth]),
-          TYPE: exports.unsetBlock,
+          TYPE: exports.setBlock,
         },
       },
     ],
@@ -37452,7 +37452,7 @@ exports.boomer = {
           g.greaterHealth,
           g.boomerang,
         ]),
-        TYPE: exports.boomerang,
+        TYPE: exports.boomerangToMaster,
       },
     },
   ],
@@ -89047,22 +89047,48 @@ exports.arenaCloser = {
     },
   ],
 };
-// Arena Opener: an arena-closer counterpart in egg colors. Its three-barrel
-// muzzle fires ballistic shots that awaken into random polygon drones at range.
+// Arena Opener: one Arena Closer-style barrel that randomly uses the exact
+// drone shot profiles from Polymancer and Poly Tyrant. Keeping references to
+// the source guns means balance changes to those classes automatically carry
+// over to the matching Arena Opener drone.
+const arenaOpenerDroneProfiles = [
+  {
+    LABEL: "Polymancer Square",
+    TYPE: exports.polymancer.GUNS[0].PROPERTIES.TYPE,
+    SHOOT_SETTINGS: exports.polymancer.GUNS[0].PROPERTIES.SHOOT_SETTINGS,
+    PROJECTILE_WIDTH: exports.polymancer.GUNS[0].POSITION[1] / 10,
+  },
+  {
+    LABEL: "Polymancer Triangle",
+    TYPE: exports.polymancer.GUNS[1].PROPERTIES.TYPE,
+    SHOOT_SETTINGS: exports.polymancer.GUNS[1].PROPERTIES.SHOOT_SETTINGS,
+    PROJECTILE_WIDTH: exports.polymancer.GUNS[1].POSITION[1] / 10,
+  },
+  {
+    LABEL: "Polymancer Pentagon",
+    TYPE: exports.polymancer.GUNS[2].PROPERTIES.TYPE,
+    SHOOT_SETTINGS: exports.polymancer.GUNS[2].PROPERTIES.SHOOT_SETTINGS,
+    PROJECTILE_WIDTH: exports.polymancer.GUNS[2].POSITION[1] / 10,
+  },
+  {
+    LABEL: "Polymancer Hexagon",
+    TYPE: exports.polymancer.GUNS[3].PROPERTIES.TYPE,
+    SHOOT_SETTINGS: exports.polymancer.GUNS[3].PROPERTIES.SHOOT_SETTINGS,
+    PROJECTILE_WIDTH: exports.polymancer.GUNS[3].POSITION[1] / 10,
+  },
+  {
+    LABEL: "Poly Tyrant Septagon",
+    TYPE: exports.polyTyrant.GUNS[0].PROPERTIES.TYPE,
+    SHOOT_SETTINGS: exports.polyTyrant.GUNS[0].PROPERTIES.SHOOT_SETTINGS,
+    PROJECTILE_WIDTH: exports.polyTyrant.GUNS[0].POSITION[1] / 10,
+  },
+];
 exports.arenaOpenerShot = {
   PARENT: [exports.bullet],
-  LABEL: "Opener Drone Seed",
+  LABEL: "Drone Seed",
   MOTION_TYPE: "glide",
   DIE_AT_RANGE: true,
-  RANGE_TRANSITION_TO_RANDOM_POLYGON_DRONE: true,
-  BODY: {
-    SPEED: 5,
-    RANGE: 120,
-    HEALTH: 3,
-    DAMAGE: 1.5,
-    PENETRATION: 1.2,
-    DENSITY: 1.8,
-  },
+  RANGE_TRANSITION_TO_SELECTED_DRONE_PROFILE: true,
 };
 exports.arenaOpener = {
   PARENT: [exports.arenaCloser],
@@ -89070,54 +89096,23 @@ exports.arenaOpener = {
   COLOR: exports.egg.COLOR,
   SIZE: 40,
   MAX_CHILDREN: 36,
-  BODY: {
-    ACCELERATION: 5,
-    FOV: 100,
-    SPEED: 8,
-    HEALTH: 100000,
-    SHIELD: 10000,
-    REGEN: 0,
-    DAMAGE: 50,
-    DENSITY: 30,
-    PUSHABILITY: 0,
-  },
   GUNS: [
     {
-      POSITION: [22, 14, 1, 0, 0, 0, 0],
+      // Same single-barrel silhouette as Arena Closer. Per-shot profile
+      // selection supplies one of the original Poly Tyrant/Polymancer weapons.
+      POSITION: [15, 11, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.drone, g.pound, g.power, g.uberRange, g.halfReload]),
+        SHOOT_SETTINGS: arenaOpenerDroneProfiles[0].SHOOT_SETTINGS,
         TYPE: exports.arenaOpenerShot,
+        RANDOM_DRONE_SHOT_PROFILES: arenaOpenerDroneProfiles,
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
-        MAX_CHILDREN: 18,
-        STAT_CALCULATOR: gunCalcNames.drone,
-      },
-    },
-    {
-      POSITION: [18, 10, 1, 0, 4, 22, 0.5],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.drone, g.pound, g.power, g.uberRange, g.halfReload]),
-        TYPE: exports.arenaOpenerShot,
-        AUTOFIRE: true,
-        SYNCS_SKILLS: true,
-        MAX_CHILDREN: 18,
-        STAT_CALCULATOR: gunCalcNames.drone,
-      },
-    },
-    {
-      POSITION: [18, 10, 1, 0, -4, 338, 0.5],
-      PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.basic, g.drone, g.pound, g.power, g.uberRange, g.halfReload]),
-        TYPE: exports.arenaOpenerShot,
-        AUTOFIRE: true,
-        SYNCS_SKILLS: true,
-        MAX_CHILDREN: 18,
+        MAX_CHILDREN: 36,
         STAT_CALCULATOR: gunCalcNames.drone,
       },
     },
   ],
 };
-
 
 exports.repPod = {
   PARENT: [exports.genericTank],

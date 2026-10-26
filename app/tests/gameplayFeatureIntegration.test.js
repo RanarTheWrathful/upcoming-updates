@@ -20,12 +20,26 @@ assert.strictEqual(Class.arenaOpener.PARENT[0], Class.arenaCloser);
 assert.strictEqual(Class.arenaOpener.COLOR, Class.egg.COLOR);
 assert.ok(Class.page4.UPGRADES_TIER_2.includes(Class.arenaOpener),
   "Arena Opener should be available alongside Arena Closer in the class tree");
-assert.strictEqual(Class.arenaOpener.GUNS.length, 3, "opener should use a distinctive three-barrel pattern");
-assert.ok(Class.arenaOpener.GUNS.every((gun) => gun.PROPERTIES.TYPE === Class.arenaOpenerShot));
+assert.strictEqual(Class.arenaOpener.GUNS.length, 1, "Arena Opener should retain the single-barrel Arena Closer silhouette");
+const openerGun = Class.arenaOpener.GUNS[0].PROPERTIES;
+assert.strictEqual(openerGun.TYPE, Class.arenaOpenerShot);
 assert.strictEqual(Class.arenaOpenerShot.MOTION_TYPE, "glide", "opener seeds should travel using bullet-like glide motion");
 assert.strictEqual(Class.arenaOpenerShot.DIE_AT_RANGE, true);
-assert.strictEqual(Class.arenaOpenerShot.RANGE_TRANSITION_TO_RANDOM_POLYGON_DRONE, true);
-assert.match(server, /rangeTransitionToRandomPolygonDrone[\s\S]*?Class\.triangleDrone, Class\.squareDrone, Class\.pentagonDrone, Class\.hexagonDrone/);
+assert.strictEqual(Class.arenaOpenerShot.RANGE_TRANSITION_TO_SELECTED_DRONE_PROFILE, true);
+assert.strictEqual(openerGun.RANDOM_DRONE_SHOT_PROFILES.length, 5,
+  "the one visible barrel should draw from the four Polymancer profiles and the Poly Tyrant profile");
+for (let i = 0; i < Class.polymancer.GUNS.length; i++) {
+  assert.strictEqual(openerGun.RANDOM_DRONE_SHOT_PROFILES[i].TYPE, Class.polymancer.GUNS[i].PROPERTIES.TYPE);
+  assert.strictEqual(openerGun.RANDOM_DRONE_SHOT_PROFILES[i].SHOOT_SETTINGS, Class.polymancer.GUNS[i].PROPERTIES.SHOOT_SETTINGS);
+}
+assert.strictEqual(openerGun.RANDOM_DRONE_SHOT_PROFILES[4].TYPE, Class.polyTyrant.GUNS[0].PROPERTIES.TYPE);
+assert.strictEqual(openerGun.RANDOM_DRONE_SHOT_PROFILES[4].SHOOT_SETTINGS, Class.polyTyrant.GUNS[0].PROPERTIES.SHOOT_SETTINGS);
+assert.match(server, /selectRandomDroneShotProfile\(\)[\s\S]*?Math\.floor\(Math\.random\(\) \* this\.randomDroneShotProfiles\.length\)/,
+  "each shot should select one source barrel profile with equal probability");
+assert.match(server, /rangeTransitionToSelectedDroneProfile[\s\S]*?this\._rangeTransitionDroneType/,
+  "the seed must become the matching drone profile when its range expires");
+assert.match(server, /preservedBody[\s\S]*?this\.define\(definition\)/,
+  "the range transition should retain calculated source-barrel stats while applying the drone definition");
 
 assert.match(server, /class IO[\s\S]*?intellect\.distributeTargetFocus/,
   "higher intellect should add coordinated target distribution to hostile-target controllers");
