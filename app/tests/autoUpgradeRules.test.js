@@ -89,6 +89,25 @@ assert.strictEqual(result.upgraded, true);
 assert.strictEqual(result.exportName, "automataA");
 
 
+// An exact source definition without rules must not borrow rules from an alias
+// that happens to share its index. Runtime source tracking is more specific than
+// the reverse index map and should remain authoritative even when empty.
+const aliasSource = { index: 7, LABEL: "No Rule Source" };
+const aliasedRule = {
+  index: 7,
+  LABEL: "Aliased Rule Source",
+  AUTO_UPGRADE_RULES: { id: "aliased-rule", score: 1, exports: ["automataA"] },
+};
+const aliasClass = {
+  sourceWithoutRules: aliasSource,
+  aliasWithRules: aliasedRule,
+  automataA: makeClass(8, "Automata A"),
+};
+entity = makeEntity({ index: 7, _autoUpgradeSourceDefinition: aliasSource });
+result = autoUpgrades.update(entity, aliasClass, { mode: "siege", rules: [], random: () => 0 });
+assert.strictEqual(result, false, "known source definitions without rules must not inherit a same-index alias rule");
+assert.strictEqual(entity.index, 7);
+
 // Optional spawn messages broadcast only when an automated entity upgrades, with placeholders expanded.
 let broadcasts = [];
 entity = makeEntity({ name: "Test Automaton" });

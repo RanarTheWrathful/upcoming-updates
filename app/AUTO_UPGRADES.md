@@ -49,3 +49,6 @@ The announcement is for automated transformations; player bodies that receive se
 ### Supported source entity types
 
 Class-level rules (`AUTO_UPGRADE_RULES` on a specific class export) can trigger for that exact class even when its runtime entity type is not `tank`. This is important for enemy definitions that inherit types such as `crasher` or `neutralBoss`. Player bodies marked `isPlayer === true` receive selectable options regardless of their runtime type. Global rules remain restricted to `tank` entities by default; use `from: ["exportName"]` to explicitly allow a non-tank source.
+
+
+Runtime repair note: `Entity.define()` records the exact top-level source definition for each entity. Automatic class-level upgrade rules read from that retained definition rather than depending on a reverse lookup of aliased class indexes. The reverse index is only a compatibility fallback. Player rules add selectable options once, while automated entities uniformly choose among valid target exports at the score threshold.

@@ -3759,16 +3759,21 @@ exports.boomerang = {
   PARENT: [exports.trap],
   CONTROLLERS: ["boomerang"],
   SPECIAL_EFFECT: ["block"],
-  //MOTION_TYPE: "motor",
-  //HITS_OWN_TYPE: "never",
+  MOTION_TYPE: "motor",
+  DIE_AT_RANGE: false,
   SHAPE: -5,
   BODY: {
-    SPEED: 1,
+    SPEED: 1.8,
     RANGE: 250,
     DENSITY: 100,
     PENETRATION: 1.5,
     PUSHABILITY: 1,
   },
+};
+exports.boomerangToMaster = {
+  PARENT: [exports.boomerang],
+  LABEL: "Boomerang",
+  BOOMERANG_RETURN_TO_MASTER: true,
 };
 //Auras
 exports.damageAura = {
@@ -89042,6 +89047,78 @@ exports.arenaCloser = {
     },
   ],
 };
+// Arena Opener: an arena-closer counterpart in egg colors. Its three-barrel
+// muzzle fires ballistic shots that awaken into random polygon drones at range.
+exports.arenaOpenerShot = {
+  PARENT: [exports.bullet],
+  LABEL: "Opener Drone Seed",
+  MOTION_TYPE: "glide",
+  DIE_AT_RANGE: true,
+  RANGE_TRANSITION_TO_RANDOM_POLYGON_DRONE: true,
+  BODY: {
+    SPEED: 5,
+    RANGE: 120,
+    HEALTH: 3,
+    DAMAGE: 1.5,
+    PENETRATION: 1.2,
+    DENSITY: 1.8,
+  },
+};
+exports.arenaOpener = {
+  PARENT: [exports.arenaCloser],
+  LABEL: "Arena Opener",
+  COLOR: exports.egg.COLOR,
+  SIZE: 40,
+  MAX_CHILDREN: 36,
+  BODY: {
+    ACCELERATION: 5,
+    FOV: 100,
+    SPEED: 8,
+    HEALTH: 100000,
+    SHIELD: 10000,
+    REGEN: 0,
+    DAMAGE: 50,
+    DENSITY: 30,
+    PUSHABILITY: 0,
+  },
+  GUNS: [
+    {
+      POSITION: [22, 14, 1, 0, 0, 0, 0],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.drone, g.pound, g.power, g.uberRange, g.halfReload]),
+        TYPE: exports.arenaOpenerShot,
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        MAX_CHILDREN: 18,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+    {
+      POSITION: [18, 10, 1, 0, 4, 22, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.drone, g.pound, g.power, g.uberRange, g.halfReload]),
+        TYPE: exports.arenaOpenerShot,
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        MAX_CHILDREN: 18,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+    {
+      POSITION: [18, 10, 1, 0, -4, 338, 0.5],
+      PROPERTIES: {
+        SHOOT_SETTINGS: combineStats([g.basic, g.drone, g.pound, g.power, g.uberRange, g.halfReload]),
+        TYPE: exports.arenaOpenerShot,
+        AUTOFIRE: true,
+        SYNCS_SKILLS: true,
+        MAX_CHILDREN: 18,
+        STAT_CALCULATOR: gunCalcNames.drone,
+      },
+    },
+  ],
+};
+
+
 exports.repPod = {
   PARENT: [exports.genericTank],
   TYPE: "voidlordBoss",
@@ -96874,6 +96951,7 @@ exports.pageJunk4.UPGRADES_TIER_2 = [
 ];
 exports.page4.UPGRADES_TIER_2 = [
   exports.arenaCloser,
+  exports.arenaOpener,
   exports.mechagod,
   exports.mechagodOld,
   exports.anti_tank,

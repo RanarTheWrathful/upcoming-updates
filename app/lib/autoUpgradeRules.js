@@ -55,10 +55,30 @@ function normalizeRules(value) {
 function getRulesForEntity(entity, Class, globalRules = AUTO_UPGRADE_RULES) {
   const rules = normalizeRules(globalRules).map((rule) => ({ rule, sourceExport: null, sourceIndex: null }));
   if (!entity) return rules;
-  const current = getDefinitionIndexMap(Class)?.get(entity.index);
-  const classRules = current && normalizeRules(current.definition.AUTO_UPGRADE_RULES);
+
+  // Entity.define() records the exact last top-level definition. Prefer that
+  // object over a class-index reverse lookup: aliased exports can share one
+  // definition object/index and a reverse lookup can otherwise obscure which
+  // source class the runtime entity actually selected.
+  const sourceDefinition = entity._autoUpgradeSourceDefinition;
+  let classRules = sourceDefinition && normalizeRules(sourceDefinition.AUTO_UPGRADE_RULES);
+  let sourceExport = null;
+  let sourceIndex = sourceDefinition && sourceDefinition.index != null ? sourceDefinition.index : entity.index;
+
+  // The normal class-level path uses the retained definition reference and
+  // does not scan every Class export per live entity tick. Reverse lookup is
+  // only needed for compatibility with entities created before that reference
+  // was recorded or by isolated callers/tests. If we *do* know the exact source
+  // definition, an empty rule list is authoritative: never borrow another
+  // aliased export's rule just because it shares the same runtime index.
+  if (!sourceDefinition) {
+    const current = getDefinitionIndexMap(Class)?.get(entity.index);
+    classRules = current && normalizeRules(current.definition.AUTO_UPGRADE_RULES);
+    sourceExport = current && current.exportName;
+    sourceIndex = current && current.definition.index != null ? current.definition.index : entity.index;
+  }
   for (const rule of classRules || []) {
-    rules.push({ rule, sourceExport: current.exportName, sourceIndex: entity.index });
+    rules.push({ rule, sourceExport, sourceIndex });
   }
   return rules;
 }
@@ -229,7 +249,9 @@ function update(entity, Class, options = {}) {
 
     // Entity must not be directly or indirectly controlled by a player.
     if (isControlledByPlayer(entity)) continue;
-    const selected = targets[Math.min(targets.length - 1, Math.floor(Math.max(0, Math.min(0.999999999, Number(random()) || 0)) * targets.length))];
+    const randomValue = Number(random());
+    const normalizedRandom = Number.isFinite(randomValue) ? Math.max(0, Math.min(0.999999999999, randomValue)) : 0;
+    const selected = targets[Math.min(targets.length - 1, Math.floor(normalizedRandom * targets.length))];
     if (!selected) continue;
     markCompleted(entity, rule.id);
     entity.define(selected.target);

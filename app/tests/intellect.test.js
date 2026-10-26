@@ -164,3 +164,19 @@ assert.strictEqual(wallBlocked(wallWaypoint), false, "wall-aware waypoint must n
 assert.strictEqual(intellect.wallAwareWaypoint(wallBody, { x: 120, y: 0 }, wallBlocked, -100, "wall-test", 100, {}), undefined,
   "negative intellect should not use the positive-intellect wall-routing tactic");
 console.log("INTELLECT signed behavior, controller adaptation, and wall-routing tests passed.");
+
+
+const focusBody = { x: 0, y: 0, fov: 2000, aiTarget: "general", velocity: { x: 0, y: 0 } };
+const highValueNear = { id: 101, x: 100, y: 0, dangerValue: 10, health: { amount: 100, max: 100 }, velocity: { x: 0, y: 0 } };
+const highValueFar = { id: 102, x: 700, y: 0, dangerValue: 8, health: { amount: 10, max: 100 }, velocity: { x: 0, y: 0 } };
+const focusTargets = [highValueNear, highValueFar];
+assert.strictEqual(
+  intellect.distributeTargetFocus(focusTargets, focusBody, 1, null, new Map([[102, 2]]), highValueFar),
+  highValueFar,
+  "coordination must not change baseline intellect behavior",
+);
+assert.strictEqual(
+  intellect.distributeTargetFocus(focusTargets, focusBody, 100000000, null, new Map([[102, 2]]), highValueFar),
+  highValueNear,
+  "extremely intelligent hostiles should prefer an equally viable unclaimed target over dogpiling",
+);

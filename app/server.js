@@ -36,6 +36,7 @@ const mazeGenerator = require("./lib/mazeGenerator");
 const modeVoting = require("./lib/modeVoting");
 const siegeNeutralZonePenalty = require("./lib/siegeNeutralZonePenalty");
 const autoUpgradeRules = require("./lib/autoUpgradeRules");
+const botRandomPolicy = require("./lib/botRandomPolicy");
 const intellect = require("./lib/intellect");
 const minionMovementPolicy = require("./lib/minionMovementPolicy");
 const gunCalculator = require("./lib/gunCalculator");
@@ -3518,6 +3519,46 @@ function timeOfImpact(p, v, s) {
   // were nearly equal, producing non-finite aim vectors.
   return intellect.solveInterceptTime(p, v, s, 120) * 0.9;
 }
+// Short-lived target claims let high-INTELLECT friendly AIs coordinate focus
+// fire without scanning the entire live entity set or forcing one shared target.
+// Counts are indexed by (team, target), so each target decision is O(candidates)
+// and expired claims are swept at most once per second.
+const intellectFocusClaims = new Map();
+const intellectFocusCounts = new Map();
+let intellectFocusNextSweep = 0;
+function intellectFocusKey(team, targetId) {
+  return String(team) + ":" + String(targetId);
+}
+function removeIntellectFocusClaim(ownerId, claim) {
+  if (!claim) return;
+  const key = intellectFocusKey(claim.team, claim.targetId);
+  const next = Math.max(0, (intellectFocusCounts.get(key) || 0) - 1);
+  if (next) intellectFocusCounts.set(key, next);
+  else intellectFocusCounts.delete(key);
+  intellectFocusClaims.delete(ownerId);
+}
+function sweepIntellectFocusClaims(now) {
+  if (now < intellectFocusNextSweep) return;
+  intellectFocusNextSweep = now + 1000;
+  for (const [ownerId, claim] of intellectFocusClaims) {
+    if (!claim || now - claim.updatedAt > 6000) removeIntellectFocusClaim(ownerId, claim);
+  }
+}
+function publishIntellectFocusClaim(body, target, now) {
+  if (!body || body.id == null || !target || target.id == null) return;
+  const ownerId = body.id;
+  const existing = intellectFocusClaims.get(ownerId);
+  if (existing && existing.team === body.team && existing.targetId === target.id) {
+    existing.updatedAt = now;
+    return;
+  }
+  if (existing) removeIntellectFocusClaim(ownerId, existing);
+  const claim = { team: body.team, targetId: target.id, updatedAt: now };
+  intellectFocusClaims.set(ownerId, claim);
+  const key = intellectFocusKey(claim.team, claim.targetId);
+  intellectFocusCounts.set(key, (intellectFocusCounts.get(key) || 0) + 1);
+}
+
 class IO {
   constructor(body) {
     this.body = body;
@@ -3542,12 +3583,41 @@ class IO {
 
   selectIntellectTarget(targets, currentTarget) {
     this._intellectTargetDecisions = (this._intellectTargetDecisions || 0) + 1;
+    const value = this.getIntellect();
+    const body = this.body;
     const strategy = intellect.strategyProfile(
-      this.getIntellect(),
-      this.body && this.body.id,
+      value,
+      body && body.id,
       this._intellectTargetDecisions
     );
-    return intellect.chooseTarget(targets, this.body, this.getIntellect(), currentTarget, strategy);
+    const preferred = intellect.chooseTarget(targets, body, value, currentTarget, strategy);
+    if (!body || !Number.isFinite(Number(body.id))) return preferred;
+
+    const now = Date.now();
+    sweepIntellectFocusClaims(now);
+    let coordinated = preferred;
+    const canCoordinate = value >= 32 && Array.isArray(targets) && targets.length > 1 &&
+      ["general", "mostDeadly", "allHostiles"].includes(body.aiTarget || "general");
+    if (canCoordinate) {
+      const counts = new Map();
+      const ownClaim = intellectFocusClaims.get(body.id);
+      for (const candidate of targets) {
+        const key = intellectFocusKey(body.team, candidate.id);
+        let count = intellectFocusCounts.get(key) || 0;
+        if (ownClaim && ownClaim.team === body.team && ownClaim.targetId === candidate.id) count--;
+        counts.set(candidate.id, Math.max(0, count));
+      }
+      coordinated = intellect.distributeTargetFocus(targets, body, value, currentTarget, counts, preferred);
+    }
+
+    // Only high-intellect hostile targeters publish claims. A small indexed
+    // registry prevents large maps of ordinary bots from imposing quadratic
+    // work on each target refresh.
+    if (value >= 32 && coordinated && coordinated.id != null &&
+        ["general", "mostDeadly", "allHostiles"].includes(body.aiTarget || "general")) {
+      publishIntellectFocusClaim(body, coordinated, now);
+    }
+    return coordinated;
   }
 
   beginIntellectFrame() {
@@ -3900,53 +3970,103 @@ class io_mapTargetToGoal extends IO {
 }
 
 class io_boomerang extends IO {
-  constructor(b) {
-    super(b);
-    this.r = 0;
-    this.b = b;
-    this.m = b.master;
-    this.turnover = false;
-    let len = 10 * util.getDistance({ x: 0, y: 0 }, b.master.control.target);
-    this.myGoal = {
-      x: 3 * b.master.control.target.x + b.master.x,
-      y: 3 * b.master.control.target.y + b.master.y,
+  constructor(body) {
+    super(body);
+    this.body = body;
+    this.master = body.master;
+    this.launchOrigin = { x: body.x, y: body.y };
+    const aim = this.master && this.master.control && this.master.control.target || { x: 0, y: 0 };
+    const cursorDistance = Math.hypot(Number(aim.x) || 0, Number(aim.y) || 0);
+    const velocity = body.velocity || { x: 0, y: 0 };
+    const velocityLength = Math.hypot(Number(velocity.x) || 0, Number(velocity.y) || 0);
+    const facing = Number(body.facing) || 0;
+    const directionX = velocityLength > 0.1 ? velocity.x / velocityLength : Math.cos(facing);
+    const directionY = velocityLength > 0.1 ? velocity.y / velocityLength : Math.sin(facing);
+    // Match the setBlock placement policy: cursor magnitude controls travel
+    // distance, while each projectile keeps the direction it was actually fired.
+    // Capture the destination once so later cursor movement cannot drag it.
+    this.destination = {
+      x: (Number(this.master && this.master.x) || 0) + directionX * cursorDistance,
+      y: (Number(this.master && this.master.y) || 0) + directionY * cursorDistance,
     };
+    this.phase = "outbound";
+    this.dwellFrames = 0;
+    this.dwellDuration = 24;
   }
-  think(input) {
-    if (this.b.range > this.r) this.r = this.b.range;
-    let t = 1; //1 - Math.sin(2 * Math.PI * this.b.range / this.r) || 1;
-    if (!this.turnover) {
-      if (this.r && this.b.range < this.r * 0.5) {
-        this.turnover = true;
+
+  think() {
+    const body = this.body;
+    const master = this.master;
+    const value = this.getIntellect();
+    // More intelligent boomerangs complete the same outbound/dwell/return
+    // cycle faster, but retain a visible pause at the destination. INTELLECT 1
+    // keeps the standard dwell unchanged.
+    const returnThreshold = value > 1
+      ? Math.max(10, Math.round(this.dwellDuration / Math.sqrt(value)))
+      : this.dwellDuration;
+    const returnToMaster = body.boomerangReturnToMaster === true;
+    const masterAlive = master && (typeof master.isDead !== "function" || !master.isDead());
+    const returnGoal = () => returnToMaster && masterAlive
+      ? { x: master.x, y: master.y }
+      : this.launchOrigin;
+    const distanceTo = (point) => Math.hypot(body.x - point.x, body.y - point.y);
+    const arrivalRadius = Math.max(12, (Number(body.size) || 1) * 1.5);
+
+    if (this.phase === "outbound") {
+      if (distanceTo(this.destination) <= arrivalRadius) {
+        this.phase = "dwell";
+        this.dwellFrames = 0;
       }
-      return {
-        goal: this.myGoal,
-        power: t,
-      };
-    } else {
-      return {
-        goal: {
-          x: this.m.x,
-          y: this.m.y,
-        },
-        power: t,
-      };
+      return { goal: this.destination, power: 1 };
     }
+    if (this.phase === "dwell") {
+      this.dwellFrames++;
+      if (this.dwellFrames >= returnThreshold) this.phase = "return";
+      return { goal: this.destination, power: 1 };
+    }
+
+    const goal = returnGoal();
+    if (distanceTo(goal) <= arrivalRadius) {
+      body.kill();
+      return { goal, power: 0 };
+    }
+    return { goal, power: 1 };
   }
 }
 class io_goToMasterTarget extends IO {
   constructor(body) {
     super(body);
-    this.myGoal = {
-      x: body.master.control.target.x + body.master.x,
-      y: body.master.control.target.y + body.master.y,
-    };
+    const master = body.master;
+    const aim = master && master.control && master.control.target || { x: 0, y: 0 };
+    const cursorDistance = Math.hypot(Number(aim.x) || 0, Number(aim.y) || 0);
+    const velocity = body.velocity || { x: 0, y: 0 };
+    const velocityLength = Math.hypot(Number(velocity.x) || 0, Number(velocity.y) || 0);
+    const isBlockProjectile = Array.isArray(body.specialEffect) && body.specialEffect.includes("block");
+    this.isBlockProjectile = isBlockProjectile;
+    this.cursorDistance = cursorDistance;
+    const facing = Number(body.facing) || 0;
+    const launchX = velocityLength > 0.1 ? velocity.x / velocityLength : Math.cos(facing);
+    const launchY = velocityLength > 0.1 ? velocity.y / velocityLength : Math.sin(facing);
+    if (isBlockProjectile && cursorDistance > 0) {
+      // The cursor sets placement distance; each block keeps its own barrel's
+      // launch direction. This makes multi-direction builder arrays fan out
+      // instead of collapsing onto the same cursor point.
+      this.myGoal = {
+        x: (Number(master && master.x) || 0) + launchX * cursorDistance,
+        y: (Number(master && master.y) || 0) + launchY * cursorDistance,
+      };
+    } else {
+      this.myGoal = {
+        x: (Number(master && master.x) || 0) + (Number(aim.x) || 0),
+        y: (Number(master && master.y) || 0) + (Number(aim.y) || 0),
+      };
+    }
     this.countdown = 5;
   }
 
   think() {
     const value = this.getIntellect();
-    if (value >= 8 && this.body.master && this.body.master.control && this.body.master.control.target) {
+    if (!this.isBlockProjectile && value >= 8 && this.body.master && this.body.master.control && this.body.master.control.target) {
       this._masterAimRefresh = (this._masterAimRefresh || 0) + 1;
       const refresh = Math.max(4, intellect.scaleInterval(18, value));
       if (this._masterAimRefresh >= refresh) {
@@ -6997,6 +7117,7 @@ class Entity {
       }
 
       if (set.index != null) {
+        if (!isInheritedDefinition) this._autoUpgradeSourceDefinition = set;
         this.index = set.index;
       }
       if (set.NAME != null) {
@@ -7037,6 +7158,12 @@ class Entity {
       }
       if (set.CUSTOM_ORBIT != null) {
         this.customOrbit = set.CUSTOM_ORBIT;
+      }
+      if (set.BOOMERANG_RETURN_TO_MASTER != null) {
+        this.boomerangReturnToMaster = set.BOOMERANG_RETURN_TO_MASTER === true;
+      }
+      if (set.RANGE_TRANSITION_TO_RANDOM_POLYGON_DRONE != null) {
+        this.settings.rangeTransitionToRandomPolygonDrone = set.RANGE_TRANSITION_TO_RANDOM_POLYGON_DRONE === true;
       }
       if (set.ORBIT_DISTANCE != null) {
         this.orbitDistance = set.ORBIT_DISTANCE;
@@ -14162,7 +14289,35 @@ class Entity {
     if (this.settings.diesAtRange) {
       this.range -= 1 / roomSpeed;
       if (this.range < 0) {
-        this.kill();
+        if (this.settings.rangeTransitionToRandomPolygonDrone && !this._rangeTransitionedToPolygonDrone) {
+          const candidates = [Class.triangleDrone, Class.squareDrone, Class.pentagonDrone, Class.hexagonDrone]
+            .filter((definition) => definition && typeof definition === "object");
+          if (candidates.length) {
+            const oldMaster = this.master;
+            const oldTeam = this.team;
+            const oldColor = this.color;
+            const selectedDrone = ran.choose(candidates);
+            this._rangeTransitionedToPolygonDrone = true;
+            this.define(selectedDrone);
+            this.master = oldMaster;
+            this.team = oldTeam;
+            this.color = oldColor;
+            this.settings.diesAtRange = false;
+            this.settings.rangeTransitionToRandomPolygonDrone = false;
+            this.range = Math.max(1, Number(this.RANGE) || 200);
+            this._autoUpgradeSourceDefinition = selectedDrone;
+            this.refreshBodyAttributes();
+            this.range = Math.max(1, Number(this.RANGE) || 200);
+            this.health.amount = Math.min(Number(this.health.max) || 1, Math.max(1, Number(this.health.amount) || 1));
+            this.shield.amount = Math.min(Number(this.shield.max) || 0, Math.max(0, Number(this.shield.amount) || 0));
+            this.control.goal = { x: this.x, y: this.y };
+            this.control.target = { x: 0, y: 0 };
+          } else {
+            this.kill();
+          }
+        } else {
+          this.kill();
+        }
       }
     }
     if (this.settings.diesAtLowSpeed) {
@@ -23889,7 +24044,8 @@ var maintainloop = (() => {
           let tierOne = Math.random() * 50;
           o.isBot = true;
           o.addController(new io_fleeAtLowHealth(o));
-          o.define(Class["bot" + Math.floor(Math.random() * 8)]);
+          const botArchetype = botRandomPolicy.selectBotArchetype();
+          o.define(Class[botArchetype]);
           o.name += ran.chooseBotName();
           if (c.MODE === "plague" || c.necro) {
             o.infector = true;
@@ -24234,16 +24390,17 @@ var maintainloop = (() => {
             }
           }
         }
-        o.skillUp(ran.choose([
-          "atk", "hlt", "spd", "str", "pen", "dam", "rld", "mob", "rgn", "shi",
-        ]));
-        if (
-          o.leftoverUpgrades &&
-          o.upgrade(
-            ran.irandomRange(0, Math.max(0, o.upgrades.length - 1))
-          )
-        )
-          o.leftoverUpgrades--;
+        o.skillUp(botRandomPolicy.selectSkillStat());
+        if (o.leftoverUpgrades > 0 && Array.isArray(o.upgrades) && o.upgrades.length) {
+          const selection = botRandomPolicy.selectUpgradeIndex(o.upgrades, o.skill.level);
+          if (selection !== undefined) {
+            // null is the explicit no-upgrade outcome. It has the same chance
+            // as each eligible option and consumes the choice rather than
+            // retrying until a class eventually gets picked.
+            if (selection !== null) o.upgrade(selection);
+            o.leftoverUpgrades--;
+          }
+        }
         if (o.team !== o.id) {
           if (o.label === "Healer" && !o.stopReppeat) {
             o.name = "[SUPPORT]_";
@@ -25883,7 +26040,6 @@ const server = http.createServer((req, res) => {
   <!-- Favicon -->
   <link rel="icon" href="https://cdn.glitch.global/5f27ad97-07cd-4f67-922e-41dfb3ef64a5/grgagegu.webp?v=1713072716793" />
 
-  </head>
 <style>
     body {
       font-family: Arial, sans-serif;
@@ -25939,9 +26095,25 @@ const server = http.createServer((req, res) => {
       background-color: #2980b9;
     }
   </style>
+  <style>
+    :root{color-scheme:dark;--rp-bg:#090c13;--rp-panel:rgba(20,25,37,.92);--rp-line:rgba(151,163,185,.18);--rp-text:#edf0fb;--rp-muted:#a0abc0;--rp-violet:#a78bfa;--rp-cyan:#67e8f9}
+    *{box-sizing:border-box}html{min-height:100%;background:var(--rp-bg)}
+    body{display:flex;flex-wrap:wrap;align-content:flex-start;justify-content:center;gap:18px;margin:0;padding:clamp(12px,2.5vw,34px);min-height:100vh;line-height:1.55;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--rp-text);background:radial-gradient(1000px 520px at 8% -10%,rgba(124,108,240,.22),transparent 65%),radial-gradient(850px 460px at 100% 0%,rgba(103,232,249,.10),transparent 60%),linear-gradient(180deg,#0b0e16,#090c13 72%);background-attachment:fixed}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.15;background-image:linear-gradient(rgba(151,163,185,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(151,163,185,.07) 1px,transparent 1px);background-size:36px 36px;mask-image:linear-gradient(to bottom,black,transparent 82%)}
+    .home-topbar,.home-hero{position:relative;z-index:1;width:min(1440px,100%);border:1px solid var(--rp-line);border-radius:18px;background:rgba(20,25,37,.84);backdrop-filter:blur(16px);box-shadow:0 20px 70px rgba(0,0,0,.22)}
+    .home-topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 18px}
+    .home-brand{display:flex;align-items:center;gap:12px;min-width:0}.home-mark{display:grid;place-items:center;flex:0 0 46px;height:46px;border-radius:14px;background:linear-gradient(145deg,#a78bfa,#5b55d9);color:#10131d;font-weight:950;letter-spacing:-.05em;box-shadow:0 8px 28px rgba(124,108,240,.22)}
+    .home-brand strong{display:block;font-size:15px;letter-spacing:.01em}.home-brand span{display:block;margin-top:2px;color:var(--rp-muted);font-size:11px}.home-links{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.home-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 13px;border:1px solid var(--rp-line);border-radius:10px;background:#1a2030;color:var(--rp-text);font-size:12px;font-weight:800;text-decoration:none;transition:transform .15s,border-color .15s}.home-link:hover{transform:translateY(-1px);border-color:#7569c6}.home-link.primary{background:linear-gradient(135deg,#9f87f6,#7668df);border-color:transparent;color:#111423}
+    .home-hero{overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:24px;padding:clamp(22px,4vw,44px)}.home-hero:after{content:"";position:absolute;width:280px;height:280px;right:-95px;top:-130px;border-radius:50%;border:1px solid rgba(167,139,250,.22);box-shadow:0 0 0 30px rgba(167,139,250,.035),0 0 0 60px rgba(103,232,249,.025);pointer-events:none}
+    .home-eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:10px;font-weight:900;color:var(--rp-violet)}.home-hero h1{margin:8px 0 10px;text-align:left;font-size:clamp(29px,4.5vw,48px);line-height:1.04;letter-spacing:-.055em}.home-hero p{max-width:670px;margin:0;color:#c0c9db;font-size:14px}.home-stats{display:grid;grid-template-columns:repeat(2,minmax(100px,1fr));gap:9px;position:relative;z-index:1}.home-stat{min-width:114px;padding:13px 14px;border:1px solid var(--rp-line);border-radius:12px;background:rgba(10,14,23,.56)}.home-stat span{display:block;color:var(--rp-muted);font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.08em}.home-stat strong{display:block;margin-top:5px;color:var(--rp-text);font-size:15px;overflow-wrap:anywhere}
+    .game-modes,.changelog{position:relative;z-index:1;min-width:0;margin:0;padding:20px;border:1px solid var(--rp-line);border-radius:17px;background:var(--rp-panel);box-shadow:0 18px 55px rgba(0,0,0,.16)}.game-modes{width:calc(32% - 12px);flex:1 1 285px}.changelog{width:calc(68% - 12px);flex:3 1 540px;max-height:720px;overflow-y:auto;scrollbar-color:#3a4358 transparent;scrollbar-width:thin}.game-modes h1,.game-modes h2,.game-modes h3,.changelog h2{text-align:left;width:auto}.game-modes h1{margin:0 0 7px;font-size:26px;letter-spacing:-.04em}.game-modes h2{margin:0 0 15px;color:var(--rp-violet);font-size:13px;font-weight:700}.game-modes h4{margin:15px 0 7px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--rp-cyan)}.game-modes p{color:#c0c9db;font-size:12px;overflow-wrap:anywhere}.game-modes ul,.changelog ul{padding-left:20px}.game-modes li,.changelog li{margin:7px 0;color:#c5cede;font-size:12px}.changelog h2{font-size:18px;letter-spacing:-.02em;margin:6px 0 8px}.changelog section{padding:10px 4px 18px;border-bottom:1px solid rgba(151,163,185,.12)}.changelog section:last-child{border-bottom:0}.changelog p{font-size:12px;color:var(--rp-muted)}.button-container{position:relative;z-index:1;width:auto;margin:0;display:flex;align-items:center;justify-content:center}.button-container button{padding:12px 17px;border:1px solid transparent;border-radius:11px;background:linear-gradient(135deg,#9f87f6,#7668df);color:#111423;font-size:12px;font-weight:850;box-shadow:0 7px 20px rgba(124,108,240,.18);transition:transform .15s,border-color .15s}.button-container button:hover{transform:translateY(-1px);background:linear-gradient(135deg,#b5a2ff,#8a7cf0)}
+    @media(max-width:720px){.home-topbar{align-items:flex-start;flex-direction:column}.home-links{width:100%}.home-link{flex:1}.home-hero{grid-template-columns:1fr}.home-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.game-modes,.changelog{width:100%;flex-basis:100%;max-height:none}.button-container{flex:1 1 45%}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;scroll-behavior:auto!important}}
+  </style>
 </head>
 <body>
-
+  <header class="home-topbar"><div class="home-brand"><div class="home-mark">RP</div><div><strong>Ranar's Prophecy</strong><span>${extra} · Server portal</span></div></div><nav class="home-links" aria-label="Main navigation"><a class="home-link primary" href="https://arras.cx" onclick="this.href='https://arras.cx/#host='+location.host">Join Game ↗</a><a class="home-link" href="/chat">Chat Relay ↗</a><a class="home-link" href="#changelog">What's New ↓</a></nav></header>
+  <section class="home-hero"><div><div class="home-eyebrow">Persistent world · Live arena</div><h1>Enter the arena<span style="color:var(--rp-violet)">.</span></h1><p>Choose your next class, build a strategy, and survive the worlds of Ranar's Prophecy. Server status and recent changes are available below.</p></div><div class="home-stats"><div class="home-stat"><span>Current mode</span><strong>${chosenMode}</strong></div><div class="home-stat"><span>Players online</span><strong>${c.playerCount}</strong></div><div class="home-stat"><span>Server</span><strong>${title}</strong></div><div class="home-stat"><span>Refresh timer</span><strong>${timeDisplay}</strong></div></div></section>
 
   <div class="game-modes">
   <h1>${title}</h1>
@@ -25954,7 +26126,7 @@ const server = http.createServer((req, res) => {
     <b>Players:</b> ` +
           c.playerCount +
           `.<br>
-<b>Estimated Time Before Server Refreshes:</b> ${timeDisplay}.<br><br>
+<b>Estimated Time Before Server Refreshes:</b> ${timeString}.<br><br>
 You must have the chat site and the game site open at the same time for your chats to be sent.
     </p>
     </div>
@@ -25965,7 +26137,7 @@ You must have the chat site and the game site open at the same time for your cha
   <button onclick="window.open('https://' + location.host + '/chat', '_blank')">Open Chat Site</button>
 </div>
 
-  <div class="changelog">
+  <div class="changelog" id="changelog">
   <!-- Prophecy Version 0.0.8 -->
 <section id="prophecy-v0-0-8">
   <h2># Prophecy Version 0.0.8</h2>

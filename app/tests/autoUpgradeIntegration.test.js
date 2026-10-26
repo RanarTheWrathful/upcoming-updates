@@ -19,6 +19,7 @@ function makeEntity(exportName, overrides = {}) {
     // old update() guard that rejected every real source before rules ran.
     type: "crasher",
     index: definition.index,
+    _autoUpgradeSourceDefinition: definition,
     label: definition.LABEL || definition.label || exportName,
     isPlayer: false,
     isBot: true,

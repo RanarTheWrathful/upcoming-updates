@@ -158,6 +158,65 @@ function chooseTarget(targets, body, value, currentTarget, strategy = "balanced"
   return best;
 }
 
+/**
+ * Higher-intellect hostile-target controllers spread a group across viable
+ * enemies instead of dogpiling the first target. Focus counts are supplied by
+ * the server's small, time-limited claim registry; baseline intellect never
+ * enters this behavior. Returns the best target or the supplied preferred one.
+ */
+function distributeTargetFocus(targets, body, value, currentTarget, focusCounts = new Map(), preferredTarget) {
+  const n = normalize(value, 1);
+  const mode = body && body.aiTarget || "general";
+  if (n < 32 || !body || !Array.isArray(targets) || !targets.length ||
+      !["general", "mostDeadly", "allHostiles"].includes(mode)) return preferredTarget;
+
+  const target = preferredTarget && targets.includes(preferredTarget)
+    ? preferredTarget
+    : chooseTarget(targets, body, n, currentTarget);
+  if (targets.length < 2) return target;
+
+  let minDanger = Infinity;
+  let maxDanger = -Infinity;
+  for (const candidate of targets) {
+    const danger = Number(candidate.dangerValue) || 0;
+    minDanger = Math.min(minDanger, danger);
+    maxDanger = Math.max(maxDanger, danger);
+  }
+  const blend = progression(n, 32, 4096);
+  const penaltyPerAlly = 0.08 + 0.32 * blend;
+  const range = Math.max(1, Number(body.fov) / 2 || 1000);
+  let best = target || targets[0];
+  let bestScore = -Infinity;
+  const scores = new Map();
+
+  for (const candidate of targets) {
+    const proximity = 1 / (1 + distance(body, candidate) / range);
+    const danger = maxDanger > minDanger
+      ? clamp(((Number(candidate.dangerValue) || 0) - minDanger) / (maxDanger - minDanger), 0, 1)
+      : 0.5;
+    const maxHealth = Math.max(1, Number(candidate.health && candidate.health.max) || 1);
+    const vulnerability = 1 - clamp((Number(candidate.health && candidate.health.amount) || 0) / maxHealth, 0, 1);
+    const alliedFocusCount = Math.max(0, Number(focusCounts instanceof Map
+      ? focusCounts.get(candidate.id)
+      : focusCounts && focusCounts[candidate.id]) || 0);
+    const score = danger * 0.35 + vulnerability * 0.3 + proximity * 0.35 -
+      Math.min(0.65, alliedFocusCount * penaltyPerAlly);
+    scores.set(candidate, score);
+    if (score > bestScore || (score === bestScore && distance(body, candidate) < distance(body, best))) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+
+  // Keep a current target unless redistribution creates a clear improvement.
+  // The threshold is fixed enough to prevent focus switching on similar scores.
+  if (currentTarget && scores.has(currentTarget) && currentTarget !== best &&
+      bestScore - scores.get(currentTarget) < 0.07 + 0.04 * (1 - blend)) {
+    return currentTarget;
+  }
+  return best;
+}
+
 function waypointCandidateCount(value) {
   const n = normalize(value, 1);
   if (n < 0) return 1;
@@ -694,6 +753,7 @@ module.exports = {
   scalePauseInterval,
   distance,
   chooseTarget,
+  distributeTargetFocus,
   waypointCandidateCount,
   chooseWanderSpot,
   arrivalRadius,
