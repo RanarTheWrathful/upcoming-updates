@@ -3588,7 +3588,7 @@ exports.stealthedSunchip = {
 //TRAPS
 exports.trap = {
   LABEL: "Trap",
-  DAMAGE_TYPE: "collision",
+  DAMAGE_TYPE: "impact",
   IS_PROJECTILE: true,
   TYPE: "trap",
   ACCEPTS_SCORE: false,
