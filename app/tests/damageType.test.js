@@ -27,18 +27,27 @@ assert.strictEqual(damageType.resolveDamage({ ...source, damageType: "velocityMa
   "velocityMaster should use master body damage and retain velocity scaling");
 assert.strictEqual(damageType.resolveDamage({ ...source, damageType: "impact" }, 2).damage, 2,
   "impact should use collision-style damage without speed scaling");
-assert.strictEqual(damageType.shouldApplyDamage({ damageType: "impact" }, false), true);
-assert.strictEqual(damageType.shouldApplyDamage({ damageType: "impact" }, true), false,
-  "impact damage should only be applied on contact entry");
+assert.strictEqual(damageType.impactDamageMultiplier({ damageType: "impact" }, 0), 1,
+  "impact should deal full damage on the first collision iteration");
+assert.strictEqual(damageType.impactDamageMultiplier({ damageType: "impact" }, 1), 0.5,
+  "impact should deal half damage on the second consecutive collision iteration");
+assert.strictEqual(damageType.impactDamageMultiplier({ damageType: "impact" }, 2), 0.25,
+  "impact should halve again on the third consecutive collision iteration");
+assert.strictEqual(damageType.impactDamageMultiplier({ damageType: "impact" }, 3), 0.125,
+  "impact should continue diminishing while contact persists");
+assert.strictEqual(damageType.impactDamageMultiplier({ damageType: "impact" }, 8, true), 0,
+  "duplicate processing in one collision iteration should not deal impact damage twice");
 assert.strictEqual(damageType.isImpactDamage({ damageType: "impact" }), true);
 assert.strictEqual(damageType.isImpactDamage({ damageType: "collision" }), false);
-assert.strictEqual(damageType.shouldApplyDamage({ damageType: "collision" }, true), true,
-  "collision mode should continue dealing damage while contact persists");
+assert.strictEqual(damageType.impactDamageMultiplier({ damageType: "collision" }, 8), 1,
+  "collision mode should continue dealing normal damage while contact persists");
 assert.strictEqual(damageType.collisionPairKey({ id: 5 }, { id: 2 }), "2:5");
 assert.strictEqual(Class.genericEntity.DAMAGE_TYPE, "velocity");
 assert.strictEqual(Class.trap.DAMAGE_TYPE, "collision");
 assert.match(server, /set\.DAMAGE_TYPE != null/);
-assert.match(server, /previousImpactContacts\.has\(impactPairKey\)/);
+assert.match(server, /previousImpactContacts\.get\(impactPairKey\)/);
+assert.match(server, /currentImpactContacts\.set\(impactPairKey, previousImpactContactCount \+ 1\)/);
+assert.match(server, /impactDamageMultiplier\(/);
 assert.match(server, /!my\.invuln && !n\.invuln/);
 assert.match(server, /resolvedMyDamage\s*=\s*damageType\.resolveDamage\(my, speedFactor\._me/);
 console.log("Damage type behavior tests passed.");

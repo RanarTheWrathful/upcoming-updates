@@ -58,8 +58,17 @@ function isImpactDamage(entityOrType) {
   return normalizeDamageType(value) === DAMAGE_TYPES.IMPACT;
 }
 
-function shouldApplyDamage(entity, alreadyTouching) {
-  return !isImpactDamage(entity) || !alreadyTouching;
+// Impact damage uses diminishing returns while a pair remains in contact.
+// The first collision deals full damage; each subsequent collision iteration
+// halves it. Duplicate collision processing for the same pair in one physics
+// iteration is suppressed so broad-phase ordering cannot multiply damage.
+function impactDamageMultiplier(entityOrType, consecutiveContactCount = 0, alreadyProcessedThisIteration = false) {
+  if (!isImpactDamage(entityOrType)) return 1;
+  if (alreadyProcessedThisIteration) return 0;
+  const count = Number.isFinite(Number(consecutiveContactCount))
+    ? Math.max(0, Math.floor(Number(consecutiveContactCount)))
+    : 0;
+  return Math.pow(0.5, count);
 }
 
 function collisionPairKey(first, second) {
@@ -76,6 +85,6 @@ module.exports = {
   velocityMultiplier,
   resolveDamage,
   isImpactDamage,
-  shouldApplyDamage,
+  impactDamageMultiplier,
   collisionPairKey,
 };

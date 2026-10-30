@@ -20731,10 +20731,12 @@ player.color = easy;
 // Define how the game lives
 // The most important loop. Fast looping.
 var gameloop = (() => {
-  // Impact damage is edge-triggered: a pair may only deal impact damage once
-  // while continuously touching. The two sets are swapped each collision pass.
-  let previousImpactContacts = new Set();
-  let currentImpactContacts = new Set();
+  // Impact damage tracks consecutive collision iterations for each pair.
+  // Its damage halves on every iteration that contact persists, then resets
+  // when the pair is absent from a complete collision pass. Maps are swapped
+  // each pass to avoid allocating new state containers every frame.
+  let previousImpactContacts = new Map();
+  let currentImpactContacts = new Map();
 
   // Collision stuff
   let collide = (() => {
@@ -20950,9 +20952,11 @@ var gameloop = (() => {
           const impactPairKey = needsImpactTracking
             ? damageType.collisionPairKey(my, n)
             : null;
-          const impactAlreadyTouching = impactPairKey != null &&
-            (previousImpactContacts.has(impactPairKey) ||
-              currentImpactContacts.has(impactPairKey));
+          const impactAlreadyProcessedThisIteration = impactPairKey != null &&
+            currentImpactContacts.has(impactPairKey);
+          const previousImpactContactCount = impactPairKey != null
+            ? (previousImpactContacts.get(impactPairKey) || 0)
+            : 0;
 
           if (t) {
             // Only if we still need to find the collision
@@ -21076,10 +21080,12 @@ var gameloop = (() => {
               )
                 return;
 
-              // Only count an impact contact once it reaches the damage path.
-              // Contacts rejected by invulnerability, food infection, or the
-              // special immunity checks above must not consume the next hit.
-              if (impactPairKey != null) currentImpactContacts.add(impactPairKey);
+              // Count a contact only after it reaches the damage path. Contacts
+              // rejected by invulnerability, food infection, or special
+              // immunity checks do not consume a diminishing-return step.
+              if (impactPairKey != null && !impactAlreadyProcessedThisIteration) {
+                currentImpactContacts.set(impactPairKey, previousImpactContactCount + 1);
+              }
 
               // Calculate the damage stat and speed treatment once per side.
               // Atmosphere interactions retain their historical no-velocity-scaling
@@ -21117,12 +21123,20 @@ var gameloop = (() => {
                       : 1) *
                     n.damageMultiplier(),
                 });
-              // Impact damage is applied on contact entry only. Other damage
-              // modes continue to use their normal per-collision behavior.
-              if (impactAlreadyTouching) {
-                if (!damageType.shouldApplyDamage(my, true)) damage._me = 0;
-                if (!damageType.shouldApplyDamage(n, true)) damage._n = 0;
-              }
+              // Impact damage starts at full strength, then halves on each
+              // successive collision iteration while the pair stays in
+              // contact. Repeated processing of the same pair within this
+              // iteration is suppressed; separation resets the next contact.
+              damage._me *= damageType.impactDamageMultiplier(
+                my,
+                previousImpactContactCount,
+                impactAlreadyProcessedThisIteration
+              );
+              damage._n *= damageType.impactDamageMultiplier(
+                n,
+                previousImpactContactCount,
+                impactAlreadyProcessedThisIteration
+              );
 
               // Advanced damage calculations
               if (my.settings.ratioEffects) {

@@ -3605,7 +3605,7 @@ exports.trap = {
     RESIST: 2.5,
     SPEED: 0,
     PENETRATION: 1.15,
-    PUSHABILITY: 1.25,
+    PUSHABILITY: 0.75,
   },
 };
 exports.repairTrap = {
@@ -3663,8 +3663,7 @@ exports.unsetBlock = {
     SPEED: 1.2,
     DENSITY: 7.5,
     PENETRATION: 1.15,
-
-    PUSHABILITY: 1,
+    PUSHABILITY: 0.5,
   },
 };
 exports.setBlock = {
@@ -3679,7 +3678,7 @@ exports.setBlock = {
     SPEED: 1.2,
     DENSITY: 7.5,
     PENETRATION: 1.15,
-    PUSHABILITY: 1,
+    PUSHABILITY: 0.5,
   },
 };
 exports.assemblent = {
@@ -3720,7 +3719,7 @@ exports.boomerang = {
     RANGE: 450,
     PENETRATION: 1.15,
     DENSITY: 7.5,
-    PUSHABILITY: 1.25,
+    PUSHABILITY: 0.5,
   },
 };
 exports.boomerangToMaster = {
