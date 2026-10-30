@@ -74,6 +74,7 @@ const projectile = {
   DAMAGE: 7,
   PENETRATION: 4,
   RANGE: 120,
+  _projectileTransformBody: { SPEED: 8, HEALTH: 31, DAMAGE: 17, PENETRATION: 6, RANGE: 220 },
   DENSITY: 2,
   PUSHABILITY: 1,
   skill: { raw: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0] },
@@ -90,8 +91,11 @@ assert.strictEqual(replacement.y, 50);
 assert.strictEqual(replacement.team, -100);
 assert.strictEqual(replacement.color, 13, "neutral-team replacement keeps the drone's native color");
 assert.strictEqual(replacement.SIZE, 9.6, "replacement uses normal source-barrel scale, not the boss seed's giant size");
-assert.strictEqual(replacement.DAMAGE, 7, "source barrel-calculated combat stats are retained");
-assert.strictEqual(replacement.HEALTH, 17);
+assert.strictEqual(replacement.DAMAGE, 17, "the selected source barrel's calculated damage is retained");
+assert.strictEqual(replacement.HEALTH, 31);
+assert.strictEqual(replacement.SPEED, 8);
+assert.strictEqual(replacement.PENETRATION, 6);
+assert.strictEqual(replacement.RANGE, 220);
 assert.deepStrictEqual(replacement.skill.raw, projectile.skill.raw);
 assert.strictEqual(replacement.parent, parent);
 assert.ok(parent.children.includes(replacement));

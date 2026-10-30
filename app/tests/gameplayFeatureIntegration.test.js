@@ -29,6 +29,14 @@ assert.strictEqual(Class.arenaOpenerShot.DIE_AT_RANGE, true);
 assert.strictEqual(Class.arenaOpenerShot.TRANSFORM_ON_RANGE_END, true);
 assert.strictEqual(openerGun.PROJECTILE_TRANSFORM_PROFILES.length, 5,
   "the one visible barrel should draw from the four Polymancer profiles and the Poly Tyrant profile");
+assert.strictEqual(openerGun.PROJECTILE_TRANSFORM_USE_PROFILE_SETTINGS, false,
+  "the seed projectile must use a separate, faster bullet configuration");
+assert.ok(openerGun.SHOOT_SETTINGS.reload < openerGun.PROJECTILE_TRANSFORM_PROFILES[4].SHOOT_SETTINGS.reload,
+  "seed firing must not inherit the Poly Tyrant drone barrel's very long reload");
+assert.strictEqual(Class.trap.DAMAGE_TYPE, "collision",
+  "trap damage should not scale with projectile movement speed by default");
+assert.strictEqual(Class.genericEntity.DAMAGE_TYPE, "velocity",
+  "velocity-based damage should remain the global default");
 for (let i = 0; i < Class.polymancer.GUNS.length; i++) {
   assert.strictEqual(openerGun.PROJECTILE_TRANSFORM_PROFILES[i].TYPE, Class.polymancer.GUNS[i].PROPERTIES.TYPE);
   assert.strictEqual(openerGun.PROJECTILE_TRANSFORM_PROFILES[i].SHOOT_SETTINGS, Class.polymancer.GUNS[i].PROPERTIES.SHOOT_SETTINGS);

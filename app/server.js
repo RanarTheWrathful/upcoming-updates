@@ -41,6 +41,7 @@ const intellect = require("./lib/intellect/intellect");
 const minionMovementPolicy = require("./lib/minionMovementPolicy/minionMovementPolicy");
 const gunCalculator = require("./lib/gunCalculator/gunCalculator");
 const projectileTransformation = require("./lib/projectileTransformation/projectileTransformation");
+const damageType = require("./lib/damageType/damageType");
 const { performance } = require("perf_hooks");
 
 function applyFoodInfectionEffects(food, infector) {
@@ -6226,6 +6227,11 @@ class Gun {
           defaultCalculator: info.PROPERTIES.STAT_CALCULATOR,
         }
       );
+      // Most profile-driven guns use the selected profile to calculate the
+      // projectile itself. Some guns (such as Arena Opener) fire a separate
+      // seed and only use the profile for the entity created at range.
+      this.useTransformProfileForSeed =
+        info.PROPERTIES.PROJECTILE_TRANSFORM_USE_PROFILE_SETTINGS !== false;
       this.activeProjectileTransformProfile = null;
       this.transformProjectilesAtRange = info.PROPERTIES.TRANSFORM_PROJECTILE_ON_RANGE === true ||
         this.bulletTypes.some((type) => type && type.TRANSFORM_ON_RANGE_END === true);
@@ -6358,6 +6364,7 @@ class Gun {
   selectProjectileTransformProfile() {
     const profile = projectileTransformation.chooseProfile(this.projectileTransformProfiles);
     this.activeProjectileTransformProfile = profile;
+    if (!this.useTransformProfileForSeed) return profile;
     if (!profile) {
       this.settings = this.baseSettings;
       this.natural = this.baseNatural;
@@ -6373,6 +6380,30 @@ class Gun {
       this.trueRecoil = profile.settings.recoil;
     }
     return profile;
+  }
+
+  interpretTransformProfile(profile) {
+    if (!profile) return null;
+    const previous = {
+      settings: this.settings,
+      natural: this.natural,
+      calculator: this.calculator,
+      activeProfile: this.activeProjectileTransformProfile,
+    };
+    try {
+      this.settings = profile.settings;
+      this.natural = profile.natural;
+      this.calculator = gunCalculator.normalizeCalculator(
+        profile.calculator == null ? this.baseCalculator : profile.calculator
+      );
+      this.activeProjectileTransformProfile = profile;
+      return this.interpret();
+    } finally {
+      this.settings = previous.settings;
+      this.natural = previous.natural;
+      this.calculator = previous.calculator;
+      this.activeProjectileTransformProfile = previous.activeProfile;
+    }
   }
 
   canInfectFood(host) {
@@ -6592,14 +6623,18 @@ class Gun {
     o.velocity = s;
     this.bulletInit(o);
     if (this.activeProjectileTransformProfile && this.transformProjectilesAtRange) {
-      o._projectileTransformProfile = this.activeProjectileTransformProfile;
+      const profile = this.activeProjectileTransformProfile;
+      o._projectileTransformProfile = profile;
       o._projectileTransformAtRange = true;
+      o._projectileTransformBody = this.useTransformProfileForSeed
+        ? null
+        : this.interpretTransformProfile(profile);
       o._projectileTransformSize = projectileTransformation.sourceScaledProjectileSize(
         this.body.size,
         this.body.SIZE,
-        this.activeProjectileTransformProfile.projectileWidth,
-        this.settings.size,
-        this.activeProjectileTransformProfile.sourceBodySize
+        profile.projectileWidth,
+        profile.settings.size,
+        profile.sourceBodySize
       );
     }
     //o.coreSize = o.SIZE;
@@ -6612,12 +6647,12 @@ class Gun {
     o.define({
       BODY: this.interpret(),
       SKILL: this.getSkillRaw(),
-      SIZE: this.activeProjectileTransformProfile && this.transformProjectilesAtRange
+      SIZE: this.activeProjectileTransformProfile && this.transformProjectilesAtRange && this.useTransformProfileForSeed
         ? projectileTransformation.sourceScaledProjectileSize(
             this.body.size,
             this.body.SIZE,
             this.activeProjectileTransformProfile.projectileWidth,
-            this.settings.size,
+            this.activeProjectileTransformProfile.settings.size,
             this.activeProjectileTransformProfile.sourceBodySize
           )
         : (this.body.size * this.width * this.settings.size) / 2,
@@ -7079,6 +7114,7 @@ class Entity {
     this.vfacing = 0;
     this.range = 0;
     this.damageRecieved = 0;
+    this.damageType = damageType.DAMAGE_TYPES.VELOCITY;
     this.stepRemaining = 1;
 
     this.x = position.x;
@@ -7319,6 +7355,9 @@ class Entity {
       }
       if (set.DISABLE_DAMAGE != null) {
         this.disableDamage = set.DISABLE_DAMAGE;
+      }
+      if (set.DAMAGE_TYPE != null) {
+        this.damageType = damageType.normalizeDamageType(set.DAMAGE_TYPE);
       }
       if (set.TIER != null) {
         this.tier = set.TIER;
@@ -20692,6 +20731,11 @@ player.color = easy;
 // Define how the game lives
 // The most important loop. Fast looping.
 var gameloop = (() => {
+  // Impact damage is edge-triggered: a pair may only deal impact damage once
+  // while continuously touching. The two sets are swapped each collision pass.
+  let previousImpactContacts = new Set();
+  let currentImpactContacts = new Set();
+
   // Collision stuff
   let collide = (() => {
     function simplecollide(my, n) {
@@ -20901,6 +20945,14 @@ var gameloop = (() => {
 
           my.collisionArray.push(n);
           n.collisionArray.push(my);
+          const needsImpactTracking = doDamage && !my.invuln && !n.invuln &&
+            (damageType.isImpactDamage(my) || damageType.isImpactDamage(n));
+          const impactPairKey = needsImpactTracking
+            ? damageType.collisionPairKey(my, n)
+            : null;
+          const impactAlreadyTouching = impactPairKey != null &&
+            (previousImpactContacts.has(impactPairKey) ||
+              currentImpactContacts.has(impactPairKey));
 
           if (t) {
             // Only if we still need to find the collision
@@ -21024,72 +21076,54 @@ var gameloop = (() => {
               )
                 return;
 
-              // Calculate base damage
+              // Only count an impact contact once it reaches the damage path.
+              // Contacts rejected by invulnerability, food infection, or the
+              // special immunity checks above must not consume the next hit.
+              if (impactPairKey != null) currentImpactContacts.add(impactPairKey);
+
+              // Calculate the damage stat and speed treatment once per side.
+              // Atmosphere interactions retain their historical no-velocity-scaling
+              // behavior regardless of the entity's configured damage type.
               let damage, resistDiff;
-              if (n.type === "atmosphere" || my.type === "atmosphere") {
-                (resistDiff = my.health.resist - n.health.resist),
-                  (damage = {
-                    _me:
-                      c.DAMAGE_CONSTANT *
-                      my.damage *
-                      (1 + resistDiff) *
-                      (1 +
-                        n.heteroMultiplier *
-                          (my.settings.damageClass ===
-                            n.settings.damageClass)) *
-                      (my.settings.buffVsFood && n.settings.damageType === 1
-                        ? 3
-                        : 1) *
-                      my.damageMultiplier() /*
-                    Math.min(2, Math.max(speedFactor._me, 1) * speedFactor._me),*/,
-                    _n:
-                      c.DAMAGE_CONSTANT *
-                      n.damage *
-                      (1 - resistDiff) *
-                      (1 +
-                        my.heteroMultiplier *
-                          (my.settings.damageClass ===
-                            n.settings.damageClass)) *
-                      (n.settings.buffVsFood && my.settings.damageType === 1
-                        ? 3
-                        : 1) *
-                      n.damageMultiplier() /*
-                    Math.min(2, Math.max(speedFactor._n, 1) * speedFactor._n),*/,
-                  });
-              } else {
-                (resistDiff = my.health.resist - n.health.resist),
-                  (damage = {
-                    _me:
-                      c.DAMAGE_CONSTANT *
-                      my.damage *
-                      (1 + resistDiff) *
-                      (1 +
-                        n.heteroMultiplier *
-                          (my.settings.damageClass ===
-                            n.settings.damageClass)) *
-                      (my.settings.buffVsFood && n.settings.damageType === 1
-                        ? 3
-                        : 1) *
-                      my.damageMultiplier() *
-                      Math.min(
-                        2,
-                        Math.max(speedFactor._me, 1) * speedFactor._me
-                      ),
-                    _n:
-                      c.DAMAGE_CONSTANT *
-                      n.damage *
-                      (1 - resistDiff) *
-                      (1 +
-                        my.heteroMultiplier *
-                          (my.settings.damageClass ===
-                            n.settings.damageClass)) *
-                      (n.settings.buffVsFood && my.settings.damageType === 1
-                        ? 3
-                        : 1) *
-                      n.damageMultiplier() *
-                      Math.min(2, Math.max(speedFactor._n, 1) * speedFactor._n),
-                  });
+              const atmosphereCollision = n.type === "atmosphere" || my.type === "atmosphere";
+              const resolvedMyDamage = damageType.resolveDamage(my, speedFactor._me, {
+                applyVelocity: !atmosphereCollision,
+              });
+              const resolvedNDamage = damageType.resolveDamage(n, speedFactor._n, {
+                applyVelocity: !atmosphereCollision,
+              });
+              (resistDiff = my.health.resist - n.health.resist),
+                (damage = {
+                  _me:
+                    c.DAMAGE_CONSTANT *
+                    resolvedMyDamage.damage *
+                    (1 + resistDiff) *
+                    (1 +
+                      n.heteroMultiplier *
+                        (my.settings.damageClass === n.settings.damageClass)) *
+                    (my.settings.buffVsFood && n.settings.damageType === 1
+                      ? 3
+                      : 1) *
+                    my.damageMultiplier(),
+                  _n:
+                    c.DAMAGE_CONSTANT *
+                    resolvedNDamage.damage *
+                    (1 - resistDiff) *
+                    (1 +
+                      my.heteroMultiplier *
+                        (my.settings.damageClass === n.settings.damageClass)) *
+                    (n.settings.buffVsFood && my.settings.damageType === 1
+                      ? 3
+                      : 1) *
+                    n.damageMultiplier(),
+                });
+              // Impact damage is applied on contact entry only. Other damage
+              // modes continue to use their normal per-collision behavior.
+              if (impactAlreadyTouching) {
+                if (!damageType.shouldApplyDamage(my, true)) damage._me = 0;
+                if (!damageType.shouldApplyDamage(n, true)) damage._n = 0;
               }
+
               // Advanced damage calculations
               if (my.settings.ratioEffects) {
                 damage._me *= Math.min(
@@ -22600,6 +22634,7 @@ var gameloop = (() => {
   };
 
   let collisionIteration = () => {
+    currentImpactContacts.clear();
     // Reuse the broad-phase AABB buffers instead of allocating one array per
     // active entity on every physics cycle (reduces GC pressure in busy waves).
     const aabbCount = activeEntities.length;
@@ -22635,6 +22670,10 @@ var gameloop = (() => {
         }
       }
     });
+    const oldPreviousContacts = previousImpactContacts;
+    previousImpactContacts = currentImpactContacts;
+    currentImpactContacts = oldPreviousContacts;
+    currentImpactContacts.clear();
   };
 
   let physicsIteration = () => {

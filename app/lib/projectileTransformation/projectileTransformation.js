@@ -123,7 +123,9 @@ function transitionAtRange(projectile, Entity) {
   // behavior. Only then are the source barrel's calculated combat stats copied
   // over, keeping custom properties such as drone shields and growth intact.
   const neutralColor = transformed.color;
-  const body = getCalculatedBody(projectile);
+  const body = getCalculatedBody(
+    projectile._projectileTransformBody || projectile
+  );
   const rawSkills = projectile.skill && Array.isArray(projectile.skill.raw)
     ? projectile.skill.raw.slice()
     : undefined;

@@ -422,6 +422,7 @@ exports.genericEntity = {
   NAME: "",
   LABEL: "Unknown Entity",
   TYPE: "unknown",
+  DAMAGE_TYPE: "velocity", // velocity, collision, collisionMaster, impact, velocityMaster
   DAMAGE_CLASS: 0, // 0: def, 1: food, 2: tanks, 3: obstacles
   DANGER: 0,
   VALUE: 0,
@@ -3587,6 +3588,7 @@ exports.stealthedSunchip = {
 //TRAPS
 exports.trap = {
   LABEL: "Trap",
+  DAMAGE_TYPE: "collision",
   IS_PROJECTILE: true,
   TYPE: "trap",
   ACCEPTS_SCORE: false,
@@ -89049,9 +89051,19 @@ exports.arenaOpenerShot = {
   MOTION_TYPE: "glide",
   DIE_AT_RANGE: true,
   TRANSFORM_ON_RANGE_END: true,
+  BODY: {
+    SPEED: 5,
+    RANGE: 120,
+    HEALTH: 3,
+    DAMAGE: 0.35,
+    PENETRATION: 1.2,
+    DENSITY: 1.8,
+  },
 };
 exports.arenaOpener = {
-  // Combat/body stats are inherited from the damaged Arena Closer unchanged.
+  // Body, size, AI, and baseline attributes are inherited from the damaged
+  // Arena Closer. The seed gun has its own quick bullet profile; the selected
+  // Polymancer/Poly Tyrant profile is used only for the drone created at range.
   PARENT: [exports.damagedArenaCloser],
   LABEL: "Arena Opener",
   COLOR: exports.egg.COLOR,
@@ -89060,13 +89072,20 @@ exports.arenaOpener = {
     {
       POSITION: [15, 11, 1, 0, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: arenaOpenerDroneProfiles[0].SHOOT_SETTINGS,
+        SHOOT_SETTINGS: combineStats([
+          g.basic,
+          g.power,
+          g.superSpeed,
+          g.superMax,
+          g.halfReload,
+        ]),
         TYPE: exports.arenaOpenerShot,
         PROJECTILE_TRANSFORM_PROFILES: arenaOpenerDroneProfiles,
+        PROJECTILE_TRANSFORM_USE_PROFILE_SETTINGS: false,
         AUTOFIRE: true,
         SYNCS_SKILLS: true,
         MAX_CHILDREN: 36,
-        STAT_CALCULATOR: gunCalcNames.drone,
+        STAT_CALCULATOR: gunCalcNames.bullet,
       },
     },
   ],
