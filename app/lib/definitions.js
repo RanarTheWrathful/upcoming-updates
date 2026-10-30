@@ -3603,52 +3603,16 @@ exports.trap = {
     RESIST: 2.5,
     SPEED: 0,
     PENETRATION: 1.15,
-    PUSHABILITY: 0.75,
+    PUSHABILITY: 7.5,
   },
 };
 exports.repairTrap = {
-  LABEL: "Trap",
-  IS_PROJECTILE: true,
-  TYPE: "trap",
-  ACCEPTS_SCORE: false,
-  SHAPE: -3,
-  MOTION_TYPE: "glide", // def
-  FACING_TYPE: "turnWithSpeed",
-  SPECIAL_EFFECT: ["push"],
+  PARENT: [exports.trap],
   REPAIR_EFFECT: true,
-  DIE_AT_RANGE: true,
-  BODY: {
-    HEALTH: 0.5 * wepHealthFactor,
-    DAMAGE: 1.25 * wepDamageFactor,
-    RANGE: 450,
-    DENSITY: 2.5,
-    RESIST: 2.5,
-    SPEED: 0,
-    PENETRATION: 1.15,
-    PUSHABILITY: 0.75,
-  },
 };
 exports.healTrap = {
-  LABEL: "Trap",
-  IS_PROJECTILE: true,
-  TYPE: "trap",
-  ACCEPTS_SCORE: false,
-  SHAPE: -3,
-  MOTION_TYPE: "glide", // def
-  FACING_TYPE: "turnWithSpeed",
+  PARENT: [exports.trap],
   HEAL_EFFECT: true,
-  HITS_OWN_TYPE: "repel",
-  DIE_AT_RANGE: true,
-  BODY: {
-    HEALTH: 0.5 * wepHealthFactor,
-    DAMAGE: 1.25 * wepDamageFactor,
-    RANGE: 450,
-    DENSITY: 2.5,
-    RESIST: 2.5,
-    SPEED: 0,
-    PENETRATION: 1.15,
-    PUSHABILITY: 0.75,
-  },
 };
 exports.breakerTrap = {
   PARENT: [exports.trap],
@@ -3698,7 +3662,7 @@ exports.unsetBlock = {
     DENSITY: 7.5,
     PENETRATION: 1.15,
 
-    PUSHABILITY: 0.5,
+    PUSHABILITY: 5,
   },
 };
 exports.setBlock = {
@@ -3714,24 +3678,12 @@ exports.setBlock = {
     DENSITY: 7.5,
     PENETRATION: 1.15,
 
-    PUSHABILITY: 0.5,
+    PUSHABILITY: 5,
   },
 };
 exports.assemblent = {
   LABEL: "Assemblent",
-  PARENT: [exports.trap],
-  SPECIAL_EFFECT: ["block"],
-  SHAPE: -4,
-  MOTION_TYPE: "motor",
-  // MOTION_TYPE: "glide",
-  CONTROLLERS: ["goToMasterTarget"],
-  BODY: {
-    SPEED: 1.2,
-    DENSITY: 100,
-    PENETRATION: 1.15,
-
-    PUSHABILITY: 1,
-  },
+  PARENT: [exports.setBlock],
   HITS_OWN_TYPE: "merge",
   TURRETS: [
     {
@@ -3767,7 +3719,7 @@ exports.boomerang = {
     RANGE: 450,
     PENETRATION: 1.15,
     DENSITY: 7.5,
-    PUSHABILITY: 0.5,
+    PUSHABILITY: 5,
   },
 };
 exports.boomerangToMaster = {
