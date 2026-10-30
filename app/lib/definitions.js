@@ -1212,7 +1212,7 @@ exports.bullet = {
     REGEN: 0,
     HEALTH: 0.175 * wepHealthFactor,
     DAMAGE: 2 * wepDamageFactor,
-    PUSHABILITY: 1,
+    PUSHABILITY: 2,
   },
   FACING_TYPE: "smoothWithMotion",
   CAN_GO_OUTSIDE_ROOM: true,
@@ -3603,7 +3603,7 @@ exports.trap = {
     RESIST: 2.5,
     SPEED: 0,
     PENETRATION: 1.15,
-    PUSHABILITY: 7.5,
+    PUSHABILITY: 3,
   },
 };
 exports.repairTrap = {
@@ -3662,7 +3662,7 @@ exports.unsetBlock = {
     DENSITY: 7.5,
     PENETRATION: 1.15,
 
-    PUSHABILITY: 5,
+    PUSHABILITY: 2,
   },
 };
 exports.setBlock = {
@@ -3678,7 +3678,7 @@ exports.setBlock = {
     DENSITY: 7.5,
     PENETRATION: 1.15,
 
-    PUSHABILITY: 5,
+    PUSHABILITY: 2,
   },
 };
 exports.assemblent = {
@@ -3719,7 +3719,7 @@ exports.boomerang = {
     RANGE: 450,
     PENETRATION: 1.15,
     DENSITY: 7.5,
-    PUSHABILITY: 5,
+    PUSHABILITY: 2,
   },
 };
 exports.boomerangToMaster = {
