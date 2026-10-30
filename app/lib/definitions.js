@@ -3588,7 +3588,7 @@ exports.stealthedSunchip = {
 //TRAPS
 exports.trap = {
   LABEL: "Trap",
-  DAMAGE_TYPE: "collision",
+  DAMAGE_TYPE: "impact",
   IS_PROJECTILE: true,
   TYPE: "trap",
   ACCEPTS_SCORE: false,
@@ -35641,7 +35641,7 @@ exports.flinger = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.doubleHealth]),
+        SHOOT_SETTINGS: combineStats([g.trap]),
         TYPE: exports.flingertrap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -35677,7 +35677,7 @@ exports.stinger = {
     {
       POSITION: [3, 7, 1.7, 15, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap, g.halfDamage, g.doubleHealth]),
+        SHOOT_SETTINGS: combineStats([g.trap]),
         TYPE: exports.mechflingtrap,
         STAT_CALCULATOR: gunCalcNames.trap,
       },
