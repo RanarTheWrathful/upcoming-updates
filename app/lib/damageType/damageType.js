@@ -9,6 +9,11 @@ const DAMAGE_TYPES = Object.freeze({
 });
 
 const VALID_TYPES = new Set(Object.values(DAMAGE_TYPES));
+// Static damage modes are calibrated to the velocity-mode result at its
+// nominal speed (actual movement speed == maxSpeed), where the legacy
+// velocity multiplier is exactly 1. This preserves normal-speed damage while
+// removing fast/slow movement as a source of damage variation.
+const STATIC_DAMAGE_BASELINE = 1;
 
 function normalizeDamageType(value) {
   if (typeof value !== "string") return DAMAGE_TYPES.VELOCITY;
@@ -29,19 +34,32 @@ function resolveDamageSource(entity, damageType = normalizeDamageType(entity && 
 function velocityMultiplier(speedFactor) {
   const speed = Number(speedFactor);
   if (!Number.isFinite(speed)) return 1;
-  // Match the existing collision formula exactly: a stationary entity has a
-  // zero velocity multiplier, moving entities below normal speed are reduced,
-  // and high-speed collisions are capped at 2x damage.
+  // Match the original velocity formula: below-normal speed is reduced and
+  // above-normal speed is amplified, up to the existing 2x cap.
   const nonNegativeSpeed = Math.max(0, speed);
   return Math.min(2, Math.max(nonNegativeSpeed, 1) * nonNegativeSpeed);
+}
+
+function usesVelocityDamageEffects(entityOrType) {
+  const value = typeof entityOrType === "string"
+    ? entityOrType
+    : entityOrType && entityOrType.damageType;
+  const type = normalizeDamageType(value);
+  return type === DAMAGE_TYPES.VELOCITY || type === DAMAGE_TYPES.VELOCITY_MASTER;
+}
+
+function isSpeedIndependentDamage(entityOrType) {
+  return !usesVelocityDamageEffects(entityOrType);
 }
 
 function resolveDamage(entity, speedFactor = 1, options = {}) {
   const type = normalizeDamageType(entity && entity.damageType);
   const baseDamage = resolveDamageSource(entity, type);
-  const useVelocity = type === DAMAGE_TYPES.VELOCITY || type === DAMAGE_TYPES.VELOCITY_MASTER;
+  const useVelocity = usesVelocityDamageEffects(type);
   const applyVelocity = options.applyVelocity !== false;
-  const multiplier = useVelocity && applyVelocity ? velocityMultiplier(speedFactor) : 1;
+  const multiplier = useVelocity && applyVelocity
+    ? velocityMultiplier(speedFactor)
+    : STATIC_DAMAGE_BASELINE;
   return {
     type,
     baseDamage,
@@ -59,21 +77,7 @@ function isImpactDamage(entityOrType) {
 }
 
 // The original DAMAGE_EFFECTS collision modifier also depends on relative
-// movement per tick (through accelerationFactor), so bypassing only the
-// explicit speedMultiplier is insufficient for speed-independent damage.
-// Keep those kinetic modifiers for the velocity modes only.
-function usesVelocityDamageEffects(entityOrType) {
-  const value = typeof entityOrType === "string"
-    ? entityOrType
-    : entityOrType && entityOrType.damageType;
-  const type = normalizeDamageType(value);
-  return type === DAMAGE_TYPES.VELOCITY || type === DAMAGE_TYPES.VELOCITY_MASTER;
-}
-
-// Impact damage uses diminishing returns while a pair remains in contact.
-// The first collision deals full damage; each subsequent collision iteration
-// halves it. Duplicate collision processing for the same pair in one physics
-// iteration is suppressed so broad-phase ordering cannot multiply damage.
+// movement per tick. Only velocity-based modes retain that kinetic modifier.
 function impactDamageMultiplier(entityOrType, consecutiveContactCount = 0, alreadyProcessedThisIteration = false) {
   if (!isImpactDamage(entityOrType)) return 1;
   if (alreadyProcessedThisIteration) return 0;
@@ -90,14 +94,59 @@ function collisionPairKey(first, second) {
   return firstId < secondId ? `${firstId}:${secondId}` : `${secondId}:${firstId}`;
 }
 
+// Tracks damage contacts for one physics collision pass at a time. All
+// speed-independent modes are limited to one damage application per entity
+// pair per pass, even if the pair reaches advancedcollide through more than
+// one collision branch. Impact pairs additionally retain a consecutive-pass
+// counter; a missing pair in a complete pass resets that counter.
+class ContactDamageTracker {
+  constructor() {
+    this.previousImpactContacts = new Map();
+    this.currentImpactContacts = new Map();
+    this.processedPairs = new Set();
+  }
+
+  beginIteration() {
+    this.currentImpactContacts.clear();
+    this.processedPairs.clear();
+  }
+
+  hasProcessed(pairKey) {
+    return pairKey != null && this.processedPairs.has(pairKey);
+  }
+
+  getImpactCount(pairKey) {
+    return pairKey == null ? 0 : (this.previousImpactContacts.get(pairKey) || 0);
+  }
+
+  record(pairKey, isImpactPair) {
+    if (pairKey == null) return;
+    this.processedPairs.add(pairKey);
+    if (isImpactPair) {
+      this.currentImpactContacts.set(pairKey, this.getImpactCount(pairKey) + 1);
+    }
+  }
+
+  endIteration() {
+    const oldPreviousContacts = this.previousImpactContacts;
+    this.previousImpactContacts = this.currentImpactContacts;
+    this.currentImpactContacts = oldPreviousContacts;
+    this.currentImpactContacts.clear();
+    this.processedPairs.clear();
+  }
+}
+
 module.exports = {
   DAMAGE_TYPES,
+  STATIC_DAMAGE_BASELINE,
   normalizeDamageType,
   resolveDamageSource,
   velocityMultiplier,
   resolveDamage,
   isImpactDamage,
   usesVelocityDamageEffects,
+  isSpeedIndependentDamage,
   impactDamageMultiplier,
   collisionPairKey,
+  ContactDamageTracker,
 };

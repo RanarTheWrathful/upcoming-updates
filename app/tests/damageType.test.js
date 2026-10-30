@@ -59,11 +59,68 @@ assert.strictEqual(damageType.collisionPairKey({ id: 5 }, { id: 2 }), "2:5");
 assert.strictEqual(Class.genericEntity.DAMAGE_TYPE, "velocity");
 assert.strictEqual(Class.trap.DAMAGE_TYPE, "collision");
 assert.match(server, /set\.DAMAGE_TYPE != null/);
-assert.match(server, /previousImpactContacts\.get\(impactPairKey\)/);
-assert.match(server, /currentImpactContacts\.set\(impactPairKey, previousImpactContactCount \+ 1\)/);
+assert.match(server, /contactDamageTracker\.getImpactCount\(damagePairKey\)/);
+assert.match(server, /contactDamageTracker\.record\(/);
+assert.match(server, /contactDamageTracker\.beginIteration\(\)/);
+assert.match(server, /contactDamageTracker\.endIteration\(\)/);
+assert.match(server, /!damagePairAlreadyProcessed/);
 assert.match(server, /impactDamageMultiplier\(/);
 assert.match(server, /usesVelocityDamageEffects\(my\)/);
 assert.match(server, /usesVelocityDamageEffects\(n\)/);
 assert.match(server, /!my\.invuln && !n\.invuln/);
 assert.match(server, /resolvedMyDamage\s*=\s*damageType\.resolveDamage\(my, speedFactor\._me/);
+// Contact tracking must produce full, half, quarter, etc. while a pair stays
+// in contact, then reset to full damage after a complete pass without contact.
+const tracker = new damageType.ContactDamageTracker();
+const pairKey = damageType.collisionPairKey({ id: 11 }, { id: 29 });
+function impactTick(contact) {
+  tracker.beginIteration();
+  let multiplier = null;
+  if (contact && !tracker.hasProcessed(pairKey)) {
+    const priorCount = tracker.getImpactCount(pairKey);
+    multiplier = damageType.impactDamageMultiplier("impact", priorCount);
+    tracker.record(pairKey, true);
+    assert.strictEqual(tracker.hasProcessed(pairKey), true,
+      "the same pair must be marked processed after its first damage pass");
+  }
+  tracker.endIteration();
+  return multiplier;
+}
+assert.strictEqual(impactTick(true), 1, "first continuous-contact hit should be full strength");
+assert.strictEqual(impactTick(true), 0.5, "second continuous-contact hit should be half strength");
+assert.strictEqual(impactTick(true), 0.25, "third continuous-contact hit should be quarter strength");
+assert.strictEqual(impactTick(true), 0.125, "fourth continuous-contact hit should be one eighth strength");
+assert.strictEqual(impactTick(false), null, "a missing pair should clear its contact history");
+assert.strictEqual(impactTick(true), 1, "recontact after separation should restart at full strength");
+
+// Speed-independent modes are calibrated to the velocity mode at nominal
+// speed (speedFactor 1), not to the current speed of the collision.
+for (const type of ["collision", "collisionMaster", "impact"]) {
+  const staticResult = damageType.resolveDamage({ ...source, damageType: type }, 1);
+  const nominalVelocityResult = damageType.resolveDamage({ ...source, damageType: type === "collisionMaster" ? "velocityMaster" : "velocity" }, 1);
+  assert.strictEqual(staticResult.multiplier, damageType.STATIC_DAMAGE_BASELINE);
+  assert.strictEqual(staticResult.damage, nominalVelocityResult.damage,
+    `${type} should retain nominal-speed velocity damage as its fixed baseline`);
+}
+
+// A custom-mode pair is guarded once per collision iteration, independently
+// of either entity's movement speed or the number of duplicate resolution paths.
+tracker.beginIteration();
+assert.strictEqual(tracker.hasProcessed(pairKey), false);
+tracker.record(pairKey, false);
+assert.strictEqual(tracker.hasProcessed(pairKey), true);
+tracker.record(pairKey, false);
+assert.strictEqual(tracker.hasProcessed(pairKey), true,
+  "duplicate processing must remain blocked for the rest of the iteration");
+tracker.endIteration();
+tracker.beginIteration();
+assert.strictEqual(tracker.hasProcessed(pairKey), false,
+  "the pair may collide again on the next physics iteration");
+tracker.endIteration();
+
+assert.strictEqual(damageType.isSpeedIndependentDamage("collision"), true);
+assert.strictEqual(damageType.isSpeedIndependentDamage("collisionMaster"), true);
+assert.strictEqual(damageType.isSpeedIndependentDamage("impact"), true);
+assert.strictEqual(damageType.isSpeedIndependentDamage("velocity"), false);
+
 console.log("Damage type behavior tests passed.");

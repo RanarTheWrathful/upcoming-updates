@@ -20731,12 +20731,10 @@ player.color = easy;
 // Define how the game lives
 // The most important loop. Fast looping.
 var gameloop = (() => {
-  // Impact damage tracks consecutive collision iterations for each pair.
-  // Its damage halves on every iteration that contact persists, then resets
-  // when the pair is absent from a complete collision pass. Maps are swapped
-  // each pass to avoid allocating new state containers every frame.
-  let previousImpactContacts = new Map();
-  let currentImpactContacts = new Map();
+  // Speed-independent damage is applied at most once per entity pair per
+  // physics collision pass. Impact pairs also track consecutive contact passes
+  // so their damage halves on each pass and resets after a missing pass.
+  const contactDamageTracker = new damageType.ContactDamageTracker();
 
   // Collision stuff
   let collide = (() => {
@@ -20947,15 +20945,17 @@ var gameloop = (() => {
 
           my.collisionArray.push(n);
           n.collisionArray.push(my);
-          const needsImpactTracking = doDamage && !my.invuln && !n.invuln &&
-            (damageType.isImpactDamage(my) || damageType.isImpactDamage(n));
-          const impactPairKey = needsImpactTracking
+          const needsContactDamageGuard = doDamage && !my.invuln && !n.invuln &&
+            (damageType.isSpeedIndependentDamage(my) ||
+              damageType.isSpeedIndependentDamage(n));
+          const damagePairKey = needsContactDamageGuard
             ? damageType.collisionPairKey(my, n)
             : null;
-          const impactAlreadyProcessedThisIteration = impactPairKey != null &&
-            currentImpactContacts.has(impactPairKey);
-          const previousImpactContactCount = impactPairKey != null
-            ? (previousImpactContacts.get(impactPairKey) || 0)
+          const damagePairAlreadyProcessed = contactDamageTracker.hasProcessed(damagePairKey);
+          const impactPair = damagePairKey != null &&
+            (damageType.isImpactDamage(my) || damageType.isImpactDamage(n));
+          const previousImpactContactCount = impactPair
+            ? contactDamageTracker.getImpactCount(damagePairKey)
             : 0;
 
           if (t) {
@@ -21024,7 +21024,7 @@ var gameloop = (() => {
               _me: my.health.ratio,
               _n: n.health.ratio,
             };
-          if (doDamage && !my.invuln && !n.invuln) {
+          if (doDamage && !my.invuln && !n.invuln && !damagePairAlreadyProcessed) {
             let speedFactor = {
               // Avoid NaNs and infinities
               _me: my.maxSpeed
@@ -21080,11 +21080,15 @@ var gameloop = (() => {
               )
                 return;
 
-              // Count a contact only after it reaches the damage path. Contacts
-              // rejected by invulnerability, food infection, or special
-              // immunity checks do not consume a diminishing-return step.
-              if (impactPairKey != null && !impactAlreadyProcessedThisIteration) {
-                currentImpactContacts.set(impactPairKey, previousImpactContactCount + 1);
+              // Record only successful damage-path contacts. This prevents
+              // duplicate collision branches from applying extra damage, and
+              // advances impact falloff only when the pair actually reaches
+              // the damage calculation.
+              if (damagePairKey != null) {
+                contactDamageTracker.record(
+                  damagePairKey,
+                  impactPair
+                );
               }
 
               // Calculate the damage stat and speed treatment once per side.
@@ -21129,13 +21133,11 @@ var gameloop = (() => {
               // iteration is suppressed; separation resets the next contact.
               damage._me *= damageType.impactDamageMultiplier(
                 my,
-                previousImpactContactCount,
-                impactAlreadyProcessedThisIteration
+                previousImpactContactCount
               );
               damage._n *= damageType.impactDamageMultiplier(
                 n,
-                previousImpactContactCount,
-                impactAlreadyProcessedThisIteration
+                previousImpactContactCount
               );
 
               // Advanced damage calculations
@@ -22656,7 +22658,7 @@ var gameloop = (() => {
   };
 
   let collisionIteration = () => {
-    currentImpactContacts.clear();
+    contactDamageTracker.beginIteration();
     // Reuse the broad-phase AABB buffers instead of allocating one array per
     // active entity on every physics cycle (reduces GC pressure in busy waves).
     const aabbCount = activeEntities.length;
@@ -22692,10 +22694,7 @@ var gameloop = (() => {
         }
       }
     });
-    const oldPreviousContacts = previousImpactContacts;
-    previousImpactContacts = currentImpactContacts;
-    currentImpactContacts = oldPreviousContacts;
-    currentImpactContacts.clear();
+    contactDamageTracker.endIteration();
   };
 
   let physicsIteration = () => {
