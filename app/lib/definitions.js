@@ -1213,7 +1213,7 @@ exports.bullet = {
     REGEN: 0,
     HEALTH: 0.175 * wepHealthFactor,
     DAMAGE: 2 * wepDamageFactor,
-    PUSHABILITY: 1,
+    PUSHABILITY: 0.75,
   },
   FACING_TYPE: "smoothWithMotion",
   CAN_GO_OUTSIDE_ROOM: true,
@@ -3588,7 +3588,7 @@ exports.stealthedSunchip = {
 //TRAPS
 exports.trap = {
   LABEL: "Trap",
-  DAMAGE_TYPE: "impact",
+  DAMAGE_TYPE: "collision",
   IS_PROJECTILE: true,
   TYPE: "trap",
   ACCEPTS_SCORE: false,

@@ -58,6 +58,18 @@ function isImpactDamage(entityOrType) {
   return normalizeDamageType(value) === DAMAGE_TYPES.IMPACT;
 }
 
+// The original DAMAGE_EFFECTS collision modifier also depends on relative
+// movement per tick (through accelerationFactor), so bypassing only the
+// explicit speedMultiplier is insufficient for speed-independent damage.
+// Keep those kinetic modifiers for the velocity modes only.
+function usesVelocityDamageEffects(entityOrType) {
+  const value = typeof entityOrType === "string"
+    ? entityOrType
+    : entityOrType && entityOrType.damageType;
+  const type = normalizeDamageType(value);
+  return type === DAMAGE_TYPES.VELOCITY || type === DAMAGE_TYPES.VELOCITY_MASTER;
+}
+
 // Impact damage uses diminishing returns while a pair remains in contact.
 // The first collision deals full damage; each subsequent collision iteration
 // halves it. Duplicate collision processing for the same pair in one physics
@@ -85,6 +97,7 @@ module.exports = {
   velocityMultiplier,
   resolveDamage,
   isImpactDamage,
+  usesVelocityDamageEffects,
   impactDamageMultiplier,
   collisionPairKey,
 };

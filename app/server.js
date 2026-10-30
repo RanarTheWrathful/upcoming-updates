@@ -21157,7 +21157,11 @@ var gameloop = (() => {
                   )
                 );
               }
-              if (my.settings.damageEffects && my.type !== "atmosphere") {
+              if (
+                damageType.usesVelocityDamageEffects(my) &&
+                my.settings.damageEffects &&
+                my.type !== "atmosphere"
+              ) {
                 damage._me *=
                   (accelerationFactor *
                     (1 +
@@ -21165,7 +21169,11 @@ var gameloop = (() => {
                     (1 + pen._n.sqrt * depth._n - depth._n)) /
                   pen._n.sqrt;
               }
-              if (n.settings.damageEffects && n.type !== "atmosphere") {
+              if (
+                damageType.usesVelocityDamageEffects(n) &&
+                n.settings.damageEffects &&
+                n.type !== "atmosphere"
+              ) {
                 damage._n *=
                   (accelerationFactor *
                     (1 +

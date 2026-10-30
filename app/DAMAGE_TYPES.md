@@ -1,14 +1,14 @@
 # Entity Damage Types
 
-Entities may define `DAMAGE_TYPE` to control how their outgoing collision damage is calculated. The default is `"velocity"`, preserving the existing movement-speed damage multiplier.
+Entities may define `DAMAGE_TYPE` to control how their outgoing collision damage is calculated. The default is `"velocity"`, preserving the existing movement-speed damage multiplier and the original kinetic `DAMAGE_EFFECTS` collision modifier. For `"collision"`, `"collisionMaster"`, and `"impact"`, both sources of velocity dependence are bypassed: neither projectile speed nor the kinetic collision modifier changes the outgoing damage.
 
 | Value | Damage source | Speed multiplier | Repeated contact |
 | --- | --- | --- | --- |
 | `"velocity"` | Entity's own calculated damage | Yes | Normal per-collision damage |
-| `"collision"` | Entity's own calculated damage | No | Normal per-collision damage |
-| `"collisionMaster"` | Master's calculated body damage | No | Normal per-collision damage |
+| `"collision"` | Entity's own calculated damage | No, including kinetic `DAMAGE_EFFECTS` modifiers | Normal per-collision damage |
+| `"collisionMaster"` | Master's calculated body damage | No, including kinetic `DAMAGE_EFFECTS` modifiers | Normal per-collision damage |
 | `"velocityMaster"` | Master's calculated body damage | Yes | Normal per-collision damage |
-| `"impact"` | Entity's own calculated damage | No | Full damage initially, then half damage on each successive collision iteration while contact persists; resets after separation |
+| `"impact"` | Entity's own calculated damage | No, including kinetic `DAMAGE_EFFECTS` modifiers | Full damage initially, then half damage on each successive collision iteration while contact persists; resets after separation |
 
 Example definitions:
 
