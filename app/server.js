@@ -5725,9 +5725,6 @@ class io_spin extends IO {
   constructor(b) {
     super(b);
     this.a = 0;
-    // Reuse this controller's output objects. Spin controllers think every
-    // active tick, so returning fresh nested objects creates avoidable GC work.
-    this.output = { target: { x: 1, y: 0 }, main: true };
   }
 
   think(input) {
@@ -5735,10 +5732,17 @@ class io_spin extends IO {
     if (this.body.spinRate <= 0 || this.body.spinRate > 0) {
       this.body.facing += this.body.spinRate;
     }
-    const target = this.output.target;
-    target.x = Math.cos(this.body.facing);
-    target.y = Math.sin(this.body.facing);
-    return this.output;
+    let offset = 0;
+    if (this.body.bond != null) {
+      offset = this.body.bound.angle;
+    }
+    return {
+      target: {
+        x: Math.cos(this.body.facing),
+        y: Math.sin(this.body.facing),
+      },
+      main: true,
+    };
   }
 }
 class io_dontTurn extends IO {
@@ -21753,10 +21757,10 @@ var gameloop = (() => {
           }
       }
     }
-    // The actual collision resolution function
+    // The actual collision resolution function. Receive the entities directly
+    // so the broad phase does not allocate a temporary [entityA, entityB] array
+    // for every overlapping AABB pair on every simulation cycle.
     return (instance, other) => {
-      // Receive the pair directly: allocating [e1, e2] for every broad-phase
-      // candidate creates substantial short-lived garbage in busy trap fields.
 
       // Check for ghosts...
       if (!other.valid()) {
@@ -22347,21 +22351,6 @@ var gameloop = (() => {
         other.DAMAGE = 0;
       }
 
-      // Friendly trap pairs have no ordinary collision response. Stop here
-      // after the special-effect handling above, avoiding the remaining
-      // collision-resolution checks for the most common redundant pair.
-      if (
-        instance.team === other.team &&
-        instance.type === "trap" &&
-        other.type === "trap" &&
-        !instance.repairEffect &&
-        !instance.healEffect &&
-        !other.repairEffect &&
-        !other.healEffect
-      ) {
-        return;
-      }
-
       // If they can firm collide, do that
       if (
         instance.targetable &&
@@ -22656,7 +22645,7 @@ var gameloop = (() => {
       throw new Error("Activation mode settings error!");
     }
 
-    activeEntities.length = 0;
+    activeEntities = [];
     for (let i = 0; i < entities.length; i++) {
       if (check[i] && entities[i]) {
         let e = entities[i];
@@ -22763,9 +22752,7 @@ var gameloop = (() => {
         }
         // Update collisions.
 
-        // Preserve the per-entity buffer instead of allocating a new array
-        // every simulation cycle.
-        e.collisionArray.length = 0;
+        e.collisionArray = [];
         if (!c.cooldown) {
           setTimeout(() => {
             c.socketEnterList = [];
