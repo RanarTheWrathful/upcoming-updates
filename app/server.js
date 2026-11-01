@@ -15,7 +15,8 @@ const util = require("./lib/util");
 const ran = require("./lib/random");
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto"); // Example of using serverStateManager module
+const crypto = require("crypto");
+const https = require("https");
 const serverState = require("./serverStateManager");
 const createLoadProtection = require("./lib/loadProtection/loadProtection");
 const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup/offscreenTransientCleanup");
@@ -45,6 +46,7 @@ const projectileTransformation = require("./lib/projectileTransformation/project
 const damageType = require("./lib/damageType/damageType");
 const { performance } = require("perf_hooks");
 const { createUpdateScoreRecovery } = require("./lib/serverLifecycle/updateScoreRecovery");
+const { createRedisUpdateScoreRecovery } = require("./lib/serverLifecycle/redisScoreRecovery");
 
 function applyFoodInfectionEffects(food, infector) {
   food.layer = infector.layer;
@@ -77,35 +79,15 @@ function awardSupportScore(source, target, decision) {
 // Example usage:
 let currentState = serverState.getServerState();
 
-const lockFilePath = path.join(__dirname, "serv.lock");
-const handoffFilePath = path.join(__dirname, "serverHandoff.json");
 const updateScoreRecoveryFilePath = path.join(__dirname, "updateScoreRecovery.json");
+const startupCodeFingerprint = process.env.RENDER === "true" ? null : getCodeFingerprint(__dirname);
 
-function writeServerLock() {
-  fs.writeFileSync(lockFilePath, String(process.pid));
-}
-
-function removeServerLockIfOwned() {
-  try {
-    if (fs.existsSync(lockFilePath) && fs.readFileSync(lockFilePath, "utf8").trim() === String(process.pid)) {
-      fs.unlinkSync(lockFilePath);
-    }
-  } catch (error) {
-    util.warn("[SHUTDOWN] Could not remove this process's lock file: " + error.message);
-  }
-}
-
-// Hash executable source files once at startup and again only when a process
-// receives a termination signal. A changed fingerprint distinguishes a code
-// deployment from an ordinary stop when the host does not provide a reason.
+// Render starts a replacement in a separate container. Local PID/marker files
+// cannot coordinate those containers, so update detection uses Render's own
+// deploy API when running there. The fingerprint remains a local-dev fallback.
 function getCodeFingerprint(rootDirectory) {
   const hash = crypto.createHash("sha256");
-  const ignoredFiles = new Set([
-    "serverState.json",
-    "serv.lock",
-    "serverHandoff.json",
-    "updateScoreRecovery.json",
-  ]);
+  const ignoredFiles = new Set(["serverState.json", "updateScoreRecovery.json"]);
   function visit(directory) {
     let names;
     try { names = fs.readdirSync(directory).sort(); } catch (_) { return; }
@@ -114,9 +96,8 @@ function getCodeFingerprint(rootDirectory) {
       const filename = path.join(directory, name);
       let stat;
       try { stat = fs.statSync(filename); } catch (_) { continue; }
-      if (stat.isDirectory()) {
-        visit(filename);
-      } else if (!ignoredFiles.has(name) && (/\.js$/i.test(name) || name === "package.json" || name === "package-lock.json")) {
+      if (stat.isDirectory()) visit(filename);
+      else if (!ignoredFiles.has(name) && (/\.js$/i.test(name) || name === "package.json" || name === "package-lock.json")) {
         hash.update(path.relative(rootDirectory, filename));
         hash.update(fs.readFileSync(filename));
       }
@@ -126,18 +107,45 @@ function getCodeFingerprint(rootDirectory) {
   return hash.digest("hex");
 }
 
-function readExistingServerPid() {
-  try {
-    const pid = Number(fs.readFileSync(lockFilePath, "utf8").trim());
-    return Number.isInteger(pid) && pid > 0 ? pid : null;
-  } catch (_) {
-    return null;
+function getLatestLiveRenderCommit() {
+  const serviceId = process.env.RENDER_SERVICE_ID;
+  const apiKey = process.env.RENDER_API_KEY;
+  if (!serviceId || !apiKey) {
+    return Promise.reject(new Error("RENDER_SERVICE_ID or RENDER_API_KEY is unavailable"));
   }
+  return new Promise((resolve, reject) => {
+    const request = https.get({
+      hostname: "api.render.com",
+      path: "/v1/services/" + encodeURIComponent(serviceId) + "/deploys?limit=20",
+      headers: { Authorization: "Bearer " + apiKey, Accept: "application/json" },
+      timeout: 5000,
+    }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => { body += chunk; });
+      response.on("end", () => {
+        if (response.statusCode !== 200) {
+          reject(new Error("Render deploy API returned HTTP " + response.statusCode));
+          return;
+        }
+        try {
+          const payload = JSON.parse(body);
+          const items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+          const deploys = items.map((item) => item && (item.deploy || item)).filter(Boolean);
+          const live = deploys.filter((deploy) => String(deploy.status || "").toLowerCase() === "live");
+          live.sort((a, b) => Date.parse(b.createdAt || b.updatedAt || 0) - Date.parse(a.createdAt || a.updatedAt || 0));
+          const latest = live[0];
+          const commit = latest && (latest.commit && (latest.commit.id || latest.commit.sha) || latest.commitId || latest.commitSha);
+          resolve(typeof commit === "string" && commit ? commit : null);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    request.on("timeout", () => request.destroy(new Error("Render deploy API request timed out")));
+    request.on("error", reject);
+  });
 }
-
-const previousServerPid = readExistingServerPid();
-const startupCodeFingerprint = getCodeFingerprint(__dirname);
-writeServerLock();
 
 let chosenMode;
 let modeList = ["Unknown"];
@@ -276,14 +284,39 @@ function reconnectBodyKey(socket, name) {
   return String(socket.ip) + "\\u0000" + name.trim().toLowerCase();
 }
 
-const updateScoreRecovery = createUpdateScoreRecovery(updateScoreRecoveryFilePath);
-updateScoreRecovery.load();
+let updateScoreRecovery = null;
+let recoveryRedisClient = null;
 let updateScoreRecoveryExpiryTimer = null;
+
+async function initializeScoreRecovery() {
+  const redisUrl = process.env.REDIS_URL || process.env.RANAR_SCORE_RECOVERY_REDIS_URL;
+  if (redisUrl) {
+    const redis = require("redis");
+    recoveryRedisClient = redis.createClient({
+      url: redisUrl,
+      socket: { connectTimeout: 5000 },
+    });
+    recoveryRedisClient.on("error", (error) => util.error("[SCORE-RECOVERY] Redis error: " + error.message));
+    await recoveryRedisClient.connect();
+    const namespace = process.env.RENDER_SERVICE_ID || process.env.RANAR_RECOVERY_NAMESPACE || "local";
+    updateScoreRecovery = createRedisUpdateScoreRecovery(recoveryRedisClient, namespace);
+    await updateScoreRecovery.load();
+    util.log("[SCORE-RECOVERY] Shared Redis recovery store connected for service " + namespace + ".");
+  } else {
+    updateScoreRecovery = createUpdateScoreRecovery(updateScoreRecoveryFilePath);
+    updateScoreRecovery.load();
+    if (process.env.RENDER === "true") {
+      util.warn("[SCORE-RECOVERY] REDIS_URL is not configured; score recovery will use instance-local storage and will not survive a Render instance replacement.");
+    }
+  }
+  scheduleUpdateScoreRecoveryExpiry();
+}
 function scheduleUpdateScoreRecoveryExpiry() {
   if (updateScoreRecoveryExpiryTimer !== null) {
     clearTimeout(updateScoreRecoveryExpiryTimer);
     updateScoreRecoveryExpiryTimer = null;
   }
+  if (!updateScoreRecovery) return;
   const nextExpiry = updateScoreRecovery.nextExpiry();
   if (nextExpiry === null) return;
   updateScoreRecoveryExpiryTimer = setTimeout(() => {
@@ -3499,13 +3532,16 @@ function spawnLivingApocalypsesAndFinishArena() {
   arenaCloseCompletionTimer = setTimeout(() => {
     arenaCloseCompletionTimer = null;
     util.log("ARENA CLOSED!");
-    cleanup("signal");
+    cleanup("signal").catch((error) => {
+      util.error("[SHUTDOWN] Arena-close shutdown failed: " + error.message);
+      process.exit(1);
+    });
   }, 30000);
 }
 
 function closeArena() {
-  // During an update handoff, do not begin the arena's final sequence until
-  // the replacement has successfully acquired the listening port.
+  // During an update handoff, Render's SIGTERM confirms the replacement has
+  // already passed its health check; wait until that signal before closing.
   if (updateHandoffActive && !updateHandoffReady) {
     return;
   }
@@ -17125,12 +17161,16 @@ let gameLoopScheduler = null;
 let maintainLoopTimer = null;
 let speedcheckLoopTimer = null;
 let shutdownExitTimer = null;
-let updateHandoffPollTimer = null;
-let updateHandoffTimeoutTimer = null;
-let activeUpdateHandoffToken = null;
 let cleanupStarted = false;
 let updateHandoffActive = false;
 let updateHandoffReady = false;
+let updateArenaClosureStarted = false;
+let updateHandoffHardTimeoutTimer = null;
+let renderDeployMonitorTimer = null;
+let renderDeployMonitorInFlight = false;
+let renderReplacementDetected = false;
+let lastRenderMonitorWarningAt = 0;
+let applicationReady = false;
 let hasEverHadHumanPlayer = false;
 let emptyServerShutdownTimer = null;
 let shutdownScoreRecoveryCaptured = false;
@@ -17169,7 +17209,10 @@ function checkEmptyServerShutdownGrace() {
   emptyServerShutdownTimer = setTimeout(() => {
     emptyServerShutdownTimer = null;
     if (!arenaCloseApocalypsesSpawned || cleanupStarted || hasLivingHumanPlayer()) return;
-    cleanup("empty");
+    cleanup("empty").catch((error) => {
+      util.error("[SHUTDOWN] Empty-server shutdown failed: " + error.message);
+      process.exit(1);
+    });
   }, 5000);
 }
 
@@ -17197,7 +17240,10 @@ function beginEmergencyServerShutdown(details = {}) {
     Math.round(Number(details.observedLagMs) || 0) + "ms raw lag at " +
     Math.round(Number(details.runSpeedPercent) || 0) + "% run speed. Closing server."
   );
-  cleanup("emergency");
+  cleanup("emergency").catch((error) => {
+    util.error("[SHUTDOWN] Emergency shutdown failed: " + error.message);
+    process.exit(1);
+  });
   return true;
 }
 
@@ -18125,7 +18171,7 @@ const sockets = (() => {
         }
       }
       // Handle incoming messages
-      function incoming(message, socket) {
+      async function incoming(message, socket) {
         // Only accept binary
         if (!(message instanceof ArrayBuffer)) {
           socket.kick("Non-binary packet.");
@@ -18233,7 +18279,7 @@ const sockets = (() => {
               if (players.indexOf(socket.player) != -1) {
                 util.remove(players, players.indexOf(socket.player));
               }
-              socket.player = socket.spawn(name);
+              socket.player = await socket.spawn(name);
               // Reset the view
               if (views.indexOf(socket.view) != -1) {
                 socket.view.reset(socket);
@@ -19341,7 +19387,7 @@ const sockets = (() => {
           socket.talk("m", content);
         }
         // The returned player definition function
-        return (socket, name) => {
+        return async (socket, name) => {
           let player = {};
           let otherwise = true;
           /*/entities.forEach((player) => {
@@ -19632,12 +19678,17 @@ const sockets = (() => {
             // The old instance may write its final score snapshot after this
             // replacement has already started. Reload the atomically-written
             // recovery file before consuming so early reconnects see the latest data.
-            updateScoreRecovery.load();
-            scheduleUpdateScoreRecoveryExpiry();
-            const updateRecoveryKey = reconnectBodyKey(socket, name);
-            const recoveredUpdateScore = updateRecoveryKey
-              ? updateScoreRecovery.consume(updateRecoveryKey)
-              : null;
+            let recoveredUpdateScore = null;
+            try {
+              await updateScoreRecovery.load();
+              scheduleUpdateScoreRecoveryExpiry();
+              const updateRecoveryKey = reconnectBodyKey(socket, name);
+              recoveredUpdateScore = updateRecoveryKey
+                ? await updateScoreRecovery.consume(updateRecoveryKey)
+                : null;
+            } catch (error) {
+              util.warn("[SCORE-RECOVERY] Could not check a reconnect recovery entry: " + error.message);
+            }
             if (recoveredUpdateScore) {
               player.body.skill.score = Math.max(
                 Number(player.body.skill.score) || 0,
@@ -20815,7 +20866,12 @@ player.color = easy;
             );
           }
         };
-        socket.on("message", (message) => incoming(message, socket));
+        socket.on("message", (message) => {
+          incoming(message, socket).catch((error) => {
+            util.error("[SOCKET] Incoming message handler failed: " + (error && error.stack ? error.stack : error));
+            try { socket.kick("Internal server error."); } catch (_) {}
+          });
+        });
         socket.on("close", () => {
           socket.loops.terminate();
           close(socket);
@@ -20828,7 +20884,7 @@ player.color = easy;
           try { socket.terminate(); } catch (_) {}
         });
         // Put the player functions in the socket
-        socket.spawn = (name) => {
+        socket.spawn = async (name) => {
           return spawn(socket, name);
         };
         // And make an update
@@ -26225,6 +26281,14 @@ if (c.MODE === "execution") {
 }
 // Create an HTTP server
 const server = http.createServer((req, res) => {
+  // Render uses this endpoint to avoid routing traffic to an instance until
+  // its runtime dependencies (including shared score storage) are ready.
+  if (req.url && req.url.split("?")[0] === "/healthz") {
+    const ready = applicationReady && !cleanupStarted;
+    res.writeHead(ready ? 200 : 503, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+    res.end(ready ? "ok" : "starting");
+    return;
+  }
   // Receiving the data:
   let { pathname, query } = url.parse(req.url, true),
     remainingSeconds = Number.isFinite(c.arenaClosesAt)
@@ -27792,6 +27856,10 @@ function stopServerLoops() {
     clearTimeout(updateScoreRecoveryExpiryTimer);
     updateScoreRecoveryExpiryTimer = null;
   }
+  if (renderDeployMonitorTimer !== null) {
+    clearInterval(renderDeployMonitorTimer);
+    renderDeployMonitorTimer = null;
+  }
   sockets.stop();
   loadProtection.stop();
 }
@@ -27813,25 +27881,8 @@ function closeOldWebSocketClients(reason) {
   }
 }
 
-function writeHandoffState(state) {
-  const temporaryPath = handoffFilePath + ".tmp";
-  fs.writeFileSync(temporaryPath, JSON.stringify(state, null, 2));
-  fs.renameSync(temporaryPath, handoffFilePath);
-}
-
-function readHandoffState() {
-  try { return JSON.parse(fs.readFileSync(handoffFilePath, "utf8")); } catch (_) { return null; }
-}
-
-function removeHandoffStateIfOwned(token) {
-  const state = readHandoffState();
-  if (state && state.token === token) {
-    try { fs.unlinkSync(handoffFilePath); } catch (_) {}
-  }
-}
-
-function captureUpdateScores() {
-  if (shutdownScoreRecoveryCaptured) return;
+async function captureUpdateScores(force = false) {
+  if (shutdownScoreRecoveryCaptured && !force) return;
   const recordsByKey = new Map();
   for (const player of sockets.players) {
     const body = player && player.body;
@@ -27849,8 +27900,6 @@ function captureUpdateScores() {
       score: Math.max(score, previous ? previous.score : 0),
     });
   }
-  // Include players who disconnected shortly before the update and still have
-  // a reclaimable body in the existing reconnect cache.
   for (const [key, reconnectEntry] of disconnectedPlayerBodies) {
     const body = reconnectEntry && reconnectEntry.body;
     const score = Number(body && body.skill && body.skill.score);
@@ -27863,16 +27912,16 @@ function captureUpdateScores() {
       score: Math.max(score, previous ? previous.score : 0),
     });
   }
-  updateScoreRecovery.capture(Array.from(recordsByKey.values()), Date.now() + 5 * 60 * 1000);
+  await updateScoreRecovery.capture(Array.from(recordsByKey.values()), Date.now() + 5 * 60 * 1000);
   scheduleUpdateScoreRecoveryExpiry();
   shutdownScoreRecoveryCaptured = true;
 }
 
-function finishUpdateHandoff(token, outcome) {
+async function finishUpdateHandoff(outcome = "ready") {
   if (cleanupStarted) return;
   cleanupStarted = true;
   try {
-    captureUpdateScores();
+    await captureUpdateScores(true);
   } catch (error) {
     util.error("[UPDATE-HANDOFF] Could not persist score recovery: " + error.message);
   }
@@ -27881,58 +27930,50 @@ function finishUpdateHandoff(token, outcome) {
     clearTimeout(arenaCloseCompletionTimer);
     arenaCloseCompletionTimer = null;
   }
+  if (updateHandoffHardTimeoutTimer !== null) {
+    clearTimeout(updateHandoffHardTimeoutTimer);
+    updateHandoffHardTimeoutTimer = null;
+  }
   room.closed = true;
   c.extinction = true;
   c.DEADLY_BORDERS = true;
-  if (updateHandoffPollTimer !== null) {
-    clearInterval(updateHandoffPollTimer);
-    updateHandoffPollTimer = null;
-  }
-  if (updateHandoffTimeoutTimer !== null) {
-    clearTimeout(updateHandoffTimeoutTimer);
-    updateHandoffTimeoutTimer = null;
-  }
   if (outcome === "ready") {
-    util.log("[UPDATE-HANDOFF] Arena closure completed in the old instance; disconnecting its clients.");
+    util.log("[UPDATE-HANDOFF] Old instance completed the Apocalypse arena closure; disconnecting its clients.");
   } else if (outcome === "error") {
-    util.error("[UPDATE-HANDOFF] A fatal error occurred while waiting for the replacement; releasing the old instance.");
+    util.error("[UPDATE-HANDOFF] A fatal error interrupted the update shutdown; releasing the old instance.");
   } else {
-    util.warn("[UPDATE-HANDOFF] No replacement became ready before the handoff timeout; closing the old instance to avoid a permanent lockout.");
+    util.warn("[UPDATE-HANDOFF] Safety timeout reached; releasing the old instance before Render's forced kill.");
   }
-  activeUpdateHandoffToken = null;
+  applicationReady = false;
   closeOldWebSocketClients("Server update");
-  removeHandoffStateIfOwned(token);
-  removeServerLockIfOwned();
-  // Keep this timer referenced: upgraded WebSocket sockets can otherwise keep
-  // the old process alive if a client ignores the close frame.
-  setTimeout(() => process.exit(outcome === "error" ? 1 : 0), 2200);
+  try {
+    server.close(() => util.log("[UPDATE-HANDOFF] Old instance listener closed."));
+  } catch (_) {}
+  const exitTimer = setTimeout(async () => {
+    if (recoveryRedisClient && recoveryRedisClient.isOpen) {
+      try { await recoveryRedisClient.quit(); } catch (_) {}
+    }
+    process.exit(outcome === "error" ? 1 : 0);
+  }, 2200);
 }
 
-function startUpdateArenaClosure(token) {
-  if (!updateHandoffActive || activeUpdateHandoffToken !== token || updateHandoffReady || cleanupStarted) return;
-  updateHandoffReady = true;
-  if (updateHandoffTimeoutTimer !== null) {
-    clearTimeout(updateHandoffTimeoutTimer);
-    updateHandoffTimeoutTimer = null;
-  }
-  util.log("[UPDATE-HANDOFF] Replacement is ready; beginning the old instance's arena-closing sequence.");
-  try {
-    captureUpdateScores();
-  } catch (error) {
-    util.error("[UPDATE-HANDOFF] Could not persist readiness score recovery: " + error.message);
-  }
+async function startUpdateArenaClosure() {
+  if (!updateHandoffActive || !updateHandoffReady || updateArenaClosureStarted || cleanupStarted) return;
+  updateArenaClosureStarted = true;
+  util.log("[UPDATE-HANDOFF] Render has already marked the replacement healthy; beginning arena closure in the old instance.");
   c.extinction = true;
   c.DEADLY_BORDERS = true;
   if (arenaCloseApocalypsesSpawned) {
-    if (c.playerCount < 1) {
-      finishUpdateHandoff(token, "ready");
+    if (!hasLivingHumanPlayer()) {
+      checkEmptyServerShutdownGrace();
     } else if (arenaCloseCompletionTimer === null) {
-      // If the ordinary arena-close timer elapsed while the replacement was
-      // still starting, restart the remaining disconnect window from readiness.
       arenaCloseCompletionTimer = setTimeout(() => {
         arenaCloseCompletionTimer = null;
         util.log("ARENA CLOSED!");
-        cleanup("signal");
+        cleanup("signal").catch((error) => {
+          util.error("[SHUTDOWN] Update arena-close shutdown failed: " + error.message);
+          process.exit(1);
+        });
       }, 30000);
     }
   } else if (room.closed || updateHandoffDeferredApocalypseSpawn) {
@@ -27945,83 +27986,50 @@ function startUpdateArenaClosure(token) {
 
 function beginUpdateHandoff() {
   if (cleanupStarted || updateHandoffActive) return false;
-  // Keep the old simulation alive while the replacement starts. The actual
-  // arena-closing sequence (including Living Apocalypses) begins only after
-  // the replacement reports that it is listening.
+  // Render only sends SIGTERM to the old instance after the replacement has
+  // passed readiness checks and traffic has switched. There is no cross-instance
+  // PID/file/port handoff: Render owns that lifecycle.
   updateHandoffActive = true;
-  updateHandoffReady = false;
-
-  const token = crypto.randomBytes(16).toString("hex");
-  activeUpdateHandoffToken = token;
-  const handoffState = {
-    version: 1,
-    state: "waiting",
-    token,
-    oldPid: process.pid,
-    startedAt: Date.now(),
-    port: getListenPort(),
-  };
-  try {
-    writeHandoffState(handoffState);
-  } catch (error) {
-    util.error("[UPDATE-HANDOFF] Could not create handoff marker: " + error.message);
-    updateHandoffActive = false;
-    updateHandoffReady = false;
-    cleanup("error");
-    return false;
-  }
-
+  updateHandoffReady = true;
+  updateHandoffHardTimeoutTimer = setTimeout(() => {
+    updateHandoffHardTimeoutTimer = null;
+    if (!cleanupStarted) finishUpdateHandoff("timeout").catch(() => process.exit(1));
+  }, 80000);
   sockets.broadcast("Closing the server for updates. Please reconnect shortly.");
-  util.log("[UPDATE-HANDOFF] Waiting for the replacement instance to become ready.");
-
-  // Release only the listening socket. Existing upgraded WebSocket connections
-  // remain attached to this process until the replacement confirms readiness.
-  try {
-    server.close(() => {
-      util.log("[UPDATE-HANDOFF] Old HTTP listener released.");
-    });
-  } catch (error) {
-    util.warn("[UPDATE-HANDOFF] Listener close warning: " + error.message);
-  }
-
-  const timeoutMs = Math.max(5000, Number(process.env.RANAR_UPDATE_HANDOFF_TIMEOUT_MS) || 30000);
-  updateHandoffPollTimer = setInterval(() => {
-    const state = readHandoffState();
-    if (state && state.token === token && state.state === "ready" && state.newPid && state.newPid !== process.pid) {
-      startUpdateArenaClosure(token);
-    }
-  }, 200);
-  updateHandoffTimeoutTimer = setTimeout(() => finishUpdateHandoff(token, "timeout"), timeoutMs);
+  util.log("[UPDATE-HANDOFF] Replacement instance is already healthy; starting the old instance's Apocalypse shutdown sequence.");
+  startUpdateArenaClosure().catch((error) => {
+    util.error("[UPDATE-HANDOFF] Could not start arena closure: " + error.message);
+    finishUpdateHandoff("error").catch(() => process.exit(1));
+  });
   return true;
 }
 
-function cleanup(reason = "signal") {
+async function cleanup(reason = "signal") {
   if (cleanupStarted) return;
-  if (updateHandoffActive && activeUpdateHandoffToken) {
+  if (updateHandoffActive) {
     if (reason === "error") {
-      finishUpdateHandoff(activeUpdateHandoffToken, "error");
+      await finishUpdateHandoff("error");
       return;
     }
     if (!updateHandoffReady) {
-      util.log("[UPDATE-HANDOFF] Deferring old-instance shutdown until the replacement is ready.");
+      util.log("[UPDATE-HANDOFF] Deferring old-instance shutdown until Render confirms replacement readiness.");
       return;
     }
-    finishUpdateHandoff(activeUpdateHandoffToken, "ready");
+    await finishUpdateHandoff("ready");
     return;
   }
   cleanupStarted = true;
   util.log("Shutting down server gracefully (" + reason + ").");
 
-  // Preserve score recovery after an unexpected fatal error, but never on an
-  // ordinary empty-server, signal, or other intentional shutdown.
   if (reason === "error") {
     try {
-      captureUpdateScores();
+      await captureUpdateScores(true);
     } catch (error) {
       util.error("[SHUTDOWN] Could not persist score recovery after the error: " + error.message);
     }
   }
 
+  applicationReady = false;
   stopServerLoops();
   const message = reason === "empty"
     ? "No living players remain. The server is closing."
@@ -28034,64 +28042,81 @@ function cleanup(reason = "signal") {
   room.closed = true;
   c.extinction = true;
   c.DEADLY_BORDERS = true;
-
   closeOldWebSocketClients("Server shutting down");
 
-  shutdownExitTimer = setTimeout(() => {
+  shutdownExitTimer = setTimeout(async () => {
     shutdownExitTimer = null;
-    try {
-      if (typeof server.closeAllConnections === "function") server.closeAllConnections();
-    } catch (_) {}
-    removeServerLockIfOwned();
+    try { if (typeof server.closeAllConnections === "function") server.closeAllConnections(); } catch (_) {}
+    try { if (recoveryRedisClient && recoveryRedisClient.isOpen) await recoveryRedisClient.quit(); } catch (_) {}
     process.exit(reason === "error" ? 1 : 0);
   }, 12000);
 
   try {
     server.close(() => {
       console.log("Server closed.");
-      removeServerLockIfOwned();
       if (shutdownExitTimer !== null) {
         clearTimeout(shutdownExitTimer);
         shutdownExitTimer = null;
       }
-      process.exit(reason === "error" ? 1 : 0);
+      if (recoveryRedisClient && recoveryRedisClient.isOpen) {
+        recoveryRedisClient.quit().catch(() => {}).finally(() => process.exit(reason === "error" ? 1 : 0));
+      } else {
+        process.exit(reason === "error" ? 1 : 0);
+      }
     });
   } catch (error) {
     util.warn("[SHUTDOWN] HTTP listener close warning: " + error.message);
-    removeServerLockIfOwned();
     process.exit(reason === "error" ? 1 : 0);
   }
 }
 
-function isCodeUpdateShutdown() {
+async function isCodeUpdateShutdown() {
   if (process.env.RANAR_SHUTDOWN_REASON === "update" || process.env.RANAR_UPDATE_SHUTDOWN === "1") return true;
-  // A replacement process may have started before the old process receives
-  // SIGTERM. Its PID-safe lock write is another reliable handoff signal.
-  try {
-    if (fs.existsSync(lockFilePath) && fs.readFileSync(lockFilePath, "utf8").trim() !== String(process.pid)) return true;
-  } catch (_) {}
-  try { return getCodeFingerprint(__dirname) !== startupCodeFingerprint; } catch (_) { return false; }
-}
-
-function handleTerminationSignal(signal) {
-  if (cleanupStarted) return;
-  util.log("Received " + signal + ".");
-  if (isCodeUpdateShutdown()) {
-    beginUpdateHandoff();
-  } else {
-    cleanup("signal");
+  if (renderReplacementDetected) return true;
+  if (process.env.RENDER === "true") {
+    try {
+      const latestCommit = await getLatestLiveRenderCommit();
+      const currentCommit = process.env.RENDER_GIT_COMMIT;
+      if (!latestCommit || !currentCommit) {
+        util.warn("[UPDATE-HANDOFF] Could not compare the current commit with Render's latest live deploy; treating SIGTERM as a normal shutdown.");
+        return false;
+      }
+      const changed = latestCommit !== currentCommit;
+      util.log("[UPDATE-HANDOFF] Render commit comparison: current=" + currentCommit + ", latest live=" + latestCommit + ", code update=" + changed + ".");
+      return changed;
+    } catch (error) {
+      util.warn("[UPDATE-HANDOFF] Render deploy lookup failed; treating SIGTERM as a normal shutdown: " + error.message);
+      return false;
+    }
   }
+  try { return startupCodeFingerprint !== null && getCodeFingerprint(__dirname) !== startupCodeFingerprint; } catch (_) { return false; }
 }
 
-process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
-process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
+async function handleTerminationSignal(signal) {
+  if (cleanupStarted || updateHandoffActive) return;
+  util.log("Received " + signal + ".");
+  if (await isCodeUpdateShutdown()) beginUpdateHandoff();
+  else await cleanup("signal");
+}
+
+process.on("SIGINT", () => {
+  handleTerminationSignal("SIGINT").catch((error) => {
+    util.error("[SHUTDOWN] SIGINT handler failed: " + error.message);
+    cleanup("signal").catch(() => process.exit(1));
+  });
+});
+process.on("SIGTERM", () => {
+  handleTerminationSignal("SIGTERM").catch((error) => {
+    util.error("[SHUTDOWN] SIGTERM handler failed: " + error.message);
+    cleanup("signal").catch(() => process.exit(1));
+  });
+});
 function handleFatalProcessError(kind, error) {
   util.error("[FATAL] " + kind + ": " + (error && error.stack ? error.stack : error));
-  if (updateHandoffActive && activeUpdateHandoffToken) {
-    finishUpdateHandoff(activeUpdateHandoffToken, "error");
-  } else {
-    cleanup("error");
-  }
+  cleanup("error").catch((shutdownError) => {
+    util.error("[FATAL] Error while shutting down: " + shutdownError.message);
+    process.exit(1);
+  });
 }
 
 process.on("uncaughtException", (error) => handleFatalProcessError("Uncaught exception", error));
@@ -28113,139 +28138,78 @@ function getListenPort() {
   return 8080;
 }
 
-function loadPendingHandoff() {
-  const state = readHandoffState();
-  if (!state) return null;
-  if (state.state === "ready") {
-    // A prior old process may have exited between readiness notification and
-    // its marker cleanup. A later process must not inherit that completed handoff.
-    if (Number(state.newPid) !== process.pid) {
-      try { fs.unlinkSync(handoffFilePath); } catch (_) {}
-    }
-    return null;
-  }
-  if (state.state !== "waiting" || !state.token || !state.oldPid) return null;
-  if (Date.now() - Number(state.startedAt || 0) > 2 * 60 * 1000) {
-    try { fs.unlinkSync(handoffFilePath); } catch (_) {}
-    return null;
-  }
-  try {
-    process.kill(Number(state.oldPid), 0);
-  } catch (error) {
-    if (error.code === "ESRCH") {
-      try { fs.unlinkSync(handoffFilePath); } catch (_) {}
-      return null;
-    }
-  }
-  return state;
-}
-
-let pendingHandoff = loadPendingHandoff();
-let listenRetryTimer = null;
-let listenAttempts = 0;
 let websockets = new WebSocket.Server({ server }).on("connection", sockets.connect);
-
-function previousServerIsAlive() {
-  if (!previousServerPid || previousServerPid === process.pid) return false;
-  try {
-    process.kill(previousServerPid, 0);
-    return true;
-  } catch (error) {
-    return error.code === "EPERM";
-  }
-}
-
-function refreshPendingHandoff() {
-  if (pendingHandoff) return pendingHandoff;
-  const state = loadPendingHandoff();
-  if (state && (!previousServerPid || Number(state.oldPid) === previousServerPid)) {
-    pendingHandoff = state;
-  }
-  return pendingHandoff;
-}
-
-function canWaitForPreviousServer() {
-  return !!refreshPendingHandoff() || previousServerIsAlive();
-}
 const listenPort = getListenPort();
 
-function markReplacementReady() {
-  if (!pendingHandoff) return;
-  const state = readHandoffState();
-  if (!state || state.token !== pendingHandoff.token || state.state !== "waiting") return;
+async function pollRenderForReplacement() {
+  if (renderDeployMonitorInFlight || renderReplacementDetected || process.env.RENDER !== "true") return;
+  renderDeployMonitorInFlight = true;
   try {
-    writeHandoffState({
-      ...state,
-      state: "ready",
-      newPid: process.pid,
-      readyAt: Date.now(),
-    });
-    util.log("[UPDATE-HANDOFF] Replacement server is listening and has signaled readiness.");
+    const latestCommit = await getLatestLiveRenderCommit();
+    const currentCommit = process.env.RENDER_GIT_COMMIT;
+    if (latestCommit && currentCommit && latestCommit !== currentCommit) {
+      renderReplacementDetected = true;
+      util.log("[UPDATE-HANDOFF] Detected a healthy replacement deploy before SIGTERM; saving current player scores for reconnects.");
+      try {
+        await captureUpdateScores(true);
+      } catch (error) {
+        util.warn("[SCORE-RECOVERY] Early deployment score snapshot failed: " + error.message);
+      }
+      if (renderDeployMonitorTimer !== null) {
+        clearInterval(renderDeployMonitorTimer);
+        renderDeployMonitorTimer = null;
+      }
+    }
   } catch (error) {
-    util.error("[UPDATE-HANDOFF] Could not signal replacement readiness: " + error.message);
+    if (Date.now() - lastRenderMonitorWarningAt > 60000) {
+      lastRenderMonitorWarningAt = Date.now();
+      util.warn("[UPDATE-HANDOFF] Render deploy monitor could not check for a replacement: " + error.message);
+    }
+  } finally {
+    renderDeployMonitorInFlight = false;
   }
+}
+
+function startRenderDeployMonitor() {
+  if (process.env.RENDER !== "true" || !process.env.RENDER_API_KEY || !process.env.RENDER_SERVICE_ID) return;
+  renderDeployMonitorTimer = setInterval(pollRenderForReplacement, 15000);
+  if (renderDeployMonitorTimer && typeof renderDeployMonitorTimer.unref === "function") renderDeployMonitorTimer.unref();
+  pollRenderForReplacement();
 }
 
 function startListening() {
   if (server.listening) return;
-  listenAttempts++;
-  try {
-    server.listen(listenPort, () => {
-      util.log(
-        new Date() +
-          ". Joint HTTP+Websocket server turned on, listening on port " +
-          server.address().port + "."
-      );
-      markReplacementReady();
-    });
-  } catch (error) {
-    if (error.code === "EADDRINUSE" && canWaitForPreviousServer()) {
-      scheduleListenRetry();
-      return;
-    }
-    throw error;
-  }
-}
-
-function scheduleListenRetry() {
-  if (listenRetryTimer !== null) return;
-  refreshPendingHandoff();
-  const maxWaitMs = Math.max(5000, Number(process.env.RANAR_UPDATE_HANDOFF_TIMEOUT_MS) || 30000);
-  if (listenAttempts * 250 > maxWaitMs) {
-    util.error("[UPDATE-HANDOFF] Timed out waiting for the previous listener to release the port.");
-    removeServerLockIfOwned();
-    process.exit(1);
-    return;
-  }
-  listenRetryTimer = setTimeout(() => {
-    listenRetryTimer = null;
-    startListening();
-  }, 250);
+  server.listen(listenPort, () => {
+    applicationReady = true;
+    util.log(
+      new Date() +
+        ". Joint HTTP+Websocket server turned on, listening on port " +
+        server.address().port + "."
+    );
+  });
 }
 
 server.on("error", (error) => {
-  if (error && error.code === "EADDRINUSE" && canWaitForPreviousServer()) {
-    scheduleListenRetry();
-    return;
-  }
   util.error("[SERVER] Listener error: " + (error && error.stack ? error.stack : error));
-  removeServerLockIfOwned();
-  process.exit(1);
+  cleanup("error").catch(() => process.exit(1));
 });
 
-startListening();
-// Bring it to life. Retain timer handles so shutdown can stop simulation cleanly.
-loadProtection.start();
-// Adapt the simulation cadence under sustained lag without changing the
-// protocol's nominal room.cycleSpeed used by existing socket update timing.
-// At normal load it preserves the original cadence. Under load it adds a
-// proportional idle gap, even when one tick itself overruns the base period,
-// avoiding catch-up bursts and reducing total simulation work per second.
-gameLoopScheduler = createAdaptiveGameLoop({
-  run: gameloop,
-  baseIntervalMs: room.cycleSpeed,
-  getMultiplier: () => loadProtection.getRunSpeedMultiplier(),
+async function startRuntime() {
+  await initializeScoreRecovery();
+  startRenderDeployMonitor();
+  startListening();
+  loadProtection.start();
+  gameLoopScheduler = createAdaptiveGameLoop({
+    run: gameloop,
+    baseIntervalMs: room.cycleSpeed,
+    getMultiplier: () => loadProtection.getRunSpeedMultiplier(),
+  });
+  gameLoopScheduler.start();
+  maintainLoopTimer = setInterval(maintainloop, 200);
+  speedcheckLoopTimer = setInterval(speedcheckloop, 1000);
+}
+
+startRuntime().catch((error) => {
+  util.error("[STARTUP] Could not initialize server dependencies: " + (error && error.stack ? error.stack : error));
+  process.exit(1);
 });
-gameLoopScheduler.start();
-maintainLoopTimer = setInterval(maintainloop, 200);
-speedcheckLoopTimer = setInterval(speedcheckloop, 1000);
