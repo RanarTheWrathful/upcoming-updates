@@ -5725,6 +5725,9 @@ class io_spin extends IO {
   constructor(b) {
     super(b);
     this.a = 0;
+    // Reuse this controller's output objects. Spin controllers think every
+    // active tick, so returning fresh nested objects creates avoidable GC work.
+    this.output = { target: { x: 1, y: 0 }, main: true };
   }
 
   think(input) {
@@ -5732,17 +5735,10 @@ class io_spin extends IO {
     if (this.body.spinRate <= 0 || this.body.spinRate > 0) {
       this.body.facing += this.body.spinRate;
     }
-    let offset = 0;
-    if (this.body.bond != null) {
-      offset = this.body.bound.angle;
-    }
-    return {
-      target: {
-        x: Math.cos(this.body.facing),
-        y: Math.sin(this.body.facing),
-      },
-      main: true,
-    };
+    const target = this.output.target;
+    target.x = Math.cos(this.body.facing);
+    target.y = Math.sin(this.body.facing);
+    return this.output;
   }
 }
 class io_dontTurn extends IO {
@@ -21758,10 +21754,9 @@ var gameloop = (() => {
       }
     }
     // The actual collision resolution function
-    return (collision) => {
-      // Pull the two objects from the collision grid
-      let instance = collision[0],
-        other = collision[1];
+    return (instance, other) => {
+      // Receive the pair directly: allocating [e1, e2] for every broad-phase
+      // candidate creates substantial short-lived garbage in busy trap fields.
 
       // Check for ghosts...
       if (!other.valid()) {
@@ -22352,6 +22347,21 @@ var gameloop = (() => {
         other.DAMAGE = 0;
       }
 
+      // Friendly trap pairs have no ordinary collision response. Stop here
+      // after the special-effect handling above, avoiding the remaining
+      // collision-resolution checks for the most common redundant pair.
+      if (
+        instance.team === other.team &&
+        instance.type === "trap" &&
+        other.type === "trap" &&
+        !instance.repairEffect &&
+        !instance.healEffect &&
+        !other.repairEffect &&
+        !other.healEffect
+      ) {
+        return;
+      }
+
       // If they can firm collide, do that
       if (
         instance.targetable &&
@@ -22646,7 +22656,7 @@ var gameloop = (() => {
       throw new Error("Activation mode settings error!");
     }
 
-    activeEntities = [];
+    activeEntities.length = 0;
     for (let i = 0; i < entities.length; i++) {
       if (check[i] && entities[i]) {
         let e = entities[i];
@@ -22687,10 +22697,10 @@ var gameloop = (() => {
       ) {
         if (loadProtection.shouldProfileCollision()) {
           const collisionStartedAt = performance.now();
-          collide([e1, e2]);
+          collide(e1, e2);
           loadProtection.recordCollisionCost(e1, e2, performance.now() - collisionStartedAt);
         } else {
-          collide([e1, e2]);
+          collide(e1, e2);
         }
       }
     });
@@ -22753,7 +22763,9 @@ var gameloop = (() => {
         }
         // Update collisions.
 
-        e.collisionArray = [];
+        // Preserve the per-entity buffer instead of allocating a new array
+        // every simulation cycle.
+        e.collisionArray.length = 0;
         if (!c.cooldown) {
           setTimeout(() => {
             c.socketEnterList = [];

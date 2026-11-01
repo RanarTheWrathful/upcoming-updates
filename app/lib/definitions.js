@@ -6432,7 +6432,7 @@ exports.bang = {
           {
             IGNORE_COLLISION: true,
             DAMAGE_TYPE: "collision",
-            CONTROLLERS: ["teleportToMaster"],
+            //CONTROLLERS: ["teleportToMaster"],
             SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
@@ -33923,7 +33923,14 @@ exports.homer = {//HOMER SIMPSON??
       /*** LENGTH  WIDTH   ASPECT    X       Y     ANGLE   DELAY */
       POSITION: [10, 8.5, 0.6, 5, 4.5, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.pound]),
+        SHOOT_SETTINGS: combineStats([
+          g.swarm,
+          g.pound,
+          g.destroy,
+          g.halfReload,
+          g.greaterSize,
+          g.greaterPenetration,
+        ]),
         TYPE: exports.swarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
@@ -33931,7 +33938,14 @@ exports.homer = {//HOMER SIMPSON??
     {
       POSITION: [10, 8.5, 0.6, 5, -4.5, 0, 0.5],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.swarm, g.pound]),
+        SHOOT_SETTINGS: combineStats([
+          g.swarm,
+          g.pound,
+          g.destroy,
+          g.halfReload,
+          g.greaterSize,
+          g.greaterPenetration,
+        ]),
         TYPE: exports.swarmDrone,
         STAT_CALCULATOR: gunCalcNames.swarm,
       },
@@ -33955,7 +33969,7 @@ exports.terminate = {
           g.pound,
           g.destroy,
           g.halfReload,
-          g.lesserReload,
+          g.halfReload,
           g.greaterRange,
         ]),
         TYPE: exports.bullet,
