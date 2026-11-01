@@ -3488,9 +3488,11 @@ function spawnLivingApocalypsesAndFinishArena() {
   c.SPAWN_FOOD = false;
   c.MODE = "none";
 
-  if (c.playerCount < 1) {
-    util.log("ARENA CLOSED!");
-    cleanup("empty");
+  // The empty-server shutdown is only armed once the Living Apocalypses
+  // have actually been activated. Give the normal five-second grace period
+  // instead of immediately terminating the old instance here.
+  if (!hasLivingHumanPlayer()) {
+    checkEmptyServerShutdownGrace();
     return;
   }
 
@@ -17154,7 +17156,9 @@ function cancelEmptyServerShutdownGrace() {
 }
 
 function checkEmptyServerShutdownGrace() {
-  if (!hasEverHadHumanPlayer || updateHandoffActive || cleanupStarted) return;
+  // An empty server is not itself a reason to close. This shutdown path is
+  // reserved for the arena's final sequence, after Living Apocalypses spawn.
+  if (!arenaCloseApocalypsesSpawned || cleanupStarted) return;
   if (hasLivingHumanPlayer()) {
     cancelEmptyServerShutdownGrace();
     return;
@@ -17164,7 +17168,7 @@ function checkEmptyServerShutdownGrace() {
   util.log("[SHUTDOWN] No living players detected; starting the 5-second grace period.");
   emptyServerShutdownTimer = setTimeout(() => {
     emptyServerShutdownTimer = null;
-    if (!hasEverHadHumanPlayer || updateHandoffActive || cleanupStarted || hasLivingHumanPlayer()) return;
+    if (!arenaCloseApocalypsesSpawned || cleanupStarted || hasLivingHumanPlayer()) return;
     cleanup("empty");
   }, 5000);
 }
