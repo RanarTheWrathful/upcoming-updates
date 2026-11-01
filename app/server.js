@@ -22676,6 +22676,10 @@ var gameloop = (() => {
     boxIntersect(activeAabb, (i, j) => {
       e1 = activeEntities[i];
       e2 = activeEntities[j];
+      // Maze walls are fixed map geometry. They must collide with gameplay
+      // entities, but never need to resolve collisions against one another.
+      // Skip these pairs before activation checks and collision dispatch.
+      if (e1.isMazeWall && e2.isMazeWall) return;
       if (
         e1.valid() &&
         e1.bond == null &&
