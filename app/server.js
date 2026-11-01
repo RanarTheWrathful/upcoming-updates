@@ -16,7 +16,6 @@ const ran = require("./lib/random");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const https = require("https");
 const serverState = require("./serverStateManager");
 const createLoadProtection = require("./lib/loadProtection/loadProtection");
 const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup/offscreenTransientCleanup");
@@ -105,46 +104,6 @@ function getCodeFingerprint(rootDirectory) {
   }
   visit(rootDirectory);
   return hash.digest("hex");
-}
-
-function getLatestLiveRenderCommit() {
-  const serviceId = process.env.RENDER_SERVICE_ID;
-  const apiKey = process.env.RENDER_API_KEY;
-  if (!serviceId || !apiKey) {
-    return Promise.reject(new Error("RENDER_SERVICE_ID or RENDER_API_KEY is unavailable"));
-  }
-  return new Promise((resolve, reject) => {
-    const request = https.get({
-      hostname: "api.render.com",
-      path: "/v1/services/" + encodeURIComponent(serviceId) + "/deploys?limit=20",
-      headers: { Authorization: "Bearer " + apiKey, Accept: "application/json" },
-      timeout: 5000,
-    }, (response) => {
-      let body = "";
-      response.setEncoding("utf8");
-      response.on("data", (chunk) => { body += chunk; });
-      response.on("end", () => {
-        if (response.statusCode !== 200) {
-          reject(new Error("Render deploy API returned HTTP " + response.statusCode));
-          return;
-        }
-        try {
-          const payload = JSON.parse(body);
-          const items = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
-          const deploys = items.map((item) => item && (item.deploy || item)).filter(Boolean);
-          const live = deploys.filter((deploy) => String(deploy.status || "").toLowerCase() === "live");
-          live.sort((a, b) => Date.parse(b.createdAt || b.updatedAt || 0) - Date.parse(a.createdAt || a.updatedAt || 0));
-          const latest = live[0];
-          const commit = latest && (latest.commit && (latest.commit.id || latest.commit.sha) || latest.commitId || latest.commitSha);
-          resolve(typeof commit === "string" && commit ? commit : null);
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
-    request.on("timeout", () => request.destroy(new Error("Render deploy API request timed out")));
-    request.on("error", reject);
-  });
 }
 
 let chosenMode;
@@ -306,7 +265,7 @@ async function initializeScoreRecovery() {
     updateScoreRecovery = createUpdateScoreRecovery(updateScoreRecoveryFilePath);
     updateScoreRecovery.load();
     if (process.env.RENDER === "true") {
-      util.warn("[SCORE-RECOVERY] REDIS_URL is not configured; score recovery will use instance-local storage and will not survive a Render instance replacement.");
+      util.log("[SCORE-RECOVERY] Using local recovery storage. Render instances do not share local filesystems, so cross-instance score restoration is unavailable without shared storage.");
     }
   }
   scheduleUpdateScoreRecoveryExpiry();
@@ -2934,143 +2893,111 @@ function makeCrusherFortWalls() {
   }
 }
 
-function makeTeamedWalls() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o;
-    let a = Class.wall;
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
+function configureMazeWallEntity(o, loc, team, color, grid, alwaysExists = true) {
+  o.coreSize = o.SIZE;
+  o.spawnLoc = { x: loc.x, y: loc.y };
+  o.protect();
+  o.alwaysExists = alwaysExists;
+  o.isMazeWall = true;
+  if (team) {
+    o.team = -team;
+    o.color = color;
+  } else {
+    o.team = -100;
+    o.color = 3;
+  }
+  o.refreshBodyAttributes();
+  o.grid = grid;
+  o.VELOCITY.x = 0;
+  o.VELOCITY.y = 0;
+  o.ACCEL.x = 0;
+  o.ACCEL.y = 0;
+  o.isStaticMazeWall =
+    (o.type === "squareWall" || o.type === "wall") &&
+    !(o.guns && o.guns.length) &&
+    !(o.turrets && o.turrets.length) &&
+    !(o.controllers && o.controllers.length);
+  if (o.isStaticMazeWall) {
+    const radius = (Number(o.realSize) || Number(o.SIZE) || 0) + 5;
+    o._staticMazeAabb = [o.x - radius, o.y - radius, o.x + radius, o.y + radius];
+  }
+  return o;
+}
 
-    o.coreSize = o.SIZE;
-    o.protect();
-    o.alwaysExists = true;
-    o.isMazeWall = true;
-    o.spawnLoc = loc;
-    if (team) {
-      o.team = -team;
-      o.color = [10, 18, 7, 19][team - 1];
-    } else {
-      o.team = -100;
-      o.color = 3;
-    }
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
+function makeTeamedWalls() {
+  const gridWidth = room.width / room.xgrid;
+  const gridHeight = room.height / room.ygrid;
+  const spawn = (loc, team, grid, x, y, size) => {
+    const o = new Entity({ x, y });
+    o.define(Class.wall);
+    o.SIZE = size;
+    configureMazeWallEntity(o, loc, team, [10, 18, 7, 19][team - 1], grid);
   };
+
   for (let i = 0; i < 9; i++) {
-    if (room["wal" + i]) {
-      room["wal" + i].forEach((loc) => {
-        entity(loc, i, {
-          x: Math.floor(loc.x / gridWidth),
-          y: Math.floor(loc.y / gridHeight),
-        });
-      });
+    const locations = room["wal" + i];
+    if (!Array.isArray(locations)) continue;
+    for (const loc of locations) {
+      const grid = {
+        x: Math.floor(loc.x / gridWidth),
+        y: Math.floor(loc.y / gridHeight),
+      };
+      if (gridWidth > gridHeight) {
+        const start = loc.x - gridWidth / 2 + gridHeight / 2;
+        const end = loc.x + gridWidth / 2 - gridHeight / 2;
+        for (let x = start; ; x += gridHeight) {
+          spawn(loc, i, grid, Math.min(x, end), loc.y, gridHeight / 2);
+          if (x >= end) break;
+        }
+      } else if (gridWidth < gridHeight) {
+        const start = loc.y + gridWidth / 2 - gridHeight / 2;
+        const end = loc.y - gridWidth / 2 + gridHeight / 2;
+        for (let y = start; ; y += gridWidth) {
+          spawn(loc, i, grid, loc.x, Math.min(y, end), gridWidth / 2);
+          if (y >= end) break;
+        }
+      } else {
+        spawn(loc, i, grid, loc.x, loc.y, gridWidth / 2);
+      }
     }
   }
 }
 function makepentagonWorkbench() {
-  let gridWidth = room.width / room.xgrid;
-  let gridHeight = room.height / room.ygrid;
-  let entity = (loc, team, grid) => {
-    let o;
-    let a = Class.Workbench;
-    if (gridWidth > gridHeight) {
-      let start = loc.x - gridWidth / 2 + gridHeight / 2;
-      let end = loc.x + gridWidth / 2 - gridHeight / 2;
-      let x = start;
-      for (;;) {
-        o = new Entity({
-          x: Math.min(x, end),
-          y: loc.y,
-        });
-        o.define(a);
-        o.SIZE = gridHeight / 2;
-        if (x >= end) {
-          break;
-        }
-        x += gridHeight;
-      }
-    } else if (gridWidth < gridHeight) {
-      let start = loc.y + gridWidth / 2 - gridHeight / 2;
-      let end = loc.y - gridWidth / 2 + gridHeight / 2;
-      let y = start;
-      for (;;) {
-        o = new Entity({
-          x: loc.x,
-          y: Math.min(y, end),
-        });
-        o.define(a);
-        o.SIZE = gridWidth / 2;
-        if (y >= end) {
-          break;
-        }
-        y += gridWidth;
-      }
-    } else {
-      o = new Entity(loc);
-      o.define(a);
-      o.SIZE = gridWidth / 2;
-    }
-    o.spawnLoc = loc;
-    o.coreSize = o.SIZE;
-    o.protect();
+  const gridWidth = room.width / room.xgrid;
+  const gridHeight = room.height / room.ygrid;
+  const locations = room.wrkb;
+  if (!Array.isArray(locations)) return;
+
+  const spawn = (loc, x, y, size) => {
+    const o = new Entity({ x, y });
+    o.define(Class.Workbench);
+    o.SIZE = size;
+    configureMazeWallEntity(o, loc, 0, 7, {
+      x: Math.floor(loc.x / gridWidth),
+      y: Math.floor(loc.y / gridHeight),
+    });
     o.team = -101;
     o.color = 7;
-    o.isMazeWall = true;
-    o.refreshBodyAttributes();
-    o.grid = grid;
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
   };
-  if (room["wrkb"]) {
-    room["wrkb"].forEach((loc) => {
-      entity(loc, {
-        x: Math.floor(loc.x / gridWidth),
-        y: Math.floor(loc.y / gridHeight),
-      });
-    });
+
+  for (const loc of locations) {
+    if (gridWidth > gridHeight) {
+      const start = loc.x - gridWidth / 2 + gridHeight / 2;
+      const end = loc.x + gridWidth / 2 - gridHeight / 2;
+      for (let x = start; ; x += gridHeight) {
+        spawn(loc, Math.min(x, end), loc.y, gridHeight / 2);
+        if (x >= end) break;
+      }
+    } else if (gridWidth < gridHeight) {
+      const start = loc.y + gridWidth / 2 - gridHeight / 2;
+      const end = loc.y - gridWidth / 2 + gridHeight / 2;
+      for (let y = start; ; y += gridWidth) {
+        spawn(loc, loc.x, Math.min(y, end), gridWidth / 2);
+        if (y >= end) break;
+      }
+    } else {
+      spawn(loc, loc.x, loc.y, gridWidth / 2);
+    }
   }
 }
 function resolveMazeWallDefinition() {
@@ -3103,26 +3030,16 @@ function makeMazeWalls() {
     o.SIZE = Number.isFinite(generatedSize) && generatedSize > 0
       ? generatedSize
       : baseSize * ran.randomRange(1.0, 1.25);
-    o.coreSize = o.SIZE;
-    o.spawnLoc = { x, y };
-    o.protect();
+    configureMazeWallEntity(o, { x, y }, 0, c.MAZE_WALL_COLOR === undefined ? 3 : c.MAZE_WALL_COLOR, {
+      x: gridX,
+      y: gridY,
+    });
     o.team = -101;
     if (c.MAZE_WALL_COLOR !== undefined) o.color = c.MAZE_WALL_COLOR;
-    o.alwaysExists = true;
-    o.isMazeWall = true;
-    // Generated/authored maze blocks are immutable map geometry when the
-    // selected class is a plain square wall. Keep custom animated or armed
-    // wall classes on their normal entity lifecycle.
-    o.isStaticMazeWall = o.type === "squareWall" &&
-      !(o.guns && o.guns.length) &&
-      !(o.turrets && o.turrets.length) &&
-      !(o.controllers && o.controllers.length);
-    o.refreshBodyAttributes();
-    o.grid = { x: gridX, y: gridY };
-    o.VELOCITY.x = 0;
-    o.VELOCITY.y = 0;
-    o.ACCEL.x = 0;
-    o.ACCEL.y = 0;
+    if (o.isStaticMazeWall) {
+      const radius = (Number(o.realSize) || Number(o.SIZE) || 0) + 5;
+      o._staticMazeAabb = [o.x - radius, o.y - radius, o.x + radius, o.y + radius];
+    }
   };
 
   if (generatedWalls) {
@@ -3543,7 +3460,7 @@ function spawnLivingApocalypsesAndFinishArena() {
       util.error("[SHUTDOWN] Arena-close shutdown failed: " + error.message);
       process.exit(1);
     });
-  }, 30000);
+  }, updateHandoffActive ? 10000 : 30000);
 }
 
 function closeArena() {
@@ -11114,7 +11031,7 @@ class Entity {
           sockets.broadcast(util.getTeam(-100) + " have won the game!");
           serverState.advanceLoreSequence();
           closeArena();
-        }, 80000);
+        }, 26000);
       }
     }
     if (c.hallowsPaint) {
@@ -17173,10 +17090,6 @@ let updateHandoffActive = false;
 let updateHandoffReady = false;
 let updateArenaClosureStarted = false;
 let updateHandoffHardTimeoutTimer = null;
-let renderDeployMonitorTimer = null;
-let renderDeployMonitorInFlight = false;
-let renderReplacementDetected = false;
-let lastRenderMonitorWarningAt = 0;
 let applicationReady = false;
 let hasEverHadHumanPlayer = false;
 let emptyServerShutdownTimer = null;
@@ -22899,8 +22812,16 @@ var gameloop = (() => {
           if (!timer[i]--) check[i] = true;
         } else {
           timer[i] = 15;
-          if (entities[i].valid()) {
-            check[i] = views.some((v) => v.isInView(entities[i]));
+          const entity = entities[i];
+          if (entity.valid()) {
+            let visible = false;
+            for (let viewIndex = 0; viewIndex < views.length; viewIndex++) {
+              if (views[viewIndex].isInView(entity)) {
+                visible = true;
+                break;
+              }
+            }
+            check[i] = visible;
           }
         }
       }
@@ -22915,16 +22836,15 @@ var gameloop = (() => {
         for (let i = 0; i < entities.length; i++) {
           if (!entities[i]) continue;
           let minDistance = 4;
-          views.forEach((view) => {
-            let distance = Math.max(
+          for (let viewIndex = 0; viewIndex < views.length; viewIndex++) {
+            const view = views[viewIndex];
+            const distance = Math.max(
               Math.abs(view.x - x[i]),
               Math.abs(view.y - y[i])
             );
-            minDistance = Math.min(
-              minDistance,
-              distance / ((view.fov * range) / 2)
-            );
-          });
+            const normalizedDistance = distance / ((view.fov * range) / 2);
+            if (normalizedDistance < minDistance) minDistance = normalizedDistance;
+          }
           timer[i] += Math.max(0, Math.min(2 - minDistance, 1));
           if (timer[i] >= 1) {
             timer[i] -= 1;
@@ -22944,7 +22864,7 @@ var gameloop = (() => {
       throw new Error("Activation mode settings error!");
     }
 
-    activeEntities = [];
+    activeEntities.length = 0;
     for (let i = 0; i < entities.length; i++) {
       if (check[i] && entities[i]) {
         let e = entities[i];
@@ -22963,9 +22883,17 @@ var gameloop = (() => {
     activeAabb.length = aabbCount;
     for (let i = 0; i < aabbCount; i++) {
       const e = activeEntities[i];
+      const box = activeAabb[i] || (activeAabb[i] = [0, 0, 0, 0]);
+      if (e.isStaticMazeWall && e._staticMazeAabb) {
+        const cached = e._staticMazeAabb;
+        box[0] = cached[0];
+        box[1] = cached[1];
+        box[2] = cached[2];
+        box[3] = cached[3];
+        continue;
+      }
       const nextX = e.x + e.velocity.x + e.accel.x;
       const nextY = e.y + e.velocity.y + e.accel.y;
-      const box = activeAabb[i] || (activeAabb[i] = [0, 0, 0, 0]);
       box[0] = Math.min(e.x, nextX) - e.realSize - 5;
       box[1] = Math.min(e.y, nextY) - e.realSize - 5;
       box[2] = Math.max(e.x, nextX) + e.realSize + 5;
@@ -23012,13 +22940,15 @@ var gameloop = (() => {
       const entity = entities[i];
       if (!entity) continue;
       if (entity.isStaticMazeWall) {
-        // Collision response may impart acceleration to a wall. Discard it
-        // and keep the static wall's SoA state stationary without integrating.
-        velocityX[i] = 0;
-        velocityY[i] = 0;
-        accelX[i] = 0;
-        accelY[i] = 0;
-        stepRemaining[i] = 1;
+        // Static walls normally remain zeroed; only repair their SoA state if
+        // a collision path unexpectedly wrote motion into an immovable wall.
+        if (velocityX[i] || velocityY[i] || accelX[i] || accelY[i]) {
+          velocityX[i] = 0;
+          velocityY[i] = 0;
+          accelX[i] = 0;
+          accelY[i] = 0;
+          stepRemaining[i] = 1;
+        }
         continue;
       }
       if (c.ACTIVATION_MODE === "distance" && !check[i]) continue;
@@ -23034,7 +22964,11 @@ var gameloop = (() => {
 
   let liveIteration = () => {
     entities.forEach((e) => {
-      if (e.valid()) {
+      if (e && e.isStaticMazeWall) {
+        if (e.collisionArray) e.collisionArray.length = 0;
+        return;
+      }
+      if (e && e.valid()) {
         // Consider death.
         if (e.contemplationOfMortality()) {
           e.destroy();
@@ -23068,7 +23002,8 @@ var gameloop = (() => {
         }
         // Update collisions.
 
-        e.collisionArray = [];
+        if (e.collisionArray) e.collisionArray.length = 0;
+        else e.collisionArray = [];
         if (!c.cooldown) {
           setTimeout(() => {
             c.socketEnterList = [];
@@ -27880,10 +27815,6 @@ function stopServerLoops() {
     clearTimeout(updateScoreRecoveryExpiryTimer);
     updateScoreRecoveryExpiryTimer = null;
   }
-  if (renderDeployMonitorTimer !== null) {
-    clearInterval(renderDeployMonitorTimer);
-    renderDeployMonitorTimer = null;
-  }
   sockets.stop();
   loadProtection.stop();
 }
@@ -27984,7 +27915,7 @@ async function finishUpdateHandoff(outcome = "ready") {
 async function startUpdateArenaClosure() {
   if (!updateHandoffActive || !updateHandoffReady || updateArenaClosureStarted || cleanupStarted) return;
   updateArenaClosureStarted = true;
-  util.log("[UPDATE-HANDOFF] Render has already marked the replacement healthy; beginning arena closure in the old instance.");
+  util.log("[UPDATE-HANDOFF] Beginning arena closure in the old instance.");
   c.extinction = true;
   c.DEADLY_BORDERS = true;
   if (arenaCloseApocalypsesSpawned) {
@@ -27998,7 +27929,7 @@ async function startUpdateArenaClosure() {
           util.error("[SHUTDOWN] Update arena-close shutdown failed: " + error.message);
           process.exit(1);
         });
-      }, 30000);
+      }, 10000);
     }
   } else if (room.closed || updateHandoffDeferredApocalypseSpawn) {
     updateHandoffDeferredApocalypseSpawn = false;
@@ -28010,17 +27941,17 @@ async function startUpdateArenaClosure() {
 
 function beginUpdateHandoff() {
   if (cleanupStarted || updateHandoffActive) return false;
-  // Render only sends SIGTERM to the old instance after the replacement has
-  // passed readiness checks and traffic has switched. There is no cross-instance
-  // PID/file/port handoff: Render owns that lifecycle.
+  // Render sends SIGTERM after the replacement is live. This process cannot
+  // distinguish deployment SIGTERM from an ordinary Render stop, so every
+  // Render SIGTERM runs the requested handoff sequence.
   updateHandoffActive = true;
   updateHandoffReady = true;
   updateHandoffHardTimeoutTimer = setTimeout(() => {
     updateHandoffHardTimeoutTimer = null;
     if (!cleanupStarted) finishUpdateHandoff("timeout").catch(() => process.exit(1));
-  }, 80000);
+  }, 26000);
   sockets.broadcast("Closing the server for updates. Please reconnect shortly.");
-  util.log("[UPDATE-HANDOFF] Replacement instance is already healthy; starting the old instance's Apocalypse shutdown sequence.");
+  util.log("[UPDATE-HANDOFF] Render SIGTERM received; starting the old instance's Apocalypse shutdown sequence.");
   startUpdateArenaClosure().catch((error) => {
     util.error("[UPDATE-HANDOFF] Could not start arena closure: " + error.message);
     finishUpdateHandoff("error").catch(() => process.exit(1));
@@ -28094,47 +28025,26 @@ async function cleanup(reason = "signal") {
   }
 }
 
-async function isCodeUpdateShutdown() {
+async function isCodeUpdateShutdown(signal) {
+  // Render uses SIGTERM after a replacement has passed health checks, but it
+  // also uses SIGTERM for ordinary stops/restarts. Render does not expose a
+  // deployment-only signal to the process, so treat every Render SIGTERM as
+  // the requested handoff. Local development retains fingerprint detection.
+  if (process.env.RENDER === "true" && signal === "SIGTERM") return true;
   if (process.env.RANAR_SHUTDOWN_REASON === "update" || process.env.RANAR_UPDATE_SHUTDOWN === "1") return true;
-  if (renderReplacementDetected) return true;
-  if (process.env.RENDER === "true") {
-    try {
-      const latestCommit = await getLatestLiveRenderCommit();
-      const currentCommit = process.env.RENDER_GIT_COMMIT;
-      if (!latestCommit || !currentCommit) {
-        util.warn("[UPDATE-HANDOFF] Could not compare the current commit with Render's latest live deploy; treating SIGTERM as a normal shutdown.");
-        return false;
-      }
-      const changed = latestCommit !== currentCommit;
-      util.log("[UPDATE-HANDOFF] Render commit comparison: current=" + currentCommit + ", latest live=" + latestCommit + ", code update=" + changed + ".");
-      return changed;
-    } catch (error) {
-      util.warn("[UPDATE-HANDOFF] Render deploy lookup failed; treating SIGTERM as a normal shutdown: " + error.message);
-      return false;
-    }
+  try {
+    return startupCodeFingerprint !== null && getCodeFingerprint(__dirname) !== startupCodeFingerprint;
+  } catch (_) {
+    return false;
   }
-  try { return startupCodeFingerprint !== null && getCodeFingerprint(__dirname) !== startupCodeFingerprint; } catch (_) { return false; }
 }
 
 async function handleTerminationSignal(signal) {
   if (cleanupStarted || updateHandoffActive) return;
   util.log("Received " + signal + ".");
-  if (await isCodeUpdateShutdown()) beginUpdateHandoff();
+  if (await isCodeUpdateShutdown(signal)) beginUpdateHandoff();
   else await cleanup("signal");
 }
-
-process.on("SIGINT", () => {
-  handleTerminationSignal("SIGINT").catch((error) => {
-    util.error("[SHUTDOWN] SIGINT handler failed: " + error.message);
-    cleanup("signal").catch(() => process.exit(1));
-  });
-});
-process.on("SIGTERM", () => {
-  handleTerminationSignal("SIGTERM").catch((error) => {
-    util.error("[SHUTDOWN] SIGTERM handler failed: " + error.message);
-    cleanup("signal").catch(() => process.exit(1));
-  });
-});
 function handleFatalProcessError(kind, error) {
   util.error("[FATAL] " + kind + ": " + (error && error.stack ? error.stack : error));
   cleanup("error").catch((shutdownError) => {
@@ -28165,42 +28075,6 @@ function getListenPort() {
 let websockets = new WebSocket.Server({ server }).on("connection", sockets.connect);
 const listenPort = getListenPort();
 
-async function pollRenderForReplacement() {
-  if (renderDeployMonitorInFlight || renderReplacementDetected || process.env.RENDER !== "true") return;
-  renderDeployMonitorInFlight = true;
-  try {
-    const latestCommit = await getLatestLiveRenderCommit();
-    const currentCommit = process.env.RENDER_GIT_COMMIT;
-    if (latestCommit && currentCommit && latestCommit !== currentCommit) {
-      renderReplacementDetected = true;
-      util.log("[UPDATE-HANDOFF] Detected a healthy replacement deploy before SIGTERM; saving current player scores for reconnects.");
-      try {
-        await captureUpdateScores(true);
-      } catch (error) {
-        util.warn("[SCORE-RECOVERY] Early deployment score snapshot failed: " + error.message);
-      }
-      if (renderDeployMonitorTimer !== null) {
-        clearInterval(renderDeployMonitorTimer);
-        renderDeployMonitorTimer = null;
-      }
-    }
-  } catch (error) {
-    if (Date.now() - lastRenderMonitorWarningAt > 60000) {
-      lastRenderMonitorWarningAt = Date.now();
-      util.warn("[UPDATE-HANDOFF] Render deploy monitor could not check for a replacement: " + error.message);
-    }
-  } finally {
-    renderDeployMonitorInFlight = false;
-  }
-}
-
-function startRenderDeployMonitor() {
-  if (process.env.RENDER !== "true" || !process.env.RENDER_API_KEY || !process.env.RENDER_SERVICE_ID) return;
-  renderDeployMonitorTimer = setInterval(pollRenderForReplacement, 15000);
-  if (renderDeployMonitorTimer && typeof renderDeployMonitorTimer.unref === "function") renderDeployMonitorTimer.unref();
-  pollRenderForReplacement();
-}
-
 function startListening() {
   if (server.listening) return;
   server.listen(listenPort, () => {
@@ -28220,7 +28094,6 @@ server.on("error", (error) => {
 
 async function startRuntime() {
   await initializeScoreRecovery();
-  startRenderDeployMonitor();
   startListening();
   loadProtection.start();
   gameLoopScheduler = createAdaptiveGameLoop({
