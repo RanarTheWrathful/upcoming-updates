@@ -84,7 +84,7 @@ let modeList = ["Unknown"];
 let serverType = "testing"; //change this to play preset modes look
 if (serverType === "JJ's Reasearch Facility")
   chosenMode = "JJ's Reasearch Facility"; //or this
-if (serverType === "testing") chosenMode = "Sandbox";
+if (serverType === "testing") chosenMode = "normal";
 //change this to play a specifict mode.
 else if (serverType === "normal") {
   //dont change these - J.J.
@@ -25725,10 +25725,8 @@ function renderChatPage(options) {
   <meta name="theme-color" content="#10131d">
   <meta name="description" content="Ranar's Prophecy live chat relay and command console.">
   <title>${serverTitle} · Chat Relay</title>
-  <a href="https://cdn.glitch.global/5f27ad97-07cd-4f67-922e-41dfb3ef64a5/grgagegu.webp?v=1713072716793"
-   target="_blank"
-   rel="noopener noreferrer">
-  <img src="https://cdn.glitch.global/5f27ad97-07cd-4f67-922e-41dfb3ef64a5/grgagegu.webp?v=1713072716793">
+<a href="https://cdn.glitch.global/5f27ad97-07cd-4f67-922e-41dfb3ef64a5/grgagegu.webp?v=1713072716793" target="_blank">
+  Open link
 </a>
 <style>
     :root{color-scheme:dark;--bg:#0c0f17;--panel:#141925;--panel2:#191f2e;--line:#293347;--muted:#97a3b9;--text:#eef2fb;--accent:#a78bfa;--accent2:#7c6cf0;--cyan:#67e8f9;--good:#59dca6;--warn:#f6c66d;--bad:#fb7185;--radius:18px}

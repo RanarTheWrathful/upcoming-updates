@@ -136,7 +136,7 @@ const g = {
   battleShip: [1, 1, 1, 1, 1.25, 1.15, 1, 1, 0.85, 1, 1, 1, 1.1],
   hexatrap: [0.85, 1, 1, 1, 0.9, 0.9, 1, 0.8, 1, 0.85, 1, 1, 1],
   block: [
-    1.75, 2.25, 0.1, 1.5, 1.25, 0.90, 1.25, 1.3, 1.5, 1.05, 0.25, 1, 1.75,
+    1.5, 2.25, 0.1, 1.5, 1.5, 0.90, 1.25, 1.3, 1.5, 1.05, 0.25, 1, 1.75,
   ],
   construct: [1.4, 1.5, 1, 0.9, 1.25, 1.25, 1.25, 0.95, 1.1, 1, 1, 1, 1],
   boomerang: [1, 1, 1, 1.25, 1, 1, 1, 1, 1, 1.55, 1, 1, 1],
@@ -6425,12 +6425,14 @@ exports.bang = {
           g.minorSpeed,
           g.minorSpeed,
           g.superPenetration,
+          g.minorDamage,
         ]),
         TYPE: [
           exports.bullet,
           {
             IGNORE_COLLISION: true,
-            MOTION_TYPE: "growth",
+            DAMAGE_TYPE: "collision",
+            CONTROLLERS: ["teleportToMaster"],
             SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
@@ -6463,12 +6465,14 @@ exports.bangAlt = {
           g.minorSpeed,
           g.minorSpeed,
           g.superPenetration,
+          g.minorDamage,
         ]),
         TYPE: [
           exports.bullet,
           {
             IGNORE_COLLISION: true,
-            MOTION_TYPE: "growth",
+            DAMAGE_TYPE: "collision",
+            CONTROLLERS: ["teleportToMaster"],
             SPECIAL_EFFECT: ["push"],
             REPEL: 0.5,
             INTANGIBLE: true,
@@ -6506,6 +6510,7 @@ exports.bigBang = {
           g.minorSpeed,
           g.minorSpeed,
           g.superPenetration,
+          g.minorDamage,
         ]),
         TYPE: [
           exports.bullet,
@@ -6513,6 +6518,8 @@ exports.bigBang = {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
             SPECIAL_EFFECT: ["push"],
+            DAMAGE_TYPE: "collision",
+            CONTROLLERS: ["teleportToMaster"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -6552,6 +6559,8 @@ exports.bangBang = {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
             SPECIAL_EFFECT: ["push"],
+            DAMAGE_TYPE: "collision",
+            CONTROLLERS: ["teleportToMaster"],
             REPEL: 0.5,
             INTANGIBLE: true,
           },
@@ -6677,7 +6686,13 @@ exports.trapTurret = {
     {
       POSITION: [4, 14, 1.8, 16, 0, 0, 0],
       PROPERTIES: {
-        SHOOT_SETTINGS: combineStats([g.trap]),
+        SHOOT_SETTINGS: combineStats([
+          g.trap
+          g.greaterStats,
+          g.doubleDamage,
+          g.superReload,
+          g.superReload,
+          g.superReload,]),
         TYPE: [exports.trap, { PERSISTS_AFTER_DEATH: true }],
         STAT_CALCULATOR: gunCalcNames.trap,
       },
@@ -16423,14 +16438,8 @@ exports.flingertrap = {
   ],
 };
 exports.shattererTrap = {
-  PARENT: [exports.trap],
-  LABEL: "Trap",
+  PARENT: [exports.flingertrap],
   DEATH_THROES: "breakerBurst",
-  CONTROLLERS: ["nearestDifferentMaster"],
-  INDEPENDENT: true,
-  BODY: {
-    FOV: 0.5,
-  },
   TURRETS: [
     {
       /*********  SIZE     X       Y     ANGLE    ARC */
@@ -16499,13 +16508,7 @@ exports. LandmineTrap = {
 };
 exports.mechflingtrap = {
   LABEL: "Flung Trap",
-  PARENT: [exports.trap],
-  CONTROLLERS: ["nearestDifferentMaster"],
-  INDEPENDENT: true,
-
-  BODY: {
-    FOV: 0.5,
-  },
+  PARENT: [exports.flingertrap],
   TURRETS: [
     {
       /*  SIZE     X       Y     ANGLE    ARC */
@@ -28658,6 +28661,7 @@ exports.whirlpool = {
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
+            CONTROLLERS: ["teleportToMaster"],
             SPECIAL_EFFECT: ["push"],
             REPEL: -0.75,
             INTANGIBLE: true,
@@ -35144,8 +35148,8 @@ exports.printer = {
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.trap,
-          g.halfDamage,
-          g.halfHealth,
+          g.lesserDamage,
+          g.lesserHealth,
           g.halfReload,
         ]),
         TYPE: exports.trap,
@@ -35165,8 +35169,8 @@ exports.printer = {
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.trap,
-          g.halfDamage,
-          g.halfHealth,
+          g.lesserDamage,
+          g.lesserHealth,
           g.halfReload,
         ]),
         TYPE: exports.trap,
@@ -35186,8 +35190,8 @@ exports.printer = {
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.trap,
-          g.halfDamage,
-          g.halfHealth,
+          g.lesserDamage,
+          g.lesserHealth,
           g.halfReload,
         ]),
         TYPE: exports.trap,
@@ -36447,7 +36451,7 @@ exports.Clockwork = {
     },
   ],
 };
-exports.megafling = {
+exports.megaflinger = {
   PARENT: [exports.genericTank],
   LABEL: "Mega-Flinger",
   STAT_NAMES: statnames.trap,
@@ -39019,8 +39023,8 @@ exports.barricade = {
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.trap,
-          g.halfDamage,
-          g.halfHealth,
+          g.lesserDamage,
+          g.lesserHealth,
           g.halfReload,
         ]),
         TYPE: exports.trap,
@@ -39032,8 +39036,8 @@ exports.barricade = {
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.trap,
-          g.halfDamage,
-          g.halfHealth,
+          g.lesserDamage,
+          g.lesserHealth,
           g.halfReload,
         ]),
         TYPE: exports.trap,
@@ -39045,8 +39049,8 @@ exports.barricade = {
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
           g.trap,
-          g.halfDamage,
-          g.halfHealth,
+          g.lesserDamage,
+          g.lesserHealth,
           g.halfReload,
         ]),
         TYPE: exports.trap,
@@ -96909,7 +96913,6 @@ exports.pageJunk3.UPGRADES_TIER_2 = [
   exports.roadblock,
   exports.shotguh,
   exports.assort,
-  exports.megafling,
   exports.pageJunk4,
 ];
 exports.pageJunk4.UPGRADES_TIER_2 = [
@@ -98004,13 +98007,14 @@ exports.trapper.UPGRADES_TIER_2 = [
   exports.flinger,
   exports.megatrap,
 ];
-exports.flinger.UPGRADES_TIER_3 = [exports.stinger, exports.slinger];
+exports.flinger.UPGRADES_TIER_3 = [exports.megaflinger, exports.stinger, exports.slinger, exports.shatterer];
 
 exports.megatrap.UPGRADES_TIER_3 = [
   exports.deflect,
   exports.automegatrap,
   exports.Clockwork,
   exports.ultratrap,
+  exports.megaflinger,
 ];
 
 exports.breaker.UPGRADES_TIER_3 = [
