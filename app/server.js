@@ -2996,6 +2996,13 @@ function makeMazeWalls() {
     if (c.MAZE_WALL_COLOR !== undefined) o.color = c.MAZE_WALL_COLOR;
     o.alwaysExists = true;
     o.isMazeWall = true;
+    // Only bypass per-tick simulation for genuinely static square walls.
+    // A custom MAZE_WALL_ENTITY with guns, turrets, or controllers keeps its
+    // normal lifecycle even though it is also used as generated maze geometry.
+    o.isStaticMazeWall = o.type === "squareWall" &&
+      !(o.guns && o.guns.length) &&
+      !(o.turrets && o.turrets.length) &&
+      !(o.controllers && o.controllers.length);
     o.refreshBodyAttributes();
     o.grid = { x: gridX, y: gridY };
     o.VELOCITY.x = 0;
@@ -22711,7 +22718,19 @@ var gameloop = (() => {
     let check = soaEntity.activationCheck;
 
     for (let i = 0; i < entities.length; i++) {
-      if (!entities[i]) continue;
+      const entity = entities[i];
+      if (!entity) continue;
+      if (entity.isStaticMazeWall) {
+        // Static walls still participate in swept collision calculations.
+        // Reset their per-step state, but never integrate movement or retain
+        // acceleration imparted by a collision response.
+        velocityX[i] = 0;
+        velocityY[i] = 0;
+        accelX[i] = 0;
+        accelY[i] = 0;
+        stepRemaining[i] = 1;
+        continue;
+      }
       if (c.ACTIVATION_MODE === "distance" && !check[i]) continue;
       velocityX[i] += accelX[i];
       velocityY[i] += accelY[i];
@@ -22729,9 +22748,16 @@ var gameloop = (() => {
         // Consider death.
         if (e.contemplationOfMortality()) {
           e.destroy();
-        } else {
-          // This is deliberately outside activation.check(): entities beyond
-          // the active simulation radius still need their Siege zone timer.
+        } else if (!e.isStaticMazeWall) {
+          // Generated maze blocks are immutable map geometry: they have no
+          // AI, guns, turrets, upgrades, or movement to process each tick.
+          // Other isMazeWall entities (such as turret workbenches) are not
+          // included in this optimization and retain their normal lifecycle.
+          // They remain in the collision broad phase, so gameplay entities
+          // still collide with them normally.
+          // This is deliberately outside activation.check(): ordinary
+          // entities beyond the active simulation radius still need their
+          // Siege zone timer.
           siegeNeutralZonePenalty.update(e, { mode: c.MODE, room, now: Date.now() });
           autoUpgradeRules.update(e, Class, { mode: c.MODE, broadcastMessage: (text) => sockets.broadcast(text) });
           if (e.activation.check()) {
