@@ -6687,7 +6687,7 @@ exports.trapTurret = {
       POSITION: [4, 14, 1.8, 16, 0, 0, 0],
       PROPERTIES: {
         SHOOT_SETTINGS: combineStats([
-          g.trap
+          g.trap,
           g.greaterStats,
           g.doubleDamage,
           g.superReload,
@@ -28655,15 +28655,19 @@ exports.whirlpool = {
           g.minorSpeed,
           g.minorSpeed,
           g.superPenetration,
+          g.minorDamage,
+          g.doubleReload,
+          g.halfRange,
         ]),
         TYPE: [
           exports.bullet,
           {
             IGNORE_COLLISION: true,
             MOTION_TYPE: "growth",
+            DAMAGE_TYPE: "collision",
             CONTROLLERS: ["teleportToMaster"],
             SPECIAL_EFFECT: ["push"],
-            REPEL: -0.75,
+            REPEL: -0.5,
             INTANGIBLE: true,
           },
         ],
