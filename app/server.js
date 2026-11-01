@@ -3400,120 +3400,141 @@ function makeShrine() {
     });
   }
 }
+let updateHandoffDeferredApocalypseSpawn = false;
+let arenaCloseApocalypsesSpawned = false;
+let arenaCloseStartPending = false;
+let arenaCloseCompletionTimer = null;
+
+function spawnLivingApocalypsesAndFinishArena() {
+  if (arenaCloseApocalypsesSpawned) return;
+  arenaCloseApocalypsesSpawned = true;
+  entities.forEach((e) => {
+    e.alwaysExists = true;
+    if (e.isWall || e.isGate || e.isDominator || e.type === "tile") {
+      e.kill();
+      e.destroy();
+    }
+  });
+  let o;
+  for (let i = 0; i < 4; i++) {
+    switch (i) {
+      case 0:
+        o = new Entity({ x: room.width, y: room.height });
+        break;
+      case 1:
+        o = new Entity({ x: room.width, y: 0 });
+        break;
+      case 2:
+        o = new Entity({ x: 0, y: room.height });
+        break;
+      case 3:
+        o = new Entity({ x: 0, y: 0 });
+        break;
+    }
+
+    /*  sockets.broadcast(
+      ran.choose([
+        "Deific Ranar: Do you believe in Ranarok? Too bad, LET THE CLEANSING BEGIN!!!",
+        "Deific Ranar: Oh, yeah, by the way, I can kill LITERALLY EVERYTHING!",
+        "Deific Ranar: Yeah, praying won't help, I killed your god.",
+        "Deific Ranar: 'The Badass has arrived', hehehehehhhee.",
+        "Deific Ranar: Vacuum Cleaner coming...wait, seeing as I am able  erase reality, vaccum causer seems more accurate.",
+        "Deific Ranar: Arena Closed, EVERYTHING MUST DIE, HAHAHAHAHAAA!",
+        "Deific Ranar: YOU MUST DIE!",
+      ])
+    );*/
+    o.define(Class[ran.choose(["livingApocalypse"])]);
+    o.team = -1000;
+    o.color = 3;
+    o.coreSize = o.SIZE;
+    o.endless = true;
+    o.refreshBodyAttributes();
+    o.invuln = false;
+    o.defy = true;
+    c.killCheaters = true;
+    o.impervious = true;
+    o.alwaysExists = true;
+  }
+
+  /*   for (let i = 0; i < 16; i++) {
+  let angle = ((Math.PI * 2) / 16) * i;
+  let o = new Entity({
+    x: room.width / 2 + room.width * Math.cos(angle),
+    y: room.height / 2 + room.height * Math.sin(angle),
+  });
+  o.define(Class.arenaCloser);
+  o.team = -100;
+  o.color = 3;
+  o.coreSize = o.SIZE;
+  o.endless = true;
+  //o.SPEED /= 2;
+  o.refreshBodyAttributes();
+  o.invuln = false;
+  o.defy = true;
+  c.killCheaters = true;
+}/*/
+
+  c.soccerBlueCount = 0;
+  c.soccerGreenCount = 0;
+  c.soccerRedCount = 0;
+  c.BOTS = 0;
+  c.soccerPurpleCount = 0;
+  c.SPAWN_SENTINEL = false;
+  c.SPAWN_CRASHER = false;
+  c.SPAWN_SENTINEL = false;
+  c.SPAWN_VOIDLORD_ENEMIES = false;
+  c.SPAWN_NEUTRAL_BOSSES = false;
+  c.SPAWN_FALLEN_BOSSES = false;
+  c.SPAWN_FOOD = false;
+  c.MODE = "none";
+
+  if (c.playerCount < 1) {
+    util.log("ARENA CLOSED!");
+    cleanup("empty");
+    return;
+  }
+
+  arenaCloseCompletionTimer = setTimeout(() => {
+    arenaCloseCompletionTimer = null;
+    util.log("ARENA CLOSED!");
+    cleanup("signal");
+  }, 30000);
+}
+
 function closeArena() {
-  if (!room.closed) {
+  // During an update handoff, do not begin the arena's final sequence until
+  // the replacement has successfully acquired the listening port.
+  if (updateHandoffActive && !updateHandoffReady) {
+    return;
+  }
+  if (!room.closed && !arenaCloseStartPending) {
+    arenaCloseStartPending = true;
     setTimeout(() => {
+      arenaCloseStartPending = false;
+      if (room.closed) return;
+      if (updateHandoffActive && !updateHandoffReady) {
+        return;
+      }
       sockets.broadcast("Arena closed. No players can join!");
       c.visibleListInterval = 0;
       c.RESPAWN_TIMER = Infinity;
       room.closed = true;
       setTimeout(() => {
-        entities.forEach((e) => {
-          e.alwaysExists = true;
-          if (e.isWall || e.isGate || e.isDominator || e.type === "tile") {
-            e.kill();
-            e.destroy();
-          }
-        });
-        let o;
-        for (let i = 0; i < 4; i++) {
-          switch (i) {
-            case 0:
-              o = new Entity({
-                x: room.width,
-                y: room.height,
-              });
-              break;
-            case 1:
-              o = new Entity({
-                x: room.width,
-                y: 0,
-              });
-              break;
-            case 2:
-              o = new Entity({
-                x: 0,
-                y: room.height,
-              });
-              break;
-            case 3:
-              o = new Entity({
-                x: 0,
-                y: 0,
-              });
-              break;
-          }
-
-          /*  sockets.broadcast(
-            ran.choose([
-              "Deific Ranar: Do you believe in Ranarok? Too bad, LET THE CLEANSING BEGIN!!!",
-              "Deific Ranar: Oh, yeah, by the way, I can kill LITERALLY EVERYTHING!",
-              "Deific Ranar: Yeah, praying won't help, I killed your god.",
-              "Deific Ranar: 'The Badass has arrived', hehehehehhhee.",
-              "Deific Ranar: Vacuum Cleaner coming...wait, seeing as I am able  erase reality, vaccum causer seems more accurate.",
-              "Deific Ranar: Arena Closed, EVERYTHING MUST DIE, HAHAHAHAHAAA!",
-              "Deific Ranar: YOU MUST DIE!",
-            ])
-          );*/
-          o.define(Class[ran.choose(["livingApocalypse"])]);
-          o.team = -1000;
-          o.color = 3;
-          o.coreSize = o.SIZE;
-          o.endless = true;
-          o.refreshBodyAttributes();
-          o.invuln = false;
-          o.defy = true;
-          c.killCheaters = true;
-          o.impervious = true;
-          o.alwaysExists = true;
+        if (updateHandoffActive && !updateHandoffReady) {
+          // The arena may already be closed, but defer spawning the entities
+          // that actually terminate the old instance until the replacement is ready.
+          updateHandoffDeferredApocalypseSpawn = true;
+          return;
         }
-
-        /*   for (let i = 0; i < 16; i++) {
-        let angle = ((Math.PI * 2) / 16) * i;
-        let o = new Entity({
-          x: room.width / 2 + room.width * Math.cos(angle),
-          y: room.height / 2 + room.height * Math.sin(angle),
-        });
-        o.define(Class.arenaCloser);
-        o.team = -100;
-        o.color = 3;
-        o.coreSize = o.SIZE;
-        o.endless = true;
-        //o.SPEED /= 2;
-        o.refreshBodyAttributes();
-        o.invuln = false;
-        o.defy = true;
-        c.killCheaters = true;
-      }/*/
-
-        c.soccerBlueCount = 0;
-
-        c.soccerGreenCount = 0;
-
-        c.soccerRedCount = 0;
-        c.BOTS = 0;
-        c.soccerPurpleCount = 0;
-        c.SPAWN_SENTINEL = false;
-        c.SPAWN_CRASHER = false;
-        c.SPAWN_SENTINEL = false;
-        c.SPAWN_VOIDLORD_ENEMIES = false;
-        c.SPAWN_NEUTRAL_BOSSES = false;
-        c.SPAWN_FALLEN_BOSSES = false;
-        c.SPAWN_FOOD = false;
-        c.MODE = "none";
-        if (c.playerCount < 1) {
-          util.log("ARENA CLOSED!");
-          cleanup("empty");
-        }
-
-        setTimeout(() => {
-          util.log("ARENA CLOSED!");
-          cleanup("signal");
-        }, 30000);
+        spawnLivingApocalypsesAndFinishArena();
       }, 10000);
     }, 2500);
+  } else if (updateHandoffActive && updateHandoffReady && updateHandoffDeferredApocalypseSpawn) {
+    updateHandoffDeferredApocalypseSpawn = false;
+    spawnLivingApocalypsesAndFinishArena();
   }
 }
+
 function roomShrinkage() {
   if (!c.delay) {
     room.width -= 2;
@@ -17107,7 +17128,46 @@ let updateHandoffTimeoutTimer = null;
 let activeUpdateHandoffToken = null;
 let cleanupStarted = false;
 let updateHandoffActive = false;
+let updateHandoffReady = false;
 let hasEverHadHumanPlayer = false;
+let emptyServerShutdownTimer = null;
+let shutdownScoreRecoveryCaptured = false;
+
+function hasLivingHumanPlayer() {
+  return sockets.players.some((player) => {
+    const body = player && player.body;
+    return !!(
+      body &&
+      body.isPlayer &&
+      body.label !== "Spectator" &&
+      typeof body.isDead === "function" &&
+      !body.isDead()
+    );
+  });
+}
+
+function cancelEmptyServerShutdownGrace() {
+  if (emptyServerShutdownTimer !== null) {
+    clearTimeout(emptyServerShutdownTimer);
+    emptyServerShutdownTimer = null;
+  }
+}
+
+function checkEmptyServerShutdownGrace() {
+  if (!hasEverHadHumanPlayer || updateHandoffActive || cleanupStarted) return;
+  if (hasLivingHumanPlayer()) {
+    cancelEmptyServerShutdownGrace();
+    return;
+  }
+  if (emptyServerShutdownTimer !== null) return;
+
+  util.log("[SHUTDOWN] No living players detected; starting the 5-second grace period.");
+  emptyServerShutdownTimer = setTimeout(() => {
+    emptyServerShutdownTimer = null;
+    if (!hasEverHadHumanPlayer || updateHandoffActive || cleanupStarted || hasLivingHumanPlayer()) return;
+    cleanup("empty");
+  }, 5000);
+}
 
 const offscreenTransientCleanup = createOffscreenTransientCleanup({
   delayMs: Number(process.env.RANAR_OFFSCREEN_TRANSIENT_TTL_MS) > 0
@@ -18034,7 +18094,7 @@ const sockets = (() => {
         //sockets.changeroom();
         if (room.closed === true && players.length < 1 && !updateHandoffActive && !cleanupStarted) {
           util.log("ARENA CLOSED!");
-          cleanup("empty");
+          checkEmptyServerShutdownGrace();
         }
         // Free the view
         util.remove(views, views.indexOf(socket.view));
@@ -19565,6 +19625,11 @@ const sockets = (() => {
             }
             player.body.ip = socket.ip;
 
+            // The old instance may write its final score snapshot after this
+            // replacement has already started. Reload the atomically-written
+            // recovery file before consuming so early reconnects see the latest data.
+            updateScoreRecovery.load();
+            scheduleUpdateScoreRecoveryExpiry();
             const updateRecoveryKey = reconnectBodyKey(socket, name);
             const recoveredUpdateScore = updateRecoveryKey
               ? updateScoreRecovery.consume(updateRecoveryKey)
@@ -19733,6 +19798,7 @@ player.color = easy;
             player.socket = socket;
             players.push(player);
             hasEverHadHumanPlayer = true;
+            cancelEmptyServerShutdownGrace();
             // Focus on the new player
             socket.view.x = body.x;
             socket.view.y = body.y;
@@ -25431,20 +25497,7 @@ var maintainloop = (() => {
   return () => {
     logs.maintainloop.set();
     if (hasEverHadHumanPlayer && !updateHandoffActive && !cleanupStarted) {
-      const hasLivingPlayer = sockets.players.some((player) => {
-        const body = player && player.body;
-        return !!(
-          body &&
-          body.isPlayer &&
-          body.label !== "Spectator" &&
-          typeof body.isDead === "function" &&
-          !body.isDead()
-        );
-      });
-      if (!hasLivingPlayer) {
-        cleanup("empty");
-        return;
-      }
+      checkEmptyServerShutdownGrace();
     }
     // Do stuff
     makenpcs();
@@ -27727,6 +27780,7 @@ You must have the chat site and the game site open at the same time for your cha
   }
 });
 function stopServerLoops() {
+  cancelEmptyServerShutdownGrace();
   if (gameLoopScheduler !== null) { gameLoopScheduler.stop(); gameLoopScheduler = null; }
   if (maintainLoopTimer !== null) { clearInterval(maintainLoopTimer); maintainLoopTimer = null; }
   if (speedcheckLoopTimer !== null) { clearInterval(speedcheckLoopTimer); speedcheckLoopTimer = null; }
@@ -27773,6 +27827,7 @@ function removeHandoffStateIfOwned(token) {
 }
 
 function captureUpdateScores() {
+  if (shutdownScoreRecoveryCaptured) return;
   const recordsByKey = new Map();
   for (const player of sockets.players) {
     const body = player && player.body;
@@ -27806,9 +27861,25 @@ function captureUpdateScores() {
   }
   updateScoreRecovery.capture(Array.from(recordsByKey.values()), Date.now() + 5 * 60 * 1000);
   scheduleUpdateScoreRecoveryExpiry();
+  shutdownScoreRecoveryCaptured = true;
 }
 
 function finishUpdateHandoff(token, outcome) {
+  if (cleanupStarted) return;
+  cleanupStarted = true;
+  try {
+    captureUpdateScores();
+  } catch (error) {
+    util.error("[UPDATE-HANDOFF] Could not persist score recovery: " + error.message);
+  }
+  stopServerLoops();
+  if (arenaCloseCompletionTimer !== null) {
+    clearTimeout(arenaCloseCompletionTimer);
+    arenaCloseCompletionTimer = null;
+  }
+  room.closed = true;
+  c.extinction = true;
+  c.DEADLY_BORDERS = true;
   if (updateHandoffPollTimer !== null) {
     clearInterval(updateHandoffPollTimer);
     updateHandoffPollTimer = null;
@@ -27818,7 +27889,7 @@ function finishUpdateHandoff(token, outcome) {
     updateHandoffTimeoutTimer = null;
   }
   if (outcome === "ready") {
-    util.log("[UPDATE-HANDOFF] Replacement server is listening; closing the old instance.");
+    util.log("[UPDATE-HANDOFF] Arena closure completed in the old instance; disconnecting its clients.");
   } else if (outcome === "error") {
     util.error("[UPDATE-HANDOFF] A fatal error occurred while waiting for the replacement; releasing the old instance.");
   } else {
@@ -27833,20 +27904,48 @@ function finishUpdateHandoff(token, outcome) {
   setTimeout(() => process.exit(outcome === "error" ? 1 : 0), 2200);
 }
 
-function beginUpdateHandoff() {
-  if (cleanupStarted || updateHandoffActive) return false;
-  cleanupStarted = true;
-  updateHandoffActive = true;
-  stopServerLoops();
-  room.closed = true;
-  c.extinction = true;
-  c.DEADLY_BORDERS = true;
-
+function startUpdateArenaClosure(token) {
+  if (!updateHandoffActive || activeUpdateHandoffToken !== token || updateHandoffReady || cleanupStarted) return;
+  updateHandoffReady = true;
+  if (updateHandoffTimeoutTimer !== null) {
+    clearTimeout(updateHandoffTimeoutTimer);
+    updateHandoffTimeoutTimer = null;
+  }
+  util.log("[UPDATE-HANDOFF] Replacement is ready; beginning the old instance's arena-closing sequence.");
   try {
     captureUpdateScores();
   } catch (error) {
-    util.error("[UPDATE-HANDOFF] Could not persist score recovery: " + error.message);
+    util.error("[UPDATE-HANDOFF] Could not persist readiness score recovery: " + error.message);
   }
+  c.extinction = true;
+  c.DEADLY_BORDERS = true;
+  if (arenaCloseApocalypsesSpawned) {
+    if (c.playerCount < 1) {
+      finishUpdateHandoff(token, "ready");
+    } else if (arenaCloseCompletionTimer === null) {
+      // If the ordinary arena-close timer elapsed while the replacement was
+      // still starting, restart the remaining disconnect window from readiness.
+      arenaCloseCompletionTimer = setTimeout(() => {
+        arenaCloseCompletionTimer = null;
+        util.log("ARENA CLOSED!");
+        cleanup("signal");
+      }, 30000);
+    }
+  } else if (room.closed || updateHandoffDeferredApocalypseSpawn) {
+    updateHandoffDeferredApocalypseSpawn = false;
+    spawnLivingApocalypsesAndFinishArena();
+  } else {
+    closeArena();
+  }
+}
+
+function beginUpdateHandoff() {
+  if (cleanupStarted || updateHandoffActive) return false;
+  // Keep the old simulation alive while the replacement starts. The actual
+  // arena-closing sequence (including Living Apocalypses) begins only after
+  // the replacement reports that it is listening.
+  updateHandoffActive = true;
+  updateHandoffReady = false;
 
   const token = crypto.randomBytes(16).toString("hex");
   activeUpdateHandoffToken = token;
@@ -27863,7 +27962,7 @@ function beginUpdateHandoff() {
   } catch (error) {
     util.error("[UPDATE-HANDOFF] Could not create handoff marker: " + error.message);
     updateHandoffActive = false;
-    cleanupStarted = false;
+    updateHandoffReady = false;
     cleanup("error");
     return false;
   }
@@ -27885,7 +27984,7 @@ function beginUpdateHandoff() {
   updateHandoffPollTimer = setInterval(() => {
     const state = readHandoffState();
     if (state && state.token === token && state.state === "ready" && state.newPid && state.newPid !== process.pid) {
-      finishUpdateHandoff(token, "ready");
+      startUpdateArenaClosure(token);
     }
   }, 200);
   updateHandoffTimeoutTimer = setTimeout(() => finishUpdateHandoff(token, "timeout"), timeoutMs);
@@ -27894,8 +27993,30 @@ function beginUpdateHandoff() {
 
 function cleanup(reason = "signal") {
   if (cleanupStarted) return;
+  if (updateHandoffActive && activeUpdateHandoffToken) {
+    if (reason === "error") {
+      finishUpdateHandoff(activeUpdateHandoffToken, "error");
+      return;
+    }
+    if (!updateHandoffReady) {
+      util.log("[UPDATE-HANDOFF] Deferring old-instance shutdown until the replacement is ready.");
+      return;
+    }
+    finishUpdateHandoff(activeUpdateHandoffToken, "ready");
+    return;
+  }
   cleanupStarted = true;
   util.log("Shutting down server gracefully (" + reason + ").");
+
+  // Preserve score recovery after an unexpected fatal error, but never on an
+  // ordinary empty-server, signal, or other intentional shutdown.
+  if (reason === "error") {
+    try {
+      captureUpdateScores();
+    } catch (error) {
+      util.error("[SHUTDOWN] Could not persist score recovery after the error: " + error.message);
+    }
+  }
 
   stopServerLoops();
   const message = reason === "empty"
