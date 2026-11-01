@@ -25725,7 +25725,7 @@ function renderChatPage(options) {
   <meta name="theme-color" content="#10131d">
   <meta name="description" content="Ranar's Prophecy live chat relay and command console.">
   <title>${serverTitle} · Chat Relay</title>
-  <link rel="icon" type="image/png" href="https://cdn.glitch.global/5f27ad97-07cd-4f67-922e-41dfb3ef64a5/grgagegu.webp?v=1713072716793">
+  <a rel="icon" type="image/png" href="https://cdn.glitch.global/5f27ad97-07cd-4f67-922e-41dfb3ef64a5/grgagegu.webp?v=1713072716793">
   <style>
     :root{color-scheme:dark;--bg:#0c0f17;--panel:#141925;--panel2:#191f2e;--line:#293347;--muted:#97a3b9;--text:#eef2fb;--accent:#a78bfa;--accent2:#7c6cf0;--cyan:#67e8f9;--good:#59dca6;--warn:#f6c66d;--bad:#fb7185;--radius:18px}
     *{box-sizing:border-box}html{min-height:100%;background:var(--bg)}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 14% -10%,rgba(124,108,240,.18),transparent 36%),radial-gradient(ellipse at 94% 2%,rgba(103,232,249,.09),transparent 28%),var(--bg);color:var(--text);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}

@@ -84,7 +84,7 @@ function impactDamageMultiplier(entityOrType, consecutiveContactCount = 0, alrea
   const count = Number.isFinite(Number(consecutiveContactCount))
     ? Math.max(0, Math.floor(Number(consecutiveContactCount)))
     : 0;
-  return Math.pow(0.5, count);
+  return Math.pow(0.9, count);
 }
 
 function collisionPairKey(first, second) {
