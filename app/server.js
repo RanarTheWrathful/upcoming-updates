@@ -14,7 +14,8 @@ const { cleanText } = require("./filter");
 const util = require("./lib/util");
 const ran = require("./lib/random");
 const fs = require("fs");
-const path = require("path"); // Example of using serverStateManager module
+const path = require("path");
+const crypto = require("crypto"); // Example of using serverStateManager module
 const serverState = require("./serverStateManager");
 const createLoadProtection = require("./lib/loadProtection/loadProtection");
 const createOffscreenTransientCleanup = require("./lib/offscreenTransientCleanup/offscreenTransientCleanup");
@@ -31,7 +32,7 @@ const supportEffects = require("./lib/supportEffects/supportEffects");
 const foodSpawnSafety = require("./lib/foodSpawnSafety/foodSpawnSafety");
 const modeBranches = require("./lib/modeBranches/modeBranches");
 const entityBranches = require("./lib/entityBranches/entityBranches");
-const { normalizeSpecialEffects, hasSpecialEffect } = require("./lib/specialEffects/specialEffects");
+const { normalizeSpecialEffects, hasSpecialEffect, hasAnySpecialEffect } = require("./lib/specialEffects/specialEffects");
 const mazeGenerator = require("./lib/mazeGenerator/mazeGenerator");
 const modeVoting = require("./lib/modeVoting/modeVoting");
 const siegeNeutralZonePenalty = require("./lib/siegeNeutralZonePenalty/siegeNeutralZonePenalty");
@@ -43,6 +44,7 @@ const gunCalculator = require("./lib/gunCalculator/gunCalculator");
 const projectileTransformation = require("./lib/projectileTransformation/projectileTransformation");
 const damageType = require("./lib/damageType/damageType");
 const { performance } = require("perf_hooks");
+const { createUpdateScoreRecovery } = require("./lib/serverLifecycle/updateScoreRecovery");
 
 function applyFoodInfectionEffects(food, infector) {
   food.layer = infector.layer;
@@ -76,8 +78,66 @@ function awardSupportScore(source, target, decision) {
 let currentState = serverState.getServerState();
 
 const lockFilePath = path.join(__dirname, "serv.lock");
-// Create lock file
-fs.writeFileSync(lockFilePath, process.pid.toString());
+const handoffFilePath = path.join(__dirname, "serverHandoff.json");
+const updateScoreRecoveryFilePath = path.join(__dirname, "updateScoreRecovery.json");
+
+function writeServerLock() {
+  fs.writeFileSync(lockFilePath, String(process.pid));
+}
+
+function removeServerLockIfOwned() {
+  try {
+    if (fs.existsSync(lockFilePath) && fs.readFileSync(lockFilePath, "utf8").trim() === String(process.pid)) {
+      fs.unlinkSync(lockFilePath);
+    }
+  } catch (error) {
+    util.warn("[SHUTDOWN] Could not remove this process's lock file: " + error.message);
+  }
+}
+
+// Hash executable source files once at startup and again only when a process
+// receives a termination signal. A changed fingerprint distinguishes a code
+// deployment from an ordinary stop when the host does not provide a reason.
+function getCodeFingerprint(rootDirectory) {
+  const hash = crypto.createHash("sha256");
+  const ignoredFiles = new Set([
+    "serverState.json",
+    "serv.lock",
+    "serverHandoff.json",
+    "updateScoreRecovery.json",
+  ]);
+  function visit(directory) {
+    let names;
+    try { names = fs.readdirSync(directory).sort(); } catch (_) { return; }
+    for (const name of names) {
+      if (name === "node_modules" || name === ".git") continue;
+      const filename = path.join(directory, name);
+      let stat;
+      try { stat = fs.statSync(filename); } catch (_) { continue; }
+      if (stat.isDirectory()) {
+        visit(filename);
+      } else if (!ignoredFiles.has(name) && (/\.js$/i.test(name) || name === "package.json" || name === "package-lock.json")) {
+        hash.update(path.relative(rootDirectory, filename));
+        hash.update(fs.readFileSync(filename));
+      }
+    }
+  }
+  visit(rootDirectory);
+  return hash.digest("hex");
+}
+
+function readExistingServerPid() {
+  try {
+    const pid = Number(fs.readFileSync(lockFilePath, "utf8").trim());
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+const previousServerPid = readExistingServerPid();
+const startupCodeFingerprint = getCodeFingerprint(__dirname);
+writeServerLock();
 
 let chosenMode;
 let modeList = ["Unknown"];
@@ -215,6 +275,27 @@ function reconnectBodyKey(socket, name) {
   if (!socket || !socket.ip || typeof name !== "string" || !name.trim()) return null;
   return String(socket.ip) + "\\u0000" + name.trim().toLowerCase();
 }
+
+const updateScoreRecovery = createUpdateScoreRecovery(updateScoreRecoveryFilePath);
+updateScoreRecovery.load();
+let updateScoreRecoveryExpiryTimer = null;
+function scheduleUpdateScoreRecoveryExpiry() {
+  if (updateScoreRecoveryExpiryTimer !== null) {
+    clearTimeout(updateScoreRecoveryExpiryTimer);
+    updateScoreRecoveryExpiryTimer = null;
+  }
+  const nextExpiry = updateScoreRecovery.nextExpiry();
+  if (nextExpiry === null) return;
+  updateScoreRecoveryExpiryTimer = setTimeout(() => {
+    updateScoreRecoveryExpiryTimer = null;
+    updateScoreRecovery.prune();
+    scheduleUpdateScoreRecoveryExpiry();
+  }, Math.max(1, nextExpiry - Date.now()));
+  if (updateScoreRecoveryExpiryTimer && typeof updateScoreRecoveryExpiryTimer.unref === "function") {
+    updateScoreRecoveryExpiryTimer.unref();
+  }
+}
+scheduleUpdateScoreRecoveryExpiry();
 
 
 // Built after Class is loaded so each Siege candidate is priced by the score
@@ -2996,13 +3077,6 @@ function makeMazeWalls() {
     if (c.MAZE_WALL_COLOR !== undefined) o.color = c.MAZE_WALL_COLOR;
     o.alwaysExists = true;
     o.isMazeWall = true;
-    // Only bypass per-tick simulation for genuinely static square walls.
-    // A custom MAZE_WALL_ENTITY with guns, turrets, or controllers keeps its
-    // normal lifecycle even though it is also used as generated maze geometry.
-    o.isStaticMazeWall = o.type === "squareWall" &&
-      !(o.guns && o.guns.length) &&
-      !(o.turrets && o.turrets.length) &&
-      !(o.controllers && o.controllers.length);
     o.refreshBodyAttributes();
     o.grid = { x: gridX, y: gridY };
     o.VELOCITY.x = 0;
@@ -3429,14 +3503,12 @@ function closeArena() {
         c.MODE = "none";
         if (c.playerCount < 1) {
           util.log("ARENA CLOSED!");
-          sockets.broadcast("Closing!");
-          process.exit();
+          cleanup("empty");
         }
 
         setTimeout(() => {
           util.log("ARENA CLOSED!");
-          sockets.broadcast("Closing!");
-          process.exit();
+          cleanup("signal");
         }, 30000);
       }, 10000);
     }, 2500);
@@ -17030,7 +17102,12 @@ let gameLoopScheduler = null;
 let maintainLoopTimer = null;
 let speedcheckLoopTimer = null;
 let shutdownExitTimer = null;
+let updateHandoffPollTimer = null;
+let updateHandoffTimeoutTimer = null;
+let activeUpdateHandoffToken = null;
 let cleanupStarted = false;
+let updateHandoffActive = false;
+let hasEverHadHumanPlayer = false;
 
 const offscreenTransientCleanup = createOffscreenTransientCleanup({
   delayMs: Number(process.env.RANAR_OFFSCREEN_TRANSIENT_TTL_MS) > 0
@@ -17056,7 +17133,7 @@ function beginEmergencyServerShutdown(details = {}) {
     Math.round(Number(details.observedLagMs) || 0) + "ms raw lag at " +
     Math.round(Number(details.runSpeedPercent) || 0) + "% run speed. Closing server."
   );
-  cleanup();
+  cleanup("emergency");
   return true;
 }
 
@@ -17955,12 +18032,9 @@ const sockets = (() => {
           util.log("[INFO] A player disconnected before entering the game.");
         }
         //sockets.changeroom();
-        if (room.closed === true) {
-          if (players.length < 1) {
-            util.log("ARENA CLOSED!");
-            sockets.broadcast("Closing!");
-            process.exit();
-          }
+        if (room.closed === true && players.length < 1 && !updateHandoffActive && !cleanupStarted) {
+          util.log("ARENA CLOSED!");
+          cleanup("empty");
         }
         // Free the view
         util.remove(views, views.indexOf(socket.view));
@@ -19491,6 +19565,19 @@ const sockets = (() => {
             }
             player.body.ip = socket.ip;
 
+            const updateRecoveryKey = reconnectBodyKey(socket, name);
+            const recoveredUpdateScore = updateRecoveryKey
+              ? updateScoreRecovery.consume(updateRecoveryKey)
+              : null;
+            if (recoveredUpdateScore) {
+              player.body.skill.score = Math.max(
+                Number(player.body.skill.score) || 0,
+                Number(recoveredUpdateScore.score) || 0
+              );
+              player.body.sendMessage("Your score has been restored after the server update.");
+              scheduleUpdateScoreRecoveryExpiry();
+            }
+
             // Decide how to color and team the body
 
             /*/
@@ -19645,6 +19732,7 @@ player.color = easy;
             // Save the the player
             player.socket = socket;
             players.push(player);
+            hasEverHadHumanPlayer = true;
             // Focus on the new player
             socket.view.x = body.x;
             socket.view.y = body.y;
@@ -20738,9 +20826,9 @@ player.color = easy;
 // Define how the game lives
 // The most important loop. Fast looping.
 var gameloop = (() => {
-  // Speed-independent damage is applied at most once per entity pair per
-  // physics collision pass. Impact pairs also track consecutive contact passes
-  // so their damage halves on each pass and resets after a missing pass.
+  // Impact pairs retain consecutive contact history. Other speed-independent
+  // pairs are guarded only when a resolver branch can process them more than
+  // once; ordinary broad-phase trap contacts do not need per-pair tracker state.
   const contactDamageTracker = new damageType.ContactDamageTracker();
 
   // Collision stuff
@@ -20773,6 +20861,63 @@ var gameloop = (() => {
         n.accel.y -= (b / (a + f)) * d;
       }
     }
+    function hasUnsafeTrapCollisionState(entity, master) {
+      return (
+        hasAnySpecialEffect(entity) ||
+        hasAnySpecialEffect(master) ||
+        entity.repairEffect || entity.healEffect ||
+        master.eggreconstruction || master.defy || master.myShip ||
+        master.label === "Player Spawn Settings" ||
+        master.label === "Heal Settings" ||
+        master.label === "Color Change Settings" ||
+        entity.label === "void seeker" || entity.label === "Health Orb" ||
+        entity.label === "Golden Egg" || entity.scoreSave > 0 ||
+        entity.isSoccerBall || entity.isPlayer || entity.isEnemy || entity.isBot ||
+        entity.isBoss || entity.isDominator || entity.isRanar || entity.isRacer ||
+        entity.isGate || entity.isWall
+      );
+    }
+
+    function canFastPathFriendlyTrapPair(my, n) {
+      if (my.type !== "trap" || n.type !== "trap" || my.team !== n.team) return false;
+      const myMaster = my.master || my;
+      const nMaster = n.master || n;
+      return !hasUnsafeTrapCollisionState(my, myMaster) &&
+        !hasUnsafeTrapCollisionState(n, nMaster);
+    }
+
+    function resolveFriendlyTrapPair(my, n) {
+      // Preserve the exact HITS_OWN_TYPE response for same-owner traps, but
+      // avoid the unrelated special-effect/team/structure checks in collide().
+      if (my.master !== n.master || my.settings.hitsOwnType !== n.settings.hitsOwnType) return;
+      switch (my.settings.hitsOwnType) {
+        case "push":
+          advancedcollide(my, n, false, false);
+          break;
+        case "hard":
+          firmcollide(my, n);
+          break;
+        case "tankcollide":
+          reflectcollide(my, n);
+          break;
+        case "collision":
+          reflectcollide(my, n, 30);
+          break;
+        case "hardWithBuffer":
+          firmcollide(my, n, 30);
+          break;
+        case "repel":
+          simplecollide(my, n);
+          break;
+        case "polyrepel":
+          polycollide(my, n);
+          break;
+        case "merge":
+          advancedcollide(my, n, true, true);
+          break;
+      }
+    }
+
     function polycollide(my, n) {
       const dx = my.x - n.x;
       const dy = my.y - n.y;
@@ -20952,11 +21097,23 @@ var gameloop = (() => {
 
           my.collisionArray.push(n);
           n.collisionArray.push(my);
+          const isTrapPair = my.type === "trap" || n.type === "trap";
+          const trapPairHasDuplicateDamagePath = isTrapPair && (
+            my.ignoreCollision || n.ignoreCollision ||
+            my.repairEffect || my.healEffect || n.repairEffect || n.healEffect ||
+            my.settings.hitsOwnType === "merge" || n.settings.hitsOwnType === "merge"
+          );
+          const hasImpactDamage = damageType.isImpactDamage(my) || damageType.isImpactDamage(n);
+          // The broad phase emits each ordinary pair once. Ordinary collision-mode
+          // traps therefore do not need a per-frame Map/Set entry; retain the guard
+          // for impact falloff and trap cases that can enter duplicate resolver paths.
           const needsContactDamageGuard = doDamage && !my.invuln && !n.invuln &&
-            (damageType.isSpeedIndependentDamage(my) ||
-              damageType.isSpeedIndependentDamage(n));
+            (hasImpactDamage ||
+              (!isTrapPair && (damageType.isSpeedIndependentDamage(my) ||
+                damageType.isSpeedIndependentDamage(n))) ||
+              trapPairHasDuplicateDamagePath);
           const damagePairKey = needsContactDamageGuard
-            ? damageType.collisionPairKey(my, n)
+            ? contactDamageTracker.getPairKey(my, n)
             : null;
           const damagePairAlreadyProcessed = contactDamageTracker.hasProcessed(damagePairKey);
           const impactPair = damagePairKey != null &&
@@ -21764,9 +21921,7 @@ var gameloop = (() => {
           }
       }
     }
-    // The actual collision resolution function. Receive the entities directly
-    // so the broad phase does not allocate a temporary [entityA, entityB] array
-    // for every overlapping AABB pair on every simulation cycle.
+    // The actual collision resolution function
     return (instance, other) => {
 
       // Check for ghosts...
@@ -21792,6 +21947,10 @@ var gameloop = (() => {
       if (!instance.activation.check() && !other.activation.check()) {
         util.warn("Tried to collide with an inactive instance.");
         return 0;
+      }
+      if (canFastPathFriendlyTrapPair(instance, other)) {
+        resolveFriendlyTrapPair(instance, other);
+        return;
       }
       if (instance.isSoccerBall && other.team !== -101) {
         instance.lastCollide = other;
@@ -22683,10 +22842,6 @@ var gameloop = (() => {
     boxIntersect(activeAabb, (i, j) => {
       e1 = activeEntities[i];
       e2 = activeEntities[j];
-      // Maze walls are fixed map geometry. They must collide with gameplay
-      // entities, but never need to resolve collisions against one another.
-      // Skip these pairs before activation checks and collision dispatch.
-      if (e1.isMazeWall && e2.isMazeWall) return;
       if (
         e1.valid() &&
         e1.bond == null &&
@@ -22718,19 +22873,7 @@ var gameloop = (() => {
     let check = soaEntity.activationCheck;
 
     for (let i = 0; i < entities.length; i++) {
-      const entity = entities[i];
-      if (!entity) continue;
-      if (entity.isStaticMazeWall) {
-        // Static walls still participate in swept collision calculations.
-        // Reset their per-step state, but never integrate movement or retain
-        // acceleration imparted by a collision response.
-        velocityX[i] = 0;
-        velocityY[i] = 0;
-        accelX[i] = 0;
-        accelY[i] = 0;
-        stepRemaining[i] = 1;
-        continue;
-      }
+      if (!entities[i]) continue;
       if (c.ACTIVATION_MODE === "distance" && !check[i]) continue;
       velocityX[i] += accelX[i];
       velocityY[i] += accelY[i];
@@ -22748,16 +22891,9 @@ var gameloop = (() => {
         // Consider death.
         if (e.contemplationOfMortality()) {
           e.destroy();
-        } else if (!e.isStaticMazeWall) {
-          // Generated maze blocks are immutable map geometry: they have no
-          // AI, guns, turrets, upgrades, or movement to process each tick.
-          // Other isMazeWall entities (such as turret workbenches) are not
-          // included in this optimization and retain their normal lifecycle.
-          // They remain in the collision broad phase, so gameplay entities
-          // still collide with them normally.
-          // This is deliberately outside activation.check(): ordinary
-          // entities beyond the active simulation radius still need their
-          // Siege zone timer.
+        } else {
+          // This is deliberately outside activation.check(): entities beyond
+          // the active simulation radius still need their Siege zone timer.
           siegeNeutralZonePenalty.update(e, { mode: c.MODE, room, now: Date.now() });
           autoUpgradeRules.update(e, Class, { mode: c.MODE, broadcastMessage: (text) => sockets.broadcast(text) });
           if (e.activation.check()) {
@@ -25294,6 +25430,22 @@ var maintainloop = (() => {
 
   return () => {
     logs.maintainloop.set();
+    if (hasEverHadHumanPlayer && !updateHandoffActive && !cleanupStarted) {
+      const hasLivingPlayer = sockets.players.some((player) => {
+        const body = player && player.body;
+        return !!(
+          body &&
+          body.isPlayer &&
+          body.label !== "Spectator" &&
+          typeof body.isDead === "function" &&
+          !body.isDead()
+        );
+      });
+      if (!hasLivingPlayer) {
+        cleanup("empty");
+        return;
+      }
+    }
     // Do stuff
     makenpcs();
     // Siege's budget is global mode state. Spawn at most one budgeted unit or
@@ -27574,13 +27726,251 @@ You must have the chat site and the game site open at the same time for your cha
       res.end();
   }
 });
-process.on("SIGINT", () => {
-  cleanup();
-});
+function stopServerLoops() {
+  if (gameLoopScheduler !== null) { gameLoopScheduler.stop(); gameLoopScheduler = null; }
+  if (maintainLoopTimer !== null) { clearInterval(maintainLoopTimer); maintainLoopTimer = null; }
+  if (speedcheckLoopTimer !== null) { clearInterval(speedcheckLoopTimer); speedcheckLoopTimer = null; }
+  if (updateScoreRecoveryExpiryTimer !== null) {
+    clearTimeout(updateScoreRecoveryExpiryTimer);
+    updateScoreRecoveryExpiryTimer = null;
+  }
+  sockets.stop();
+  loadProtection.stop();
+}
 
-process.on("SIGTERM", () => {
-  cleanup();
-});
+function closeOldWebSocketClients(reason) {
+  try {
+    if (websockets && websockets.clients) {
+      for (const client of Array.from(websockets.clients)) {
+        try { client.close(1012, reason); } catch (_) {}
+        const forceClientClose = setTimeout(() => {
+          try { client.terminate(); } catch (_) {}
+        }, 2000);
+        if (forceClientClose && typeof forceClientClose.unref === "function") forceClientClose.unref();
+      }
+      try { websockets.close(); } catch (_) {}
+    }
+  } catch (error) {
+    util.warn("[SHUTDOWN] WebSocket close warning: " + error.message);
+  }
+}
+
+function writeHandoffState(state) {
+  const temporaryPath = handoffFilePath + ".tmp";
+  fs.writeFileSync(temporaryPath, JSON.stringify(state, null, 2));
+  fs.renameSync(temporaryPath, handoffFilePath);
+}
+
+function readHandoffState() {
+  try { return JSON.parse(fs.readFileSync(handoffFilePath, "utf8")); } catch (_) { return null; }
+}
+
+function removeHandoffStateIfOwned(token) {
+  const state = readHandoffState();
+  if (state && state.token === token) {
+    try { fs.unlinkSync(handoffFilePath); } catch (_) {}
+  }
+}
+
+function captureUpdateScores() {
+  const recordsByKey = new Map();
+  for (const player of sockets.players) {
+    const body = player && player.body;
+    const socket = player && player.socket;
+    if (!body || !socket || !socket.ip || !body.skill) continue;
+    const name = socket.name || body.name || player.name || "";
+    const key = reconnectBodyKey(socket, name);
+    const score = Number(body.skill.score);
+    if (!key || !Number.isFinite(score) || score < 0) continue;
+    const previous = recordsByKey.get(key);
+    recordsByKey.set(key, {
+      key,
+      ip: String(socket.ip),
+      name: String(name),
+      score: Math.max(score, previous ? previous.score : 0),
+    });
+  }
+  // Include players who disconnected shortly before the update and still have
+  // a reclaimable body in the existing reconnect cache.
+  for (const [key, reconnectEntry] of disconnectedPlayerBodies) {
+    const body = reconnectEntry && reconnectEntry.body;
+    const score = Number(body && body.skill && body.skill.score);
+    if (!body || !Number.isFinite(score) || score < 0) continue;
+    const previous = recordsByKey.get(key);
+    recordsByKey.set(key, {
+      key,
+      ip: String(body.ip || (previous && previous.ip) || ""),
+      name: String(body.name || (previous && previous.name) || ""),
+      score: Math.max(score, previous ? previous.score : 0),
+    });
+  }
+  updateScoreRecovery.capture(Array.from(recordsByKey.values()), Date.now() + 5 * 60 * 1000);
+  scheduleUpdateScoreRecoveryExpiry();
+}
+
+function finishUpdateHandoff(token, outcome) {
+  if (updateHandoffPollTimer !== null) {
+    clearInterval(updateHandoffPollTimer);
+    updateHandoffPollTimer = null;
+  }
+  if (updateHandoffTimeoutTimer !== null) {
+    clearTimeout(updateHandoffTimeoutTimer);
+    updateHandoffTimeoutTimer = null;
+  }
+  if (outcome === "ready") {
+    util.log("[UPDATE-HANDOFF] Replacement server is listening; closing the old instance.");
+  } else if (outcome === "error") {
+    util.error("[UPDATE-HANDOFF] A fatal error occurred while waiting for the replacement; releasing the old instance.");
+  } else {
+    util.warn("[UPDATE-HANDOFF] No replacement became ready before the handoff timeout; closing the old instance to avoid a permanent lockout.");
+  }
+  activeUpdateHandoffToken = null;
+  closeOldWebSocketClients("Server update");
+  removeHandoffStateIfOwned(token);
+  removeServerLockIfOwned();
+  // Keep this timer referenced: upgraded WebSocket sockets can otherwise keep
+  // the old process alive if a client ignores the close frame.
+  setTimeout(() => process.exit(outcome === "error" ? 1 : 0), 2200);
+}
+
+function beginUpdateHandoff() {
+  if (cleanupStarted || updateHandoffActive) return false;
+  cleanupStarted = true;
+  updateHandoffActive = true;
+  stopServerLoops();
+  room.closed = true;
+  c.extinction = true;
+  c.DEADLY_BORDERS = true;
+
+  try {
+    captureUpdateScores();
+  } catch (error) {
+    util.error("[UPDATE-HANDOFF] Could not persist score recovery: " + error.message);
+  }
+
+  const token = crypto.randomBytes(16).toString("hex");
+  activeUpdateHandoffToken = token;
+  const handoffState = {
+    version: 1,
+    state: "waiting",
+    token,
+    oldPid: process.pid,
+    startedAt: Date.now(),
+    port: getListenPort(),
+  };
+  try {
+    writeHandoffState(handoffState);
+  } catch (error) {
+    util.error("[UPDATE-HANDOFF] Could not create handoff marker: " + error.message);
+    updateHandoffActive = false;
+    cleanupStarted = false;
+    cleanup("error");
+    return false;
+  }
+
+  sockets.broadcast("Closing the server for updates. Please reconnect shortly.");
+  util.log("[UPDATE-HANDOFF] Waiting for the replacement instance to become ready.");
+
+  // Release only the listening socket. Existing upgraded WebSocket connections
+  // remain attached to this process until the replacement confirms readiness.
+  try {
+    server.close(() => {
+      util.log("[UPDATE-HANDOFF] Old HTTP listener released.");
+    });
+  } catch (error) {
+    util.warn("[UPDATE-HANDOFF] Listener close warning: " + error.message);
+  }
+
+  const timeoutMs = Math.max(5000, Number(process.env.RANAR_UPDATE_HANDOFF_TIMEOUT_MS) || 30000);
+  updateHandoffPollTimer = setInterval(() => {
+    const state = readHandoffState();
+    if (state && state.token === token && state.state === "ready" && state.newPid && state.newPid !== process.pid) {
+      finishUpdateHandoff(token, "ready");
+    }
+  }, 200);
+  updateHandoffTimeoutTimer = setTimeout(() => finishUpdateHandoff(token, "timeout"), timeoutMs);
+  return true;
+}
+
+function cleanup(reason = "signal") {
+  if (cleanupStarted) return;
+  cleanupStarted = true;
+  util.log("Shutting down server gracefully (" + reason + ").");
+
+  stopServerLoops();
+  const message = reason === "empty"
+    ? "No living players remain. The server is closing."
+    : reason === "error"
+      ? "The server is shutting down because of an unexpected error."
+      : reason === "emergency"
+        ? "Server shutting down due to sustained extreme lag. Please rejoin shortly."
+        : "Server shutting down. Please reconnect shortly.";
+  sockets.broadcast(message);
+  room.closed = true;
+  c.extinction = true;
+  c.DEADLY_BORDERS = true;
+
+  closeOldWebSocketClients("Server shutting down");
+
+  shutdownExitTimer = setTimeout(() => {
+    shutdownExitTimer = null;
+    try {
+      if (typeof server.closeAllConnections === "function") server.closeAllConnections();
+    } catch (_) {}
+    removeServerLockIfOwned();
+    process.exit(reason === "error" ? 1 : 0);
+  }, 12000);
+
+  try {
+    server.close(() => {
+      console.log("Server closed.");
+      removeServerLockIfOwned();
+      if (shutdownExitTimer !== null) {
+        clearTimeout(shutdownExitTimer);
+        shutdownExitTimer = null;
+      }
+      process.exit(reason === "error" ? 1 : 0);
+    });
+  } catch (error) {
+    util.warn("[SHUTDOWN] HTTP listener close warning: " + error.message);
+    removeServerLockIfOwned();
+    process.exit(reason === "error" ? 1 : 0);
+  }
+}
+
+function isCodeUpdateShutdown() {
+  if (process.env.RANAR_SHUTDOWN_REASON === "update" || process.env.RANAR_UPDATE_SHUTDOWN === "1") return true;
+  // A replacement process may have started before the old process receives
+  // SIGTERM. Its PID-safe lock write is another reliable handoff signal.
+  try {
+    if (fs.existsSync(lockFilePath) && fs.readFileSync(lockFilePath, "utf8").trim() !== String(process.pid)) return true;
+  } catch (_) {}
+  try { return getCodeFingerprint(__dirname) !== startupCodeFingerprint; } catch (_) { return false; }
+}
+
+function handleTerminationSignal(signal) {
+  if (cleanupStarted) return;
+  util.log("Received " + signal + ".");
+  if (isCodeUpdateShutdown()) {
+    beginUpdateHandoff();
+  } else {
+    cleanup("signal");
+  }
+}
+
+process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
+process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
+function handleFatalProcessError(kind, error) {
+  util.error("[FATAL] " + kind + ": " + (error && error.stack ? error.stack : error));
+  if (updateHandoffActive && activeUpdateHandoffToken) {
+    finishUpdateHandoff(activeUpdateHandoffToken, "error");
+  } else {
+    cleanup("error");
+  }
+}
+
+process.on("uncaughtException", (error) => handleFatalProcessError("Uncaught exception", error));
+process.on("unhandledRejection", (reason) => handleFatalProcessError("Unhandled rejection", reason));
 
 function getListenPort() {
   const envPort = Number(process.env.PORT);
@@ -27598,90 +27988,127 @@ function getListenPort() {
   return 8080;
 }
 
-function cleanup() {
-  if (cleanupStarted) return;
-  cleanupStarted = true;
-  console.log("Shutting down server gracefully.");
-
-  if (gameLoopScheduler !== null) { gameLoopScheduler.stop(); gameLoopScheduler = null; }
-  if (maintainLoopTimer !== null) { clearInterval(maintainLoopTimer); maintainLoopTimer = null; }
-  if (speedcheckLoopTimer !== null) { clearInterval(speedcheckLoopTimer); speedcheckLoopTimer = null; }
-
-  sockets.broadcast(
-    c.ANTILAG_SOFT_RESET_ACTIVE === true
-      ? "Server shutting down due to sustained extreme lag. Please rejoin in 30 seconds."
-      : "Server Shutting Down! Possible Error may have occurred; please rejoin in 30 seconds."
-  );
-  sockets.stop();
-  loadProtection.stop();
-  room.closed = true;
-  c.extinction = true;
-  c.DEADLY_BORDERS = true;
-
-  // Close upgraded WebSocket connections too; closing only the HTTP listener
-  // can otherwise hang while existing clients remain connected.
-  try {
-    if (websockets && websockets.clients) {
-      for (const client of Array.from(websockets.clients)) {
-        try { client.close(1012, "Server shutting down"); } catch (_) {}
-        const forceClientClose = setTimeout(() => {
-          try { client.terminate(); } catch (_) {}
-        }, 2500);
-        if (forceClientClose && typeof forceClientClose.unref === "function") {
-          forceClientClose.unref();
-        }
-      }
-      try { websockets.close(); } catch (_) {}
+function loadPendingHandoff() {
+  const state = readHandoffState();
+  if (!state) return null;
+  if (state.state === "ready") {
+    // A prior old process may have exited between readiness notification and
+    // its marker cleanup. A later process must not inherit that completed handoff.
+    if (Number(state.newPid) !== process.pid) {
+      try { fs.unlinkSync(handoffFilePath); } catch (_) {}
     }
-  } catch (error) {
-    util.warn("[SHUTDOWN] WebSocket close warning: " + error.message);
+    return null;
   }
-
-  // Never leave a broken process running indefinitely if a connection refuses
-  // to close. The normal path exits as soon as the HTTP server has closed.
-  shutdownExitTimer = setTimeout(() => {
-    shutdownExitTimer = null;
-    try {
-      if (websockets && websockets.clients) {
-        for (const client of Array.from(websockets.clients)) {
-          try { client.terminate(); } catch (_) {}
-        }
-      }
-      if (typeof server.closeAllConnections === "function") server.closeAllConnections();
-    } catch (_) {}
-    process.exit(0);
-  }, 15000);
-
-  server.close(() => {
-    console.log("Server closed.");
-    try {
-      if (fs.existsSync(lockFilePath)) fs.unlinkSync(lockFilePath);
-    } catch (error) {
-      util.warn("[SHUTDOWN] Could not remove server lock file: " + error.message);
+  if (state.state !== "waiting" || !state.token || !state.oldPid) return null;
+  if (Date.now() - Number(state.startedAt || 0) > 2 * 60 * 1000) {
+    try { fs.unlinkSync(handoffFilePath); } catch (_) {}
+    return null;
+  }
+  try {
+    process.kill(Number(state.oldPid), 0);
+  } catch (error) {
+    if (error.code === "ESRCH") {
+      try { fs.unlinkSync(handoffFilePath); } catch (_) {}
+      return null;
     }
-    if (shutdownExitTimer !== null) {
-      clearTimeout(shutdownExitTimer);
-      shutdownExitTimer = null;
-    }
-    process.exit(0);
-  });
+  }
+  return state;
 }
-let websockets = (() => {
-  // Configure the websocketserver
-  let config = { server: server };
-  server.listen(getListenPort(), function httpListening() {
-    util.log(
-      new Date() +
-        ". Joint HTTP+Websocket server turned on, listening on port " +
-        server.address().port +
-        "."
-    );
-  });
 
-  // Build it
-  return new WebSocket.Server(config);
-})().on("connection", sockets.connect);
+let pendingHandoff = loadPendingHandoff();
+let listenRetryTimer = null;
+let listenAttempts = 0;
+let websockets = new WebSocket.Server({ server }).on("connection", sockets.connect);
 
+function previousServerIsAlive() {
+  if (!previousServerPid || previousServerPid === process.pid) return false;
+  try {
+    process.kill(previousServerPid, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+
+function refreshPendingHandoff() {
+  if (pendingHandoff) return pendingHandoff;
+  const state = loadPendingHandoff();
+  if (state && (!previousServerPid || Number(state.oldPid) === previousServerPid)) {
+    pendingHandoff = state;
+  }
+  return pendingHandoff;
+}
+
+function canWaitForPreviousServer() {
+  return !!refreshPendingHandoff() || previousServerIsAlive();
+}
+const listenPort = getListenPort();
+
+function markReplacementReady() {
+  if (!pendingHandoff) return;
+  const state = readHandoffState();
+  if (!state || state.token !== pendingHandoff.token || state.state !== "waiting") return;
+  try {
+    writeHandoffState({
+      ...state,
+      state: "ready",
+      newPid: process.pid,
+      readyAt: Date.now(),
+    });
+    util.log("[UPDATE-HANDOFF] Replacement server is listening and has signaled readiness.");
+  } catch (error) {
+    util.error("[UPDATE-HANDOFF] Could not signal replacement readiness: " + error.message);
+  }
+}
+
+function startListening() {
+  if (server.listening) return;
+  listenAttempts++;
+  try {
+    server.listen(listenPort, () => {
+      util.log(
+        new Date() +
+          ". Joint HTTP+Websocket server turned on, listening on port " +
+          server.address().port + "."
+      );
+      markReplacementReady();
+    });
+  } catch (error) {
+    if (error.code === "EADDRINUSE" && canWaitForPreviousServer()) {
+      scheduleListenRetry();
+      return;
+    }
+    throw error;
+  }
+}
+
+function scheduleListenRetry() {
+  if (listenRetryTimer !== null) return;
+  refreshPendingHandoff();
+  const maxWaitMs = Math.max(5000, Number(process.env.RANAR_UPDATE_HANDOFF_TIMEOUT_MS) || 30000);
+  if (listenAttempts * 250 > maxWaitMs) {
+    util.error("[UPDATE-HANDOFF] Timed out waiting for the previous listener to release the port.");
+    removeServerLockIfOwned();
+    process.exit(1);
+    return;
+  }
+  listenRetryTimer = setTimeout(() => {
+    listenRetryTimer = null;
+    startListening();
+  }, 250);
+}
+
+server.on("error", (error) => {
+  if (error && error.code === "EADDRINUSE" && canWaitForPreviousServer()) {
+    scheduleListenRetry();
+    return;
+  }
+  util.error("[SERVER] Listener error: " + (error && error.stack ? error.stack : error));
+  removeServerLockIfOwned();
+  process.exit(1);
+});
+
+startListening();
 // Bring it to life. Retain timer handles so shutdown can stop simulation cleanly.
 loadProtection.start();
 // Adapt the simulation cadence under sustained lag without changing the

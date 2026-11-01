@@ -56,6 +56,12 @@ for (const type of ["collision", "collisionMaster", "impact"]) {
 assert.strictEqual(damageType.impactDamageMultiplier({ damageType: "collision" }, 8), 1,
   "collision mode should continue dealing normal damage while contact persists");
 assert.strictEqual(damageType.collisionPairKey({ id: 5 }, { id: 2 }), "2:5");
+const pairCache = new damageType.ContactDamageTracker();
+const pairA = { id: 15 };
+const pairB = { id: 7 };
+assert.strictEqual(pairCache.getPairKey(pairA, pairB), "7:15");
+assert.strictEqual(pairCache.getPairKey(pairB, pairA), "7:15",
+  "cached pair keys must be stable regardless of entity order");
 assert.strictEqual(Class.genericEntity.DAMAGE_TYPE, "velocity");
 assert.strictEqual(Class.trap.DAMAGE_TYPE, "collision");
 assert.match(server, /set\.DAMAGE_TYPE != null/);

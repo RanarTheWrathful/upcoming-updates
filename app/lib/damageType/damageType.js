@@ -84,7 +84,7 @@ function impactDamageMultiplier(entityOrType, consecutiveContactCount = 0, alrea
   const count = Number.isFinite(Number(consecutiveContactCount))
     ? Math.max(0, Math.floor(Number(consecutiveContactCount)))
     : 0;
-  return Math.pow(0.9, count);
+  return Math.pow(0.5, count);
 }
 
 function collisionPairKey(first, second) {
@@ -104,6 +104,30 @@ class ContactDamageTracker {
     this.previousImpactContacts = new Map();
     this.currentImpactContacts = new Map();
     this.processedPairs = new Set();
+    // A pair's string key is stable for the lifetime of its two entities.
+    // Cache it weakly so impact traps do not allocate a new string every tick.
+    this.pairKeyCache = new WeakMap();
+  }
+
+  getPairKey(first, second) {
+    const firstId = Number(first && first.id);
+    const secondId = Number(second && second.id);
+    if (!Number.isFinite(firstId) || !Number.isFinite(secondId) || !first || !second) return null;
+    const a = firstId < secondId ? first : second;
+    const b = firstId < secondId ? second : first;
+    let partners = this.pairKeyCache.get(a);
+    if (!partners) {
+      partners = new WeakMap();
+      this.pairKeyCache.set(a, partners);
+    }
+    let key = partners.get(b);
+    if (key === undefined) {
+      const aId = Math.min(firstId, secondId);
+      const bId = Math.max(firstId, secondId);
+      key = `${aId}:${bId}`;
+      partners.set(b, key);
+    }
+    return key;
   }
 
   beginIteration() {

@@ -10,7 +10,8 @@
     "test:auto-upgrade": "node tests/autoUpgradeRules.test.js && node tests/autoUpgradeIntegration.test.js",
     "test:commands": "node tests/devCommandCatalog.test.js && node tests/commandNormalization.test.js",
     "test:intellect": "node tests/intellect.test.js && node tests/intellectIntegration.test.js && node tests/minionMovementPolicy.test.js",
-    "test:minion-movement": "node tests/minionMovementPolicy.test.js"
+    "test:minion-movement": "node tests/minionMovementPolicy.test.js",
+    "test:server-lifecycle": "node tests/damageType.test.js && node tests/specialEffectsFastPath.test.js && node tests/updateScoreRecovery.test.js"
   },
   "dependencies": {
     "box-intersect": "^1.0.2",
