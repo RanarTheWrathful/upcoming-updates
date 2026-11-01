@@ -3110,6 +3110,13 @@ function makeMazeWalls() {
     if (c.MAZE_WALL_COLOR !== undefined) o.color = c.MAZE_WALL_COLOR;
     o.alwaysExists = true;
     o.isMazeWall = true;
+    // Generated/authored maze blocks are immutable map geometry when the
+    // selected class is a plain square wall. Keep custom animated or armed
+    // wall classes on their normal entity lifecycle.
+    o.isStaticMazeWall = o.type === "squareWall" &&
+      !(o.guns && o.guns.length) &&
+      !(o.turrets && o.turrets.length) &&
+      !(o.controllers && o.controllers.length);
     o.refreshBodyAttributes();
     o.grid = { x: gridX, y: gridY };
     o.VELOCITY.x = 0;
@@ -22968,6 +22975,9 @@ var gameloop = (() => {
     boxIntersect(activeAabb, (i, j) => {
       e1 = activeEntities[i];
       e2 = activeEntities[j];
+      // Static maze geometry never needs collision resolution against itself.
+      // It still collides normally with every gameplay entity.
+      if (e1.isStaticMazeWall && e2.isStaticMazeWall) return;
       if (
         e1.valid() &&
         e1.bond == null &&
@@ -22999,7 +23009,18 @@ var gameloop = (() => {
     let check = soaEntity.activationCheck;
 
     for (let i = 0; i < entities.length; i++) {
-      if (!entities[i]) continue;
+      const entity = entities[i];
+      if (!entity) continue;
+      if (entity.isStaticMazeWall) {
+        // Collision response may impart acceleration to a wall. Discard it
+        // and keep the static wall's SoA state stationary without integrating.
+        velocityX[i] = 0;
+        velocityY[i] = 0;
+        accelX[i] = 0;
+        accelY[i] = 0;
+        stepRemaining[i] = 1;
+        continue;
+      }
       if (c.ACTIVATION_MODE === "distance" && !check[i]) continue;
       velocityX[i] += accelX[i];
       velocityY[i] += accelY[i];
@@ -23017,7 +23038,10 @@ var gameloop = (() => {
         // Consider death.
         if (e.contemplationOfMortality()) {
           e.destroy();
-        } else {
+        } else if (!e.isStaticMazeWall) {
+          // Plain maze walls are immutable map geometry: no AI, guns, turrets,
+          // upgrades, or movement need to run each tick. They remain in the
+          // collision broad phase so gameplay entities still hit them.
           // This is deliberately outside activation.check(): entities beyond
           // the active simulation radius still need their Siege zone timer.
           siegeNeutralZonePenalty.update(e, { mode: c.MODE, room, now: Date.now() });

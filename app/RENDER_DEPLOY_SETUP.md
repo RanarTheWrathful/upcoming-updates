@@ -28,6 +28,10 @@ If the services are not Blueprint-managed, configure the health check in each se
 
 A same-commit restart, scale-down, or other ordinary `SIGTERM` does not activate the Apocalypse update sequence and does not create score-recovery entries. Fatal JavaScript errors do save score-recovery entries. A forced `SIGKILL` (for example, an out-of-memory kill) cannot run application cleanup and therefore cannot save scores.
 
+## Maze performance
+
+Plain square maze walls are now marked as static map geometry. They remain in the collision broad phase and continue colliding with players, projectiles, and other gameplay entities, but their per-tick AI/lifecycle and movement integration are skipped. Static maze-wall pairs are also filtered before collision dispatch because fixed wall blocks do not need to collide with one another. Custom maze-wall classes with guns, turrets, or controllers retain their normal lifecycle.
+
 ## Local development
 
 Without `REDIS_URL`, the existing JSON-file recovery store is used. This is suitable for local restarts only; it is not shared between Render instances. Without `RENDER_API_KEY`, Render update detection deliberately falls back to ordinary shutdown rather than guessing that every `SIGTERM` is a code deployment.
