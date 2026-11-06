@@ -26374,27 +26374,6 @@ const server = http.createServer((req, res) => {
   <section class="home-hero"><div><div class="home-eyebrow">Persistent world · Live arena</div><h1>Enter the arena<span style="color:var(--rp-violet)">.</span></h1><p>Choose your next class, build a strategy, and survive the worlds of Ranar's Prophecy. Server status and recent changes are available below.</p></div><div class="home-stats"><div class="home-stat"><span>Current mode</span><strong>${chosenMode}</strong></div><div class="home-stat"><span>Players online</span><strong>${c.playerCount}</strong></div><div class="home-stat"><span>Server</span><strong>${title}</strong></div><div class="home-stat"><span>Refresh timer</span><strong>${timeDisplay}</strong></div></div></section>
 
   <div class="game-modes">
-  <h1>${title}</h1>
-  <h2>${extra}</h2>
-    <h4>Server Data:</h4>
-    <p>
-    <b>Current Game Mode:</b> ` +
-          chosenMode +
-          `.<br>
-    <b>Players:</b> ` +
-          c.playerCount +
-          `.<br>
-<b>Estimated Time Before Server Refreshes:</b> ${timeString}.<br><br>
-You must have the chat site and the game site open at the same time for your chats to be sent.
-    </p>
-    </div>
-  <div class="button-container">
-    <button onclick="location.href = 'https://arras.cx/#host=' + location.host">Join Game</button>
-  </div>
-  <div class="button-container">
-  <button onclick="window.open('https://' + location.host + '/chat', '_blank')">Open Chat Site</button>
-</div>
-
   <div class="changelog" id="changelog">
   <!-- Prophecy Version 0.0.8 -->
 <section id="prophecy-v0-0-8">
