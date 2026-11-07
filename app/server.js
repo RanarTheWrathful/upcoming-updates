@@ -26370,7 +26370,7 @@ const server = http.createServer((req, res) => {
   </style>
 </head>
 <body>
-  <header class="home-topbar"><div class="home-brand"><div class="home-mark">RP</div><div><strong>Ranar's Prophecy</strong><span>${extra} · Server portal</span></div></div><nav class="home-links" aria-label="Main navigation"><a class="home-link primary" href="https://arras.cx" onclick="this.href='https://arras.cx/#host='+location.host">Join Game ↗</a><a class="home-link" href="/chat">Chat Relay ↗</a><a class="home-link" href="#changelog">What's New ↓</a></nav></header>
+  <header class="home-topbar"><div class="home-brand"><div class="home-mark">RP</div><div><strong>Ranar's Prophecy</strong><span>${extra}</span></div></div><nav class="home-links" aria-label="Main navigation"><a class="home-link primary" href="https://arras.cx" onclick="this.href='https://arras.cx/#host='+location.host">Join Game ↗</a><a class="home-link" href="/chat">Chat Relay ↗</a><a class="home-link" href="#changelog">What's New ↓</a></nav></header>
   <section class="home-hero"><div><div class="home-eyebrow"></div><h1>Enter the arena<span style="color:var(--rp-violet)">.</span></h1><p>Choose your next class, build a strategy, and survive the worlds of Ranar's Prophecy. Recent changes are available below.</p></div><div class="home-stats"><div class="home-stat"><span>Current mode</span><strong>${chosenMode}</strong></div><div class="home-stat"><span>Players online</span><strong>${c.playerCount}</strong></div><div class="home-stat"><span>Server</span><strong>${title}</strong></div><div class="home-stat"><span>Refresh timer</span><strong>${timeDisplay}</strong></div></div></section>
 
   <div class="game-modes">
@@ -26422,8 +26422,8 @@ const server = http.createServer((req, res) => {
     <li>Added Poly Lord, tier 5 Poly Fear and Polymancer.</li>
     <li>Added Poly Tyrant, tier 5 Big Cheese and Polymancer.</li>
     <li>Added The true versions of the smashersphere variants.</li>
-    <li>  The true variant gets some visual changes and a 4 atmosphere layer.</li>
-    <li>  Each of the true versions can be found on the T4 of their regular variant.</li>
+    <li>The true variant gets some visual changes and a 4 atmosphere layer.</li>
+    <li>Each of the true versions can be found on the T4 of their regular variant.</li>
     <li>Renamed Pulsar Core to Neutron.</li>
     <li>Renamed Beenade to Beenade Chucker.</li>
     <li>Added Lobber to tier 4 of Fieldgun and Fighter.</li>
@@ -26437,14 +26437,14 @@ const server = http.createServer((req, res) => {
     <li>Added Tri-Wark, Hewn-Wark, Auto-Bulwark, Bent Bulwark, Hewn Bulwark, and Frontier to tier 4 of Bulwark.</li>
     <li>Added Syphon to tier 4 of Hybrid.</li>
     <li>Added Hyper Skimmer to tier 4 of Skimmer.</li>
-
-<li>Added Conjurer to Siege and natural boss spawns.</li>
-<li>Added Ruiner to Siege and natural boss spawns.</li>
+    <li>Added Conjurer to Siege and natural boss spawns.</li>
+    <li>Added Ruiner to Siege and natural boss spawns.</li>
     <li>Added the Fallen Tyrant boss to Siege.</li>
     <li>...Something told me to say this..."God is Watching"...</li>
   </ul>
 </section>
-</ul><!-- Prophecy Version 0.0.7 -->
+
+<!-- Prophecy Version 0.0.7 -->
 <section id="prophecy-v0-0-7">
   <h2># Prophecy Version 0.0.7</h2>
   <p>NEW UPDATE!</p>
@@ -26497,7 +26497,8 @@ const server = http.createServer((req, res) => {
     <li>
       Re-added the Domination Turret branch, plus some more!
       <ul>
-        <li>Novice Domination Turret is the base upgrade, which upgrades to:
+        <li>
+          Novice Domination Turret is the base upgrade, which upgrades to:
           <ul>
             <li>Adept Domination Turret</li>
             <li>Tri-Novice Domination Turret</li>
@@ -26534,15 +26535,18 @@ const server = http.createServer((req, res) => {
     </li>
     <li>
       Added a Bulwark branch!
-      <br>the bulwark branch is exactly the same as double twin branch but themed around having trappers in the backside, as opposed to normal bullet barrels
+      <br>
+      the bulwark branch is exactly the same as double twin branch but themed around having trappers in the backside, as opposed to normal bullet barrels
     </li>
     <li>
       Added Hewn Bulwark
-      <br>a mix between bulwark and double twin!, upgrades from both.
+      <br>
+      a mix between bulwark and double twin!, upgrades from both.
     </li>
     <li>
       Spectre, Poltergeist and Arena Guard classes now slowly take damage while inside of rocks and maze walls,
-      <br>to prevent people from hiding and being almost unkillable.
+      <br>
+      to prevent people from hiding and being almost unkillable.
     </li>
     <li>
       Did some branch reorganization to stay within my rules of 10 tanks at most in each branch:
@@ -26617,7 +26621,6 @@ const server = http.createServer((req, res) => {
     </li>
   </ul>
 </section>
-
 <!-- Prophecy Version 0.0.6 -->
 <section id="prophecy-v0-0-6">
   <h2># Prophecy Version 0.0.6</h2>
@@ -26744,17 +26747,19 @@ const server = http.createServer((req, res) => {
       Shoots constructer traps out of the architect guns<br><br>
     </li>
     <li>
-      - Added a new legendary class: Mass Producer<br>
-      - It has one of every new architect gun.<br>
+      - Added a new legendary class: Mass Producer
+      <br>
+      - It has one of every new architect gun.
+      <br>
       - Branches off every architect
     </li>
     <p>This may be the last update for a while.</p>
   </ul>
 </section>
-
 <!-- Prophecy Version 0.0.3 -->
 <section id="prophecy-v0-0-3">
   <h2># Prophecy Version 0.0.3</h2>
+
   <h4>- Did a minor rework of The Denied:</h4>
   <ul>
     <li>Buffed Ascendant Health.</li>
@@ -26768,11 +26773,13 @@ const server = http.createServer((req, res) => {
     <li>Made the Descendants revivable by Necro Tyrant.</li>
     <li>Added more dialog for certain situations.</li>
   </ul>
+
   <h4>- Nerfed Arena Guard and its branches.</h4>
   <ul>
     <li>Temporarily removed The Infestation and The Distance modes from the lore server; they will make a comeback, new and improved, in the next update.</li>
     <li>Made AI of bots, bosses, and enemies SLIGHTLY smarter.</li>
   </ul>
+
   <h4>- AND BECAUSE IT'S THE MONTH OF OCTOBER, WE INITIATED THE HALLOWEEN EVENT!:</h4>
   <ul>
     <li>The Maze Walls are now painted in black, purple, and orange!</li>
@@ -26812,12 +26819,14 @@ const server = http.createServer((req, res) => {
 <!-- Prophecy Version 0.0.1 -->
 <section id="prophecy-v0-0-1">
   <h2># Prophecy Version 0.0.1</h2>
+
   <h4>-Siege</h4>
   <ul>
     <li>Fixed the multiple waves glitch and the instant loss.</li>
     <li>You now spawn with 3 extra skill points per 10 waves.</li>
     <li>On the 50th wave and every 10 waves beyond that, EVERY epic wave boss will spawn.</li>
   </ul>
+
   <h4>-New Tanks:</h4>
   <ul>
     <li>Added Skulker, the Invisible Hunter. Branches off Hunter and Creeper.</li>
@@ -26841,7 +26850,40 @@ const server = http.createServer((req, res) => {
     <li>Split the server into two: ranars-prophecy.glitch.me and ranars-arena.glitch.me.</li>
   </ul>
 </section>
+<!-- Prophecy Version 0.1.0 -->
+<section id="prophecy-v0-1-0">
+  <h2># Prophecy Version 0.1.0</h2>
+  <p>NEW UPDATE!</p>
 
+  <ul>
+    <li>Readjusted how chat and the main menu look.</li>
+    <li>Rebalanced all drone classes, trapper classes, twin classes, and gunner classes.</li>
+    <li>Changed AI wandering to pause briefly.</li>
+    <li>Attacking AI entities will not fire through walls or obstacles unless they are capable of shooting through or destroying them.</li>
+    <li>Attacking AI will prioritize entities that damage them excessively, consistently damage them, or damage them while they are at low health.</li>
+    <li>Some AI's will have a certain... intelligence to them.</li>
+    <li>Nerfed the launch speed of Flinger/Slinger traps.</li>
+    <li>Nerfed the Shooter branch.</li>
+    <li>Nerfed Auto-Classes.</li>
+    <li>Nerfed Cyclone.</li>
+    <li>Buffed Mega-gun.</li>
+    <li>Nerfed Auto-4.</li>
+    <li>Reworked how Trap damage is calculated.</li>
+    <li>Server now closes more efficiently. Updates that close the server will restore the score to all players that rejoin within 5 minutes, once.</li>
+    <li>Added Thrasher (from Bulwark and Sniper Guard).</li>
+    <li>Added Quad-Engineer (from Quad-Builder and Engineer).</li>
+    <li>Added Mega-Flinger (from Mega-Trapper and Flinger).</li>
+    <li>
+      Necro Changes:
+      <ul>
+        <li>Underseer classes can now ram polygons to infect them!</li>
+        <li>Additionally, if you are an Underseer class with a weapon (such as Undertrapper), your weapons can also infect the appropriate polygons!</li>
+      </ul>
+    </li>
+    <li>Dominators and Fortress Walls/Gates no longer regenerate health. Shields only, unless healed via repairing.</li>
+    <li>Probably other shit we forgot to mention.</li>
+  </ul>
+</section>
   </div>
 
 
