@@ -26374,11 +26374,89 @@ const server = http.createServer((req, res) => {
   <section class="home-hero"><div><div class="home-eyebrow"></div><h1>Enter the arena<span style="color:var(--rp-violet)">.</span></h1><p>Choose your next class, build a strategy, and survive the worlds of Ranar's Prophecy. Recent changes are available below.</p></div><div class="home-stats"><div class="home-stat"><span>Current mode</span><strong>${chosenMode}</strong></div><div class="home-stat"><span>Players online</span><strong>${c.playerCount}</strong></div><div class="home-stat"><span>Server</span><strong>${title}</strong></div><div class="home-stat"><span>Refresh timer</span><strong>${timeDisplay}</strong></div></div></section>
 
   <div class="game-modes">
-  <div class="changelog" id="changelog">
-  <!-- Prophecy Version 0.0.8 -->
+  <div class="changelog" id="changelog"><!-- Prophecy Version 0.1.0 -->
+
+<section id="prophecy-v0-1-0">
+  <h2>Prophecy Version 0.1.0</h2>
+  <p><strong>NEW UPDATE!</strong></p>
+
+  <ul>
+    <li>Readjusted how chat and the main menu look.</li>
+    <li>Rebalanced all drone classes, trapper classes, twin classes, and gunner classes.</li>
+    <li>Changed AI wandering to pause briefly.</li>
+    <li>
+      Attacking AI entities will not fire through walls or obstacles unless they
+      are capable of shooting through or destroying them.
+    </li>
+    <li>
+      Attacking AI will prioritize entities that:
+      <ul>
+        <li>Damage them excessively.</li>
+        <li>Consistently damage them.</li>
+        <li>Damage them while they are at low health.</li>
+      </ul>
+    </li>
+    <li>Some AI's will have a certain... intelligence to them.</li>
+  </ul>
+
+  <h3>Balance Changes</h3>
+  <ul>
+    <li>Nerfed the launch speed of Flinger/Slinger traps.</li>
+    <li>Nerfed the Shooter branch.</li>
+    <li>Nerfed Auto-Classes.</li>
+    <li>Nerfed Cyclone.</li>
+    <li>Buffed Mega-gun.</li>
+    <li>Nerfed Auto-4.</li>
+    <li>Reworked how Trap damage is calculated.</li>
+  </ul>
+
+  <h3>Server Changes</h3>
+  <ul>
+    <li>
+      Server now closes more efficiently.
+      <ul>
+        <li>
+          Updates that close the server will restore the score to all players
+          that rejoin within 5 minutes, once.
+        </li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>New Tanks</h3>
+  <ul>
+    <li>Added Thrasher (from Bulwark and Sniper Guard).</li>
+    <li>Added Quad-Engineer (from Quad-Builder and Engineer).</li>
+    <li>Added Mega-Flinger (from Mega-Trapper and Flinger).</li>
+  </ul>
+
+  <h3>Necro Changes</h3>
+  <ul>
+    <li>Underseer classes can now ram polygons to infect them!</li>
+    <li>
+      Additionally, if you are an Underseer class with a weapon (such as
+      Undertrapper), your weapons can also infect the appropriate polygons!
+    </li>
+  </ul>
+
+  <h3>Other Changes</h3>
+  <ul>
+    <li>
+      Dominators and Fortress Walls/Gates no longer regenerate health.
+      Shields only, unless healed via repairing.
+    </li>
+    <li>Probably other shit we forgot to mention.</li>
+  </ul>
+</section>
+
+
+<!-- Prophecy Version 0.0.8 -->
+
 <section id="prophecy-v0-0-8">
-  <h2># Prophecy Version 0.0.8</h2>
-  <p>NEW UPDATE!</p>
+  <h2>Prophecy Version 0.0.8</h2>
+  <p><strong>NEW UPDATE!</strong></p>
+
+  <h3>Balance Changes</h3>
   <ul>
     <li>Nerfed Animator's Reload, as well as similar entities such as Enslaver, Flesh, and Anubis.</li>
     <li>Added Semi-Auto to tier 4 of Octo-Tank and Auto-5.</li>
@@ -26392,25 +26470,42 @@ const server = http.createServer((req, res) => {
       </ul>
     </li>
     <li>Nerfed all rare crasher variants, including making shadow crashers unable to phase through walls.</li>
-    <li>Fixed Ranar in the Denied from sitting in his base for an extended period of time...</li>
-    <li>Also made Ranar's summoned crashers not be delayed by invulnerability.</li>
-    <li>Also made Ranar's orbs spawn much more often.</li>
     <li>Nerfed Physicist traps from their turrets.</li>
     <li>Nerfed overall body damage of the turrets from the Experimenter branch.</li>
-    <li>Made the swear filter more lenient to allow words such as 'crap' and 'god' while also being able to crack down on filter bypass attempts.</li>
     <li>Nerfed score gained from healing/repairing.</li>
-    <li>Deific Ranar no longer spawns anti-tanks and arena closers, but instead spawns in all 4 corners.</li>
-    <li>Changed Hive Centaurion's bees to be hexagon instead of square.</li>
-    <li>Nerfed Ranar's health but buffed his orbs.</li>
     <li>Buffed Twin and upgrades that use Twin (primarily Double Twin and Bulwark).</li>
     <li>Buffed Sprayer and its branch (except Focal).</li>
-    <li>Removed the ability to possess Dominators for now, it took me hours upon hours to try and fix this and nothing is working.</li>
-    <li>Added in Execution game mode, it's an FFA arena that will eventually shrink, the last survivor wins!</li>
-    <li>The Distance is back in rotation, I had stupidly forgotten to actually add it in.</li>
+    <li>Nerfed Ranar's health but buffed his orbs.</li>
+  </ul>
+
+  <h3>Ranar Changes</h3>
+  <ul>
+    <li>Fixed Ranar in the Denied from sitting in his base for an extended period of time...</li>
+    <li>Made Ranar's summoned crashers not be delayed by invulnerability.</li>
+    <li>Made Ranar's orbs spawn much more often.</li>
+    <li>
+      Deific Ranar no longer spawns anti-tanks and arena closers, but instead
+      spawns in all 4 corners.
+    </li>
     <li>Renamed Deific Ranar to 'Living Apocalypse'.</li>
+  </ul>
+
+  <h3>Gameplay and Server Changes</h3>
+  <ul>
+    <li>
+      Made the swear filter more lenient to allow words such as 'crap' and 'god'
+      while also being able to crack down on filter bypass attempts.
+    </li>
+    <li>Removed the ability to possess Dominators for now. It took me hours upon hours to try and fix this and nothing is working.</li>
+    <li>Added in Execution game mode. It's an FFA arena that will eventually shrink; the last survivor wins!</li>
+    <li>The Distance is back in rotation. I had stupidly forgotten to actually add it in.</li>
     <li>Made healer symbol spin if it's on a smasher.</li>
     <li>Added more spawn messages!</li>
     <li>Increased the score requirement for each tier.</li>
+  </ul>
+
+  <h3>Tank and Upgrade Changes</h3>
+  <ul>
     <li>Moved Replicator to tier 4 of Spawner and Booster.</li>
     <li>Moved Quad-Spawner to tier 4 of Avenger.</li>
     <li>Moved Tri-Spawner to tier 5 of Quad-Spawner.</li>
@@ -26421,7 +26516,7 @@ const server = http.createServer((req, res) => {
     <li>Added Mutant to tier 4 of Poly Fear and Hybrid.</li>
     <li>Added Poly Lord, tier 5 Poly Fear and Polymancer.</li>
     <li>Added Poly Tyrant, tier 5 Big Cheese and Polymancer.</li>
-    <li>Added The true versions of the smashersphere variants.</li>
+    <li>Added the true versions of the smashersphere variants.</li>
     <li>The true variant gets some visual changes and a 4 atmosphere layer.</li>
     <li>Each of the true versions can be found on the T4 of their regular variant.</li>
     <li>Renamed Pulsar Core to Neutron.</li>
@@ -26437,63 +26532,93 @@ const server = http.createServer((req, res) => {
     <li>Added Tri-Wark, Hewn-Wark, Auto-Bulwark, Bent Bulwark, Hewn Bulwark, and Frontier to tier 4 of Bulwark.</li>
     <li>Added Syphon to tier 4 of Hybrid.</li>
     <li>Added Hyper Skimmer to tier 4 of Skimmer.</li>
+  </ul>
+
+  <h3>Siege and Boss Changes</h3>
+  <ul>
     <li>Added Conjurer to Siege and natural boss spawns.</li>
     <li>Added Ruiner to Siege and natural boss spawns.</li>
     <li>Added the Fallen Tyrant boss to Siege.</li>
-    <li>...Something told me to say this..."God is Watching"...</li>
   </ul>
+
+  <p>...Something told me to say this... "God is Watching"...</p>
 </section>
 
+
 <!-- Prophecy Version 0.0.7 -->
+
 <section id="prophecy-v0-0-7">
-  <h2># Prophecy Version 0.0.7</h2>
-  <p>NEW UPDATE!</p>
+  <h2>Prophecy Version 0.0.7</h2>
+  <p><strong>NEW UPDATE!</strong></p>
+
+  <h3>Breaker Branch</h3>
   <ul>
     <li>RE-ADDED BREAKER AND IT'S BRANCH!</li>
     <li>Breaker is a trapper tank that has traps that explode into 5 traps when the traps die.</li>
-    <li>Auto-Breaker</li>
-    <li>Wrecker, Builder/Breaker combo</li>
-    <li>Demolitionist, Tri-Trapper/Breaker combo</li>
-    <li>Shatterer, Flinger/Breaker combo</li>
-    <li>Cracker, Mech/Breaker combo</li>
-    <li>Burster, same as Breaker but shoots 10 on death instead</li>
+    <li>Added Auto-Breaker.</li>
+    <li>Added Wrecker, a Builder/Breaker combo.</li>
+    <li>Added Demolitionist, a Tri-Trapper/Breaker combo.</li>
+    <li>Added Shatterer, a Flinger/Breaker combo.</li>
+    <li>Added Cracker, a Mech/Breaker combo.</li>
+    <li>Added Burster, the same as Breaker but shoots 10 on death instead.</li>
+  </ul>
+
+  <h3>Grenadier Branch</h3>
+  <ul>
     <li>
-      Added Grenadier, it is a Launcher branch tank that has an exploding bullet.
+      Added Grenadier, a Launcher branch tank that has an exploding bullet.
       <ul>
-        <li>Additional grenadier branch upgrades:</li>
-        <li>Pulsar core: splits into 10 mini launcher missiles upon death</li>
-        <li>Beenade: plits into 7 bees upon death.</li>
+        <li>Additional Grenadier branch upgrades:</li>
+        <li>Pulsar Core: splits into 10 mini launcher missiles upon death.</li>
+        <li>Beenade: splits into 7 bees upon death.</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Bug Fixes</h3>
+  <ul>
     <li>Fixed the bug that caused Ancients to randomly crash the server.</li>
     <li>Fixed the bug that made Rogue Armadas turn into fidget spinners.</li>
     <li>Fixed some bugs revolving around healing and repairing.</li>
-    <li>Fixed 1st and 2nd tier of upgrades having the wrong level requirment (1st tier: 10 → 15, 2nd tier: 25 → 30)</li>
+    <li>Fixed 1st and 2nd tier of upgrades having the wrong level requirement (1st tier: 10 → 15, 2nd tier: 25 → 30).</li>
+  </ul>
+
+  <h3>New Bosses</h3>
+  <ul>
     <li>
-      Added a T2 boss - Cultist Centaurion
+      Added a T2 boss - Cultist Centaurion.
       <ul>
-        <li>cultist centaurion is a hexagon boss</li>
-        <li>it spawns 12 hexagon drones, which makes it the last polygon spawner boss to be added</li>
+        <li>Cultist Centaurion is a hexagon boss.</li>
+        <li>It spawns 12 hexagon drones, which makes it the last polygon spawner boss to be added.</li>
       </ul>
     </li>
     <li>
-      Added a T4 boss - Trimalgam
+      Added a T4 boss - Trimalgam.
       <ul>
-        <li>you might recognize the name from the example suggestion</li>
-        <li>Trimalgam is a voidlord boss, combining all triangle bosses into one (Enchantress, Witch, Defender, Elite skimmer, Defector)</li>
+        <li>You might recognize the name from the example suggestion.</li>
+        <li>Trimalgam is a Voidlord boss, combining all triangle bosses into one (Enchantress, Witch, Defender, Elite Skimmer, Defector).</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Novice Branch Changes</h3>
+  <ul>
     <li>
-      Buffed novice and it's direct upgrades (adept, advanced, expert, elite, master) to have slightly better gun stats and better body stats.
+      Buffed Novice and its direct upgrades (Adept, Advanced, Expert, Elite, Master)
+      to have slightly better gun stats and better body stats.
       <ul>
-        <li>Novice has the same gun stats as basic but slight increase to all body stats.</li>
+        <li>Novice has the same gun stats as Basic but a slight increase to all body stats.</li>
         <li>Adept is the same as Novice but has better gun stats.</li>
-        <li>Advanced is the same as Adept but better body stats.</li>
-        <li>Expert is the same as Advanced but better gun stats.</li>
+        <li>Advanced is the same as Adept but has better body stats.</li>
+        <li>Expert is the same as Advanced but has better gun stats.</li>
         <li>Elite is the same as Expert but has better body stats.</li>
         <li>Master is the same as Elite but has better gun stats.</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Domination Turret Branch</h3>
+  <ul>
     <li>
       Re-added the Domination Turret branch, plus some more!
       <ul>
@@ -26511,21 +26636,25 @@ const server = http.createServer((req, res) => {
       </ul>
     </li>
     <li>
-      There are now tiers to nailer, destroyer and trapper turrets!
+      There are now tiers to Nailer, Destroyer, and Trapper turrets!
       <ul>
-        <li>The first tier upgrade is from domination to sanctuary, which adds a sanctuary healer, minor improvements to stats and growth in size!</li>
-        <li>The second tier upgrade is from sanctuary to Anti-Boss, which adds a sanctuary repairer, additional minor improvements to stats and growth in size.</li>
+        <li>The first tier upgrade is from Domination to Sanctuary, which adds a Sanctuary Healer, minor improvements to stats, and growth in size!</li>
+        <li>The second tier upgrade is from Sanctuary to Anti-Boss, which adds a Sanctuary Repairer, additional minor improvements to stats, and growth in size.</li>
       </ul>
     </li>
     <li>
-      The drone domination turret also has tiers!
+      The Drone Domination Turret also has tiers!
       <ul>
-        <li>The first tier upgrade is from domination to commander which makes the 3 drone spawners also get 3 swarm spawners, as well as minor improvement in damage and size</li>
-        <li>The second tier upgrade is from commander to Boss Destroyer, adding an additional swarm spawner and a big cheese drone spawner, with further improvement in damage and size</li>
+        <li>The first tier upgrade is from Domination to Commander, which makes the 3 drone spawners also get 3 swarm spawners, as well as minor improvement in damage and size.</li>
+        <li>The second tier upgrade is from Commander to Boss Destroyer, adding an additional swarm spawner and a Big Cheese drone spawner, with further improvement in damage and size.</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Mech Branch</h3>
+  <ul>
     <li>
-      Renamed and modified mech without the auto turret, making it a new branch!
+      Renamed and modified Mech without the auto turret, making it a new branch!
       <ul>
         <li>Auto-Mech</li>
         <li>Mechanism, shoots twin-turretted traps!</li>
@@ -26533,153 +26662,196 @@ const server = http.createServer((req, res) => {
         <li>Also added a drive symbol Engineer to keep consistency.</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Bulwark Branch</h3>
+  <ul>
     <li>
       Added a Bulwark branch!
-      <br>
-      the bulwark branch is exactly the same as double twin branch but themed around having trappers in the backside, as opposed to normal bullet barrels
+      <ul>
+        <li>The Bulwark branch is exactly the same as Double Twin branch but themed around having trappers in the backside, as opposed to normal bullet barrels.</li>
+      </ul>
     </li>
     <li>
-      Added Hewn Bulwark
-      <br>
-      a mix between bulwark and double twin!, upgrades from both.
+      Added Hewn Bulwark.
+      <ul>
+        <li>A mix between Bulwark and Double Twin! Upgrades from both.</li>
+      </ul>
     </li>
-    <li>
-      Spectre, Poltergeist and Arena Guard classes now slowly take damage while inside of rocks and maze walls,
-      <br>
-      to prevent people from hiding and being almost unkillable.
-    </li>
+  </ul>
+
+  <h3>Other Tank Changes</h3>
+  <ul>
+    <li>Spectre, Poltergeist, and Arena Guard classes now slowly take damage while inside of rocks and maze walls, to prevent people from hiding and being almost unkillable.</li>
     <li>
       Did some branch reorganization to stay within my rules of 10 tanks at most in each branch:
       <ul>
-        <li>Moved barricade from Trapper to Tri-Trapper, It still makes sense if you think about it.</li>
-        <li>Moved Quad-Builder out of Tri-Trapper, making it exclusive to builder.</li>
+        <li>Moved Barricade from Trapper to Tri-Trapper. It still makes sense if you think about it.</li>
+        <li>Moved Quad-Builder out of Tri-Trapper, making it exclusive to Builder.</li>
       </ul>
     </li>
     <li>
-      Added Hardshell Spawner
+      Added Hardshell Spawner.
       <ul>
-        <li>a spawner branch upgrade, which spawns 3 strong hardshells</li>
-        <li>hardshells are basically just spheres with a smasher shell.</li>
+        <li>A Spawner branch upgrade, which spawns 3 strong Hardshells.</li>
+        <li>Hardshells are basically just spheres with a smasher shell.</li>
       </ul>
     </li>
     <li>
-      Added auto-constructer
+      Added Auto-Constructer.
       <ul>
-        <li>auto-constructer is a stepping block for getting ~~Alex~~ Roadblocker (pun intended)</li>
+        <li>Auto-Constructer is a stepping block for getting ~~Alex~~ Roadblocker (pun intended).</li>
       </ul>
     </li>
-    <li>Roadblocker is a upgrade which throws out 3 massive, and hard to kill blocks.</li>
+    <li>Roadblocker is an upgrade which throws out 3 massive, and hard to kill blocks.</li>
+  </ul>
+
+  <h3>Mettasphere Branch</h3>
+  <ul>
     <li>
-      Added a Mettasphere branch
+      Added a Mettasphere branch.
       <ul>
-        <li>added Healersphere and Repairsphere to the Healer branch, each have a healing and repair aura respectively</li>
-        <li>added Dualist to branch off Healersphere and Smashersphere, it has a healing and a damage aura</li>
-        <li>added Irradiator to branch off Repairsphere and Smashersphere, it has a repair and a damage aura</li>
-        <li>added Supportsphere to branch off Healersphere and Repairsphere, it has a healing and a repair aura</li>
-        <li>added Mettasphere, it branches off of Dualist, Irradiator and Supportsphere, it has 3 of each auras.</li>
+        <li>Added Healersphere and Repairsphere to the Healer branch, each have a healing and repair aura respectively.</li>
+        <li>Added Dualist to branch off Healersphere and Smashersphere. It has a healing and a damage aura.</li>
+        <li>Added Irradiator to branch off Repairsphere and Smashersphere. It has a repair and a damage aura.</li>
+        <li>Added Supportsphere to branch off Healersphere and Repairsphere. It has a healing and a repair aura.</li>
+        <li>Added Mettasphere. It branches off of Dualist, Irradiator, and Supportsphere. It has 3 of each auras.</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Legendary Class Changes</h3>
+  <ul>
     <li>Adjusted Collider and Ascendant's Orbs.</li>
     <li><strong>Changes to legendary classes (there's a few)</strong></li>
-    <li>Flesh now requires Constructor, Animator, Rocketeer and Hexa-Trapper</li>
-    <li>Slightly nerfed Mass producer</li>
-    <li>Rearranged the required classes for Operator, it now requires 1 mil as Auto-Mech, Interceptor, Auto-Spawner or Engineer.</li>
+    <li>Flesh now requires Constructor, Animator, Rocketeer, and Hexa-Trapper.</li>
+    <li>Slightly nerfed Mass Producer.</li>
+    <li>Rearranged the required classes for Operator. It now requires 1 mil as Auto-Mech, Interceptor, Auto-Spawner, or Engineer.</li>
     <li>
-      Added Destructionist
+      Added Destructionist.
       <ul>
-        <li>A guardian legendary class!</li>
-        <li>Available to get if on guardian faction, and have 1 mil score while playing: Collider, Shotgun, Twister or Decimator.</li>
+        <li>A Guardian legendary class!</li>
+        <li>Available to get if on Guardian faction, and have 1 mil score while playing: Collider, Shotgun, Twister, or Decimator.</li>
       </ul>
     </li>
     <li>
-      Added Embodiment of Destruction
+      Added Embodiment of Destruction.
       <ul>
-        <li>A voidlord legendary class!</li>
-        <li>Available to get if on voidlord faction, and have 1 mil score while playing: Master, Hexanomaly, Pulsar or Overgunner.</li>
+        <li>A Voidlord legendary class!</li>
+        <li>Available to get if on Voidlord faction, and have 1 mil score while playing: Master, Hexanomaly, Pulsar, or Overgunner.</li>
       </ul>
     </li>
     <li>
-      Added Mechanist
+      Added Mechanist.
       <ul>
-        <li>A highlord legendary class!</li>
-        <li>Available to get if on highlord faction and have 1 mil score while playing: Hardshell Spawner, Auto-5, or Skimmer.</li>
+        <li>A Highlord legendary class!</li>
+        <li>Available to get if on Highlord faction and have 1 mil score while playing: Hardshell Spawner, Auto-5, or Skimmer.</li>
       </ul>
     </li>
     <li>
-      Added Conductor
+      Added Conductor.
       <ul>
-        <li>A highlord legendary class!</li>
-        <li>Available to get if on highlord faction have have 1 mil score while playing: Armor Piercer (Mortar upgrade), Auto-Cruiser, Carrier or Auto-Smasher.</li>
+        <li>A Highlord legendary class!</li>
+        <li>Available to get if on Highlord faction and have 1 mil score while playing: Armor Piercer (Mortar upgrade), Auto-Cruiser, Carrier, or Auto-Smasher.</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Game Modes</h3>
+  <ul>
     <li>
       READDED RACING MODE!
       <ul>
         <li>Race physics now apply!</li>
-        <li>More consistent lore (yes It is a lore mode)</li>
+        <li>More consistent lore (yes, it is a lore mode).</li>
       </ul>
     </li>
   </ul>
 </section>
+
+
 <!-- Prophecy Version 0.0.6 -->
+
 <section id="prophecy-v0-0-6">
-  <h2># Prophecy Version 0.0.6</h2>
+  <h2>Prophecy Version 0.0.6</h2>
+
+  <h3>Legendary Classes</h3>
   <ul>
     <li>Added Flesh and Mass Producer to the Legendary class node!</li>
     <li>
-      Additionally, You can now become Flesh in normal modes!
+      Additionally, you can now become Flesh in normal modes!
       <ul>
-        <li>Gain 1 Mil as a Annihilator, Hexa Trapper, Rocketeer, Skimmer or Animator on the fallen team or during siege!</li>
+        <li>Gain 1 Mil as an Annihilator, Hexa Trapper, Rocketeer, Skimmer, or Animator on the Fallen team or during Siege!</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Game Modes</h3>
+  <ul>
     <li>Removed Arena Guard from the Denied boss fight due to lore confliction.</li>
     <li>
-      Added Maze Domination
+      Added Maze Domination.
       <ul>
-        <li>Just like normal domination but this time in a maze!</li>
+        <li>Just like normal Domination, but this time in a maze!</li>
       </ul>
     </li>
-    <li>Fixed dominators a bit, they can be controlled.</li>
+    <li>Fixed Dominators a bit; they can be controlled.</li>
+  </ul>
+
+  <h3>Siege Changes</h3>
+  <ul>
     <li>
       Reworked Siege some more:
       <ul>
-        <li>During waves 10 and 20, Epic waves will spawn (like before),</li>
-        <li>then during waves 30 and 40, Epic waves will spawn along side normal waves.</li>
-        <li>Then during waves 50 and every 10 waves beyond that, a Final boss wave will appear, and good luck surviving it.</li>
+        <li>During waves 10 and 20, Epic waves will spawn (like before).</li>
+        <li>Then during waves 30 and 40, Epic waves will spawn alongside normal waves.</li>
+        <li>Then during waves 50 and every 10 waves beyond that, a Final Boss wave will appear, and good luck surviving it.</li>
       </ul>
     </li>
     <li>Additionally, I have (hopefully) fixed the rare wave skipping glitch.</li>
+  </ul>
+
+  <h3>Gameplay Changes</h3>
+  <ul>
     <li>
       Reworked Traps and Blocks!
       <ul>
         <li>They now last longer and have more health, but have less penetration.</li>
       </ul>
     </li>
-    <li>Buffed Barricade</li>
+    <li>Buffed Barricade.</li>
     <li>
       Reworked Lurker:
       <ul>
-        <li>removed the sideguns, but buffed the swarm drones speed of the normal guns, it is now alot more deadly in a sneak attack!</li>
+        <li>Removed the sideguns, but buffed the swarm drone speed of the normal guns. It is now a lot more deadly in a sneak attack!</li>
       </ul>
     </li>
-    <li>Fixed Revenants drones from phasing through eachother.</li>
+    <li>Fixed Revenants' drones from phasing through each other.</li>
+  </ul>
+
+  <h3>Damage and Healing Auras</h3>
+  <ul>
     <li>
       FIXED DAMAGE AURAS!!
       <ul>
-        <li>meaning, I READDED SMASHERSPHERE AND YOU NO LONGER HAVE TO SUFFER FROM THE INCONSISTENT DAMAGE!</li>
-        <li>by extension of both healing and damage auras being fixed, we could expect healing auras coming soon.</li>
+        <li>Meaning, I READDED SMASHERSPHERE AND YOU NO LONGER HAVE TO SUFFER FROM THE INCONSISTENT DAMAGE!</li>
+        <li>By extension of both healing and damage auras being fixed, we could expect healing auras coming soon.</li>
       </ul>
     </li>
     <li>
-      Made healing/repairing alot more smooth, also adding some additional effects:
+      Made healing/repairing a lot more smooth, also adding some additional effects:
       <ul>
         <li>Healing and repairing deal no damage to enemies UNLESS:</li>
-        <li>If you are a healer and you are attacking a fallen or voidlord entity.</li>
-        <li>If you are a Mechanic (or other repair-based class) and you are attacking a structure (fort gate, wall or dominator), trap, drone, minion, polygon or someone from the highlord team.</li>
+        <li>If you are a healer and you are attacking a Fallen or Voidlord entity.</li>
+        <li>If you are a Mechanic (or other repair-based class) and you are attacking a structure (fort gate, wall, or dominator), trap, drone, minion, polygon, or someone from the Highlord team.</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Boss Changes</h3>
+  <ul>
     <li>
-      Buffed rogue mothership
+      Buffed Rogue Mothership.
       <ul>
         <li>Mothership is now a T4 boss, similar to Disciple.</li>
       </ul>
@@ -26687,201 +26859,270 @@ const server = http.createServer((req, res) => {
     <li>
       Rogue Armada changes:
       <ul>
-        <li>Buffed</li>
-        <li>Reworked appearence to be more similar to base arras.io</li>
+        <li>Buffed.</li>
+        <li>Reworked appearance to be more similar to base arras.io.</li>
       </ul>
     </li>
   </ul>
 </section>
 
+
 <!-- Prophecy Version 0.0.5 -->
+
 <section id="prophecy-v0-0-5">
-  <h2># Prophecy Version 0.0.5</h2>
-  <p>Sorry we take so long, we have been too busy!</p>
+  <h2>Prophecy Version 0.0.5</h2>
+  <p>Sorry we took so long, we have been too busy!</p>
+
+  <h3>The Infestation</h3>
   <ul>
     <li>THE INFESTATION MODE HAS BEEN REWORKED AND READDED!!!!</li>
-    <li>the map was altered slightly (thank you JJ).</li>
-    <li>You now have to escort anubis and keep him alive!</li>
+    <li>The map was altered slightly (thank you JJ).</li>
+    <li>You now have to escort Anubis and keep him alive!</li>
     <li>Arena closer bosses now cannot leave through maze walls (in this mode only).</li>
     <li>Now only the arena closer bosses are guaranteed to be infected, to reduce lag.</li>
-    <li>Also added basic to miniboss branch and on legendary class lists.</li>
+    <li>Also added Basic to miniboss branch and on legendary class lists.</li>
+  </ul>
+
+  <h3>Fortifications and Dominators</h3>
+  <ul>
     <li>
       Also reworked fort gates/walls and dominators slightly:
       <ul>
-        <li>Dominators, Gates and fort walls now give score!</li>
-        <li>gates and fort walls are now full sized!</li>
-        <li>also gave them a slight appearance change to differentiate them from colored maze walls.</li>
+        <li>Dominators, Gates, and fort walls now give score!</li>
+        <li>Gates and fort walls are now full sized!</li>
+        <li>Also gave them a slight appearance change to differentiate them from colored maze walls.</li>
       </ul>
     </li>
   </ul>
 </section>
 
+
 <!-- Prophecy Version 0.0.4 -->
+
 <section id="prophecy-v0-0-4">
-  <h2># Prophecy Version 0.0.4</h2>
+  <h2>Prophecy Version 0.0.4</h2>
+
+  <h3>New Architect Classes</h3>
   <ul>
     <li>
-      - Added a ton of new Architect classes:
-      <br><br>
-      Sheller:<br>
-      Architect but with mini trap turrets attached to the main barrels<br><br>
-      Trilogy of traps:<br>
-      Sheller but with added mega trapper turrets on top<br><br>
-      Bombarder:<br>
-      Sheller but with double the side cannons.<br><br>
-      Fragmentor:<br>
-      The side turrets are now full sized trappers<br><br>
-      auto architect:<br>
-      Self explanatory<br><br>
-      Originator:<br>
-      Architect but with engineer-like traps<br><br>
-      Auto sheller:<br>
-      Also self explanatory.<br><br>
-      Mastertact:<br>
-      Architect but with 5 barrels<br><br>
-      Castle:<br>
-      Architect but has a swarmer between the barrels<br><br>
-      Warzone:<br>
-      Sheller but with swarmers between the barrels<br><br>
-      Constructionist:<br>
-      Shoots constructer traps out of the architect guns<br><br>
+      Added a ton of new Architect classes:
+      <ul>
+        <li>
+          <strong>Sheller</strong>
+          <ul>
+            <li>Architect but with mini trap turrets attached to the main barrels.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Trilogy of Traps</strong>
+          <ul>
+            <li>Sheller but with added mega trapper turrets on top.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Bombarder</strong>
+          <ul>
+            <li>Sheller but with double the side cannons.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Fragmentor</strong>
+          <ul>
+            <li>The side turrets are now full-sized trappers.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Auto Architect</strong>
+          <ul>
+            <li>Self explanatory.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Originator</strong>
+          <ul>
+            <li>Architect but with Engineer-like traps.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Auto Sheller</strong>
+          <ul>
+            <li>Also self explanatory.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Mastertact</strong>
+          <ul>
+            <li>Architect but with 5 barrels.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Castle</strong>
+          <ul>
+            <li>Architect but has a Swarmer between the barrels.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Warzone</strong>
+          <ul>
+            <li>Sheller but with Swarmers between the barrels.</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Constructionist</strong>
+          <ul>
+            <li>Shoots Constructer traps out of the Architect guns.</li>
+          </ul>
+        </li>
+      </ul>
     </li>
-    <li>
-      - Added a new legendary class: Mass Producer
-      <br>
-      - It has one of every new architect gun.
-      <br>
-      - Branches off every architect
-    </li>
-    <p>This may be the last update for a while.</p>
   </ul>
-</section>
-<!-- Prophecy Version 0.0.3 -->
-<section id="prophecy-v0-0-3">
-  <h2># Prophecy Version 0.0.3</h2>
 
-  <h4>- Did a minor rework of The Denied:</h4>
+  <h3>New Legendary Class</h3>
+  <ul>
+    <li>
+      Added a new legendary class: Mass Producer.
+      <ul>
+        <li>It has one of every new Architect gun.</li>
+        <li>Branches off every Architect.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <p>This may be the last update for a while.</p>
+</section>
+
+
+<!-- Prophecy Version 0.0.3 -->
+
+<section id="prophecy-v0-0-3">
+  <h2>Prophecy Version 0.0.3</h2>
+
+  <h3>Rework of The Denied</h3>
   <ul>
     <li>Buffed Ascendant Health.</li>
     <li>Nerfed the Wrathful Shiny Crasher Speed.</li>
     <li>Fort Gates no longer damage Ranar.</li>
-    <li>Health Orbs are now rarer and no longer get damaged by enemies and no longer damage enemies.</li>
-    <li>Health Orbs now always heal = to half of your max hp and shields.</li>
-    <li>Ranar's Spheres have been changed to knockback enemies.</li>
-    <li>The walls no longer instantly break, now you can hide behind them for a brief amount of time.</li>
+    <li>Health Orbs are now rarer and no longer get damaged by enemies or damage enemies.</li>
+    <li>Health Orbs now always heal equal to half of your max HP and shields.</li>
+    <li>Ranar's Spheres have been changed to knock back enemies.</li>
+    <li>The walls no longer instantly break. Now you can hide behind them for a brief amount of time.</li>
     <li>Added a Fort Gate to Twilight's resting point.</li>
     <li>Made the Descendants revivable by Necro Tyrant.</li>
     <li>Added more dialog for certain situations.</li>
   </ul>
 
-  <h4>- Nerfed Arena Guard and its branches.</h4>
+  <h3>Balance and AI Changes</h3>
   <ul>
-    <li>Temporarily removed The Infestation and The Distance modes from the lore server; they will make a comeback, new and improved, in the next update.</li>
+    <li>Nerfed Arena Guard and its branches.</li>
     <li>Made AI of bots, bosses, and enemies SLIGHTLY smarter.</li>
   </ul>
 
-  <h4>- AND BECAUSE IT'S THE MONTH OF OCTOBER, WE INITIATED THE HALLOWEEN EVENT!:</h4>
+  <h3>Game Mode Changes</h3>
   <ul>
+    <li>Temporarily removed The Infestation and The Distance modes from the lore server; they will make a comeback, new and improved, in the next update.</li>
+  </ul>
+
+  <h3>Halloween Event</h3>
+  <ul>
+    <li>AND BECAUSE IT'S THE MONTH OF OCTOBER, WE INITIATED THE HALLOWEEN EVENT!</li>
     <li>The Maze Walls are now painted in black, purple, and orange!</li>
-    <li>Death now roams Ranar's Arena; he will hunt you down, he cannot die, and cannot be escaped, he is inevitable, all you can do is delay death.</li>
+    <li>Death now roams Ranar's Arena; he will hunt you down, he cannot die, and cannot be escaped. He is inevitable. All you can do is delay death.</li>
   </ul>
 </section>
 
+
 <!-- Prophecy Version 0.0.2 -->
+
 <section id="prophecy-v0-0-2">
-  <h2># Prophecy Version 0.0.2</h2>
+  <h2>Prophecy Version 0.0.2</h2>
+
+  <h3>Siege Changes</h3>
   <ul>
-    <li>adjusted siege to stop creating normal waves along side 'Epic' waves</li>
+    <li>Adjusted Siege to stop creating normal waves alongside 'Epic' waves.</li>
     <li>Nerfed the Sardonyx Epic Wave.</li>
-    <li>fixed several bugs, including the graveyard/plague mode one.</li>
-    <li>found a pipe bomb in my closet</li>
-    <li>added Racer(from The Distance lore mode) to Adept.</li>
-    <li>The Guardians repainted the rogue bosses to blue, no more shall they be viewed as potential baddies.</li>
+  </ul>
+
+  <h3>Bug Fixes and Other Changes</h3>
+  <ul>
+    <li>Fixed several bugs, including the graveyard/plague mode one.</li>
+    <li>Found a pipe bomb in my closet.</li>
+    <li>Added Racer (from The Distance lore mode) to Adept.</li>
+    <li>The Guardians repainted the Rogue bosses to blue. No more shall they be viewed as potential baddies.</li>
+  </ul>
+
+  <h3>The Awakening</h3>
+  <ul>
     <li>
-      - Added The Awakening
+      Added The Awakening.
       <ul>
-        <li>Fight off enemies to reach end</li>
-        <li>(this lore mode is very important to Ranar's prophecy)</li>
+        <li>Fight off enemies to reach the end.</li>
+        <li>This lore mode is very important to Ranar's prophecy.</li>
       </ul>
     </li>
+  </ul>
+
+  <h3>Arena Guard</h3>
+  <ul>
     <li>
-      and because of this, we added Arena Guard as a legendary class!:
+      And because of this, we added Arena Guard as a legendary class!
       <ul>
         <li>Obtain this by either getting 1 Mil on the Neutral Alliance OR obtaining 1 Mil as a Master in Siege.</li>
-        <li>When you become it, your score is divided by 10, why?</li>
+        <li>When you become it, your score is divided by 10. Why?</li>
         <li>Because it has a BUNCH of branches! Yep, thanks to J.J., this class has a good amount of choices, and you get more upgrades as you gain score!</li>
       </ul>
     </li>
-    <li>also added the Aetherian Enemies and Bosses to siege.</li>
+  </ul>
+
+  <h3>Siege Additions</h3>
+  <ul>
+    <li>Also added the Aetherian Enemies and Bosses to Siege.</li>
   </ul>
 </section>
 
-<!-- Prophecy Version 0.0.1 -->
-<section id="prophecy-v0-0-1">
-  <h2># Prophecy Version 0.0.1</h2>
 
-  <h4>-Siege</h4>
+<!-- Prophecy Version 0.0.1 -->
+
+<section id="prophecy-v0-0-1">
+  <h2>Prophecy Version 0.0.1</h2>
+
+  <h3>Siege</h3>
   <ul>
     <li>Fixed the multiple waves glitch and the instant loss.</li>
     <li>You now spawn with 3 extra skill points per 10 waves.</li>
-    <li>On the 50th wave and every 10 waves beyond that, EVERY epic wave boss will spawn.</li>
+    <li>On the 50th wave and every 10 waves beyond that, EVERY Epic wave boss will spawn.</li>
   </ul>
 
-  <h4>-New Tanks:</h4>
+  <h3>New Tanks</h3>
   <ul>
     <li>Added Skulker, the Invisible Hunter. Branches off Hunter and Creeper.</li>
-    <li>Added Lordtrapper, yea, just...add 2 Drone spawners. Branches off Overtrapper and Overlord.</li>
+    <li>Added Lordtrapper. Yea, just... add 2 Drone spawners. Branches off Overtrapper and Overlord.</li>
     <li>Added Octo-Builder, Builder X 8. Branches off Quad-Builder.</li>
     <li>Added Shade, the Ultimate Nightmare. Branches off Creeper.</li>
   </ul>
 </section>
 
+
 <!-- Prophecy Version 0.0.0 -->
+
 <section id="prophecy-v0-0-0">
-  <h2># Prophecy Version 0.0.0</h2>
-  <h3>Twilight's Prophecy (new era introduction).</h3>
-  <h4>- Added a new racing lore mode, The Distance.</h4>
+  <h2>Prophecy Version 0.0.0</h2>
+
+  <h3>Twilight's Prophecy</h3>
+  <p>New era introduction.</p>
+
+  <h3>New Racing Lore Mode</h3>
   <ul>
+    <li>Added a new racing lore mode, The Distance.</li>
     <li>In this mode, you play as a unique tank called The Racer.</li>
     <li>Reach lap 7 to win the race, but be cautious, something is there with you.</li>
+  </ul>
+
+  <h3>Other Changes</h3>
+  <ul>
     <li>Reworked Siege with boss events and more rebel bosses.</li>
     <li>Balanced bosses in The Controlled, making them killable.</li>
     <li>Added new tanks: Collider and Smashersphere.</li>
     <li>Split the server into two: ranars-prophecy.glitch.me and ranars-arena.glitch.me.</li>
-  </ul>
-</section>
-<!-- Prophecy Version 0.1.0 -->
-<section id="prophecy-v0-1-0">
-  <h2># Prophecy Version 0.1.0</h2>
-  <p>NEW UPDATE!</p>
-
-  <ul>
-    <li>Readjusted how chat and the main menu look.</li>
-    <li>Rebalanced all drone classes, trapper classes, twin classes, and gunner classes.</li>
-    <li>Changed AI wandering to pause briefly.</li>
-    <li>Attacking AI entities will not fire through walls or obstacles unless they are capable of shooting through or destroying them.</li>
-    <li>Attacking AI will prioritize entities that damage them excessively, consistently damage them, or damage them while they are at low health.</li>
-    <li>Some AI's will have a certain... intelligence to them.</li>
-    <li>Nerfed the launch speed of Flinger/Slinger traps.</li>
-    <li>Nerfed the Shooter branch.</li>
-    <li>Nerfed Auto-Classes.</li>
-    <li>Nerfed Cyclone.</li>
-    <li>Buffed Mega-gun.</li>
-    <li>Nerfed Auto-4.</li>
-    <li>Reworked how Trap damage is calculated.</li>
-    <li>Server now closes more efficiently. Updates that close the server will restore the score to all players that rejoin within 5 minutes, once.</li>
-    <li>Added Thrasher (from Bulwark and Sniper Guard).</li>
-    <li>Added Quad-Engineer (from Quad-Builder and Engineer).</li>
-    <li>Added Mega-Flinger (from Mega-Trapper and Flinger).</li>
-    <li>
-      Necro Changes:
-      <ul>
-        <li>Underseer classes can now ram polygons to infect them!</li>
-        <li>Additionally, if you are an Underseer class with a weapon (such as Undertrapper), your weapons can also infect the appropriate polygons!</li>
-      </ul>
-    </li>
-    <li>Dominators and Fortress Walls/Gates no longer regenerate health. Shields only, unless healed via repairing.</li>
-    <li>Probably other shit we forgot to mention.</li>
   </ul>
 </section>
   </div>
