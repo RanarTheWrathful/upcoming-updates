@@ -26328,14 +26328,142 @@ const server = http.createServer((req, res) => {
       background-color: rgba(0, 0, 0, 0.5); /* Adding a semi-transparent background to game modes for better readability */
       padding: 10px;
     }
+  .changelog {
+    max-width: 1000px;
+    margin: 30px auto;
+    padding: 20px;
+    color: #e5e5e5;
+    font-family: Arial, sans-serif;
+  }
+
+  .changelog section {
+    position: relative;
+    margin: 0 0 35px;
+    padding: 25px 30px;
+    background: #17191f;
+    border: 1px solid #30343e;
+    border-left: 4px solid #8b65d6;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  }
+
+  .changelog h2 {
+    margin: 0 0 15px;
+    padding-bottom: 12px;
+    color: #c6a5ff;
+    font-size: 26px;
+    border-bottom: 2px solid #393044;
+  }
+
+  .changelog h3 {
+    margin: 25px 0 12px;
+    padding: 9px 13px;
+    color: #e0caff;
+    font-size: 18px;
+    background: #25202f;
+    border-left: 3px solid #a77be8;
+    border-radius: 4px;
+  }
+
+  .changelog h4 {
+    margin: 20px 0 10px;
+    color: #c6a5ff;
+    font-size: 16px;
+  }
+
+  .changelog p {
+    margin: 12px 0;
+    line-height: 1.7;
+    color: #c9c9d0;
+  }
+
+  .changelog p strong {
+    color: #f0c878;
+    letter-spacing: 1px;
+  }
+
+  .changelog ul {
+    margin: 10px 0 15px;
+    padding-left: 25px;
+    list-style: none;
+  }
+
+  .changelog li {
+    position: relative;
+    margin: 8px 0;
+    padding: 7px 12px 7px 17px;
+    color: #d6d6dc;
+    line-height: 1.6;
+    background: rgba(255, 255, 255, 0.025);
+    border-radius: 5px;
+  }
+
+  .changelog li::before {
+    content: "◆";
+    position: absolute;
+    left: 0;
+    top: 10px;
+    color: #a77be8;
+    font-size: 9px;
+  }
+
+  .changelog li ul {
+    margin: 8px 0 5px;
+    padding-left: 20px;
+  }
+
+  .changelog li li {
+    background: rgba(167, 123, 232, 0.07);
+    border-left: 2px solid #514065;
+  }
+
+  .changelog li li::before {
+    content: "›";
+    top: 5px;
+    color: #d0adff;
+    font-size: 17px;
+  }
+
+  .changelog li li li {
+    background: rgba(255, 255, 255, 0.025);
+    border-left: 2px solid #39343f;
+  }
+
+  .changelog li li li::before {
+    content: "•";
+    top: 7px;
+    color: #999;
+    font-size: 14px;
+  }
+
+  .changelog section > p:last-child {
+    margin-top: 25px;
+    padding-top: 15px;
+    color: #e0caff;
+    border-top: 1px solid #393044;
+  }
+
+  .changelog br {
+    line-height: 2;
+  }
+
+  .changelog strong {
+    color: #f0c878;
+  }
+
+  @media (max-width: 600px) {
     .changelog {
-      width: 45%; /* Full width */
-      margin-bottom: 20px;
-      background-color: rgba(0, 0, 0, 0.5); /* Adding a semi-transparent background for better readability */
       padding: 10px;
-      overflow-y: auto; /* Enable vertical scrolling */
-      max-height: 400px; /* Set a max height for the scrollable area */
     }
+
+    .changelog section {
+      padding: 18px 15px;
+    }
+
+    .changelog h2 {
+      font-size: 22px;
+    }
+  }
     .button-container {
       text-align: center;
       width: 100%;
